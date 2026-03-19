@@ -1,0 +1,9 @@
+fastapi[standard]
+python-multipart
+firebase-admin
+uvicorn
+python-dotenv
+pandas
+requests
+playwright
+openpyxl

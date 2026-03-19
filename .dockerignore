@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+.gitignore
+*.log
+api/__pycache__
+api/.env
+.venv
+dist
+build
+.dockerignore
+.gcloudignore
+Dockerfile*
+README.md
