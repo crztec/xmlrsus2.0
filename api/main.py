@@ -537,13 +537,18 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 db.add_log(task_id, "INFO", "Enviando formulário de importação...")
                 success_click = False
                 
-                # Seletores refinados para o portal RSUS
+                # Seletores refinados para o portal RSUS (Priorizando o que o usuário indicou)
                 import_selectors = [
+                    "a:has-text('IMPORTAR ARQUIVO')", 
+                    "button:has-text('IMPORTAR ARQUIVO')",
                     "button:has-text('Importar')", 
                     "input[type='submit'][value*='Importar']",
-                    ".btn-primary:has-text('Importar')",
-                    "a:has-text('IMPORTAR ARQUIVO')" # Fallback se for link
+                    ".btn-primary:has-text('Importar')"
                 ]
+                
+                # Rola para o topo para garantir visibilidade da barra de ferramentas superior
+                await page.evaluate("window.scrollTo(0, 0)")
+                await asyncio.sleep(1)
                 
                 for selector in import_selectors:
                     try:
