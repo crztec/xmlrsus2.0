@@ -431,10 +431,27 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 except Exception as img_err:
                     logger.error(f"Erro ao capturar/salvar screenshot: {img_err}")
                 raise e
-            # Aguarda carregar ou verifica se logou
-            await page.wait_for_load_state("networkidle")
-            if "Login" in page.url:
-                db.add_log(task_id, "ERROR", "Falha na autenticação. Verifique usuário e senha.")
+            # 1.3 Aguarda redirecionamento ou erro de login
+            db.add_log(task_id, "INFO", "Aguardando processamento do login...")
+            try:
+                # Espera 15s por uma mudança de URL que SAIA do /Login ou por carregamento de rede
+                await page.wait_for_function("""() => {
+                    return !window.location.href.toLowerCase().includes('login') || 
+                           document.querySelector('#numeroProtocolo') !== null;
+                }""", timeout=20000)
+            except:
+                pass
+                
+            # Verifica se ainda estamos na página de login (o que indica erro de credenciais ou travamento)
+            current_url = page.url.lower()
+            if "login" in current_url and await page.locator("input#password, input#Password").count() > 0:
+                # Tira print do erro se ainda estiver na tela
+                db.add_log(task_id, "ERROR", "Ainda na página de login após o clique. Verifique credenciais.")
+                try:
+                    screenshot_path = f"debug/screenshots/{task_id}_login_fail_still_there.png"
+                    img_bytes = await page.screenshot()
+                    db.upload_xml_to_storage(task_id, screenshot_path, img_bytes)
+                except: pass
                 await browser.close()
                 db.firestore_db.collection('tasks').document(task_id).update({'status': 'ERRO'})
                 return
