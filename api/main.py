@@ -525,8 +525,8 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 db.add_log(task_id, "INFO", f"[{i+1}/{total}] Iniciando preenchimento do ABI {abi}...")
                 
                 try:
-                    # ─── ETAPA 1: Preencher campo Protocolo ───
-                    num_processo = file.get('numero_processo') or abi
+                    # ─── ETAPA 1: Preencher campo Protocolo (somente numeroProcesso do XML) ───
+                    num_processo = file.get('numero_processo', '')
                     db.add_log(task_id, "INFO", f"Preenchendo Protocolo: {num_processo}")
                     protocolo_field = form_target.locator("input#numeroProtocolo").first
                     await protocolo_field.click()
