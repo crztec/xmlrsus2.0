@@ -289,30 +289,26 @@ async def background_worker_task(task_id: str, url_sistema: str):
             try:
                 # Flags para maior invisibilidade e compatibilidade
                 browser = await p.chromium.launch(
-                    headless=True,
+                    headless=True, 
                     args=[
-                        "--disable-blink-features=AutomationControlled",
-                        "--no-sandbox",
-                        "--disable-setuid-sandbox"
+                        "--no-sandbox", 
+                        "--disable-setuid-sandbox", 
+                        "--disable-dev-shm-usage",
+                        "--disable-gpu"
                     ]
                 )
             except Exception as launch_err:
-                # ... (manter lógica de auto-instalação)
+                # Se falhar, tenta instalar apenas como último recurso
                 if "Executable doesn't exist" in str(launch_err):
-                    db.add_log(task_id, "INFO", "Navegador não encontrado. Tentando instalar dependências automaticamente...")
+                    db.add_log(task_id, "INFO", "Binários não encontrados, tentando instalação rápida...")
                     import subprocess
                     import sys
-                    try:
-                        subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], check=True)
-                        db.add_log(task_id, "INFO", "Navegador instalado com sucesso. Reiniciando automação...")
-                        browser = await p.chromium.launch(headless=True, args=["--no-sandbox"])
-                    except Exception as inst_err:
-                        db.add_log(task_id, "ERROR", f"Falha na instalação automática: {inst_err}")
-                        raise launch_err
+                    subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], check=False)
+                    browser = await p.chromium.launch(headless=True, args=["--no-sandbox"])
                 else:
                     raise launch_err
-            
-            # Configura Contexto com User-Agent real e ignora erros de SSL
+
+            # Novo contexto com Stealth Básico (UA + Viewport)
             context = await browser.new_context(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
                 viewport={'width': 1920, 'height': 1080},
