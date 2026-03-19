@@ -10,6 +10,12 @@ import api.auth as auth
 import api.parser as parser
 from playwright.async_api import async_playwright
 import tempfile
+import logging
+import sys
+
+# Configure standard logging
+logging.basicConfig(level=logging.INFO, stream=sys.stdout, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="GAX API")
 
@@ -368,19 +374,31 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 
                 # Procura o botão de login (#logIn é o padrão do RSUS)
                 db.add_log(task_id, "INFO", "Clicando em entrar...")
+                # Tenta localizar o botão de forma clara
                 btn_login = page.locator("#logIn, button[type='submit'], button:has-text('Entrar'), button:has-text('Logar')").first
-                await btn_login.click()
                 
-                # Aguarda transição
+                try:
+                    # Garantir que o botão está pronto para o clique
+                    await btn_login.wait_for(state="visible", timeout=10000)
+                    await btn_login.click(timeout=10000)
+                except Exception as click_err:
+                    db.add_log(task_id, "WARNING", f"Clique direto falhou ({str(click_err)[:50]}). Tentando Enter...")
+                    # Fallback: foca no campo de senha (ou no botão se possível) e aperta Enter
+                    await pass_field.focus()
+                    await page.keyboard.press("Enter")
+                
+                # Aguarda transição ou verificação rápida de erro
                 await page.wait_for_timeout(5000)
             except Exception as e:
+                import traceback
+                error_detail = traceback.format_exc()
                 # Captura screenshot em caso de erro de login/timeout
                 screenshot_path = f"/tmp/error_login_{task_id}.png"
                 page_url = page.url
-                db.add_log(task_id, "ERROR", f"Falha no formulário. URL Atual: {page_url}")
+                db.add_log(task_id, "ERROR", f"Falha no formulário: {str(e)}. URL Atual: {page_url}")
+                logger.error(f"DETALHE DO ERRO NO FORMULÁRIO: {error_detail}")
                 try:
                     await page.screenshot(path=screenshot_path)
-                    db.add_log(task_id, "DEBUG", "Sugestão: Verifique se a URL de login redirecionou corretamente.")
                 except: pass
                 raise e
             # Aguarda carregar ou verifica se logou
