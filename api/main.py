@@ -458,15 +458,79 @@ async def background_worker_task(task_id: str, url_sistema: str):
             
             db.add_log(task_id, "SUCCESS", "Login realizado com sucesso.")
 
-            # 2. Navegação para Importação
-            db.add_log(task_id, "INFO", f"Navegando para: {url_sistema}")
-            try:
-                await page.goto(url_sistema, wait_until="domcontentloaded", timeout=60000)
-                # Pequena espera para scripts dinâmicos carregarem
-                await asyncio.sleep(3)
-            except Exception as nav_err:
-                db.add_log(task_id, "WARNING", f"Navegação lenta: {str(nav_err)[:80]}. Verificando se a página carregou...")
-                await asyncio.sleep(5)
+            # 2. Navegação para Importação via MENU (o portal é SPA, goto direto não funciona)
+            db.add_log(task_id, "INFO", "Navegando para formulário de importação via menu...")
+            
+            # Espera a página interna carregar após o login
+            await asyncio.sleep(3)
+            
+            # Estratégia 1: Tenta clicar no menu lateral "Importação" → link para "Novo"
+            nav_success = False
+            
+            # Seletores para o menu de importação no portal RSUS
+            menu_selectors = [
+                # Link direto para importação/novo no menu
+                "a[href*='importacao/novo']",
+                "a[href*='Importacao/Novo']",
+                "a[href*='/importacao']",
+                # Texto do menu
+                "a:has-text('Importação')",
+                "a:has-text('Importar')",
+                "a:has-text('Nova Importação')",
+                # Menu com ícone
+                "li:has-text('Importação') a",
+            ]
+            
+            for sel in menu_selectors:
+                try:
+                    menu_link = page.locator(sel).first
+                    if await menu_link.is_visible(timeout=3000):
+                        db.add_log(task_id, "INFO", f"Menu encontrado: {sel}")
+                        await menu_link.click()
+                        nav_success = True
+                        break
+                except:
+                    continue
+            
+            # Se não encontrou via menu, tenta o link direto como fallback
+            if not nav_success:
+                db.add_log(task_id, "INFO", "Menu não encontrado. Tentando navegação direta...")
+                try:
+                    # Usa JavaScript para navegar dentro da SPA
+                    await page.evaluate(f"window.location.href = '{url_sistema}'")
+                    await asyncio.sleep(5)
+                except:
+                    pass
+            
+            # Espera a página de importação carregar
+            await asyncio.sleep(3)
+            
+            # Verifica se a URL mudou para a página de importação
+            current_url = page.url
+            db.add_log(task_id, "INFO", f"URL atual após navegação: {current_url}")
+            
+            # Se a URL não tem "importacao", precisa de um segundo nível de clique
+            if "importacao" not in current_url.lower():
+                db.add_log(task_id, "INFO", "Tentando segundo nível de navegação...")
+                # Tenta "Novo" ou o botão de criar nova importação
+                novo_selectors = [
+                    "a[href*='importacao/novo']",
+                    "a[href*='Importacao/Novo']",
+                    "a:has-text('Novo')",
+                    "a:has-text('Nova Importação')",
+                    "button:has-text('Novo')",
+                    ".fa-plus, .glyphicon-plus",  # Ícone de "+"
+                ]
+                for sel in novo_selectors:
+                    try:
+                        link = page.locator(sel).first
+                        if await link.is_visible(timeout=2000):
+                            await link.click()
+                            await asyncio.sleep(3)
+                            db.add_log(task_id, "INFO", f"Clique em '{sel}' realizado")
+                            break
+                    except:
+                        continue
             
             # 2.1 Localiza o form (suporte a iframes se necessário)
             form_target = page
@@ -736,9 +800,9 @@ async def background_worker_task(task_id: str, url_sistema: str):
                     else:
                         await asyncio.sleep(5)
                     
-                    # Refresh para limpar campos
-                    await page.goto(url_sistema, wait_until="domcontentloaded", timeout=60000)
-                    await asyncio.sleep(3)
+                    # Refresh para limpar campos (reload em vez de goto para preservar SPA)
+                    await page.reload(wait_until="domcontentloaded", timeout=60000)
+                    await asyncio.sleep(5)
 
             await browser.close()
             
