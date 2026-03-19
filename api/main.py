@@ -371,13 +371,13 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 # Procura o botão de login (#logIn é o padrão do RSUS)
                 db.add_log(task_id, "INFO", "Calculando seletores de login...")
                 # Filtra especificamente por botões visíveis para evitar clicar em modais ocultos
-                btn_locator = page.locator("#logIn, button[type='submit'], [name='Login'], button:has-text('Entrar'), .btn-success:has-text('Entrar')")
+                btn_locator = page.locator("#logIn:visible, button[type='submit']:visible, [name='Login']:visible, button:has-text('Entrar'):visible")
                 count = await btn_locator.count()
-                db.add_log(task_id, "INFO", f"Encontrados {count} botões de login potenciais. Clicando no primeiro visível...")
+                db.add_log(task_id, "INFO", f"Encontrados {count} botões de login visíveis. Clicando no primeiro...")
                 
                 try:
                     # Tenta o primeiro visível
-                    btn_login = btn_locator.filter(has_state="visible").first
+                    btn_login = btn_locator.first
                     await btn_login.wait_for(state="visible", timeout=10000)
                     # Clique forçado para ignorar elementos sobrepostos se necessário
                     await btn_login.click(timeout=10000, force=True)
