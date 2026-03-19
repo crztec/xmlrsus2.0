@@ -536,53 +536,80 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 # Clique no botão Importar (Usa seletor exato do subheader)
                 db.add_log(task_id, "INFO", "Enviando formulário de importação...")
                 success_click = False
-                for attempt in range(2):
+                
+                # Seletores refinados para o portal RSUS
+                import_selectors = [
+                    "button:has-text('Importar')", 
+                    "input[type='submit'][value*='Importar']",
+                    ".btn-primary:has-text('Importar')",
+                    "a:has-text('IMPORTAR ARQUIVO')" # Fallback se for link
+                ]
+                
+                for selector in import_selectors:
                     try:
-                        # Seletor baseado na inspeção: botão IMPORTAR ARQUIVO no header cinza
-                        btn = page.locator("a.dropdown-toggle:has-text('IMPORTAR ARQUIVO'), button:has-text('Importar'), .btn-primary:has-text('Importar')").first
-                        await btn.click()
-                        success_click = True
-                        break
+                        btn = page.locator(selector).first
+                        if await btn.is_visible(timeout=2000):
+                            await btn.click(force=True)
+                            success_click = True
+                            db.add_log(task_id, "INFO", f"Clique realizado com seletor: {selector}")
+                            break
                     except:
-                        await asyncio.sleep(1)
+                        continue
                 
                 if not success_click:
-                    db.add_log(task_id, "ERROR", f"Não foi possível clicar no botão de Importar para ABI {abi}")
+                    db.add_log(task_id, "ERROR", f"Não foi possível localizar o botão de Importar para ABI {abi}")
+                    # Screenshot de debug do formulário
+                    try:
+                        screenshot_path = f"debug/screenshots/{task_id}_abi_{abi}_form_error.png"
+                        img_bytes = await page.screenshot(full_page=True)
+                        db.upload_xml_to_storage(task_id, screenshot_path, img_bytes)
+                        db.add_log(task_id, "DEBUG", f"Screenshot do formulário salvo em: {screenshot_path}")
+                    except: pass
                     db.firestore_db.collection('task_files').document(file['id']).update({
                         'status_importacao': 'ERRO',
-                        'error_message': 'Botão Importar não respondeu'
+                        'error_message': 'Botão Importar não respondeu ou não foi encontrado'
                     })
                     continue
 
                 # Aguarda processamento do portal com verificação de sucesso REAL
                 db.add_log(task_id, "INFO", "Aguardando confirmação do portal...")
                 
+                # Pequena espera para o portal reagir
+                await asyncio.sleep(3)
+                
                 status_final_abi = "ERROR"
                 msg_feedback = ""
                 
-                # Loop de verificação de mensagens (SIS...) por até 30s
-                for _ in range(30):
-                    # Procura no container de mensagens do topo
-                    container_msg = page.locator(".header-message-top, .browseralert").first
+                # Loop de verificação de mensagens (SIS...) por até 45s
+                for _ in range(45):
+                    # Procura no container de mensagens (e também em alertas de sistema)
+                    container_msg = page.locator(".header-message-top, .browseralert, .modal-content, .alert").first
                     if await container_msg.is_visible(timeout=500):
                         msg_text = await container_msg.inner_text()
                         
-                        # SIS00010 é o código de sucesso padrão do RSUS
+                        # Códigos de retorno do RSUS: SIS00010 (Sucesso), SIS... (Erros)
                         if "SIS00010" in msg_text or "sucesso" in msg_text.lower():
                             db.add_log(task_id, "SUCCESS", f"Portal confirmou ABI {abi}: {msg_text[:100]}")
                             status_final_abi = "SUCCESS"
                             msg_feedback = msg_text
                             break
-                        elif "SIS" in msg_text or "erro" in msg_text.lower() or "inválid" in msg_text.lower():
+                        elif "SIS" in msg_text or "erro" in msg_text.lower() or "inválid" in msg_text.lower() or "não encontrado" in msg_text.lower():
                             db.add_log(task_id, "ERROR", f"Portal recusou ABI {abi}: {msg_text[:150]}")
                             status_final_abi = "ERROR"
                             msg_feedback = msg_text
                             break
                     await asyncio.sleep(1)
                 
+                # Se após 45s não confirmou, tira novo print para ver o que sobrou na tela
                 if status_final_abi == "ERROR" and not msg_feedback:
-                    db.add_log(task_id, "WARNING", f"ABI {abi}: Sem resposta SIS confirmada após 30s.")
-                    msg_feedback = "Timeout aguardando confirmação SIS"
+                    db.add_log(task_id, "WARNING", f"ABI {abi}: Sem resposta SIS confirmada após 45s. Capturando tela...")
+                    try:
+                        screenshot_path = f"debug/screenshots/{task_id}_abi_{abi}_timeout.png"
+                        img_bytes = await page.screenshot(full_page=True)
+                        db.upload_xml_to_storage(task_id, screenshot_path, img_bytes)
+                        db.add_log(task_id, "DEBUG", f"Screenshot do timeout salvo em: {screenshot_path}")
+                    except: pass
+                    msg_feedback = "Timeout aguardando confirmação (Verificar screenshot)"
                 
                 # Atualiza status do arquivo no Firestore
                 db.firestore_db.collection('task_files').document(file['id']).update({
