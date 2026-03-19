@@ -459,16 +459,21 @@ async def background_worker_task(task_id: str, url_sistema: str):
             db.add_log(task_id, "SUCCESS", "Login realizado com sucesso.")
 
             # 2. Navegação para o formulário de importação
-            # Após login, o portal vai para /importacao (lista). 
-            # Para abrir o formulário, clicar em "SELECIONAR ARQUIVO" na barra superior.
-            db.add_log(task_id, "INFO", "Aguardando página de importações carregar...")
-            await asyncio.sleep(5)
+            # Após login, o portal redireciona para a raiz (/). Precisa ir para /importacao primeiro.
+            db.add_log(task_id, "INFO", "Navegando para página de importações...")
+            await asyncio.sleep(2)
             
-            # Log da URL atual para diagnóstico
             current_url = page.url
             db.add_log(task_id, "INFO", f"URL pós-login: {current_url}")
             
-            # Clica em "SELECIONAR ARQUIVO" para abrir o formulário
+            # Navega para /importacao (página da lista)
+            if "importacao" not in current_url.lower():
+                db.add_log(task_id, "INFO", f"Navegando para {base_url}/importacao...")
+                await page.goto(f"{base_url}/importacao", wait_until="domcontentloaded", timeout=60000)
+                await asyncio.sleep(5)
+                db.add_log(task_id, "INFO", f"URL atual: {page.url}")
+            
+            # Clica em "SELECIONAR ARQUIVO" para abrir o formulário (canto superior esquerdo)
             db.add_log(task_id, "INFO", "Procurando botão SELECIONAR ARQUIVO...")
             selecionar_btn = None
             selecionar_selectors = [
@@ -491,7 +496,7 @@ async def background_worker_task(task_id: str, url_sistema: str):
             if selecionar_btn:
                 await selecionar_btn.click()
                 db.add_log(task_id, "INFO", "Clique em SELECIONAR ARQUIVO realizado ✓")
-                await asyncio.sleep(3)
+                await asyncio.sleep(5)
             else:
                 db.add_log(task_id, "WARNING", "Botão SELECIONAR ARQUIVO não encontrado. Tirando screenshot...")
                 try:
