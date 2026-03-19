@@ -353,25 +353,40 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 except:
                     pass
 
-                # 1.2 Localizar e preencher campos
+                # 1.2 Localizar campos (suporte a iframes)
                 db.add_log(task_id, "INFO", "Localizando campos de credenciais...")
                 
-                # Espera por qualquer um dos seletores comuns de email
+                # Tenta encontrar no quadro principal primeiro
+                target = page
                 email_field = page.locator("input#email, input#Email, [name='Email'], [name='email']").first
-                await email_field.wait_for(state="visible", timeout=20000)
                 
-                # Preenche credenciais usando locators para maior precisão
+                # Se não encontrar no principal após 5s, varre os iframes
+                if await email_field.count() == 0:
+                    db.add_log(task_id, "INFO", "Campos não encontrados no quadro principal. Varrendo IFrames...")
+                    for frame in page.frames:
+                        if "Login" in (frame.name or "") or "/Account/Login" in frame.url:
+                            f_email = frame.locator("input#email, input#Email, [name='Email']").first
+                            if await f_email.count() > 0:
+                                db.add_log(task_id, "INFO", f"Formulário encontrado no IFrame: {frame.name or frame.url}")
+                                target = frame
+                                email_field = f_email
+                                break
+                
+                # Aguarda visibilidade final no alvo selecionado (página ou iframe)
+                await email_field.wait_for(state="visible", timeout=15000)
+                
+                # Preenche credenciais
                 db.add_log(task_id, "INFO", "Preenchendo usuário...")
                 await email_field.fill(usuario)
                 
-                pass_field = page.locator("input#password, input#Password, [name='Password'], [name='password']").first
+                pass_field = target.locator("input#password, input#Password, [name='Password'], [name='password']").first
                 db.add_log(task_id, "INFO", "Preenchendo senha...")
                 await pass_field.fill(senha)
                 
                 # Procura o botão de login (#logIn é o padrão do RSUS)
                 db.add_log(task_id, "INFO", "Calculando seletores de login...")
                 # Filtra especificamente por botões visíveis para evitar clicar em modais ocultos
-                btn_locator = page.locator("#logIn:visible, button[type='submit']:visible, [name='Login']:visible, button:has-text('Entrar'):visible")
+                btn_locator = target.locator("#logIn:visible, button[type='submit']:visible, [name='Login']:visible, button:has-text('Entrar'):visible")
                 count = await btn_locator.count()
                 db.add_log(task_id, "INFO", f"Encontrados {count} botões de login visíveis. Clicando no primeiro...")
                 
