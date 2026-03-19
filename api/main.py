@@ -373,22 +373,31 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 await pass_field.fill(senha)
                 
                 # Procura o botão de login (#logIn é o padrão do RSUS)
-                db.add_log(task_id, "INFO", "Clicando em entrar...")
-                # Tenta localizar o botão de forma clara
-                btn_login = page.locator("#logIn, button[type='submit'], button:has-text('Entrar'), button:has-text('Logar')").first
+                db.add_log(task_id, "INFO", "Calculando seletores de login...")
+                # Filtra especificamente por botões visíveis para evitar clicar em modais ocultos
+                btn_locator = page.locator("#logIn, button[type='submit'], [name='Login'], button:has-text('Entrar'), .btn-success:has-text('Entrar')")
+                count = await btn_locator.count()
+                db.add_log(task_id, "INFO", f"Encontrados {count} botões de login potenciais. Clicando no primeiro visível...")
                 
                 try:
-                    # Garantir que o botão está pronto para o clique
+                    # Tenta o primeiro visível
+                    btn_login = btn_locator.filter(has_state="visible").first
                     await btn_login.wait_for(state="visible", timeout=10000)
-                    await btn_login.click(timeout=10000)
+                    # Clique forçado para ignorar elementos sobrepostos se necessário
+                    await btn_login.click(timeout=10000, force=True)
                 except Exception as click_err:
-                    db.add_log(task_id, "WARNING", f"Clique direto falhou ({str(click_err)[:50]}). Tentando Enter...")
-                    # Fallback: foca no campo de senha (ou no botão se possível) e aperta Enter
+                    db.add_log(task_id, "WARNING", f"Clique direto falhou: {str(click_err)[:80]}. Tentando JS/Enter...")
+                    # Fallback 1: Disparar evento de clique via JS (ignora overlays e visibilidade)
+                    try:
+                        await page.evaluate("() => { const b = document.querySelector('#logIn, button[type=\"submit\"], [name=\"Login\"]'); if(b) b.click(); }")
+                    except: pass
+                    # Fallback 2: Tecla Enter
                     await pass_field.focus()
                     await page.keyboard.press("Enter")
                 
                 # Aguarda transição ou verificação rápida de erro
-                await page.wait_for_timeout(5000)
+                db.add_log(task_id, "INFO", "Aguardando redirecionamento pós-login...")
+                await page.wait_for_timeout(8000)
             except Exception as e:
                 import traceback
                 error_detail = traceback.format_exc()
@@ -399,7 +408,17 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 logger.error(f"DETALHE DO ERRO NO FORMULÁRIO: {error_detail}")
                 try:
                     await page.screenshot(path=screenshot_path)
-                except: pass
+                    # Upload do screenshot para o Storage para podermos visualizar
+                    with open(screenshot_path, 'rb') as f:
+                        buf = f.read()
+                        remote_path = f"debug/screenshots/{task_id}_login_error.png"
+                        # Reuso a função de upload mudando o content_type (hack para debug)
+                        bucket = db.storage.bucket()
+                        blob = bucket.blob(remote_path)
+                        blob.upload_from_string(buf, content_type='image/png')
+                        db.add_log(task_id, "DEBUG", f"Screenshot do erro salvo em: {remote_path}")
+                except Exception as img_err:
+                    logger.error(f"Erro ao capturar/salvar screenshot: {img_err}")
                 raise e
             # Aguarda carregar ou verifica se logou
             await page.wait_for_load_state("networkidle")
