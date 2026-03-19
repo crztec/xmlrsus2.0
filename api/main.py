@@ -460,7 +460,13 @@ async def background_worker_task(task_id: str, url_sistema: str):
 
             # 2. Navegação para Importação
             db.add_log(task_id, "INFO", f"Navegando para: {url_sistema}")
-            await page.goto(url_sistema, wait_until="networkidle", timeout=60000)
+            try:
+                await page.goto(url_sistema, wait_until="domcontentloaded", timeout=60000)
+                # Pequena espera para scripts dinâmicos carregarem
+                await asyncio.sleep(3)
+            except Exception as nav_err:
+                db.add_log(task_id, "WARNING", f"Navegação lenta: {str(nav_err)[:80]}. Verificando se a página carregou...")
+                await asyncio.sleep(5)
             
             # 2.1 Localiza o form (suporte a iframes se necessário)
             form_target = page
@@ -471,21 +477,29 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 if await page.locator(protocolo_selector).count() == 0:
                     db.add_log(task_id, "INFO", "Campo de protocolo não encontrado no quadro principal. Varrendo IFrames...")
                     for frame in page.frames:
-                        if await frame.locator(protocolo_selector).count() > 0:
-                            db.add_log(task_id, "INFO", f"Formulário de importação encontrado no IFrame: {frame.name or frame.url}")
-                            form_target = frame
-                            break
+                        try:
+                            if await frame.locator(protocolo_selector).count() > 0:
+                                db.add_log(task_id, "INFO", f"Formulário encontrado no IFrame: {frame.name or frame.url}")
+                                form_target = frame
+                                break
+                        except:
+                            continue
                 
                 # Aguarda o campo estar pronto no alvo (seja page ou frame)
                 await form_target.locator(protocolo_selector).wait_for(state="visible", timeout=20000)
+                db.add_log(task_id, "INFO", "Campo de protocolo encontrado e visível ✓")
             except Exception as e:
-                db.add_log(task_id, "ERROR", f"Campo de protocolo não apareceu: {str(e)}")
-                # Screenshot de diagnóstico da página atual
+                db.add_log(task_id, "ERROR", f"Campo de protocolo não apareceu: {str(e)[:100]}")
+                # Screenshot de diagnóstico
                 try:
                     screenshot_path = f"debug/screenshots/{task_id}_form_not_found.png"
                     img_bytes = await page.screenshot(full_page=True)
-                    db.upload_xml_to_storage(task_id, screenshot_path, img_bytes)
-                    db.add_log(task_id, "DEBUG", f"Screenshot da falha no form: {screenshot_path}")
+                    db.upload_screenshot(screenshot_path, img_bytes)
+                    db.add_log(task_id, "DEBUG", f"Screenshot salvo: {screenshot_path}")
+                    # Também loga o HTML para diagnóstico
+                    current_url = page.url
+                    title = await page.title()
+                    db.add_log(task_id, "DEBUG", f"URL atual: {current_url} | Título: {title}")
                 except: pass
                 await browser.close()
                 db.firestore_db.collection('tasks').document(task_id).update({'status': 'ERRO'})
@@ -723,7 +737,7 @@ async def background_worker_task(task_id: str, url_sistema: str):
                         await asyncio.sleep(5)
                     
                     # Refresh para limpar campos
-                    await page.goto(url_sistema, wait_until="networkidle", timeout=60000)
+                    await page.goto(url_sistema, wait_until="domcontentloaded", timeout=60000)
                     await asyncio.sleep(3)
 
             await browser.close()
