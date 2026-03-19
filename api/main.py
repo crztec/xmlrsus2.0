@@ -767,9 +767,26 @@ async def background_worker_task(task_id: str, url_sistema: str):
                     else:
                         await asyncio.sleep(5)
                     
-                    # Refresh para limpar campos (reload em vez de goto para preservar SPA)
-                    await page.reload(wait_until="domcontentloaded", timeout=60000)
-                    await asyncio.sleep(5)
+                    # Refresh para limpar campos para próximo arquivo
+                    try:
+                        await page.reload(wait_until="domcontentloaded", timeout=60000)
+                        await asyncio.sleep(5)
+                    except:
+                        # Se reload falhar, volta à lista e clica SELECIONAR ARQUIVO
+                        db.add_log(task_id, "INFO", "Reload falhou. Voltando à lista...")
+                        await page.goto(f"{base_url}/importacao", wait_until="domcontentloaded", timeout=60000)
+                        await asyncio.sleep(3)
+                        try:
+                            sel_btn = page.locator("a:has-text('SELECIONAR ARQUIVO')").first
+                            await sel_btn.click()
+                            await asyncio.sleep(3)
+                        except: pass
+                    
+                    # Espera campo protocolo reaparecer
+                    try:
+                        await form_target.locator("input#numeroProtocolo").wait_for(state="visible", timeout=15000)
+                    except:
+                        db.add_log(task_id, "WARNING", "Campo protocolo não reapareceu após refresh")
 
             await browser.close()
             
