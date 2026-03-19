@@ -508,163 +508,202 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 abi = file.get('numero_abi', '')
                 storage_path = file.get('storage_path')
                 
-                db.add_log(task_id, "INFO", f"Iniciando preenchimento do ABI {abi}...")
-                
-                # Preenche formulário - O sistema antigo usava o Número do Processo no campo Protocolo
-                num_processo = file.get('numero_processo') or abi
-                await form_target.fill("input#numeroProtocolo", str(num_processo))
-                
-                # Para campos que podem ser readonly ou controlados por máscara de JS (como datas e valores),
-                # injetar via evaluate é mais rápido e confiável.
-                dt_recebimento = file.get("data_recebimento_oficio") or file.get("data_registro_transacao", "")
-                dt_prazo = file.get("prazo_resposta_ans", "")
-                competencias = file.get("competencias", "")
-                qtd = str(file.get("quantidade_processo", "0"))
-                valor = str(file.get("valor_total_processo", "0"))
-
-                # Script para forçar preenchimento no DOM e notificar AngularJS (Usa o target correto)
-                await form_target.evaluate("""(data) => {
-                    const setValAttr = (sel, val) => {
-                        const el = document.querySelector(sel);
-                        if (el) {
-                            el.value = val;
-                            // Dispara eventos padrão
-                            el.dispatchEvent(new Event('input', { bubbles: true }));
-                            el.dispatchEvent(new Event('change', { bubbles: true }));
-                            el.dispatchEvent(new Event('blur', { bubbles: true }));
-                            
-                            // Integração extra com AngularJS se disponível
-                            if (window.angular) {
-                                const ngEl = angular.element(el);
-                                const controller = ngEl.controller('ngModel');
-                                if (controller) {
-                                    controller.$setViewValue(val);
-                                    controller.$render();
-                                }
-                                ngEl.triggerHandler('input');
-                                ngEl.triggerHandler('change');
-                            }
-                        }
-                    };
-                    if (data.dt_recebimento) setValAttr('input#dataRecebimentoOficio', data.dt_recebimento);
-                    if (data.dt_prazo) setValAttr('input#dataPrazoRespostaAns', data.dt_prazo);
-                    setValAttr('input#competencias', data.competencias);
-                    setValAttr('input#quantidadeAtendimentos', data.qtd);
-                    setValAttr('input#valorTotalABI', data.valor);
-                }""", {
-                    "dt_recebimento": dt_recebimento,
-                    "dt_prazo": dt_prazo,
-                    "competencias": competencias,
-                    "qtd": qtd,
-                    "valor": valor
-                })
-
-                # Upload do arquivo
-                with tempfile.NamedTemporaryFile(suffix=".xml", delete=False) as tmp:
-                    tmp_name = tmp.name
+                db.add_log(task_id, "INFO", f"[{i+1}/{total}] Iniciando preenchimento do ABI {abi}...")
                 
                 try:
-                    success_dl = db.download_xml_from_storage(storage_path, tmp_name)
-                    if not success_dl:
-                        db.add_log(task_id, "ERROR", f"Erro ao baixar {nome} do storage.")
+                    # ─── ETAPA 1: Preencher campo Protocolo ───
+                    num_processo = file.get('numero_processo') or abi
+                    db.add_log(task_id, "INFO", f"Preenchendo Protocolo: {num_processo}")
+                    protocolo_field = form_target.locator("input#numeroProtocolo").first
+                    await protocolo_field.click()
+                    await protocolo_field.fill("")
+                    await protocolo_field.type(str(num_processo), delay=50)
+                    
+                    # ─── ETAPA 2: Preencher campos de data e valores ───
+                    dt_recebimento = file.get("data_recebimento_oficio") or file.get("data_registro_transacao", "")
+                    dt_prazo = file.get("prazo_resposta_ans", "")
+                    competencias = file.get("competencias", "")
+                    qtd = str(file.get("quantidade_processo", "0"))
+                    valor = str(file.get("valor_total_processo", "0"))
+                    
+                    db.add_log(task_id, "INFO", f"Dados: dt_rec={dt_recebimento}, prazo={dt_prazo}, comp={competencias}, qtd={qtd}, val={valor}")
+                    
+                    # Preenche campos individualmente com Playwright (mais confiável que evaluate)
+                    field_map = {
+                        "input#dataRecebimentoOficio": dt_recebimento,
+                        "input#dataPrazoRespostaAns": dt_prazo,
+                        "input#competencias": competencias,
+                        "input#quantidadeAtendimentos": qtd,
+                        "input#valorTotalABI": valor,
+                    }
+                    
+                    for sel, val in field_map.items():
+                        if not val:
+                            continue
+                        try:
+                            field = form_target.locator(sel).first
+                            if await field.count() > 0:
+                                await field.click()
+                                await field.fill("")
+                                await field.type(str(val), delay=30)
+                                db.add_log(task_id, "DEBUG", f"  Campo {sel} = '{val}' ✓")
+                            else:
+                                db.add_log(task_id, "WARNING", f"  Campo {sel} NÃO encontrado na página")
+                        except Exception as field_err:
+                            db.add_log(task_id, "WARNING", f"  Erro no campo {sel}: {str(field_err)[:60]}")
+                    
+                    # ─── ETAPA 3: Upload do arquivo XML ───
+                    db.add_log(task_id, "INFO", f"Fazendo upload do XML: {nome}")
+                    with tempfile.NamedTemporaryFile(suffix=".xml", delete=False) as tmp:
+                        tmp_name = tmp.name
+                    
+                    try:
+                        success_dl = db.download_xml_from_storage(storage_path, tmp_name)
+                        if not success_dl:
+                            db.add_log(task_id, "ERROR", f"Erro ao baixar {nome} do storage.")
+                            continue
+                        
+                        file_input = form_target.locator("input[type='file']").first
+                        await file_input.set_input_files(tmp_name)
+                        await asyncio.sleep(2)
+                        db.add_log(task_id, "INFO", "Upload do XML realizado ✓")
+                    finally:
+                        if os.path.exists(tmp_name): os.unlink(tmp_name)
+                    
+                    # ─── ETAPA 4: Screenshot ANTES de clicar Importar (para diagnóstico) ───
+                    try:
+                        pre_submit_path = f"debug/screenshots/{task_id}_abi_{abi}_pre_submit.png"
+                        img_bytes = await page.screenshot(full_page=True)
+                        db.upload_screenshot(pre_submit_path, img_bytes)
+                        db.add_log(task_id, "DEBUG", f"Screenshot pré-submit salvo: {pre_submit_path}")
+                    except: pass
+                    
+                    # ─── ETAPA 5: Clicar no botão IMPORTAR ARQUIVO ───
+                    db.add_log(task_id, "INFO", "Clicando em IMPORTAR ARQUIVO...")
+                    
+                    # Rola para o topo para garantir visibilidade
+                    await page.evaluate("window.scrollTo(0, 0)")
+                    await asyncio.sleep(1)
+                    
+                    success_click = False
+                    # O botão fica na barra superior cinza, no topo da página
+                    import_selectors = [
+                        "a:has-text('IMPORTAR ARQUIVO')",
+                        "button:has-text('IMPORTAR ARQUIVO')",
+                        "a:has-text('Importar Arquivo')",
+                        "button:has-text('Importar')",
+                        ".btn-primary:has-text('Importar')",
+                        "input[type='submit'][value*='Importar']",
+                    ]
+                    
+                    for selector in import_selectors:
+                        try:
+                            btn = page.locator(selector).first
+                            if await btn.is_visible(timeout=2000):
+                                await btn.click(force=True)
+                                success_click = True
+                                db.add_log(task_id, "INFO", f"Clique realizado: {selector} ✓")
+                                break
+                        except:
+                            continue
+                    
+                    if not success_click:
+                        db.add_log(task_id, "ERROR", f"Botão IMPORTAR ARQUIVO não encontrado para ABI {abi}")
+                        try:
+                            err_path = f"debug/screenshots/{task_id}_abi_{abi}_no_button.png"
+                            img_bytes = await page.screenshot(full_page=True)
+                            db.upload_screenshot(err_path, img_bytes)
+                        except: pass
+                        db.firestore_db.collection('task_files').document(file['id']).update({
+                            'status_importacao': 'ERRO',
+                            'error_message': 'Botão IMPORTAR ARQUIVO não encontrado'
+                        })
                         continue
                     
-                    # Upload e espera estabilizar
-                    file_input = form_target.locator("input[type='file'], input[name='arquivos']").first
-                    await file_input.set_input_files(tmp_name)
-                    await asyncio.sleep(2)
-                finally:
-                    if os.path.exists(tmp_name): os.unlink(tmp_name)
+                    # ─── ETAPA 6: Aguardar confirmação do portal ───
+                    db.add_log(task_id, "INFO", "Aguardando confirmação do portal...")
+                    await asyncio.sleep(5)  # Tempo para o portal processar
+                    
+                    status_final_abi = "ERROR"
+                    msg_feedback = ""
+                    
+                    # Verifica por até 45 segundos
+                    for check_round in range(45):
+                        try:
+                            # Busca qualquer mensagem visível (alertas, modais, mensagens do sistema)
+                            msg_selectors = ".header-message-top, .browseralert, .modal-content, .alert, .alert-success, .alert-danger, .alert-warning, .alert-info, .toast, .notification"
+                            msgs = page.locator(msg_selectors)
+                            for m_idx in range(await msgs.count()):
+                                msg_el = msgs.nth(m_idx)
+                                if await msg_el.is_visible(timeout=200):
+                                    msg_text = (await msg_el.inner_text()).strip()
+                                    if not msg_text:
+                                        continue
+                                    
+                                    db.add_log(task_id, "DEBUG", f"Mensagem detectada: '{msg_text[:100]}'")
+                                    
+                                    if "SIS00010" in msg_text or "sucesso" in msg_text.lower() or "importad" in msg_text.lower():
+                                        db.add_log(task_id, "SUCCESS", f"Portal confirmou ABI {abi}: {msg_text[:100]}")
+                                        status_final_abi = "SUCCESS"
+                                        msg_feedback = msg_text
+                                        break
+                                    elif "SIS" in msg_text or "erro" in msg_text.lower() or "inválid" in msg_text.lower() or "não encontrado" in msg_text.lower():
+                                        db.add_log(task_id, "ERROR", f"Portal recusou ABI {abi}: {msg_text[:150]}")
+                                        status_final_abi = "ERROR"
+                                        msg_feedback = msg_text
+                                        break
+                            
+                            if status_final_abi != "ERROR" or msg_feedback:
+                                break
+                        except:
+                            pass
+                        await asyncio.sleep(1)
+                    
+                    # Se nenhuma mensagem apareceu, captura screenshot e verifica URL
+                    if status_final_abi == "ERROR" and not msg_feedback:
+                        db.add_log(task_id, "WARNING", f"ABI {abi}: Nenhuma mensagem de confirmação após 45s.")
+                        
+                        # Verifica se a URL mudou (pode ter sido redirecionado)
+                        current_url = page.url
+                        db.add_log(task_id, "DEBUG", f"URL atual após submit: {current_url}")
+                        
+                        # Screenshot post-submit para diagnóstico
+                        try:
+                            timeout_path = f"debug/screenshots/{task_id}_abi_{abi}_timeout.png"
+                            img_bytes = await page.screenshot(full_page=True)
+                            db.upload_screenshot(timeout_path, img_bytes)
+                            db.add_log(task_id, "DEBUG", f"Screenshot pós-timeout salvo: {timeout_path}")
+                        except: pass
+                        
+                        # Captura o HTML visível para diagnóstico
+                        try:
+                            body_text = await page.locator("body").inner_text()
+                            # Loga os primeiros 300 chars para entender o que há na tela
+                            db.add_log(task_id, "DEBUG", f"Texto da página: {body_text[:300]}")
+                        except: pass
+                        
+                        msg_feedback = "Timeout - sem confirmação SIS (ver screenshots)"
+                    
+                    # Atualiza status do arquivo no Firestore
+                    db.firestore_db.collection('task_files').document(file['id']).update({
+                        'status_importacao': 'SUCESSO' if status_final_abi == "SUCCESS" else 'ERRO',
+                        'error_message': msg_feedback if status_final_abi == "ERROR" else "",
+                        'data_processamento': db.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    })
 
-                # Clique no botão Importar (Usa seletor exato do subheader)
-                db.add_log(task_id, "INFO", "Enviando formulário de importação...")
-                success_click = False
-                
-                # Seletores refinados para o portal RSUS (Priorizando o que o usuário indicou)
-                import_selectors = [
-                    "a:has-text('IMPORTAR ARQUIVO')", 
-                    "button:has-text('IMPORTAR ARQUIVO')",
-                    "button:has-text('Importar')", 
-                    "input[type='submit'][value*='Importar']",
-                    ".btn-primary:has-text('Importar')"
-                ]
-                
-                # Rola para o topo para garantir visibilidade da barra de ferramentas superior
-                await page.evaluate("window.scrollTo(0, 0)")
-                await asyncio.sleep(1)
-                
-                for selector in import_selectors:
+                except Exception as file_err:
+                    import traceback
+                    db.add_log(task_id, "ERROR", f"Erro ao processar ABI {abi}: {str(file_err)}")
+                    logger.error(f"Erro no ABI {abi}: {traceback.format_exc()}")
                     try:
-                        btn = form_target.locator(selector).first
-                        if await btn.is_visible(timeout=2000):
-                            await btn.click(force=True)
-                            success_click = True
-                            db.add_log(task_id, "INFO", f"Clique realizado com seletor: {selector}")
-                            break
-                    except:
-                        continue
-                
-                if not success_click:
-                    db.add_log(task_id, "ERROR", f"Não foi possível localizar o botão de Importar para ABI {abi}")
-                    # Screenshot de debug do formulário
-                    try:
-                        screenshot_path = f"debug/screenshots/{task_id}_abi_{abi}_form_error.png"
+                        err_path = f"debug/screenshots/{task_id}_abi_{abi}_exception.png"
                         img_bytes = await page.screenshot(full_page=True)
-                        db.upload_xml_to_storage(task_id, screenshot_path, img_bytes)
-                        db.add_log(task_id, "DEBUG", f"Screenshot do formulário salvo em: {screenshot_path}")
+                        db.upload_screenshot(err_path, img_bytes)
                     except: pass
                     db.firestore_db.collection('task_files').document(file['id']).update({
                         'status_importacao': 'ERRO',
-                        'error_message': 'Botão Importar não respondeu ou não foi encontrado'
+                        'error_message': str(file_err)[:200]
                     })
-                    continue
-
-                # Aguarda processamento do portal com verificação de sucesso REAL
-                db.add_log(task_id, "INFO", "Aguardando confirmação do portal...")
-                
-                # Pequena espera para o portal reagir
-                await asyncio.sleep(3)
-                
-                status_final_abi = "ERROR"
-                msg_feedback = ""
-                
-                # Loop de verificação de mensagens (SIS...) por até 45s
-                for _ in range(45):
-                    # Procura no container de mensagens (e também em alertas de sistema)
-                    container_msg = page.locator(".header-message-top, .browseralert, .modal-content, .alert").first
-                    if await container_msg.is_visible(timeout=500):
-                        msg_text = await container_msg.inner_text()
-                        
-                        # Códigos de retorno do RSUS: SIS00010 (Sucesso), SIS... (Erros)
-                        if "SIS00010" in msg_text or "sucesso" in msg_text.lower():
-                            db.add_log(task_id, "SUCCESS", f"Portal confirmou ABI {abi}: {msg_text[:100]}")
-                            status_final_abi = "SUCCESS"
-                            msg_feedback = msg_text
-                            break
-                        elif "SIS" in msg_text or "erro" in msg_text.lower() or "inválid" in msg_text.lower() or "não encontrado" in msg_text.lower():
-                            db.add_log(task_id, "ERROR", f"Portal recusou ABI {abi}: {msg_text[:150]}")
-                            status_final_abi = "ERROR"
-                            msg_feedback = msg_text
-                            break
-                    await asyncio.sleep(1)
-                
-                # Se após 45s não confirmou, tira novo print para ver o que sobrou na tela
-                if status_final_abi == "ERROR" and not msg_feedback:
-                    db.add_log(task_id, "WARNING", f"ABI {abi}: Sem resposta SIS confirmada após 45s. Capturando tela...")
-                    try:
-                        screenshot_path = f"debug/screenshots/{task_id}_abi_{abi}_timeout.png"
-                        img_bytes = await page.screenshot(full_page=True)
-                        db.upload_xml_to_storage(task_id, screenshot_path, img_bytes)
-                        db.add_log(task_id, "DEBUG", f"Screenshot do timeout salvo em: {screenshot_path}")
-                    except: pass
-                    msg_feedback = "Timeout aguardando confirmação (Verificar screenshot)"
-                
-                # Atualiza status do arquivo no Firestore
-                db.firestore_db.collection('task_files').document(file['id']).update({
-                    'status_importacao': 'SUCESSO' if status_final_abi == "SUCCESS" else 'ERRO',
-                    'error_message': msg_feedback if status_final_abi == "ERROR" else "",
-                    'data_processamento': db.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                })
 
                 # Atualiza progresso
                 processed = i + 1
@@ -675,7 +714,7 @@ async def background_worker_task(task_id: str, url_sistema: str):
                     'updated_at': db.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 })
                 
-                # Intervalo de espera de 120s conforme regra original do sistema para estabilidade
+                # Intervalo e refresh para próximo arquivo
                 if i < total - 1:
                     if status_final_abi == "SUCCESS":
                         db.add_log(task_id, "INFO", "Aguardando 120s para estabilização do portal...")
@@ -684,8 +723,8 @@ async def background_worker_task(task_id: str, url_sistema: str):
                         await asyncio.sleep(5)
                     
                     # Refresh para limpar campos
-                    await page.goto(url_sistema)
-                    await page.wait_for_load_state("networkidle")
+                    await page.goto(url_sistema, wait_until="networkidle", timeout=60000)
+                    await asyncio.sleep(3)
 
             await browser.close()
             

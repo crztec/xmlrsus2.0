@@ -71,6 +71,20 @@ def upload_xml_to_storage(task_id, filename, file_content_bytes):
     logger.info(f"File uploaded to Storage successfully: {destination_blob_name}")
     return destination_blob_name
 
+def upload_screenshot(screenshot_path, img_bytes):
+    """
+    Uploads a screenshot (PNG) to Firebase Storage for debugging.
+    """
+    try:
+        bucket = storage.bucket()
+        blob = bucket.blob(screenshot_path)
+        blob.upload_from_string(img_bytes, content_type='image/png')
+        logger.info(f"Screenshot uploaded: {screenshot_path}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to upload screenshot: {e}")
+        return False
+
 def download_xml_from_storage(storage_path, local_destination_path):
     """
     Downloads the XML file from Firebase Storage to a local path.
