@@ -459,11 +459,37 @@ async def background_worker_task(task_id: str, url_sistema: str):
             db.add_log(task_id, "SUCCESS", "Login realizado com sucesso.")
 
             # 2. Navegação para Importação
-            await page.goto(url_sistema, wait_until="commit")
+            db.add_log(task_id, "INFO", f"Navegando para: {url_sistema}")
+            await page.goto(url_sistema, wait_until="networkidle", timeout=60000)
+            
+            # 2.1 Localiza o form (suporte a iframes se necessário)
+            form_target = page
+            protocolo_selector = "input#numeroProtocolo, #numeroProtocolo"
+            
             try:
-                await page.wait_for_selector("input#numeroProtocolo", timeout=45000)
-            except:
-                db.add_log(task_id, "WARNING", "Campo de protocolo não apareceu após o redirecionamento. Tentando prosseguir...")
+                # Verifica se o campo está no principal
+                if await page.locator(protocolo_selector).count() == 0:
+                    db.add_log(task_id, "INFO", "Campo de protocolo não encontrado no quadro principal. Varrendo IFrames...")
+                    for frame in page.frames:
+                        if await frame.locator(protocolo_selector).count() > 0:
+                            db.add_log(task_id, "INFO", f"Formulário de importação encontrado no IFrame: {frame.name or frame.url}")
+                            form_target = frame
+                            break
+                
+                # Aguarda o campo estar pronto no alvo (seja page ou frame)
+                await form_target.locator(protocolo_selector).wait_for(state="visible", timeout=20000)
+            except Exception as e:
+                db.add_log(task_id, "ERROR", f"Campo de protocolo não apareceu: {str(e)}")
+                # Screenshot de diagnóstico da página atual
+                try:
+                    screenshot_path = f"debug/screenshots/{task_id}_form_not_found.png"
+                    img_bytes = await page.screenshot(full_page=True)
+                    db.upload_xml_to_storage(task_id, screenshot_path, img_bytes)
+                    db.add_log(task_id, "DEBUG", f"Screenshot da falha no form: {screenshot_path}")
+                except: pass
+                await browser.close()
+                db.firestore_db.collection('tasks').document(task_id).update({'status': 'ERRO'})
+                return
 
             # 3. Processamento dos Arquivos
             files = db.get_files_for_task(task_id)
@@ -486,7 +512,7 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 
                 # Preenche formulário - O sistema antigo usava o Número do Processo no campo Protocolo
                 num_processo = file.get('numero_processo') or abi
-                await page.fill("input#numeroProtocolo", str(num_processo))
+                await form_target.fill("input#numeroProtocolo", str(num_processo))
                 
                 # Para campos que podem ser readonly ou controlados por máscara de JS (como datas e valores),
                 # injetar via evaluate é mais rápido e confiável.
@@ -496,8 +522,8 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 qtd = str(file.get("quantidade_processo", "0"))
                 valor = str(file.get("valor_total_processo", "0"))
 
-                # Script para forçar preenchimento no DOM e notificar AngularJS
-                await page.evaluate("""(data) => {
+                # Script para forçar preenchimento no DOM e notificar AngularJS (Usa o target correto)
+                await form_target.evaluate("""(data) => {
                     const setValAttr = (sel, val) => {
                         const el = document.querySelector(sel);
                         if (el) {
@@ -544,7 +570,7 @@ async def background_worker_task(task_id: str, url_sistema: str):
                         continue
                     
                     # Upload e espera estabilizar
-                    file_input = page.locator("input[type='file'], input[name='arquivos']").first
+                    file_input = form_target.locator("input[type='file'], input[name='arquivos']").first
                     await file_input.set_input_files(tmp_name)
                     await asyncio.sleep(2)
                 finally:
@@ -569,7 +595,7 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 
                 for selector in import_selectors:
                     try:
-                        btn = page.locator(selector).first
+                        btn = form_target.locator(selector).first
                         if await btn.is_visible(timeout=2000):
                             await btn.click(force=True)
                             success_click = True
