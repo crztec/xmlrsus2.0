@@ -325,8 +325,8 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 # Retry loop para o carregamento inicial
                 for attempt in range(2):
                     try:
-                        # Abre url_sistema diretamente (portal redireciona para login se necessário)
-                        await page.goto(url_sistema, timeout=60000, wait_until="domcontentloaded")
+                        # Abre url_sistema diretamente — usa 'load' como Selenium navegador.get()
+                        await page.goto(url_sistema, timeout=60000, wait_until="load")
                         break
                     except Exception as e:
                         if attempt == 1: raise e
@@ -410,6 +410,26 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 # Aguarda transição ou verificação rápida de erro
                 db.add_log(task_id, "INFO", "Aguardando redirecionamento pós-login...")
                 await page.wait_for_timeout(8000)
+                
+                # Espera AngularJS terminar de renderizar (se disponível)
+                try:
+                    await page.wait_for_function("""
+                        () => {
+                            // Espera Angular terminar OU o campo protocolo aparecer
+                            if (document.querySelector('#numeroProtocolo')) return true;
+                            if (window.angular) {
+                                var injector = window.angular.element(document.body).injector();
+                                if (injector) {
+                                    var $http = injector.get('$http');
+                                    return $http.pendingRequests.length === 0;
+                                }
+                            }
+                            return document.readyState === 'complete';
+                        }
+                    """, timeout=15000)
+                except:
+                    pass
+                await asyncio.sleep(3)
             except Exception as e:
                 import traceback
                 error_detail = traceback.format_exc()
