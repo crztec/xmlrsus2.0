@@ -49,9 +49,6 @@ EXPOSE 8000
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
-# Chave do Firebase (Se existir localmente)
-COPY firebase-key.json* /app/
-
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 ENV PORT=3000
 

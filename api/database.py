@@ -18,36 +18,41 @@ firestore_db = None
 if not firebase_admin._apps:
     logger.info("Initializing Firebase Admin SDK...")
     try:
-        # Use ADC (Application Default Credentials) or Service Account JSON via env var
+        # 1. Tenta ADC (Application Default Credentials) - Funciona nativo no Cloud Run
+        # 2. Tenta firebase-key.json se o anterior falhar ou se estiver rodando local sem ADC configurada
+        cred = None
         try:
             cred = credentials.ApplicationDefault()
+            # Testamos se o cred é válido tentando inicializar (ele só valida ao usar)
+            firebase_admin.initialize_app(cred, {
+                'storageBucket': FIREBASE_STORAGE_BUCKET.replace("gs://", "")
+            })
+            logger.info("Firebase Admin inicializado via ADC.")
         except Exception as adc_err:
-            logger.info(f"ADC not available ({adc_err}). Checking for firebase-key.json...")
+            logger.info(f"ADC não disponível ou falhou: {adc_err}. Tentando chave local...")
             if os.path.exists('firebase-key.json'):
                 cred = credentials.Certificate('firebase-key.json')
+                firebase_admin.initialize_app(cred, {
+                    'storageBucket': FIREBASE_STORAGE_BUCKET.replace("gs://", "")
+                })
+                logger.info("Firebase Admin inicializado via firebase-key.json.")
             else:
-                logger.error("Neither ADC nor firebase-key.json found. Firebase operations will fail.")
-                cred = None
-                
-        if cred:
-            # Storage bucket name needs to be provided without gs:// prefix
-            bucket_name = FIREBASE_STORAGE_BUCKET.replace("gs://", "")
-            
-            firebase_admin.initialize_app(cred, {
-                'projectId': 'xmlrsus',
-                'storageBucket': bucket_name
-            })
-            logger.info("Firebase Admin initialized successfully.")
+                # Se tudo falhar, inicializa sem credenciais explícitas (pode funcionar se o gcloud estiver logado)
+                firebase_admin.initialize_app(options={
+                    'storageBucket': FIREBASE_STORAGE_BUCKET.replace("gs://", "")
+                })
+                logger.info("Firebase Admin inicializado por padrão (sem credenciais explícitas).")
+
     except Exception as e:
-        logger.error(f"Failed to initialize Firebase Admin: {e}")
+        logger.error(f"Erro crítico na inicialização do Firebase Admin: {e}")
 
 if not firestore_db:
     try:
-        # Only try if we have an app or ADC is expected to work magically
+        # No Cloud Run, o Firestore client detecta o projeto automaticamente se não passarmos nada
         firestore_db = firestore.client()
-        logger.info("Firestore client initialized successfully.")
+        logger.info("Firestore client inicializado com sucesso.")
     except Exception as e:
-        logger.error(f"Failed to initialize Firestore: {e}")
+        logger.error(f"Falha ao inicializar Firestore client: {e}")
         firestore_db = None
 
 def upload_xml_to_storage(task_id, filename, file_content_bytes):
