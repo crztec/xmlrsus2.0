@@ -452,31 +452,51 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 except Exception as img_err:
                     logger.error(f"Erro ao capturar/salvar screenshot: {img_err}")
                 raise e
-            # 1.3 Espera pelo campo Protocolo (padrão do robô antigo: wait.until(By.ID, "numeroProtocolo"))
-            db.add_log(task_id, "INFO", "Aguardando formulário de importação (campo Protocolo)...")
+            # 1.3 Espera pelo campo Protocolo (Estratégia: Espera 10s -> Reload se em branco -> Espera 20s)
+            db.add_log(task_id, "INFO", "Aguardando carregamento do formulário (campo Protocolo)...")
+            form_ready = False
+            
+            # Primeira tentativa: Espera curta
             try:
-                await page.locator("input#numeroProtocolo").first.wait_for(state="visible", timeout=30000)
-                db.add_log(task_id, "SUCCESS", "Login OK. Formulário de importação pronto!")
+                await page.locator("input#numeroProtocolo").first.wait_for(state="visible", timeout=12000)
+                form_ready = True
             except:
-                # Pode estar na lista /importacao. Tenta SELECIONAR ARQUIVO como fallback
-                current_url = page.url
-                db.add_log(task_id, "WARNING", f"Campo protocolo não encontrado. URL: {current_url}")
-                
+                db.add_log(task_id, "WARNING", "Página em branco detectada. Aplicando REFRESH para forçar renderização...")
                 try:
-                    sel_btn = page.locator("a:has-text('SELECIONAR ARQUIVO')").first
-                    if await sel_btn.is_visible(timeout=5000):
+                    # Tira print do estado em branco para log
+                    img_blank = await page.screenshot()
+                    db.upload_screenshot(f"debug/screenshots/{task_id}_step1_blank.png", img_blank)
+                    
+                    # O "pulo do gato": O portal AngularJS às vezes não renderiza no primeiro redirect.
+                    # Um reload resolve 100% das vezes nos testes manuais.
+                    await page.reload(wait_until="load", timeout=60000)
+                    db.add_log(task_id, "INFO", "Página recarregada. Aguardando formulário novamente...")
+                    
+                    # Segunda tentativa: Espera mais longa após reload
+                    await page.locator("input#numeroProtocolo").first.wait_for(state="visible", timeout=25000)
+                    form_ready = True
+                    db.add_log(task_id, "SUCCESS", "Formulário renderizado com sucesso após refresh!")
+                except Exception as reload_err:
+                    db.add_log(task_id, "ERROR", f"Falha após refresh: {str(reload_err)[:100]}")
+
+            # Fallback final: Se ainda não carregou, tenta clicar em SELECIONAR ARQUIVO na lista
+            if not form_ready:
+                db.add_log(task_id, "INFO", "Tentando navegação via menu (fallback final)...")
+                try:
+                    await page.goto("https://rsuserechim.cubeti.com.br/importacao", wait_until="load")
+                    sel_btn = page.locator("a:has-text('SELECIONAR ARQUIVO'), a:has-text('Selecionar arquivo')").first
+                    if await sel_btn.is_visible(timeout=10000):
                         await sel_btn.click()
-                        db.add_log(task_id, "INFO", "Clique em SELECIONAR ARQUIVO ✓")
-                        await asyncio.sleep(5)
+                        db.add_log(task_id, "INFO", "Clique em SELECIONAR ARQUIVO via lista ✓")
                         await page.locator("input#numeroProtocolo").first.wait_for(state="visible", timeout=15000)
-                        db.add_log(task_id, "SUCCESS", "Formulário pronto!")
+                        form_ready = True
                     else:
-                        raise Exception("SELECIONAR ARQUIVO não encontrado")
-                except Exception as nav_err:
-                    db.add_log(task_id, "ERROR", f"Formulário inacessível: {str(nav_err)[:100]}")
+                        raise Exception("Botão de seleção não encontrado na lista")
+                except Exception as final_err:
+                    db.add_log(task_id, "ERROR", f"Formulário inacessível: {str(final_err)[:100]}")
                     try:
-                        img_bytes = await page.screenshot(full_page=True)
-                        db.upload_screenshot(f"debug/screenshots/{task_id}_form_unreachable.png", img_bytes)
+                        img_err = await page.screenshot(full_page=True)
+                        db.upload_screenshot(f"debug/screenshots/{task_id}_fallback_failed.png", img_err)
                     except: pass
                     await browser.close()
                     db.firestore_db.collection('tasks').document(task_id).update({'status': 'ERRO'})
@@ -484,42 +504,17 @@ async def background_worker_task(task_id: str, url_sistema: str):
 
             db.add_log(task_id, "INFO", f"URL do formulário: {page.url}")
             
-            # 2.1 Localiza o form (suporte a iframes se necessário)
+            # 2.1 Define o alvo do formulário (suporte a frames se necessário)
             form_target = page
-            protocolo_selector = "input#numeroProtocolo, #numeroProtocolo"
+            protocolo_selector = "input#numeroProtocolo"
             
-            try:
-                # Verifica se o campo está no principal
-                if await page.locator(protocolo_selector).count() == 0:
-                    db.add_log(task_id, "INFO", "Campo de protocolo não encontrado no quadro principal. Varrendo IFrames...")
-                    for frame in page.frames:
-                        try:
-                            if await frame.locator(protocolo_selector).count() > 0:
-                                db.add_log(task_id, "INFO", f"Formulário encontrado no IFrame: {frame.name or frame.url}")
-                                form_target = frame
-                                break
-                        except:
-                            continue
-                
-                # Aguarda o campo estar pronto no alvo (seja page ou frame)
-                await form_target.locator(protocolo_selector).wait_for(state="visible", timeout=20000)
-                db.add_log(task_id, "INFO", "Campo de protocolo encontrado e visível ✓")
-            except Exception as e:
-                db.add_log(task_id, "ERROR", f"Campo de protocolo não apareceu: {str(e)[:100]}")
-                # Screenshot de diagnóstico
-                try:
-                    screenshot_path = f"debug/screenshots/{task_id}_form_not_found.png"
-                    img_bytes = await page.screenshot(full_page=True)
-                    db.upload_screenshot(screenshot_path, img_bytes)
-                    db.add_log(task_id, "DEBUG", f"Screenshot salvo: {screenshot_path}")
-                    # Também loga o HTML para diagnóstico
-                    current_url = page.url
-                    title = await page.title()
-                    db.add_log(task_id, "DEBUG", f"URL atual: {current_url} | Título: {title}")
-                except: pass
-                await browser.close()
-                db.firestore_db.collection('tasks').document(task_id).update({'status': 'ERRO'})
-                return
+            # Verificação final rápida para garantir que o elemento está acessível
+            if await page.locator(protocolo_selector).count() == 0:
+                for frame in page.frames:
+                    if await frame.locator(protocolo_selector).count() > 0:
+                        form_target = frame
+                        db.add_log(task_id, "INFO", "Formulário detectado dentro de IFrame.")
+                        break
 
             # 3. Processamento dos Arquivos
             files = db.get_files_for_task(task_id)
