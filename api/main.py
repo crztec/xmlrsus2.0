@@ -318,14 +318,15 @@ async def background_worker_task(task_id: str, url_sistema: str):
             page.set_default_navigation_timeout(60000)
             page.set_default_timeout(60000)
 
-            # 1. Login
-            db.add_log(task_id, "INFO", f"Acessando página de login: {login_url}")
+            # 1. Abre url_sistema diretamente (padrão do robô antigo que funcionava perfeitamente)
+            # O portal redireciona para login se não autenticado. Após login, volta para url_sistema.
+            db.add_log(task_id, "INFO", f"Acessando {url_sistema}...")
             try:
                 # Retry loop para o carregamento inicial
                 for attempt in range(2):
                     try:
-                        # Mudamos para 'load' para garantir que o HTML básico esteja lá
-                        await page.goto(login_url, timeout=60000, wait_until="load")
+                        # Abre url_sistema diretamente (portal redireciona para login se necessário)
+                        await page.goto(url_sistema, timeout=60000, wait_until="domcontentloaded")
                         break
                     except Exception as e:
                         if attempt == 1: raise e
@@ -431,87 +432,36 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 except Exception as img_err:
                     logger.error(f"Erro ao capturar/salvar screenshot: {img_err}")
                 raise e
-            # 1.3 Aguarda redirecionamento ou erro de login
-            db.add_log(task_id, "INFO", "Aguardando processamento do login...")
+            # 1.3 Espera pelo campo Protocolo (padrão do robô antigo: wait.until(By.ID, "numeroProtocolo"))
+            db.add_log(task_id, "INFO", "Aguardando formulário de importação (campo Protocolo)...")
             try:
-                # Espera 15s por uma mudança de URL que SAIA do /Login ou por carregamento de rede
-                await page.wait_for_function("""() => {
-                    return !window.location.href.toLowerCase().includes('login') || 
-                           document.querySelector('#numeroProtocolo') !== null;
-                }""", timeout=20000)
+                await page.locator("input#numeroProtocolo").first.wait_for(state="visible", timeout=30000)
+                db.add_log(task_id, "SUCCESS", "Login OK. Formulário de importação pronto!")
             except:
-                pass
+                # Pode estar na lista /importacao. Tenta SELECIONAR ARQUIVO como fallback
+                current_url = page.url
+                db.add_log(task_id, "WARNING", f"Campo protocolo não encontrado. URL: {current_url}")
                 
-            # Verifica se ainda estamos na página de login (o que indica erro de credenciais ou travamento)
-            current_url = page.url.lower()
-            if "login" in current_url and await page.locator("input#password, input#Password").count() > 0:
-                # Tira print do erro se ainda estiver na tela
-                db.add_log(task_id, "ERROR", "Ainda na página de login após o clique. Verifique credenciais.")
                 try:
-                    screenshot_path = f"debug/screenshots/{task_id}_login_fail_still_there.png"
-                    img_bytes = await page.screenshot()
-                    db.upload_xml_to_storage(task_id, screenshot_path, img_bytes)
-                except: pass
-                await browser.close()
-                db.firestore_db.collection('tasks').document(task_id).update({'status': 'ERRO'})
-                return
-            
-            db.add_log(task_id, "SUCCESS", "Login realizado com sucesso.")
-
-            # 2. Navegação para o formulário de importação
-            # Após login, o portal redireciona para a raiz (/). Precisa ir para /importacao primeiro.
-            db.add_log(task_id, "INFO", "Navegando para página de importações...")
-            await asyncio.sleep(2)
-            
-            current_url = page.url
-            # Portal SPA: após login redireciona para /importacao mas demora a renderizar.
-            # Esperar os elementos aparecerem em vez de verificar URL.
-            db.add_log(task_id, "INFO", "Aguardando portal carregar após login...")
-            
-            # Espera até 20s pelo botão SELECIONAR ARQUIVO ou link IMPORTAÇÕES
-            form_reached = False
-            try:
-                # Tenta encontrar SELECIONAR ARQUIVO diretamente (estamos em /importacao)
-                await page.locator("a:has-text('SELECIONAR ARQUIVO'), a:has-text('IMPORTAÇÕES')").first.wait_for(state="visible", timeout=20000)
-                db.add_log(task_id, "INFO", f"Portal carregado. URL: {page.url}")
-            except:
-                db.add_log(task_id, "WARNING", f"Nenhum menu encontrado após 20s. URL: {page.url}")
-                try:
-                    img_bytes = await page.screenshot(full_page=True)
-                    db.upload_screenshot(f"debug/screenshots/{task_id}_post_login_blank.png", img_bytes)
-                    all_links = await page.locator("a").all_text_contents()
-                    db.add_log(task_id, "DEBUG", f"Links visíveis: {str(all_links)[:400]}")
-                except: pass
-            
-            # Tenta clicar em SELECIONAR ARQUIVO (caminho direto)
-            try:
-                sel_btn = page.locator("a:has-text('SELECIONAR ARQUIVO')").first
-                if await sel_btn.is_visible(timeout=3000):
-                    await sel_btn.click()
-                    form_reached = True
-                    db.add_log(task_id, "INFO", "Clique em SELECIONAR ARQUIVO realizado ✓")
-                    await asyncio.sleep(5)
-            except:
-                pass
-            
-            # Se não encontrou SELECIONAR ARQUIVO, tenta IMPORTAÇÕES → Novo
-            if not form_reached:
-                db.add_log(task_id, "INFO", "SELECIONAR ARQUIVO não visível. Tentando IMPORTAÇÕES → Novo...")
-                try:
-                    imp_link = page.locator("a:has-text('IMPORTAÇÕES')").first
-                    if await imp_link.is_visible(timeout=3000):
-                        await imp_link.click()
-                        await asyncio.sleep(2)
-                        # Espera "Novo" aparecer no dropdown
-                        novo_link = page.locator("a:has-text('Novo')").first
-                        await novo_link.wait_for(state="visible", timeout=5000)
-                        await novo_link.click()
-                        form_reached = True
-                        db.add_log(task_id, "INFO", "Clique em IMPORTAÇÕES → Novo realizado ✓")
+                    sel_btn = page.locator("a:has-text('SELECIONAR ARQUIVO')").first
+                    if await sel_btn.is_visible(timeout=5000):
+                        await sel_btn.click()
+                        db.add_log(task_id, "INFO", "Clique em SELECIONAR ARQUIVO ✓")
                         await asyncio.sleep(5)
+                        await page.locator("input#numeroProtocolo").first.wait_for(state="visible", timeout=15000)
+                        db.add_log(task_id, "SUCCESS", "Formulário pronto!")
+                    else:
+                        raise Exception("SELECIONAR ARQUIVO não encontrado")
                 except Exception as nav_err:
-                    db.add_log(task_id, "ERROR", f"Falha na navegação: {str(nav_err)[:100]}")
-            
+                    db.add_log(task_id, "ERROR", f"Formulário inacessível: {str(nav_err)[:100]}")
+                    try:
+                        img_bytes = await page.screenshot(full_page=True)
+                        db.upload_screenshot(f"debug/screenshots/{task_id}_form_unreachable.png", img_bytes)
+                    except: pass
+                    await browser.close()
+                    db.firestore_db.collection('tasks').document(task_id).update({'status': 'ERRO'})
+                    return
+
             db.add_log(task_id, "INFO", f"URL do formulário: {page.url}")
             
             # 2.1 Localiza o form (suporte a iframes se necessário)
