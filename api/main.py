@@ -464,45 +464,55 @@ async def background_worker_task(task_id: str, url_sistema: str):
             await asyncio.sleep(2)
             
             current_url = page.url
-            db.add_log(task_id, "INFO", f"URL pós-login: {current_url}")
+            # Portal SPA: após login redireciona para /importacao mas demora a renderizar.
+            # Esperar os elementos aparecerem em vez de verificar URL.
+            db.add_log(task_id, "INFO", "Aguardando portal carregar após login...")
             
-            # Navega para /importacao (página da lista)
-            if "importacao" not in current_url.lower():
-                db.add_log(task_id, "INFO", f"Navegando para {base_url}/importacao...")
-                await page.goto(f"{base_url}/importacao", wait_until="domcontentloaded", timeout=60000)
-                await asyncio.sleep(5)
-                db.add_log(task_id, "INFO", f"URL atual: {page.url}")
-            
-            # Clica em "SELECIONAR ARQUIVO" para abrir o formulário (canto superior esquerdo)
-            db.add_log(task_id, "INFO", "Procurando botão SELECIONAR ARQUIVO...")
-            selecionar_btn = None
-            selecionar_selectors = [
-                "a:has-text('SELECIONAR ARQUIVO')",
-                "button:has-text('SELECIONAR ARQUIVO')",
-                "a:has-text('Selecionar Arquivo')",
-                "*:has-text('SELECIONAR ARQUIVO')",
-            ]
-            
-            for sel in selecionar_selectors:
-                try:
-                    btn = page.locator(sel).first
-                    if await btn.is_visible(timeout=3000):
-                        selecionar_btn = btn
-                        db.add_log(task_id, "INFO", f"Botão encontrado: {sel}")
-                        break
-                except:
-                    continue
-            
-            if selecionar_btn:
-                await selecionar_btn.click()
-                db.add_log(task_id, "INFO", "Clique em SELECIONAR ARQUIVO realizado ✓")
-                await asyncio.sleep(5)
-            else:
-                db.add_log(task_id, "WARNING", "Botão SELECIONAR ARQUIVO não encontrado. Tirando screenshot...")
+            # Espera até 20s pelo botão SELECIONAR ARQUIVO ou link IMPORTAÇÕES
+            form_reached = False
+            try:
+                # Tenta encontrar SELECIONAR ARQUIVO diretamente (estamos em /importacao)
+                await page.locator("a:has-text('SELECIONAR ARQUIVO'), a:has-text('IMPORTAÇÕES')").first.wait_for(state="visible", timeout=20000)
+                db.add_log(task_id, "INFO", f"Portal carregado. URL: {page.url}")
+            except:
+                db.add_log(task_id, "WARNING", f"Nenhum menu encontrado após 20s. URL: {page.url}")
                 try:
                     img_bytes = await page.screenshot(full_page=True)
-                    db.upload_screenshot(f"debug/screenshots/{task_id}_no_selecionar_btn.png", img_bytes)
+                    db.upload_screenshot(f"debug/screenshots/{task_id}_post_login_blank.png", img_bytes)
+                    all_links = await page.locator("a").all_text_contents()
+                    db.add_log(task_id, "DEBUG", f"Links visíveis: {str(all_links)[:400]}")
                 except: pass
+            
+            # Tenta clicar em SELECIONAR ARQUIVO (caminho direto)
+            try:
+                sel_btn = page.locator("a:has-text('SELECIONAR ARQUIVO')").first
+                if await sel_btn.is_visible(timeout=3000):
+                    await sel_btn.click()
+                    form_reached = True
+                    db.add_log(task_id, "INFO", "Clique em SELECIONAR ARQUIVO realizado ✓")
+                    await asyncio.sleep(5)
+            except:
+                pass
+            
+            # Se não encontrou SELECIONAR ARQUIVO, tenta IMPORTAÇÕES → Novo
+            if not form_reached:
+                db.add_log(task_id, "INFO", "SELECIONAR ARQUIVO não visível. Tentando IMPORTAÇÕES → Novo...")
+                try:
+                    imp_link = page.locator("a:has-text('IMPORTAÇÕES')").first
+                    if await imp_link.is_visible(timeout=3000):
+                        await imp_link.click()
+                        await asyncio.sleep(2)
+                        # Espera "Novo" aparecer no dropdown
+                        novo_link = page.locator("a:has-text('Novo')").first
+                        await novo_link.wait_for(state="visible", timeout=5000)
+                        await novo_link.click()
+                        form_reached = True
+                        db.add_log(task_id, "INFO", "Clique em IMPORTAÇÕES → Novo realizado ✓")
+                        await asyncio.sleep(5)
+                except Exception as nav_err:
+                    db.add_log(task_id, "ERROR", f"Falha na navegação: {str(nav_err)[:100]}")
+            
+            db.add_log(task_id, "INFO", f"URL do formulário: {page.url}")
             
             # 2.1 Localiza o form (suporte a iframes se necessário)
             form_target = page
