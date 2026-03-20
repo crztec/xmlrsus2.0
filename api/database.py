@@ -460,19 +460,6 @@ def clear_import_logs():
                 count = 0
         if count > 0: batch.commit()
         
-        # 2. Limpa registros de arquivos processados
-        files = firestore_db.collection('task_files').stream()
-        batch = firestore_db.batch()
-        count = 0
-        for doc in files:
-            batch.delete(doc.reference)
-            count += 1
-            if count >= 500:
-                batch.commit()
-                batch = firestore_db.batch()
-                count = 0
-        if count > 0: batch.commit()
-        
         return True
     except Exception as e:
         logger.error(f"Erro ao limpar logs e tarefas: {e}")
