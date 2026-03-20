@@ -288,12 +288,15 @@ async def background_worker_task(task_id: str, url_sistema: str):
         async with async_playwright() as p:
             # 1. Launcher: Otimiza inicialização e tratamento de binários
             try:
+                # Tenta o launch padrão primeiro (muito mais rápido no Docker)
                 browser = await p.chromium.launch(
                     headless=True, 
                     args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"]
                 )
             except Exception as launch_err:
-                if "Executable doesn't exist" in str(launch_err):
+                # Fallback: Se falhar em ambiente local/sem-cached, tenta instalação rápida
+                err_msg = str(launch_err)
+                if "Executable doesn't exist" in err_msg or "not found" in err_msg.lower():
                     db.add_log(task_id, "INFO", "Binários ausentes. Instalando Chromium (uma única vez)...")
                     import subprocess
                     import sys
@@ -348,14 +351,21 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 btn_login = page.locator("#logIn, button[type='submit']").first
                 await btn_login.click(force=True)
                 
-                # 2.2 Transição para Formulário
-                db.add_log(task_id, "INFO", "Autenticado. Navegando para Novo Protocolo...")
-                await page.wait_for_url("**/importacao**", timeout=20000)
-                await page.goto(url_sistema, wait_until="domcontentloaded")
-                
-                # Aguarda renderização do formulário
+                # 2.2 Transição Resiliente para Formulário
+                db.add_log(task_id, "INFO", "Autenticado. Verificando redirecionamento...")
                 try:
-                    await page.wait_for_function("() => window.angular ? window.angular.element(document.body).injector().get('$http').pendingRequests.length === 0 : true", timeout=10000)
+                    # Tenta esperar um pouso automático no /importacao (comum)
+                    await page.wait_for_url("**/importacao**", timeout=12000)
+                    db.add_log(task_id, "INFO", "Navegação automática confirmada ✓")
+                except:
+                    # Se cair na Home (/) ou demorar muito, força a ida direta para o formulário
+                    curr_url = page.url
+                    db.add_log(task_id, "WARNING", f"Redirecionamento incompleto (parou em {curr_url}). Forçando Novo Protocolo...")
+                    await page.goto(url_sistema, wait_until="networkidle", timeout=25000)
+                
+                # Aguarda renderização final do formulário AngularJS
+                try:
+                    await page.wait_for_function("() => window.angular ? window.angular.element(document.body).injector().get('$http').pendingRequests.length === 0 : true", timeout=8000)
                 except: pass
                 
                 # Aguarda transição ou verificação rápida de erro
@@ -586,13 +596,28 @@ async def background_worker_task(task_id: str, url_sistema: str):
                         except:
                             continue
                     
-                    if not success_click:
-                        db.add_log(task_id, "ERROR", f"Botão IMPORTAR ARQUIVO não encontrado para ABI {abi}")
+                    if success_click:
+                        # ─── NOVO: Lida com Modal de Confirmação (AngularJS) ───
+                        # Alguns portais abrem um modal 'Deseja realmente importar?' após o clique no botão superior
+                        await asyncio.sleep(1)
                         try:
-                            err_path = f"debug/screenshots/{task_id}_abi_{abi}_no_button.png"
-                            img_bytes = await page.screenshot(full_page=True)
-                            db.upload_screenshot(err_path, img_bytes)
+                            confirm_selectors = [
+                                "button:has-text('Sim')", 
+                                "button:has-text('SIM')", 
+                                "a:has-text('Sim')",
+                                ".modal-footer button.btn-primary", # Padrão Bootstrap/Angular
+                                ".btn-footer:has-text('Sim')",
+                                "button:contains('Sim')"
+                            ]
+                            for sel_conf in confirm_selectors:
+                                btn_conf = page.locator(sel_conf).first
+                                if await btn_conf.is_visible(timeout=5000):
+                                    db.add_log(task_id, "INFO", f"Modal de confirmação detectado ({sel_conf}). Clicando em SIM...")
+                                    await btn_conf.click(force=True)
+                                    break
                         except: pass
+                    else:
+                        db.add_log(task_id, "ERROR", f"Botão IMPORTAR ARQUIVO não encontrado para ABI {abi}")
                         db.firestore_db.collection('task_files').document(file['id']).update({
                             'status_importacao': 'ERRO',
                             'error_message': 'Botão IMPORTAR ARQUIVO não encontrado'

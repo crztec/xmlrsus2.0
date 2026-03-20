@@ -22,25 +22,23 @@ def get_now_br():
 if not firebase_admin._apps:
     logger.info("Initializing Firebase Admin SDK...")
     try:
-        # 1. Tenta ADC (Application Default Credentials) - Funciona nativo no Cloud Run
-        # 2. Tenta firebase-key.json se o anterior falhar ou se estiver rodando local sem ADC configurada
-        cred = None
-        try:
-            cred = credentials.ApplicationDefault()
-            # Testamos se o cred é válido tentando inicializar (ele só valida ao usar)
+        # 1. Tenta PRIMEIRO o arquivo local se existir (melhor para dev/local)
+        if os.path.exists('firebase-key.json'):
+            cred = credentials.Certificate('firebase-key.json')
             firebase_admin.initialize_app(cred, {
                 'storageBucket': FIREBASE_STORAGE_BUCKET.replace("gs://", "")
             })
-            logger.info("Firebase Admin inicializado via ADC.")
-        except Exception as adc_err:
-            logger.info(f"ADC não disponível ou falhou: {adc_err}. Tentando chave local...")
-            if os.path.exists('firebase-key.json'):
-                cred = credentials.Certificate('firebase-key.json')
+            logger.info("Firebase Admin inicializado via firebase-key.json.")
+        else:
+            # 2. Tenta ADC (Application Default Credentials) - Funciona nativo no Cloud Run
+            try:
+                cred = credentials.ApplicationDefault()
                 firebase_admin.initialize_app(cred, {
                     'storageBucket': FIREBASE_STORAGE_BUCKET.replace("gs://", "")
                 })
-                logger.info("Firebase Admin inicializado via firebase-key.json.")
-            else:
+                logger.info("Firebase Admin inicializado via ADC.")
+            except Exception as adc_err:
+                logger.info(f"ADC não disponível ou falhou: {adc_err}. Inicializando por padrão...")
                 # Se tudo falhar, inicializa sem credenciais explícitas (pode funcionar se o gcloud estiver logado)
                 firebase_admin.initialize_app(options={
                     'storageBucket': FIREBASE_STORAGE_BUCKET.replace("gs://", "")
