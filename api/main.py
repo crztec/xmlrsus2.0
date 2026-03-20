@@ -303,41 +303,34 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 "--disable-dev-shm-usage", 
                 "--disable-gpu",
                 "--window-size=1920,1080",
-                # DESATIVAR SAME-SITE E REGRAS DE SEGURANÇA: Portais legados muitas vezes mandam cookies 
-                # sem 'Secure' ou 'SameSite' que o Chrome moderno recusa por padrão.
+                # DESATIVAR SAME-SITE E REGRAS DE SEGURANÇA
                 "--disable-features=SameSiteByDefaultCookies,CookiesWithoutSameSiteMustBeSecure,SameSiteDefaultChecksMethodRacy",
                 "--disable-web-security",
-                "--allow-running-insecure-content"
+                "--allow-running-insecure-content",
+                "--ignore-certificate-errors",
+                "--disable-blink-features=AutomationControlled"
             ]
             try:
-                # Tenta o launch padrão primeiro (muito mais rápido no Docker)
+                # Tenta o launch padrão primeiro
                 browser = await p.chromium.launch(headless=True, args=browser_args)
             except Exception as launch_err:
-                # Fallback: Se falhar em ambiente local/sem-cached, tenta instalação rápida
-                err_msg = str(launch_err)
-                if "Executable doesn't exist" in err_msg or "not found" in err_msg.lower():
-                    db.add_log(task_id, "INFO", "Binários ausentes. Instalando Chromium (uma única vez)...")
-                    import subprocess
-                    import sys
-                    subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], check=False)
-                    browser = await p.chromium.launch(headless=True, args=["--no-sandbox"])
-                else:
-                    raise launch_err
+                # Fallback: Mantém os argumentos de segurança e certificado
+                db.add_log(task_id, "INFO", "Binários ausentes. Instalando Chromium...")
+                import subprocess, sys
+                subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], check=False)
+                browser = await p.chromium.launch(headless=True, args=browser_args)
 
-            # Novo contexto com Stealth Básico (UA + Viewport)
-            # O Cloud Run roda em UTC. Portais velhos (IIS) costumam mandar cookies
-            # de autenticação baseados no horário local do Brasil sem o 'GMT' no Expires.
-            # Isso faz o Playwright em UTC apagar o cookie instantaneamente achando que já expirou.
-            # Forçamos PT-BR e fuso horário de SP para emular 100% o ambiente do robô local.
+            # Novo contexto com Stealth Máximo
             context = await browser.new_context(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
                 viewport={'width': 1920, 'height': 1080},
                 ignore_https_errors=True,
                 timezone_id="America/Sao_Paulo",
-                locale="pt-BR",
-                device_scale_factor=1,
-                has_touch=False
+                locale="pt-BR"
             )
+            # Evasão contra detecção de automação (Webdriver)
+            await context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+            
             page = await context.new_page()
             page.set_default_navigation_timeout(60000)
             page.set_default_timeout(60000)
@@ -436,39 +429,25 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 
                 db.add_log(task_id, "INFO", f"Login processado. Cookies: {'SIM' if has_session else 'NÃO'}")
                 
-                # NOVO: SE ESTAMOS PRESOS NA TELA DE LOGIN MAS TEMOS COOKIE, FORÇAMOS O SALTO DEFINITIVO
-                if has_session and "Account/Login" in page.url:
-                    db.add_log(task_id, "WARNING", "Sessão detectada mas preso na tela de Login. Forçando salto para a URL alvo...")
-                    await page.goto(url_sistema, wait_until="commit", timeout=45000)
-                
-                await asyncio.sleep(2)
-                
-                db.add_log(task_id, "INFO", "Aguardando o portal redirecionar de volta organicamente...")
-                
-                # O robô antigo simplesmente aguardava o campo de protocolo aparecer na tela.
-                # Sem forçar navegação, sem iframes secundários, apenas paciência.
-                db.add_log(task_id, "INFO", "Aguardando carregamento do formulário (campo Protocolo)...")
-                
-                form_ready = False
-                try:
-                    # Tenta aguardar o formulário aparecer (Organic wait)
-                    await page.wait_for_function("""
-                        () => {
-                            if (document.querySelector('input#numeroProtocolo')) return true;
-                            for (let i = 0; i < window.frames.length; i++) {
-                                try { if (window.frames[i].document.querySelector('input#numeroProtocolo')) return true; } catch(e) {}
-                            }
-                            return false;
-                        }
-                    """, timeout=30000)
-                    form_ready = True
-                    db.add_log(task_id, "SUCCESS", "Formulário renderizado organicamente.")
-                except:
-                    # SE FALHAR (Tela Branca ou Carregamento Infinito): O "Salto Nuclear"
-                    db.add_log(task_id, "WARNING", "Página branca ou travada. Forçando salto direto para a URL final...")
-                    
-                    # Força a URL final novamente (ignora redirecionamentos pendentes)
-                    await page.goto(url_sistema, wait_until="commit", timeout=45000)
+                # NOVO: SE ESTAMOS PRESOS NA TELA DE LOGIN MAS TEMOS COOKIE, FORÇAMOS O SALTO TRIPLO
+                if has_session and ("Account/Login" in page.url or "Account/LogOff" in page.url):
+                    db.add_log(task_id, "WARNING", "Sessão detectada mas preso na tela de Login. Forçando Salto Triplo (Prova Real)...")
+                    # 1. Toca na raiz para garantir cookies de sessão base
+                    await page.goto(url_sistema.split('/novo')[0].rsplit('/', 1)[0], wait_until="commit", timeout=15000)
+                    # 2. Visita a lista (Index) - O segredo que funcionou localmente!
+                    url_lista = url_sistema.replace("/novo", "")
+                    await page.goto(url_lista, wait_until="domcontentloaded", timeout=20000)
+                    await asyncio.sleep(2)
+                    # 3. Finalmente vai para o formulário de novo registro
+                    await page.goto(url_sistema, wait_until="domcontentloaded", timeout=30000)
+                else:
+                    # Tática de "Double-Jump" Orgânico
+                    await asyncio.sleep(2)
+                    db.add_log(task_id, "INFO", "Aguardando redirecionamento orgânico. Forçando Double-Jump de segurança...")
+                    url_lista = url_sistema.replace("/novo", "")
+                    await page.goto(url_lista, wait_until="domcontentloaded", timeout=20000)
+                    await asyncio.sleep(1)
+                    await page.goto(url_sistema, wait_until="domcontentloaded", timeout=30000)
                     
                     try:
                         # Espera mais rápida no salto nuclear
