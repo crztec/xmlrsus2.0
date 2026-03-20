@@ -401,6 +401,14 @@ async def background_worker_task(task_id: str, url_sistema: str):
                         db.add_log(task_id, "SUCCESS", "Formulário renderizado após refresh!")
                     except Exception as reload_err:
                         db.add_log(task_id, "ERROR", f"Falha após refresh: Timeout!")
+                        try:
+                            html_content = await page.content()
+                            html_path = f"debug/screenshots/{task_id}_dump.html"
+                            bucket = db.storage.bucket()
+                            bucket.blob(html_path).upload_from_string(html_content.encode('utf-8'), content_type='text/html')
+                            db.add_log(task_id, "DEBUG", f"HTML Dump (após refresh) salvo: {html_path}")
+                        except Exception as dump_err:
+                            db.add_log(task_id, "ERROR", f"Falha ao salvar HTML Dump: {dump_err}")
                         
             except Exception as e:
                 import traceback
@@ -412,7 +420,7 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 logger.error(f"DETALHE DO ERRO NO FORMULÁRIO: {error_detail}")
                 try:
                     await page.screenshot(path=screenshot_path)
-                    # Upload do screenshot e do HTML para debug
+                    # Upload do screenshot para o Storage
                     with open(screenshot_path, 'rb') as f:
                         buf = f.read()
                         remote_path = f"debug/screenshots/{task_id}_login_error.png"
@@ -420,13 +428,6 @@ async def background_worker_task(task_id: str, url_sistema: str):
                         blob = bucket.blob(remote_path)
                         blob.upload_from_string(buf, content_type='image/png')
                         db.add_log(task_id, "DEBUG", f"Screenshot salvo: {remote_path}")
-                        
-                    # DUMP DO HTML COMPLETO PARA DEBUGGAR A TELA BRANCA!
-                    html_content = await page.content()
-                    html_path = f"debug/screenshots/{task_id}_dump.html"
-                    html_blob = bucket.blob(html_path)
-                    html_blob.upload_from_string(html_content.encode('utf-8'), content_type='text/html')
-                    db.add_log(task_id, "DEBUG", f"HTML Dump salvo: {html_path}")
                 except Exception as img_err:
                     pass
                 raise e
