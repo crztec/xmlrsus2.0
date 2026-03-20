@@ -539,10 +539,16 @@ async def background_worker_task(task_id: str, url_sistema: str):
                     # ─── ETAPA 1: Preencher campo Protocolo (somente numeroProcesso do XML) ───
                     num_processo = file.get('numero_processo', '')
                     db.add_log(task_id, "INFO", f"Preenchendo Protocolo: {num_processo}")
-                    protocolo_field = form_target.locator("input#numeroProtocolo").first
-                    await protocolo_field.click()
-                    await protocolo_field.fill("")
-                    await protocolo_field.type(str(num_processo), delay=50)
+                    
+                    # Usa evaluate para garantir preenchimento mesmo em campos com restrições de UI
+                    await form_target.evaluate(f"(val) => {{ \
+                        const el = document.querySelector('input#numeroProtocolo, #numeroProtocolo'); \
+                        if(el) {{ \
+                            el.value = val; \
+                            el.dispatchEvent(new Event('input', {{ bubbles: true }})); \
+                            el.dispatchEvent(new Event('change', {{ bubbles: true }})); \
+                        }} \
+                    }}", str(num_processo))
                     
                     # ─── ETAPA 2: Preencher campos de data e valores ───
                     dt_recebimento = file.get("data_recebimento_oficio") or file.get("data_registro_transacao", "")
@@ -553,7 +559,7 @@ async def background_worker_task(task_id: str, url_sistema: str):
                     
                     db.add_log(task_id, "INFO", f"Dados: dt_rec={dt_recebimento}, prazo={dt_prazo}, comp={competencias}, qtd={qtd}, val={valor}")
                     
-                    # Preenche campos individualmente com Playwright (mais confiável que evaluate)
+                    # Preenche campos via JavaScript para contornar restrições de 'readOnly' e AngularJS
                     field_map = {
                         "input#dataRecebimentoOficio": dt_recebimento,
                         "input#dataPrazoRespostaAns": dt_prazo,
@@ -566,14 +572,23 @@ async def background_worker_task(task_id: str, url_sistema: str):
                         if not val:
                             continue
                         try:
-                            field = form_target.locator(sel).first
-                            if await field.count() > 0:
-                                await field.click()
-                                await field.fill("")
-                                await field.type(str(val), delay=30)
-                                db.add_log(task_id, "DEBUG", f"  Campo {sel} = '{val}' ✓")
+                            # Tenta preenchimento forçado via JS
+                            success = await form_target.evaluate(f"(args) => {{ \
+                                const el = document.querySelector(args.sel); \
+                                if (el) {{ \
+                                    el.value = args.val; \
+                                    el.dispatchEvent(new Event('input', {{ bubbles: true }})); \
+                                    el.dispatchEvent(new Event('change', {{ bubbles: true }})); \
+                                    el.dispatchEvent(new Event('blur', {{ bubbles: true }})); \
+                                    return true; \
+                                }} \
+                                return false; \
+                            }}", {"sel": sel, "val": str(val)})
+                            
+                            if success:
+                                db.add_log(task_id, "DEBUG", f"  Campo {sel} = '{val}' (Force-Fill ✓)")
                             else:
-                                db.add_log(task_id, "WARNING", f"  Campo {sel} NÃO encontrado na página")
+                                db.add_log(task_id, "WARNING", f"  Campo {sel} NÃO encontrado via JS")
                         except Exception as field_err:
                             db.add_log(task_id, "WARNING", f"  Erro no campo {sel}: {str(field_err)[:60]}")
                     
