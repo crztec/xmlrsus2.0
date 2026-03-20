@@ -573,13 +573,19 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 storage_path = file.get('storage_path')
                 
                 db.add_log(task_id, "INFO", f"[{i+1}/{total}] Iniciando preenchimento do ABI {abi}...")
-                
                 try:
-                    # ─── ETAPA 1: Preenchimento Robusto (Force-Fill) ───
-                    # Extração de dados com fallbacks
                     num_processo = file.get('numero_processo', '')
                     dt_recebimento = file.get("data_recebimento_oficio") or file.get("data_registro_transacao", "")
+                    
+                    # ─── NOVO: Cálculo de Prazo (35 dias) if missing ───
                     dt_prazo = file.get("prazo_resposta_ans", "")
+                    if not dt_prazo and dt_recebimento:
+                        try:
+                            from datetime import datetime, timedelta
+                            dt_obj = datetime.strptime(dt_recebimento, "%d/%m/%Y")
+                            dt_prazo = (dt_obj + timedelta(days=35)).strftime("%d/%m/%Y")
+                        except: pass
+
                     competencias = file.get("competencias", "")
                     qtd = str(file.get("quantidade_processo", "0"))
                     valor = str(file.get("valor_total_processo", "0"))
@@ -587,7 +593,7 @@ async def background_worker_task(task_id: str, url_sistema: str):
                     field_map = {
                         "input#numeroProtocolo": num_processo,
                         "input#dataRecebimentoOficio": dt_recebimento,
-                        "input#dataPrazoRespostaAns": dt_prazo,
+                        "input#dataPrazoRespostaAns, input#prazoRespostaAns": dt_prazo,
                         "input#competencias": competencias,
                         "input#quantidadeAtendimentos": qtd,
                         "input#valorTotalABI": valor,
@@ -595,53 +601,38 @@ async def background_worker_task(task_id: str, url_sistema: str):
                     
                     db.add_log(task_id, "INFO", f"Preenchendo formulário para ABI {abi} (Processo: {num_processo})")
                     
-                    # ─── NOVO: Esperar e Garantir dependências JS (jQuery) ───
-                    # Alguns portais legados usam jQuery mas não definem o alias '$' globalmente
-                    # ou o carregam de forma extremamente lenta/através de iframes.
+                    # ─── NOVO: Definição de interface (Injeção CSS e jQuery Sync) ───
                     try:
-                        # Tenta mapear o jQuery se ele existir mas o $ não
                         await page.evaluate("""() => {
+                            const style = document.createElement('style');
+                            style.innerHTML = '.datepicker { display: none !important; visibility: hidden !important; height: 0 !important; }';
+                            document.head.appendChild(style);
                             if (window.jQuery && !window.$) window.$ = window.jQuery;
-                            if (!window.jQuery) {
-                                // Tenta buscar nos fuso horário e frames se necessário, mas aqui focamos na window principal
-                            }
                         }""")
-                        await page.wait_for_function("() => (window.jQuery !== undefined || window.$ !== undefined)", timeout=20000)
-                        db.add_log(task_id, "DEBUG", "jQuery ($) detectado e sincronizado.")
-                        # Pequena pausa para os plugins do jQuery (como datepickers) carregarem
-                        await asyncio.sleep(2)
-                    except:
-                        db.add_log(task_id, "WARNING", "jQuery ($) não detectado em 20s. O portal pode falhar na submissão.")
+                        await asyncio.sleep(1)
+                    except: pass
 
                     for sel, val in field_map.items():
                         if not val: continue
                         try:
-                            # Tenta preenchimento forçado via JS para contornar readOnly e AngularJS
-                            # Dispara 'input', 'change' e 'blur' para garantir sincronização do framework
-                            # Se jQuery estiver disponível, usamos ele para garantir que os listeners nativos operem
-                            success = await form_target.evaluate(f"(args) => {{ \
-                                const el = document.querySelector(args.sel); \
-                                if (el) {{ \
-                                    el.value = args.val; \
-                                    if (window.jQuery) {{ \
-                                        const $el = window.jQuery(el); \
-                                        $el.trigger('input').trigger('change').trigger('blur'); \
-                                    }} else {{ \
-                                        el.dispatchEvent(new Event('input', {{ bubbles: true }})); \
-                                        el.dispatchEvent(new Event('change', {{ bubbles: true }})); \
-                                        el.dispatchEvent(new Event('blur', {{ bubbles: true }})); \
-                                    }} \
-                                    return true; \
-                                }} \
-                                return false; \
-                            }}", {"sel": sel, "val": str(val)})
+                            # Preenchimento Robusto via JS (Validado na Prova Real Local)
+                            success = await form_target.evaluate("""([sel, val]) => {
+                                const elements = document.querySelectorAll(sel);
+                                const el = elements[0];
+                                if (el) {
+                                    el.value = val;
+                                    el.dispatchEvent(new Event('input', { bubbles: true }));
+                                    el.dispatchEvent(new Event('change', { bubbles: true }));
+                                    if (window.jQuery) window.jQuery(el).trigger('change');
+                                    return true;
+                                }
+                                return false;
+                            }""", [sel, str(val)])
                             
                             if success:
                                 db.add_log(task_id, "DEBUG", f"  Campo {sel} preenchido ✓")
-                            else:
-                                db.add_log(task_id, "WARNING", f"  Campo {sel} NÃO encontrado na página")
                         except Exception as field_err:
-                            db.add_log(task_id, "WARNING", f"  Erro no campo {sel}: {str(field_err)[:60]}")
+                            db.add_log(task_id, "WARNING", f"  Erro no campo {sel}: {str(field_err)[:50]}")
                     
                     # ─── ETAPA 3: Upload do arquivo XML ───
                     db.add_log(task_id, "INFO", f"Fazendo upload do XML: {nome} (ABI {abi})")
@@ -688,27 +679,36 @@ async def background_worker_task(task_id: str, url_sistema: str):
                     await page.evaluate("window.scrollTo(0, 0)")
                     await asyncio.sleep(2) # Buffer extra para o portal 'sentir' os campos preenchidos
                     
-                    success_click = False
-                    import_selectors = [
-                        "a:has-text('IMPORTAR ARQUIVO')",
-                        "button:has-text('IMPORTAR ARQUIVO')",
-                        "a:has-text('Importar Arquivo')",
-                        "input[type='submit']"
-                    ]
-                    
-                    for selector in import_selectors:
-                        try:
-                            btn = page.locator(selector).first
-                            if await btn.count() > 0:
-                                await btn.click(timeout=10000)
-                                success_click = True
-                                db.add_log(task_id, "DEBUG", f"Clique realizado: {selector} ✓")
-                                break
-                        except: continue
+                    # Clique Final no botão de Importar (Robusto com evaluate)
+                    success_click = await page.evaluate("""() => {
+                        const buttons = Array.from(document.querySelectorAll('a, button, input[type="submit"]'));
+                        const btn = buttons.find(b => b.innerText.includes('IMPORTAR ARQUIVO') || b.value === 'IMPORTAR ARQUIVO');
+                        if (btn) {
+                            btn.scrollIntoView();
+                            btn.click();
+                            return true;
+                        }
+                        // Fallback dinâmico para qualquer botão verde de sucesso
+                        const btnGreen = document.querySelector('a.btn-success, button.btn-success');
+                        if (btnGreen) { btnGreen.click(); return true; }
+                        return false;
+                    }""")
                     
                     if not success_click:
+                        db.add_log(task_id, "WARNING", "Clique via JS falhou, tentando clique nativo...")
+                        import_selectors = ["a:has-text('IMPORTAR ARQUIVO')", "button:has-text('IMPORTAR ARQUIVO')", ".btn-success"]
+                        for selector in import_selectors:
+                            try:
+                                btn = page.locator(selector).first
+                                if await btn.count() > 0:
+                                    await btn.click(timeout=5000)
+                                    success_click = True
+                                    break
+                            except: continue
+
+                    if not success_click:
                         db.add_log(task_id, "ERROR", "Não foi possível clicar em IMPORTAR ARQUIVO.")
-                        continue # Pula para o próximo arquivo se não conseguiu clicar no botão principal
+                        continue
                     
                     if success_click:
                         # ─── NOVO: Lida com Modal de Confirmação (AngularJS) ───
