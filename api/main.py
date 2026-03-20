@@ -289,6 +289,7 @@ async def background_worker_task(task_id: str, url_sistema: str):
             # 1. Launcher: Otimiza inicialização e tratamento de binários
             # Incorporando flags de otimização do robô antigo para máxima estabilidade
             browser_args = [
+                "--headless=new",
                 "--no-sandbox", 
                 "--disable-dev-shm-usage", 
                 "--disable-gpu",
@@ -384,7 +385,19 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 
                 form_ready = False
                 try:
-                    await page.locator("input#numeroProtocolo").first.wait_for(state="visible", timeout=60000)
+                    # Usando wait_for_function para procurar em todos os frames e não ligar para 'visibility'
+                    # Equivalente exato ao 'presence_of_element_located' do Selenium, superando as restrições do Playwright
+                    await page.wait_for_function("""
+                        () => {
+                            if (document.querySelector('input#numeroProtocolo')) return true;
+                            for (let i = 0; i < window.frames.length; i++) {
+                                try {
+                                    if (window.frames[i].document.querySelector('input#numeroProtocolo')) return true;
+                                } catch(e) {}
+                            }
+                            return false;
+                        }
+                    """, timeout=60000)
                     form_ready = True
                     db.add_log(task_id, "SUCCESS", "Formulário renderizado com sucesso de forma orgânica!")
                 except:
@@ -395,7 +408,7 @@ async def background_worker_task(task_id: str, url_sistema: str):
                         img_blank = await page.screenshot()
                         db.upload_screenshot(f"debug/screenshots/{task_id}_step1_blank.png", img_blank)
                         await page.reload(wait_until="domcontentloaded", timeout=45000)
-                        await page.locator("input#numeroProtocolo").first.wait_for(state="visible", timeout=30000)
+                        await page.wait_for_function("() => !!document.querySelector('input#numeroProtocolo')", timeout=30000)
                         form_ready = True
                         db.add_log(task_id, "SUCCESS", "Formulário renderizado após refresh!")
                     except Exception as reload_err:
