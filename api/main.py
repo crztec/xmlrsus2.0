@@ -333,13 +333,12 @@ async def background_worker_task(task_id: str, url_sistema: str):
             page.set_default_navigation_timeout(60000)
             page.set_default_timeout(60000)
 
-            # 2. Navegação Otimizada
+            # 2. Navegação Orgânica (Simulando o robô antigo)
             try:
-                # 2.1 Login Direto (Mais rápido que esperar redirect)
-                login_url = "https://rsuserechim.cubeti.com.br/Account/Login"
-                db.add_log(task_id, "INFO", "Acessando página de autenticação...")
-                # Usamos commit + elemen-wait para máxima rapidez e resiliência
-                await page.goto(login_url, wait_until="commit", timeout=60000)
+                db.add_log(task_id, "INFO", f"Acessando url alvo para redirecionamento orgânico: {url_sistema}")
+                # Entra diretamenta na URL do sistema (ex: /importacao/novo)
+                # O portal vai redirecionar automaticamente para a tela de login preservando a rota de retorno (ReturnUrl)
+                await page.goto(url_sistema, wait_until="commit", timeout=60000)
                 
                 # Tratar modais/avisos iniciais (fast scan)
                 try:
@@ -348,121 +347,72 @@ async def background_worker_task(task_id: str, url_sistema: str):
                         await page.keyboard.press("Escape")
                 except: pass
 
-                # Localizar campos de forma eficiente
+                # Localizar campo de email (confirmação do redirecionamento para o Login)
                 email_field = page.locator("input#email, input#Email").first
                 if await email_field.count() == 0:
-                    # Fallback para Iframe apenas se estritamente necessário
                     for frame in page.frames:
                         f_email = frame.locator("input#email, input#Email").first
                         if await f_email.count() > 0:
-                            db.add_log(task_id, "DEBUG", "Login detectado em IFrame.")
                             email_field = f_email
                             break
-                
-                await email_field.wait_for(state="visible", timeout=10000)
-                db.add_log(task_id, "INFO", "Preenchendo credenciais...")
+
+                await email_field.wait_for(state="visible", timeout=25000)
+                db.add_log(task_id, "INFO", "Tela de login atingida. Preenchendo credenciais...")
                 
                 # Preenchimento
                 await email_field.fill(usuario)
                 await page.locator("input#password, input#Password").first.fill(senha)
                 
-                # Botão de Login (seletor direto #logIn)
+                # Botão de Login
                 btn_login = page.locator("#logIn, button[type='submit']").first
                 await btn_login.click(force=True)
                 
-                # 2.2 Transição Resiliente para Formulário
-                db.add_log(task_id, "INFO", "Autenticado. Verificando redirecionamento...")
+                db.add_log(task_id, "INFO", "Autenticado. Aguardando o portal redirecionar de volta organicamente...")
+                
+                # O robô antigo simplesmente aguardava o campo de protocolo aparecer na tela.
+                # Sem forçar navegação, sem iframes secundários, apenas paciência.
+                db.add_log(task_id, "INFO", "Aguardando carregamento do formulário (campo Protocolo)...")
+                
+                form_ready = False
                 try:
-                    # Tenta esperar um pouso automático no /importacao (comum)
-                    await page.wait_for_url("**/importacao**", timeout=12000)
-                    db.add_log(task_id, "INFO", "Navegação automática confirmada ✓")
+                    await page.locator("input#numeroProtocolo").first.wait_for(state="visible", timeout=60000)
+                    form_ready = True
+                    db.add_log(task_id, "SUCCESS", "Formulário renderizado com sucesso de forma orgânica!")
                 except:
-                    # Se cair na Home (/) ou demorar muito, força a ida direta para o formulário
-                    curr_url = page.url
-                    db.add_log(task_id, "WARNING", f"Redirecionamento incompleto (parou em {curr_url}). Forçando Novo Protocolo...")
-                    # wait_until="commit" é o mais rápido (espera apenas a resposta do servidor/mudança de URL)
-                    # O carregamento real é garantido pelos wait_for(selector) subsequentes
-                    await page.goto(url_sistema, wait_until="commit", timeout=60000)
-                
-                # Aguarda renderização final do formulário AngularJS
-                try:
-                    await page.wait_for_function("() => window.angular ? window.angular.element(document.body).injector().get('$http').pendingRequests.length === 0 : true", timeout=8000)
-                except: pass
-                
-                # Aguarda transição ou verificação rápida de erro
-                db.add_log(task_id, "INFO", "Aguardando redirecionamento pós-login...")
-                await page.wait_for_timeout(8000)
-                
-                # Espera AngularJS terminar de renderizar (se disponível)
-                try:
-                    await page.wait_for_function("""
-                        () => {
-                            // Espera Angular terminar OU o campo protocolo aparecer
-                            if (document.querySelector('#numeroProtocolo')) return true;
-                            if (window.angular) {
-                                var injector = window.angular.element(document.body).injector();
-                                if (injector) {
-                                    var $http = injector.get('$http');
-                                    return $http.pendingRequests.length === 0;
-                                }
-                            }
-                            return document.readyState === 'complete';
-                        }
-                    """, timeout=15000)
-                except:
-                    pass
-                await asyncio.sleep(3)
+                    # Se mesmo organicamente falhar em 60s, a sessão Angular pode ter corrompido.
+                    # Vamos tentar 1 único refresh como último recurso ou fallback final.
+                    db.add_log(task_id, "WARNING", "Página em branco ou travada detectada. Aplicando REFRESH...")
+                    try:
+                        img_blank = await page.screenshot()
+                        db.upload_screenshot(f"debug/screenshots/{task_id}_step1_blank.png", img_blank)
+                        await page.reload(wait_until="domcontentloaded", timeout=45000)
+                        await page.locator("input#numeroProtocolo").first.wait_for(state="visible", timeout=30000)
+                        form_ready = True
+                        db.add_log(task_id, "SUCCESS", "Formulário renderizado após refresh!")
+                    except Exception as reload_err:
+                        db.add_log(task_id, "ERROR", f"Falha após refresh: Timeout!")
+                        
             except Exception as e:
                 import traceback
                 error_detail = traceback.format_exc()
                 # Captura screenshot em caso de erro de login/timeout
                 screenshot_path = f"/tmp/error_login_{task_id}.png"
                 page_url = page.url
-                db.add_log(task_id, "ERROR", f"Falha no formulário: {str(e)}. URL Atual: {page_url}")
+                db.add_log(task_id, "ERROR", f"Falha no login ou redirecionamento inicial: {str(e)[:100]}")
                 logger.error(f"DETALHE DO ERRO NO FORMULÁRIO: {error_detail}")
                 try:
                     await page.screenshot(path=screenshot_path)
-                    # Upload do screenshot para o Storage para podermos visualizar
+                    # Upload do screenshot para debug
                     with open(screenshot_path, 'rb') as f:
                         buf = f.read()
                         remote_path = f"debug/screenshots/{task_id}_login_error.png"
-                        # Reuso a função de upload mudando o content_type (hack para debug)
                         bucket = db.storage.bucket()
                         blob = bucket.blob(remote_path)
                         blob.upload_from_string(buf, content_type='image/png')
-                        db.add_log(task_id, "DEBUG", f"Screenshot do erro salvo em: {remote_path}")
+                        db.add_log(task_id, "DEBUG", f"Screenshot salvo: {remote_path}")
                 except Exception as img_err:
-                    logger.error(f"Erro ao capturar/salvar screenshot: {img_err}")
+                    pass
                 raise e
-            # 1.3 Espera pelo campo Protocolo (Estratégia: Espera 10s -> Reload se em branco -> Espera 20s)
-            db.add_log(task_id, "INFO", "Aguardando carregamento do formulário (campo Protocolo)...")
-            form_ready = False
-            
-            # Primeira tentativa: Espera curta
-            try:
-                await page.locator("input#numeroProtocolo").first.wait_for(state="visible", timeout=12000)
-                form_ready = True
-            except:
-                db.add_log(task_id, "WARNING", "Página em branco detectada. Aplicando REFRESH para forçar renderização...")
-                try:
-                    # Tira print do estado em branco para log
-                    img_blank = await page.screenshot()
-                    db.upload_screenshot(f"debug/screenshots/{task_id}_step1_blank.png", img_blank)
-                    
-                    # O "pulo do gato": O portal AngularJS às vezes não renderiza no primeiro redirect.
-                    # Um reload resolve 100% das vezes nos testes manuais.
-                    try:
-                        await page.reload(wait_until="domcontentloaded", timeout=45000)
-                    except:
-                        db.add_log(task_id, "WARNING", "Timeout no reload forçado, tentando prosseguir...")
-                    db.add_log(task_id, "INFO", "Página recarregada. Aguardando formulário novamente...")
-                    
-                    # Segunda tentativa: Espera mais longa após reload
-                    await page.locator("input#numeroProtocolo").first.wait_for(state="visible", timeout=25000)
-                    form_ready = True
-                    db.add_log(task_id, "SUCCESS", "Formulário renderizado com sucesso após refresh!")
-                except Exception as reload_err:
-                    db.add_log(task_id, "ERROR", f"Falha após refresh: {str(reload_err)[:100]}")
 
             # Fallback final: Se ainda não carregou, tenta clicar em SELECIONAR ARQUIVO na lista
             if not form_ready:
