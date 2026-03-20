@@ -324,6 +324,10 @@ async def background_worker_task(task_id: str, url_sistema: str):
 
             # 2. Navegação Orgânica (Simulando o robô antigo)
             try:
+                # LISTENER DE CONSOLE PARA CAPTURAR O ERRO INVISÍVEL DO ANGULARJS!
+                page.on("console", lambda msg: db.add_log(task_id, "DEBUG" if msg.type != "error" else "ERROR", f"[Browser Console] {msg.text[:500]}") if msg.type in ['error', 'warning'] else None)
+                page.on("pageerror", lambda err: db.add_log(task_id, "ERROR", f"[Uncaught Exception] {str(err)[:500]}"))
+
                 db.add_log(task_id, "INFO", f"Acessando url alvo para redirecionamento orgânico: {url_sistema}")
                 # Entra diretamenta na URL do sistema (ex: /importacao/novo)
                 # O portal vai redirecionar automaticamente para a tela de login preservando a rota de retorno (ReturnUrl)
