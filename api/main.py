@@ -260,7 +260,8 @@ async def get_task_status(task_id: str):
     if total > 0:
         progress = int((processed / total) * 100)
     
-    logs = db.get_logs_for_task(task_id, limit=10)
+    # Busca os logs (limite aumentado para 50 para suportar a barra de rolagem no dashboard)
+    logs = db.get_logs_for_task(task_id, limit=50)
     
     return {
         "id": task_id,
@@ -345,10 +346,19 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 
                 # INTERCEPTOR DE RESPOSTAS PARA VER OS HEADERS DE COOKIE
                 async def handle_response(response):
-                    if "Login" in response.url and response.status in [200, 302]:
-                        headers = response.headers
-                        set_cookie = headers.get('set-cookie', 'Nenhum')
-                        db.add_log(task_id, "DEBUG", f"[HTTP Login Response] Status: {response.status}, Set-Cookie: {set_cookie[:200]}")
+                    if "Login" in response.url or "/Account/" in response.url:
+                        # Pega todos os headers de uma vez e busca case-insensitive
+                        all_headers = response.headers
+                        # No Playwright as chaves do dicionário headers são minúsculas
+                        set_cookie = all_headers.get('set-cookie')
+                        
+                        if set_cookie:
+                            # Loga os primeiros 300 caracteres do cookie para não poluir demais o DB
+                            db.add_log(task_id, "DEBUG", f"[HTTP Cookie Catch] Status: {response.status}, Set-Cookie: {set_cookie[:300]}")
+                        elif response.status in [302, 200] and "Login" in response.url:
+                            # Se não achou 'set-cookie', loga os nomes de todos os headers recebidos para inspeção
+                            h_names = ", ".join(all_headers.keys())
+                            db.add_log(task_id, "DEBUG", f"[HTTP Meta Check] Status: {response.status}, Headers: {h_names}")
                 
                 page.on("response", handle_response)
 

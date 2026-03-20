@@ -20,7 +20,7 @@ export default function DashboardPage() {
 
   const addLog = (message: string, status: 'success' | 'error' | 'processing' | 'info') => {
     const time = new Date().toLocaleTimeString('pt-BR');
-    setLogs(prev => [{ status, message, time }, ...prev].slice(0, 10));
+    setLogs(prev => [{ status, message, time }, ...prev].slice(0, 50));
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -277,7 +277,7 @@ export default function DashboardPage() {
         
         {logs.length > 0 ? (
           <div className="space-y-4">
-            <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-6">
+            <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-6 max-h-[500px] overflow-y-auto custom-scrollbar">
               <div className="space-y-3">
                 {logs.map((log, i) => (
                   <LogEntry key={i} status={log.status as any} message={log.message} time={log.time} />
