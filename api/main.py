@@ -578,18 +578,32 @@ async def background_worker_task(task_id: str, url_sistema: str):
                     
                     db.add_log(task_id, "INFO", f"Preenchendo formulário para ABI {abi} (Processo: {num_processo})")
                     
+                    # ─── NOVO: Esperar por dependências JS (jQuery) ───
+                    # Alguns portais legados ASP.NET carregam JS de forma assíncrona após o DOM estar pronto.
+                    try:
+                        await page.wait_for_function("() => window.jQuery !== undefined || window.$ !== undefined", timeout=10000)
+                        db.add_log(task_id, "DEBUG", "jQuery ($) detectado e pronto.")
+                    except:
+                        db.add_log(task_id, "DEBUG", "jQuery ($) não detectado em 10s, prosseguindo com JS puro.")
+
                     for sel, val in field_map.items():
                         if not val: continue
                         try:
                             # Tenta preenchimento forçado via JS para contornar readOnly e AngularJS
                             # Dispara 'input', 'change' e 'blur' para garantir sincronização do framework
+                            # Se jQuery estiver disponível, usamos ele para garantir que os listeners nativos operem
                             success = await form_target.evaluate(f"(args) => {{ \
                                 const el = document.querySelector(args.sel); \
                                 if (el) {{ \
                                     el.value = args.val; \
-                                    el.dispatchEvent(new Event('input', {{ bubbles: true }})); \
-                                    el.dispatchEvent(new Event('change', {{ bubbles: true }})); \
-                                    el.dispatchEvent(new Event('blur', {{ bubbles: true }})); \
+                                    if (window.jQuery) {{ \
+                                        const $el = window.jQuery(el); \
+                                        $el.trigger('input').trigger('change').trigger('blur'); \
+                                    }} else {{ \
+                                        el.dispatchEvent(new Event('input', {{ bubbles: true }})); \
+                                        el.dispatchEvent(new Event('change', {{ bubbles: true }})); \
+                                        el.dispatchEvent(new Event('blur', {{ bubbles: true }})); \
+                                    }} \
                                     return true; \
                                 }} \
                                 return false; \
@@ -632,31 +646,41 @@ async def background_worker_task(task_id: str, url_sistema: str):
                     # ─── ETAPA 5: Clicar no botão IMPORTAR ARQUIVO ───
                     db.add_log(task_id, "INFO", "Clicando em IMPORTAR ARQUIVO...")
                     
+                    # Interceptor para capturar o erro 400 do portal
+                    async def catch_import_error(response):
+                        if "importacao" in response.url.lower() and response.status == 400:
+                            try:
+                                body = await response.text()
+                                db.add_log(task_id, "ERROR", f"Portal retornou 400: {body[:500]}")
+                            except: pass
+                    
+                    page.on("response", catch_import_error)
+
                     # Rola para o topo para garantir visibilidade
                     await page.evaluate("window.scrollTo(0, 0)")
                     await asyncio.sleep(1)
                     
                     success_click = False
-                    # O botão fica na barra superior cinza, no topo da página
                     import_selectors = [
                         "a:has-text('IMPORTAR ARQUIVO')",
                         "button:has-text('IMPORTAR ARQUIVO')",
                         "a:has-text('Importar Arquivo')",
-                        "button:has-text('Importar')",
-                        ".btn-primary:has-text('Importar')",
-                        "input[type='submit'][value*='Importar']",
+                        "input[type='submit']"
                     ]
                     
                     for selector in import_selectors:
                         try:
                             btn = page.locator(selector).first
-                            if await btn.is_visible(timeout=2000):
-                                await btn.click(force=True)
+                            if await btn.count() > 0:
+                                await btn.click(timeout=10000)
                                 success_click = True
-                                db.add_log(task_id, "INFO", f"Clique realizado: {selector} ✓")
+                                db.add_log(task_id, "DEBUG", f"Clique realizado: {selector} ✓")
                                 break
-                        except:
-                            continue
+                        except: continue
+                    
+                    if not success_click:
+                        db.add_log(task_id, "ERROR", "Não foi possível clicar em IMPORTAR ARQUIVO.")
+                        continue # Pula para o próximo arquivo se não conseguiu clicar no botão principal
                     
                     if success_click:
                         # ─── NOVO: Lida com Modal de Confirmação (AngularJS) ───
