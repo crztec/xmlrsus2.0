@@ -1,7 +1,7 @@
 import os
 import sys
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 import firebase_admin
 from firebase_admin import credentials, firestore, storage
 
@@ -14,6 +14,10 @@ FIREBASE_STORAGE_BUCKET = os.environ.get('FIREBASE_STORAGE_BUCKET', 'xmlrsus.fir
 
 # Initialize Firebase only once
 firestore_db = None
+
+def get_now_br():
+    """Returns current datetime in UTC-3 (Brazil/Sao Paulo)"""
+    return datetime.now(timezone(timedelta(hours=-3)))
 
 if not firebase_admin._apps:
     logger.info("Initializing Firebase Admin SDK...")
@@ -369,14 +373,17 @@ def add_files_to_task_bulk(task_id, files_info_list):
 def update_task_total_files(task_id, total):
     firestore_db.collection('tasks').document(task_id).update({
         'total_arquivos': total,
-        'updated_at': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        'updated_at': get_now_br().strftime("%Y-%m-%d %H:%M:%S")
     })
 
 def add_log(task_id, level, message):
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    data_br = get_now_br()
+    now_str = data_br.strftime("%Y-%m-%d %H:%M:%S")
     log_data = {
-        'timestamp': now, 'level': level, 'message': message,
-        'timestamp_ms': datetime.now().timestamp() * 1000
+        'timestamp': now_str, 
+        'level': level, 
+        'message': message,
+        'timestamp_ms': data_br.timestamp() * 1000
     }
     firestore_db.collection('tasks').document(task_id).update({
         'logs': firestore.ArrayUnion([log_data])
@@ -392,7 +399,7 @@ def get_pending_task():
         task_ref = firestore_db.collection('tasks').document(task_doc.id)
         task_ref.update({
             'status': 'EM ANDAMENTO',
-            'updated_at': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            'updated_at': get_now_br().strftime("%Y-%m-%d %H:%M:%S")
         })
         task_data = task_doc.to_dict()
         task_data['id'] = task_doc.id

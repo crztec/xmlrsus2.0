@@ -286,21 +286,15 @@ async def background_worker_task(task_id: str, url_sistema: str):
         login_url = f"{base_url}/Account/Login"
 
         async with async_playwright() as p:
+            # 1. Launcher: Otimiza inicialização e tratamento de binários
             try:
-                # Flags para maior invisibilidade e compatibilidade
                 browser = await p.chromium.launch(
                     headless=True, 
-                    args=[
-                        "--no-sandbox", 
-                        "--disable-setuid-sandbox", 
-                        "--disable-dev-shm-usage",
-                        "--disable-gpu"
-                    ]
+                    args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"]
                 )
             except Exception as launch_err:
-                # Se falhar, tenta instalar apenas como último recurso
                 if "Executable doesn't exist" in str(launch_err):
-                    db.add_log(task_id, "INFO", "Binários não encontrados, tentando instalação rápida...")
+                    db.add_log(task_id, "INFO", "Binários ausentes. Instalando Chromium (uma única vez)...")
                     import subprocess
                     import sys
                     subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], check=False)
@@ -318,94 +312,51 @@ async def background_worker_task(task_id: str, url_sistema: str):
             page.set_default_navigation_timeout(60000)
             page.set_default_timeout(60000)
 
-            # 1. Abre url_sistema diretamente (padrão do robô antigo que funcionava perfeitamente)
-            # O portal redireciona para login se não autenticado. Após login, volta para url_sistema.
-            db.add_log(task_id, "INFO", f"Acessando {url_sistema}...")
+            # 2. Navegação Otimizada
             try:
-                # Retry loop para o carregamento inicial
-                for attempt in range(2):
-                    try:
-                        # Abre url_sistema diretamente — usa 'load' como Selenium navegador.get()
-                        await page.goto(url_sistema, timeout=60000, wait_until="load")
-                        break
-                    except Exception as e:
-                        if attempt == 1: raise e
-                        db.add_log(task_id, "INFO", "Servidor lento. Tentando novamente...")
-                        await asyncio.sleep(5)
+                # 2.1 Login Direto (Mais rápido que esperar redirect)
+                login_url = "https://rsuserechim.cubeti.com.br/Account/Login"
+                db.add_log(task_id, "INFO", "Acessando página de autenticação...")
+                await page.goto(login_url, wait_until="domcontentloaded", timeout=45000)
                 
-                # Diagnóstico: Log do título da página
-                title = await page.title()
-                db.add_log(task_id, "INFO", f"Página carregada: '{title}'. Verificando formulário...")
-
-                # 1.1 Tratar modais de aviso se aparecerem (Navegador, Token ANS, etc.)
+                # Tratar modais/avisos iniciais (fast scan)
                 try:
-                    # Tenta fechar tanto o modal central quanto a barra de alerta superior
-                    modais = page.locator("#myModal, #_browseralert")
-                    for i in range(await modais.count()):
-                        modal = modais.nth(i)
-                        if await modal.is_visible(timeout=3000):
-                            db.add_log(task_id, "INFO", "Limpando avisos do portal...")
-                            await page.keyboard.press("Escape")
-                            # Busca botões de fechar específicos se o Escape não bastar
-                            btn_close = page.locator("#myModal button.close, #_closeBrowseralert").first
-                            if await btn_close.is_visible(timeout=1000):
-                                await btn_close.click()
-                            await asyncio.sleep(1)
-                except:
-                    pass
+                    alert = page.locator("#_browseralert, .browseralert").first
+                    if await alert.is_visible(timeout=2000):
+                        await page.keyboard.press("Escape")
+                except: pass
 
-                # 1.2 Localizar campos (suporte a iframes)
-                db.add_log(task_id, "INFO", "Localizando campos de credenciais...")
-                
-                # Tenta encontrar no quadro principal primeiro
-                target = page
-                email_field = page.locator("input#email, input#Email, [name='Email'], [name='email']").first
-                
-                # Se não encontrar no principal após 5s, varre os iframes
+                # Localizar campos de forma eficiente
+                email_field = page.locator("input#email, input#Email").first
                 if await email_field.count() == 0:
-                    db.add_log(task_id, "INFO", "Campos não encontrados no quadro principal. Varrendo IFrames...")
+                    # Fallback para Iframe apenas se estritamente necessário
                     for frame in page.frames:
-                        if "Login" in (frame.name or "") or "/Account/Login" in frame.url:
-                            f_email = frame.locator("input#email, input#Email, [name='Email']").first
-                            if await f_email.count() > 0:
-                                db.add_log(task_id, "INFO", f"Formulário encontrado no IFrame: {frame.name or frame.url}")
-                                target = frame
-                                email_field = f_email
-                                break
+                        f_email = frame.locator("input#email, input#Email").first
+                        if await f_email.count() > 0:
+                            db.add_log(task_id, "DEBUG", "Login detectado em IFrame.")
+                            email_field = f_email
+                            break
                 
-                # Aguarda visibilidade final no alvo selecionado (página ou iframe)
-                await email_field.wait_for(state="visible", timeout=15000)
+                await email_field.wait_for(state="visible", timeout=10000)
+                db.add_log(task_id, "INFO", "Preenchendo credenciais...")
                 
-                # Preenche credenciais
-                db.add_log(task_id, "INFO", "Preenchendo usuário...")
+                # Preenchimento
                 await email_field.fill(usuario)
+                await page.locator("input#password, input#Password").first.fill(senha)
                 
-                pass_field = target.locator("input#password, input#Password, [name='Password'], [name='password']").first
-                db.add_log(task_id, "INFO", "Preenchendo senha...")
-                await pass_field.fill(senha)
+                # Botão de Login (seletor direto #logIn)
+                btn_login = page.locator("#logIn, button[type='submit']").first
+                await btn_login.click(force=True)
                 
-                # Procura o botão de login (#logIn é o padrão do RSUS)
-                db.add_log(task_id, "INFO", "Calculando seletores de login...")
-                # Filtra especificamente por botões visíveis para evitar clicar em modais ocultos
-                btn_locator = target.locator("#logIn:visible, button[type='submit']:visible, [name='Login']:visible, button:has-text('Entrar'):visible")
-                count = await btn_locator.count()
-                db.add_log(task_id, "INFO", f"Encontrados {count} botões de login visíveis. Clicando no primeiro...")
+                # 2.2 Transição para Formulário
+                db.add_log(task_id, "INFO", "Autenticado. Navegando para Novo Protocolo...")
+                await page.wait_for_url("**/importacao**", timeout=20000)
+                await page.goto(url_sistema, wait_until="domcontentloaded")
                 
+                # Aguarda renderização do formulário
                 try:
-                    # Tenta o primeiro visível
-                    btn_login = btn_locator.first
-                    await btn_login.wait_for(state="visible", timeout=10000)
-                    # Clique forçado para ignorar elementos sobrepostos se necessário
-                    await btn_login.click(timeout=10000, force=True)
-                except Exception as click_err:
-                    db.add_log(task_id, "WARNING", f"Clique direto falhou: {str(click_err)[:80]}. Tentando JS/Enter...")
-                    # Fallback 1: Disparar evento de clique via JS (ignora overlays e visibilidade)
-                    try:
-                        await page.evaluate("() => { const b = document.querySelector('#logIn, button[type=\"submit\"], [name=\"Login\"]'); if(b) b.click(); }")
-                    except: pass
-                    # Fallback 2: Tecla Enter
-                    await pass_field.focus()
-                    await page.keyboard.press("Enter")
+                    await page.wait_for_function("() => window.angular ? window.angular.element(document.body).injector().get('$http').pendingRequests.length === 0 : true", timeout=10000)
+                except: pass
                 
                 # Aguarda transição ou verificação rápida de erro
                 db.add_log(task_id, "INFO", "Aguardando redirecionamento pós-login...")
