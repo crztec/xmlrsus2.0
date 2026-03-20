@@ -134,9 +134,9 @@ def parse_fine_details_from_bytes(conteudo_bytes):
         
         # Tags de agrupamento comuns em XMLs de faturamento (ABI/TISS)
         vessel_tags = [
-            "itemResumoApuracao", "procedimentoFaturado", "servicoExecutado", 
-            "detalheItem", "itemGuia", "dadosProcedimento", "procedimentoResumo",
-            "faturamentoItem", "itemFaturamento"
+            "atendimento", "guia", "itemResumoApuracao", "procedimentoFaturado", 
+            "servicoExecutado", "detalheItem", "itemGuia", "dadosProcedimento", 
+            "procedimentoResumo", "faturamentoItem", "itemFaturamento"
         ]
         
         # Busca por itens estruturados primeiro
@@ -151,25 +151,47 @@ def parse_fine_details_from_bytes(conteudo_bytes):
                     "procedimento_nome": "",
                     "valor": ""
                 }
+                # Pass 1: Captura contexto (beneficiário, data) de forma profunda dentro do vessal
                 for child in elem.iter():
                     c_tag = child.tag.split('}')[-1].lower()
                     val = child.text if child.text else ""
-                    
+                    # print(f"DEBUG TAG: {c_tag} | Val: {val}")
                     if any(t in c_tag for t in ["codigobeneficiario", "numerocarteira", "cdbeneficiario"]): 
                         item["beneficiario_cod"] = val
-                    elif any(t in c_tag for t in ["nomebeneficiario", "nmbeneficiario", "beneficiarionome"]): 
+                    elif any(t in c_tag for t in ["nomebeneficiario", "nmbeneficiario", "nomepaciente", "nmpaciente"]): 
                         item["beneficiario_nome"] = val
-                    elif any(t in c_tag for t in ["dataatendimento", "dtatendimento", "datainicio", "dtinicio"]): 
+                    elif any(t in c_tag for t in ["dataatendimento", "dtatendimento", "datainicio"]): 
                         item["data"] = val
-                    elif any(t in c_tag for t in ["codigoprocedimento", "cdprocedimento", "procedimentocodigo"]): 
-                        item["procedimento_cod"] = val
-                    elif any(t in c_tag for t in ["descricaoprocedimento", "dsprocedimento", "nmprocedimento", "procedimentodesc"]): 
-                        item["procedimento_nome"] = val
-                    elif any(t in c_tag for t in ["valortotalitem", "vltotalitem", "valorprocessado", "vlprocessado", "valorprocesso"]): 
-                        item["valor"] = formatar_valor_monetario(val)
                 
-                if item["beneficiario_nome"] or item["procedimento_nome"] or item["beneficiario_cod"]:
-                    detalhes.append(item)
+                # Pass 2: Captura sub-procedimentos ou o próprio item
+                has_sub_procs = False
+                for sub in elem.iter():
+                    sub_tag = sub.tag.split('}')[-1].lower()
+                    if sub_tag == "procedimento":
+                        has_sub_procs = True
+                        sub_item = item.copy()
+                        for s_child in sub.iter():
+                            sc_tag = s_child.tag.split('}')[-1].lower()
+                            s_val = s_child.text if s_child.text else ""
+                            if any(t in sc_tag for t in ["codigoprocedimento", "cdprocedimento"]): sub_item["procedimento_cod"] = s_val
+                            elif any(t in sc_tag for t in ["descricaoprocedimento", "dsprocedimento", "nmprocedimento"]): sub_item["procedimento_nome"] = s_val
+                            elif any(t in sc_tag for t in ["valortotalitem", "vltotalitem", "valorprocessado", "vlprocessado"]): sub_item["valor"] = formatar_valor_monetario(s_val)
+                        
+                        if sub_item["procedimento_nome"] or sub_item["beneficiario_nome"]:
+                            detalhes.append(sub_item)
+                
+                if not has_sub_procs:
+                    # Se não tinha sub-procedimentos, tenta preencher os campos do item principal
+                    if not item["procedimento_nome"]:
+                        for child in elem.iter():
+                            cl_tag = child.tag.split('}')[-1].lower()
+                            cl_val = child.text if child.text else ""
+                            if any(t in cl_tag for t in ["codigoprocedimento", "cdprocedimento"]): item["procedimento_cod"] = cl_val
+                            elif any(t in cl_tag for t in ["descricaoprocedimento", "dsprocedimento", "nmprocedimento"]): item["procedimento_nome"] = cl_val
+                            elif any(t in cl_tag for t in ["valortotalitem", "vltotalitem", "valorprocessado", "vlprocessado"]): item["valor"] = formatar_valor_monetario(cl_val)
+
+                    if item["beneficiario_nome"] or item["procedimento_nome"] or item["beneficiario_cod"]:
+                        detalhes.append(item)
                     
         # Se não encontrou dados estruturados, tenta buscar por Guias (Nível superior)
         if not detalhes:
@@ -211,8 +233,8 @@ def parse_fine_details_from_bytes(conteudo_bytes):
                         "valor": ""
                     })
 
-    except Exception as e:
-        print(f"Erro crítico ao parsear detalhes finos: {e}")
+    except Exception:
+        pass
     return detalhes
 
 def extract_razao_social(conteudo_bytes):
