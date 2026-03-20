@@ -320,7 +320,8 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 # 2.1 Login Direto (Mais rápido que esperar redirect)
                 login_url = "https://rsuserechim.cubeti.com.br/Account/Login"
                 db.add_log(task_id, "INFO", "Acessando página de autenticação...")
-                await page.goto(login_url, wait_until="domcontentloaded", timeout=45000)
+                # Usamos commit + elemen-wait para máxima rapidez e resiliência
+                await page.goto(login_url, wait_until="commit", timeout=60000)
                 
                 # Tratar modais/avisos iniciais (fast scan)
                 try:
@@ -361,7 +362,9 @@ async def background_worker_task(task_id: str, url_sistema: str):
                     # Se cair na Home (/) ou demorar muito, força a ida direta para o formulário
                     curr_url = page.url
                     db.add_log(task_id, "WARNING", f"Redirecionamento incompleto (parou em {curr_url}). Forçando Novo Protocolo...")
-                    await page.goto(url_sistema, wait_until="load", timeout=25000)
+                    # wait_until="commit" é o mais rápido (espera apenas a resposta do servidor/mudança de URL)
+                    # O carregamento real é garantido pelos wait_for(selector) subsequentes
+                    await page.goto(url_sistema, wait_until="commit", timeout=60000)
                 
                 # Aguarda renderização final do formulário AngularJS
                 try:
@@ -444,7 +447,7 @@ async def background_worker_task(task_id: str, url_sistema: str):
             if not form_ready:
                 db.add_log(task_id, "INFO", "Tentando navegação via menu (fallback final)...")
                 try:
-                    await page.goto("https://rsuserechim.cubeti.com.br/importacao", wait_until="load")
+                    await page.goto("https://rsuserechim.cubeti.com.br/importacao", wait_until="commit", timeout=60000)
                     sel_btn = page.locator("a:has-text('SELECIONAR ARQUIVO'), a:has-text('Selecionar arquivo')").first
                     if await sel_btn.is_visible(timeout=10000):
                         await sel_btn.click()
