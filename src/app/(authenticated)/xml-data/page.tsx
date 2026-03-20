@@ -1,7 +1,18 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { FileText, Search, Download, Filter, Eye, Loader2, XCircle } from "lucide-react";
+import { 
+  FileText, 
+  Search, 
+  Download, 
+  Filter, 
+  Eye, 
+  Loader2, 
+  XCircle, 
+  ArrowLeft,
+  Building2,
+  ChevronRight
+} from "lucide-react";
 
 interface XMLDetails {
   beneficiario_cod: string;
@@ -15,7 +26,9 @@ interface XMLDetails {
 export default function XmlDataPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [xmlData, setXmlData] = useState<any[]>([]);
+  const [clients, setClients] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedClient, setSelectedClient] = useState<string | null>(null);
   
   // Pagination State for Main Table
   const [currentPage, setCurrentPage] = useState(1);
@@ -31,13 +44,24 @@ export default function XmlDataPage() {
   const modalItemsPerPage = 10;
 
   useEffect(() => {
-    fetch("/api/xml-data")
-      .then(res => res.json())
-      .then(data => {
-        setXmlData(data);
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        const [xmlRes, clientRes] = await Promise.all([
+          fetch("/api/xml-data"),
+          fetch("/api/clients")
+        ]);
+        const xmls = await xmlRes.json();
+        const cls = await clientRes.json();
+        setXmlData(xmls);
+        setClients(cls);
+      } catch (error) {
+        console.error("Erro ao carregar dados:", error);
+      } finally {
         setIsLoading(false);
-      })
-      .catch(() => setIsLoading(false));
+      }
+    };
+    fetchData();
   }, []);
 
   const handleExportAll = () => {
@@ -53,7 +77,7 @@ export default function XmlDataPage() {
     setShowModal(true);
     setIsLoadingDetails(true);
     setFileDetails([]);
-    setModalPage(1); // Reset modal page
+    setModalPage(1);
     try {
       const res = await fetch(`/api/xml-data/${xml.id}/details`);
       const data = await res.json();
@@ -65,26 +89,103 @@ export default function XmlDataPage() {
     }
   };
 
-  const filteredData = xmlData.filter(item => 
-    item.client?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.abi?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.file_name?.toLowerCase().includes(searchTerm.toLowerCase())
+  // Filter clients for the selection screen
+  const filteredClients = clients.filter(c => 
+    c.name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Pagination Logic for Main Table
+  // Filter XML data for the selected client
+  const filteredData = xmlData.filter(item => {
+    const matchesClient = !selectedClient || item.client === selectedClient;
+    const matchesSearch = !searchTerm || (
+      item.abi?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.file_name?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    return matchesClient && matchesSearch;
+  });
+
+  // Pagination Logic
   const totalPages = Math.ceil(filteredData.length / itemsPerPage);
   const paginatedData = filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-  // Pagination Logic for Modal
   const totalModalPages = Math.ceil(fileDetails.length / modalItemsPerPage);
   const paginatedDetails = fileDetails.slice((modalPage - 1) * modalItemsPerPage, modalPage * modalItemsPerPage);
 
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-40">
+        <Loader2 className="animate-spin text-gax-blue" size={40} />
+      </div>
+    );
+  }
+
+  // --- RENDERING: CLIENT SELECTION ---
+  if (!selectedClient) {
+    return (
+      <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Dados dos XMLs</h1>
-          <p className="text-sm text-slate-500">Consulta detalhada de todos os arquivos processados</p>
+          <h1 className="text-2xl font-bold text-slate-800">Dados XML</h1>
+          <p className="text-sm text-slate-500">Selecione um cliente para visualizar as ABIs</p>
+        </div>
+
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+          <input 
+            type="text" 
+            placeholder="Buscar cliente..." 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10"
+          />
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {filteredClients.map(client => (
+            <button
+              key={client.id}
+              onClick={() => {
+                setSelectedClient(client.name);
+                setSearchTerm(""); // Clear search when client selected
+              }}
+              className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-5 text-left transition-all hover:border-gax-blue/30 hover:shadow-md group"
+            >
+              <div className="flex items-center gap-4">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gax-blue-light text-gax-blue group-hover:scale-110 transition-transform">
+                  <Building2 size={20} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-700">{client.name}</h3>
+                  <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">
+                    {client.total_abis || "0"} ABIs Identificadas
+                  </p>
+                </div>
+              </div>
+              <ChevronRight className="text-slate-200 group-hover:text-gax-blue transition-colors" size={20} />
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // --- RENDERING: DATA TABLE ---
+  return (
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => {
+              setSelectedClient(null);
+              setSearchTerm("");
+            }}
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-400 hover:bg-slate-50 transition-colors"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-800">{selectedClient}</h1>
+            <p className="text-sm text-slate-500">Listagem de ABIs e arquivos relacionados</p>
+          </div>
         </div>
 
         <div className="flex items-center gap-3">
@@ -92,11 +193,11 @@ export default function XmlDataPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
             <input 
               type="text" 
-              placeholder="Buscar ABI, Cliente ou Arquivo..." 
+              placeholder="Buscar ABI ou arquivo..." 
               value={searchTerm}
               onChange={(e) => {
                 setSearchTerm(e.target.value);
-                setCurrentPage(1); // Reset pagination on search
+                setCurrentPage(1);
               }}
               className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-10 pr-4 text-xs outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 sm:w-64"
             />
@@ -113,9 +214,10 @@ export default function XmlDataPage() {
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
-          {isLoading ? (
-            <div className="flex justify-center py-20">
-              <Loader2 className="animate-spin text-gax-blue" size={40} />
+          {paginatedData.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-slate-300">
+              <FileText size={48} className="opacity-20 mb-4" />
+              <p className="text-sm font-medium">Nenhum dado encontrado para os filtros atuais.</p>
             </div>
           ) : (
             <>
@@ -124,10 +226,9 @@ export default function XmlDataPage() {
                   <tr>
                     <th className="px-4 py-4">Arquivo</th>
                     <th className="px-4 py-4">ABI</th>
-                    <th className="px-4 py-4">Razão Social</th>
                     <th className="px-4 py-4 text-right">Valor Total</th>
                     <th className="px-4 py-4 text-center">Qtd. Proc.</th>
-                    <th className="px-4 py-4">Competências</th>
+                    <th className="px-4 py-4 text-center">Competências</th>
                     <th className="px-4 py-4">Nº Processo</th>
                     <th className="px-4 py-4">Data Proc.</th>
                     <th className="px-4 py-4 text-center">Ações</th>
@@ -136,17 +237,20 @@ export default function XmlDataPage() {
                 <tbody className="divide-y divide-slate-100">
                   {paginatedData.map((xml) => (
                     <tr key={xml.id} className="group transition-colors hover:bg-slate-50/50">
-                      <td className="px-4 py-3 max-w-[150px] truncate" title={xml.file_name}>
+                      <td className="px-4 py-3 max-w-[200px] truncate" title={xml.file_name}>
                         <div className="flex items-center gap-2">
-                          <FileText size={14} className="text-slate-300" />
-                          <span className="text-slate-600">{xml.file_name}</span>
+                          <FileText size={14} className="text-slate-300 group-hover:text-gax-blue" />
+                          <span className="text-slate-600 font-medium">{xml.file_name}</span>
                         </div>
                       </td>
                       <td className="px-4 py-3 font-bold text-slate-800">{xml.abi}</td>
-                      <td className="px-4 py-3 font-medium text-slate-600">{xml.client}</td>
                       <td className="px-4 py-3 text-right font-bold text-gax-blue">R$ {xml.value}</td>
                       <td className="px-4 py-3 text-center text-slate-500">{xml.quantity}</td>
-                      <td className="px-4 py-3 text-slate-400">{xml.competence}</td>
+                      <td className="px-4 py-3 text-center">
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-bold text-slate-500">
+                          {xml.competence}
+                        </span>
+                      </td>
                       <td className="px-4 py-3 text-slate-400">{xml.process_number}</td>
                       <td className="px-4 py-3 text-[10px] text-slate-400">{xml.date}</td>
                       <td className="px-4 py-3">
@@ -172,11 +276,10 @@ export default function XmlDataPage() {
                 </tbody>
               </table>
 
-              {/* Pagination Controls Main Table */}
-              {filteredData.length > itemsPerPage && (
+              {totalPages > 1 && (
                 <div className="flex items-center justify-between border-t border-slate-50 bg-slate-50/30 px-6 py-4">
-                  <span className="text-xs text-slate-500 font-medium font-sans">
-                    Mostrando {(currentPage - 1) * itemsPerPage + 1} a {Math.min(currentPage * itemsPerPage, filteredData.length)} de {filteredData.length} registros
+                  <span className="text-xs text-slate-500 font-medium">
+                    Mostrando {paginatedData.length} de {filteredData.length} registros (ABI/Arquivo)
                   </span>
                   <div className="flex gap-2">
                     <button 
@@ -261,8 +364,7 @@ export default function XmlDataPage() {
                     </table>
                   </div>
 
-                  {/* Modal Pagination */}
-                  {fileDetails.length > modalItemsPerPage && (
+                  {totalModalPages > 1 && (
                     <div className="flex items-center justify-between border-t border-slate-50 bg-slate-50/20 px-4 py-3 rounded-b-xl border border-slate-200 border-t-0">
                       <span className="text-[10px] text-slate-500 font-medium">
                         Pagina {modalPage} de {totalModalPages} ({fileDetails.length} itens)

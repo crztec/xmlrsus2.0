@@ -113,6 +113,14 @@ async def get_branding():
 async def get_clients():
     return db.get_all_clients()
 
+@app.post("/clients/{client_id}")
+async def update_client(client_id: str, data: dict):
+    success = db.update_client_config(client_id, data)
+    if not success:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=500, detail="Failed to update client")
+    return {"status": "success"}
+
 @app.get("/xml-data")
 async def get_xml_data():
     return db.get_all_xml_data()

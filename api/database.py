@@ -198,13 +198,78 @@ def get_pending_users():
 def get_all_clients():
     clients = []
     docs = firestore_db.collection('client_configs').stream()
+    
+    # Cache para evitar múltiplas queries por cliente se possível, 
+    # mas para stats em tempo real, vamos consultar task_files
     for doc in docs:
         data = doc.to_dict()
-        data['id'] = doc.id
-        if 'name' not in data and 'razao_social' in data: data['name'] = data['razao_social']
-        elif 'name' not in data: data['name'] = doc.id
-        clients.append(data)
+        client_name = data.get('razao_social') or data.get('name') or doc.id
+        
+        # Calcular Total de ABIs Únicas e Última Importação
+        total_abis = 0
+        ultima_importacao = "-"
+        
+        try:
+            from google.cloud.firestore_v1.base_query import FieldFilter
+            # Busca todos os arquivos de sucesso para este cliente
+            files_docs = firestore_db.collection('task_files') \
+                .where(filter=FieldFilter("razao_social", "==", client_name)) \
+                .where(filter=FieldFilter("status_importacao", "==", "SUCESSO")) \
+                .stream()
+            
+            abis = set()
+            latest_date = None
+            
+            for f_doc in files_docs:
+                f_data = f_doc.to_dict()
+                abi = f_data.get("numero_abi")
+                if abi: abis.add(str(abi))
+                
+                # Data de processamento
+                d_str = f_data.get("data_processamento")
+                if d_str and d_str != "-":
+                    try:
+                        d_dt = datetime.strptime(d_str, "%Y-%m-%d %H:%M:%S")
+                        if not latest_date or d_dt > latest_date:
+                            latest_date = d_dt
+                    except: pass
+            
+            total_abis = len(abis)
+            if latest_date:
+                ultima_importacao = latest_date.strftime("%d/%m/%Y %H:%M")
+        except Exception as e:
+            logger.error(f"Erro ao calcular stats para cliente {client_name}: {e}")
+
+        clients.append({
+            'id': doc.id,
+            'name': client_name,
+            'cnpj': data.get('cnpj') or "",
+            'registro_ans': data.get('registro_ans') or "",
+            'endereco': data.get('endereco') or "",
+            'url_sistema': data.get('url_sistema') or "",
+            'total_abis': total_abis,
+            'ultima_importacao': ultima_importacao
+        })
     return clients
+
+def update_client_config(client_id, update_data):
+    """
+    Updates client configuration metadata like CNPJ, ANS, Address.
+    """
+    if not client_id: return False
+    try:
+        # Normaliza chaves para garantir consistência no Firestore
+        clean_data = {
+            'cnpj': update_data.get('cnpj', ''),
+            'registro_ans': update_data.get('registro_ans', ''),
+            'endereco': update_data.get('endereco', ''),
+            'updated_at': get_now_br().strftime("%Y-%m-%d %H:%M:%S")
+        }
+        firestore_db.collection('client_configs').document(client_id).set(clean_data, merge=True)
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao atualizar cliente {client_id}: {e}")
+        return False
 
 def get_all_xml_data():
     xml_data_list = []

@@ -19,10 +19,10 @@ import { cn } from "@/lib/utils";
 const menuItems = [
   { label: "Importação", isTitle: true },
   { label: "Upload", icon: <CloudUpload size={20} />, href: "/dashboard" },
-  { label: "Clientes", icon: <Users size={20} />, href: "/clients" },
   { label: "Dados XML", icon: <FileText size={20} />, href: "/xml-data" },
   { label: "Log de Importação", icon: <ClipboardList size={20} />, href: "/logs" },
-  { label: "Configurações", isTitle: true, isAdmin: true },
+  { label: "Configurações", isTitle: true },
+  { label: "Clientes", icon: <Users size={20} />, href: "/clients" },
   { label: "Usuários", icon: <Users size={20} />, href: "/users", isAdmin: true },
   { label: "Pendentes", icon: <UserPlus size={20} />, href: "/pending", isAdmin: true },
   { label: "Sistema", icon: <Settings size={20} />, href: "/settings", isAdmin: true },
