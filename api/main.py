@@ -17,6 +17,14 @@ import sys
 logging.basicConfig(level=logging.INFO, stream=sys.stdout, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+# Sincronização de Fuso Horário no SO (Linux/Cloud Run)
+# Garante que o Python e subprocessos (Chrome) usem horário de Brasília
+try:
+    os.environ['TZ'] = 'America/Sao_Paulo'
+    if hasattr(os, 'tzset'):
+        os.tzset()
+except: pass
+
 app = FastAPI(title="GAX API")
 
 # Configurar CORS para permitir o frontend Next.js
@@ -335,6 +343,11 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 page.on("pageerror", lambda err: db.add_log(task_id, "ERROR", f"[Uncaught Exception] {str(err)[:500]}"))
 
                 db.add_log(task_id, "INFO", f"Acessando url alvo para redirecionamento orgânico: {url_sistema}")
+                
+                # Debug de Horário e Identidade do Navegador
+                browser_time = await page.evaluate("new Date().toString()")
+                db.add_log(task_id, "DEBUG", f"[Fuso Navegador] {browser_time}")
+                
                 # Entra diretamenta na URL do sistema (ex: /importacao/novo)
                 # O portal vai redirecionar automaticamente para a tela de login preservando a rota de retorno (ReturnUrl)
                 await page.goto(url_sistema, wait_until="commit", timeout=60000)
@@ -371,11 +384,22 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 
                 # Botão de Login orgânico
                 btn_login = page.locator("#logIn, button[type='submit']").first
-                # Removemos force=True para que o clique só ocorra se o Angular habilitar o botão de fato
                 await btn_login.click()
-                await asyncio.sleep(2)
                 
-                db.add_log(task_id, "INFO", "Autenticado. Aguardando o portal redirecionar de volta organicamente...")
+                # Aguarda sumiço do botão de login ou mudança de URL (mais robusto que sleep(2))
+                try:
+                    await page.wait_for_selector("#logIn, button[type='submit']", state="hidden", timeout=15000)
+                except:
+                    db.add_log(task_id, "WARNING", "Botão de login ainda visível após clique. Prosseguindo...")
+                
+                await asyncio.sleep(3)
+                
+                # VERIFICAÇÃO DE SESSÃO: Logar cookies obtidos
+                cookies = await context.cookies()
+                session_found = any('.ASPXAUTH' in c['name'] or 'ASP.NET_SessionId' in c['name'] for c in cookies)
+                db.add_log(task_id, "INFO", f"Login realizado. Cookies de sessão detectados: {'SIM' if session_found else 'NÃO'}")
+                
+                db.add_log(task_id, "INFO", "Aguardando o portal redirecionar de volta organicamente...")
                 
                 # O robô antigo simplesmente aguardava o campo de protocolo aparecer na tela.
                 # Sem forçar navegação, sem iframes secundários, apenas paciência.
