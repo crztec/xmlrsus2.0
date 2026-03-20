@@ -359,13 +359,22 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 await email_field.wait_for(state="visible", timeout=25000)
                 db.add_log(task_id, "INFO", "Tela de login atingida. Preenchendo credenciais...")
                 
-                # Preenchimento
-                await email_field.fill(usuario)
-                await page.locator("input#password, input#Password").first.fill(senha)
+                # Preenchimento tático usando type (igual send_keys do Selenium) para acordar o AngularJS
+                # Evitamos o fill() pois portais velhos às vezes não disparam o $watch do Angular a tempo
+                await email_field.click()
+                await email_field.type(usuario, delay=40)
+                await asyncio.sleep(0.5)
                 
-                # Botão de Login
+                pwd_field = page.locator("input#password, input#Password").first
+                await pwd_field.click()
+                await pwd_field.type(senha, delay=40)
+                await asyncio.sleep(0.5)
+                
+                # Botão de Login orgânico
                 btn_login = page.locator("#logIn, button[type='submit']").first
-                await btn_login.click(force=True)
+                # Removemos force=True para que o clique só ocorra se o Angular habilitar o botão de fato
+                await btn_login.click()
+                await asyncio.sleep(2)
                 
                 db.add_log(task_id, "INFO", "Autenticado. Aguardando o portal redirecionar de volta organicamente...")
                 
