@@ -313,10 +313,16 @@ async def background_worker_task(task_id: str, url_sistema: str):
                     raise launch_err
 
             # Novo contexto com Stealth Básico (UA + Viewport)
+            # O Cloud Run roda em UTC. Portais velhos (IIS) costumam mandar cookies
+            # de autenticação baseados no horário local do Brasil sem o 'GMT' no Expires.
+            # Isso faz o Playwright em UTC apagar o cookie instantaneamente achando que já expirou.
+            # Forçamos PT-BR e fuso horário de SP para emular 100% o ambiente do robô local.
             context = await browser.new_context(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
                 viewport={'width': 1920, 'height': 1080},
-                ignore_https_errors=True
+                ignore_https_errors=True,
+                timezone_id="America/Sao_Paulo",
+                locale="pt-BR"
             )
             page = await context.new_page()
             page.set_default_navigation_timeout(60000)
