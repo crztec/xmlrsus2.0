@@ -593,13 +593,23 @@ async def background_worker_task(task_id: str, url_sistema: str):
                     
                     db.add_log(task_id, "INFO", f"Preenchendo formulário para ABI {abi} (Processo: {num_processo})")
                     
-                    # ─── NOVO: Esperar por dependências JS (jQuery) ───
-                    # Alguns portais legados ASP.NET carregam JS de forma assíncrona após o DOM estar pronto.
+                    # ─── NOVO: Esperar e Garantir dependências JS (jQuery) ───
+                    # Alguns portais legados usam jQuery mas não definem o alias '$' globalmente
+                    # ou o carregam de forma extremamente lenta/através de iframes.
                     try:
-                        await page.wait_for_function("() => window.jQuery !== undefined || window.$ !== undefined", timeout=10000)
-                        db.add_log(task_id, "DEBUG", "jQuery ($) detectado e pronto.")
+                        # Tenta mapear o jQuery se ele existir mas o $ não
+                        await page.evaluate("""() => {
+                            if (window.jQuery && !window.$) window.$ = window.jQuery;
+                            if (!window.jQuery) {
+                                // Tenta buscar nos fuso horário e frames se necessário, mas aqui focamos na window principal
+                            }
+                        }""")
+                        await page.wait_for_function("() => (window.jQuery !== undefined || window.$ !== undefined)", timeout=20000)
+                        db.add_log(task_id, "DEBUG", "jQuery ($) detectado e sincronizado.")
+                        # Pequena pausa para os plugins do jQuery (como datepickers) carregarem
+                        await asyncio.sleep(2)
                     except:
-                        db.add_log(task_id, "DEBUG", "jQuery ($) não detectado em 10s, prosseguindo com JS puro.")
+                        db.add_log(task_id, "WARNING", "jQuery ($) não detectado em 20s. O portal pode falhar na submissão.")
 
                     for sel, val in field_map.items():
                         if not val: continue
@@ -666,14 +676,15 @@ async def background_worker_task(task_id: str, url_sistema: str):
                         if "importacao" in response.url.lower() and response.status == 400:
                             try:
                                 body = await response.text()
-                                db.add_log(task_id, "ERROR", f"Portal retornou 400: {body[:500]}")
+                                # Loga o erro completo para debug (importante para o erro de 'null id in entry')
+                                db.add_log(task_id, "ERROR", f"ERRO PORTAL (400): {body}")
                             except: pass
                     
                     page.on("response", catch_import_error)
 
                     # Rola para o topo para garantir visibilidade
                     await page.evaluate("window.scrollTo(0, 0)")
-                    await asyncio.sleep(1)
+                    await asyncio.sleep(2) # Buffer extra para o portal 'sentir' os campos preenchidos
                     
                     success_click = False
                     import_selectors = [
