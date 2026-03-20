@@ -302,8 +302,9 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 "--disable-dev-shm-usage", 
                 "--disable-gpu",
                 "--window-size=1920,1080",
-                # IMPORTANTE: Foram retiradas TODAS as flags de "otimização" (ex: --disable-background-networking)
-                # O Angular PRECISA de networking em background e timer throttling desativado para carregar os templates SVG/HTML.
+                # DESATIVAR SAME-SITE: Portais legados muitas vezes mandam cookies sem 'Secure' ou 'SameSite'
+                # que o Chrome moderno recusa por padrão. Isso força a aceitação.
+                "--disable-features=SameSiteByDefaultCookies,CookiesWithoutSameSiteMustBeSecure,SameSiteDefaultChecksMethodRacy"
             ]
             try:
                 # Tenta o launch padrão primeiro (muito mais rápido no Docker)
@@ -341,6 +342,15 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 # LISTENER DE CONSOLE PARA CAPTURAR O ERRO INVISÍVEL DO ANGULARJS!
                 page.on("console", lambda msg: db.add_log(task_id, "DEBUG" if msg.type != "error" else "ERROR", f"[Browser Console] {msg.text[:500]}") if msg.type in ['error', 'warning'] else None)
                 page.on("pageerror", lambda err: db.add_log(task_id, "ERROR", f"[Uncaught Exception] {str(err)[:500]}"))
+                
+                # INTERCEPTOR DE RESPOSTAS PARA VER OS HEADERS DE COOKIE
+                async def handle_response(response):
+                    if "Login" in response.url and response.status in [200, 302]:
+                        headers = response.headers
+                        set_cookie = headers.get('set-cookie', 'Nenhum')
+                        db.add_log(task_id, "DEBUG", f"[HTTP Login Response] Status: {response.status}, Set-Cookie: {set_cookie[:200]}")
+                
+                page.on("response", handle_response)
 
                 db.add_log(task_id, "INFO", f"Acessando url alvo para redirecionamento orgânico: {url_sistema}")
                 
