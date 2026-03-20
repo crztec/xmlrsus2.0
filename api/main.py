@@ -430,24 +430,18 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 except:
                     db.add_log(task_id, "WARNING", "Botão de login ainda visível após clique. Prosseguindo...")
                 
-                await asyncio.sleep(3)
-                
                 # VERIFICAÇÃO DE SESSÃO: Logar cookies e LocalStorage
                 cookies = await context.cookies()
-                session_found = any('.ASPXAUTH' in c['name'] or 'ASP.NET_SessionId' in c['name'] or 'Session' in c['name'] for c in cookies)
+                has_session = any('.ASPXAUTH' in c['name'] or 'Identity' in c['name'] or 'ASP.NET_SessionId' in c['name'] for c in cookies)
                 
-                storage_state = await page.evaluate("""
-                    () => {
-                        try {
-                            return JSON.stringify({
-                                local: Object.keys(localStorage),
-                                session: Object.keys(sessionStorage)
-                            });
-                        } catch(e) { return "Erro no Storage"; }
-                    }
-                """)
+                db.add_log(task_id, "INFO", f"Login processado. Cookies: {'SIM' if has_session else 'NÃO'}")
                 
-                db.add_log(task_id, "INFO", f"Login realizado. Cookies: {'SIM' if session_found else 'NÃO'} | WebStorage: {storage_state}")
+                # NOVO: SE ESTAMOS PRESOS NA TELA DE LOGIN MAS TEMOS COOKIE, FORÇAMOS O SALTO DEFINITIVO
+                if has_session and "Account/Login" in page.url:
+                    db.add_log(task_id, "WARNING", "Sessão detectada mas preso na tela de Login. Forçando salto para a URL alvo...")
+                    await page.goto(url_sistema, wait_until="commit", timeout=45000)
+                
+                await asyncio.sleep(2)
                 
                 db.add_log(task_id, "INFO", "Aguardando o portal redirecionar de volta organicamente...")
                 
@@ -457,33 +451,41 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 
                 form_ready = False
                 try:
-                    # Usando wait_for_function para procurar em todos os frames e não ligar para 'visibility'
-                    # Equivalente exato ao 'presence_of_element_located' do Selenium, superando as restrições do Playwright
+                    # Tenta aguardar o formulário aparecer (Organic wait)
                     await page.wait_for_function("""
                         () => {
                             if (document.querySelector('input#numeroProtocolo')) return true;
                             for (let i = 0; i < window.frames.length; i++) {
-                                try {
-                                    if (window.frames[i].document.querySelector('input#numeroProtocolo')) return true;
-                                } catch(e) {}
+                                try { if (window.frames[i].document.querySelector('input#numeroProtocolo')) return true; } catch(e) {}
                             }
                             return false;
                         }
-                    """, timeout=60000)
+                    """, timeout=30000)
                     form_ready = True
-                    db.add_log(task_id, "SUCCESS", "Formulário renderizado com sucesso de forma orgânica!")
+                    db.add_log(task_id, "SUCCESS", "Formulário renderizado organicamente.")
                 except:
-                    # Se mesmo organicamente falhar em 60s, a sessão Angular pode ter corrompido.
-                    # Vamos tentar 1 único refresh como último recurso ou fallback final.
-                    db.add_log(task_id, "WARNING", "Página em branco ou travada detectada. Aplicando REFRESH...")
+                    # SE FALHAR (Tela Branca ou Carregamento Infinito): O "Salto Nuclear"
+                    db.add_log(task_id, "WARNING", "Página branca ou travada. Forçando salto direto para a URL final...")
+                    
+                    # Força a URL final novamente (ignora redirecionamentos pendentes)
+                    await page.goto(url_sistema, wait_until="commit", timeout=45000)
+                    
                     try:
-                        img_blank = await page.screenshot()
-                        db.upload_screenshot(f"debug/screenshots/{task_id}_step1_blank.png", img_blank)
-                        await page.reload(wait_until="domcontentloaded", timeout=45000)
-                        await page.wait_for_function("() => !!document.querySelector('input#numeroProtocolo')", timeout=30000)
+                        # Espera mais rápida no salto nuclear
+                        await page.wait_for_selector("input#numeroProtocolo", state="attached", timeout=30000)
                         form_ready = True
-                        db.add_log(task_id, "SUCCESS", "Formulário renderizado após refresh!")
-                    except Exception as reload_err:
+                        db.add_log(task_id, "SUCCESS", "Formulário recuperado via Salto Nuclear!")
+                    except Exception as e_nuclear:
+                        # HARVEST HTML: Precisamos ver o que há dentro da página branca
+                        html_dump = await page.content()
+                        db.add_log(task_id, "ERROR", f"Falha no Salto Nuclear. HTML Parcial: {html_dump[:250]}...")
+                        # Salva o dump completo no Firebase Storage para análise profunda
+                        try:
+                            blob_name = f"debug/screenshots/{task_id}_white_page_dump.html"
+                            db.bucket.blob(blob_name).upload_from_string(html_dump, content_type='text/html')
+                            db.add_log(task_id, "INFO", f"HTML Dump da tela branca salvo: {blob_name}")
+                        except: pass
+                        raise e_nuclear
                         db.add_log(task_id, "ERROR", f"Falha após refresh: Timeout!")
                         try:
                             html_content = await page.content()
