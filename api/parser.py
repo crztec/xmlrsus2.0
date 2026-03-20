@@ -6,12 +6,41 @@ from datetime import datetime, timedelta
 def formatar_valor_monetario(valor):
     if pd.isna(valor) or str(valor).strip() == "": return ""
     try:
+        # Se já for número, apenas formata com 2 casas
         if isinstance(valor, (float, int)): 
             return "{:.2f}".format(valor).replace('.', ',')
-        s = str(valor).replace('R$', '').replace('.', '').replace(',', '.').strip()
+        
+        # Se for string, limpa símbolos monetários
+        s = str(valor).replace('R$', '').strip()
+        
+        # Lógica para detectar se o ponto é decimal ou separador de milhar
+        # No XML (ABI), o padrão costuma ser 12345.67 (ponto decimal)
+        if ',' in s and '.' in s:
+            # Padrão brasileiro: 1.234,56 -> remove ponto, troca vírgula
+            s = s.replace('.', '').replace(',', '.')
+        elif ',' in s:
+            # Padrão 1234,56 -> troca por ponto para float()
+            s = s.replace(',', '.')
+        elif '.' in s:
+            # Padrão 1234.56 OU 1.234 - dependendo da posição
+            # Se tiver apenas um ponto e 2 casas decimais, é decimal
+            partes = s.split('.')
+            if len(partes) == 2 and len(partes[1]) == 2:
+                # É decimal (padrão XML) -> mantém o ponto para float()
+                pass
+            else:
+                # Provável separador de milhar (padrão de sistema legado)
+                # s = s.replace('.', '')
+                # Mas no RSUS/XML, vamos assumir padrão decimal se for FLOAT-LIKE
+                try: 
+                    float(s)
+                except: 
+                    s = s.replace('.', '')
+        
         val_float = float(s)
         return "{:.2f}".format(val_float).replace('.', ',')
-    except: 
+    except Exception as e:
+        print(f"Erro formatar_valor: {e}")
         return str(valor)
 
 def formatar_competencia_site(texto_excel):
