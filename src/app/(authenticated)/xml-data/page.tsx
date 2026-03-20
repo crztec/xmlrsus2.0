@@ -129,13 +129,15 @@ export default function XmlDataPage() {
         </div>
 
         <div className="relative max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+          <label htmlFor="client-search" className="sr-only">Buscar cliente</label>
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} aria-hidden="true" />
           <input 
+            id="client-search"
             type="text" 
             placeholder="Buscar cliente..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10"
+            className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all font-sans"
           />
         </div>
 
@@ -147,11 +149,12 @@ export default function XmlDataPage() {
                 setSelectedClient(client.name);
                 setSearchTerm(""); // Clear search when client selected
               }}
-              className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-5 text-left transition-all hover:border-gax-blue/30 hover:shadow-md group"
+              className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-5 text-left transition-all hover:border-gax-blue/30 hover:shadow-md group focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
+              aria-label={`Selecionar cliente ${client.name}`}
             >
               <div className="flex items-center gap-4">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gax-blue-light text-gax-blue group-hover:scale-110 transition-transform">
-                  <Building2 size={20} />
+                  <Building2 size={20} aria-hidden="true" />
                 </div>
                 <div>
                   <h3 className="font-bold text-slate-700">{client.name}</h3>
@@ -160,7 +163,7 @@ export default function XmlDataPage() {
                   </p>
                 </div>
               </div>
-              <ChevronRight className="text-slate-200 group-hover:text-gax-blue transition-colors" size={20} />
+              <ChevronRight className="text-slate-200 group-hover:text-gax-blue transition-colors" size={20} aria-hidden="true" />
             </button>
           ))}
         </div>
@@ -178,7 +181,8 @@ export default function XmlDataPage() {
               setSelectedClient(null);
               setSearchTerm("");
             }}
-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-400 hover:bg-slate-50 transition-colors"
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-400 hover:bg-slate-50 transition-colors focus-visible:ring-2 focus-visible:ring-slate-200 outline-none"
+            aria-label="Voltar para seleção de clientes"
           >
             <ArrowLeft size={20} />
           </button>
@@ -190,8 +194,10 @@ export default function XmlDataPage() {
 
         <div className="flex items-center gap-3">
           <div className="relative mr-2">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            <label htmlFor="abi-search" className="sr-only">Buscar ABI ou arquivo</label>
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} aria-hidden="true" />
             <input 
+              id="abi-search"
               type="text" 
               placeholder="Buscar ABI ou arquivo..." 
               value={searchTerm}
@@ -199,14 +205,15 @@ export default function XmlDataPage() {
                 setSearchTerm(e.target.value);
                 setCurrentPage(1);
               }}
-              className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-10 pr-4 text-xs outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 sm:w-64"
+              className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-10 pr-4 text-xs outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 sm:w-64 transition-all font-sans"
             />
           </div>
           <button 
             onClick={handleExportAll}
-            className="flex items-center gap-2 rounded-xl bg-gax-blue px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-gax-blue/10 hover:bg-gax-blue-hover"
+            className="flex items-center gap-2 rounded-xl bg-gax-blue px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-gax-blue/10 hover:bg-gax-blue-hover focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none transition-all"
+            aria-label="Exportar todos os dados para Excel"
           >
-            <Download size={16} />
+            <Download size={16} aria-hidden="true" />
             Exportar Geral
           </button>
         </div>
@@ -216,7 +223,7 @@ export default function XmlDataPage() {
         <div className="overflow-x-auto">
           {paginatedData.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-slate-300">
-              <FileText size={48} className="opacity-20 mb-4" />
+              <FileText size={48} className="opacity-20 mb-4" aria-hidden="true" />
               <p className="text-sm font-medium">Nenhum dado encontrado para os filtros atuais.</p>
             </div>
           ) : (
@@ -239,7 +246,7 @@ export default function XmlDataPage() {
                     <tr key={xml.id} className="group transition-colors hover:bg-slate-50/50">
                       <td className="px-4 py-3 max-w-[200px] truncate" title={xml.file_name}>
                         <div className="flex items-center gap-2">
-                          <FileText size={14} className="text-slate-300 group-hover:text-gax-blue" />
+                          <FileText size={14} className="text-slate-300 group-hover:text-gax-blue" aria-hidden="true" />
                           <span className="text-slate-600 font-medium">{xml.file_name}</span>
                         </div>
                       </td>
@@ -257,17 +264,19 @@ export default function XmlDataPage() {
                         <div className="flex items-center justify-center gap-1">
                           <button 
                             onClick={() => handleViewDetails(xml)}
-                            className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-100 bg-white text-slate-400 hover:border-gax-blue/30 hover:text-gax-blue shadow-sm transition-all"
+                            className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-100 bg-white text-slate-400 hover:border-gax-blue/30 hover:text-gax-blue shadow-sm transition-all focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
                             title="Ver Detalhes"
+                            aria-label={`Ver detalhes da ABI ${xml.abi}`}
                           >
-                            <Eye size={14} />
+                            <Eye size={14} aria-hidden="true" />
                           </button>
                           <button 
                             onClick={() => handleExportFile(xml.id)}
-                            className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-100 bg-white text-slate-400 hover:border-gax-blue/30 hover:text-gax-blue shadow-sm transition-all"
+                            className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-100 bg-white text-slate-400 hover:border-gax-blue/30 hover:text-gax-blue shadow-sm transition-all focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
                             title="Baixar Excel deste Item"
+                            aria-label={`Baixar Excel da ABI ${xml.abi}`}
                           >
-                            <Download size={14} />
+                            <Download size={14} aria-hidden="true" />
                           </button>
                         </div>
                       </td>
@@ -278,21 +287,23 @@ export default function XmlDataPage() {
 
               {totalPages > 1 && (
                 <div className="flex items-center justify-between border-t border-slate-50 bg-slate-50/30 px-6 py-4">
-                  <span className="text-xs text-slate-500 font-medium">
+                  <span className="text-xs text-slate-500 font-medium" aria-live="polite">
                     Mostrando {paginatedData.length} de {filteredData.length} registros (ABI/Arquivo)
                   </span>
                   <div className="flex gap-2">
                     <button 
                       onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                       disabled={currentPage === 1}
-                      className="px-4 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all font-sans"
+                      className="px-4 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all font-sans focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
+                      aria-label="Página anterior"
                     >
                       Anterior
                     </button>
                     <button 
                       onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                       disabled={currentPage === totalPages}
-                      className="px-4 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all font-sans"
+                      className="px-4 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all font-sans focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
+                      aria-label="Próxima página"
                     >
                       Próxima
                     </button>
@@ -306,23 +317,33 @@ export default function XmlDataPage() {
 
       {/* Modal de Detalhes do XML */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm animate-in fade-in duration-300">
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm animate-in fade-in duration-300"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="details-modal-title"
+        >
           <div className="w-full max-w-5xl max-h-[90vh] flex flex-col rounded-2xl bg-white shadow-2xl animate-in zoom-in-95 duration-300">
             <div className="flex items-center justify-between border-b border-slate-100 p-6">
               <div>
-                <h3 className="text-xl font-bold text-slate-900">Detalhes do Faturamento</h3>
+                <h3 id="details-modal-title" className="text-xl font-bold text-slate-900">Detalhes do Faturamento</h3>
                 <p className="text-sm text-slate-500">ABI: {selectedFile?.abi} | {selectedFile?.client}</p>
               </div>
               <div className="flex items-center gap-4">
                 <button 
                   onClick={() => handleExportFile(selectedFile?.id)}
-                  className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-gax-blue hover:bg-slate-50 transition-all"
+                  className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-gax-blue hover:bg-slate-50 transition-all focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
+                  aria-label="Download Excel do faturamento"
                 >
-                  <Download size={14} />
+                  <Download size={14} aria-hidden="true" />
                   Baixar Excel
                 </button>
-                <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600 transition-all">
-                  <XCircle size={28} />
+                <button 
+                  onClick={() => setShowModal(false)} 
+                  className="text-slate-400 hover:text-slate-600 transition-all focus-visible:ring-2 focus-visible:ring-slate-200 outline-none rounded-full"
+                  aria-label="Fechar modal de detalhes"
+                >
+                  <XCircle size={28} aria-hidden="true" />
                 </button>
               </div>
             </div>

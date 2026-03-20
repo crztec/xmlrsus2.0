@@ -54,10 +54,10 @@ export default function Sidebar() {
         <div className="flex items-center gap-2 overflow-hidden">
           {branding.logo_base64 ? (
             <div className="h-8 w-8 overflow-hidden rounded-lg shrink-0">
-              <img src={branding.logo_base64} alt="Logo" className="h-full w-full object-contain" />
+              <img src={branding.logo_base64} alt={`Logo ${branding.system_name}`} className="h-full w-full object-contain" />
             </div>
           ) : (
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gax-blue text-white shrink-0">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gax-blue text-white shrink-0" aria-hidden="true">
               <CloudUpload size={18} />
             </div>
           )}
@@ -68,13 +68,13 @@ export default function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto px-3 py-4">
+      <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label="Navegação Principal">
         <div className="space-y-1">
           {menuItems.map((item, idx) => {
             if (item.isTitle) {
               if (item.isAdmin && !isAdmin) return null;
               return (
-                <div key={idx} className="mb-2 mt-4 px-3 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                <div key={idx} className="mb-2 mt-4 px-3 text-[11px] font-bold uppercase tracking-wider text-slate-400" aria-hidden="true">
                   {item.label}
                 </div>
               );
@@ -89,17 +89,18 @@ export default function Sidebar() {
                 key={idx}
                 href={item.href || "#"}
                 className={cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-all",
+                  "flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-all outline-none focus-visible:ring-2 focus-visible:ring-gax-blue/20",
                   isActive 
                     ? "bg-gax-blue-light text-gax-blue" 
                     : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                 )}
+                aria-current={isActive ? "page" : undefined}
               >
-                <span className={cn(isActive ? "text-gax-blue" : "text-slate-400")}>
+                <span className={cn(isActive ? "text-gax-blue" : "text-slate-400")} aria-hidden="true">
                   {item.icon}
                 </span>
                 {item.label}
-                {isActive && <div className="ml-auto h-1.5 w-1.5 rounded-full bg-gax-blue" />}
+                {isActive && <div className="ml-auto h-1.5 w-1.5 rounded-full bg-gax-blue" aria-hidden="true" />}
               </Link>
             );
           })}
@@ -109,7 +110,7 @@ export default function Sidebar() {
       {/* Footer / User Profile Popover Trigger */}
       <div className="border-t border-slate-100 p-4">
         <div className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/50 p-2 text-left transition-colors hover:bg-slate-50">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-200 text-slate-500 font-bold text-xs uppercase">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-200 text-slate-500 font-bold text-xs uppercase" aria-hidden="true">
             V
           </div>
           <div className="flex-1 overflow-hidden">
@@ -122,9 +123,10 @@ export default function Sidebar() {
                 window.location.href = "/login";
               }
             }}
-            className="text-slate-400 hover:text-red-500"
+            className="text-slate-400 hover:text-red-500 transition-colors focus-visible:ring-2 focus-visible:ring-red-200 outline-none rounded-md"
+            aria-label="Sair do sistema"
           >
-            <LogOut size={16} />
+            <LogOut size={16} aria-hidden="true" />
           </button>
         </div>
       </div>
