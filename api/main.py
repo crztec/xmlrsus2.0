@@ -451,7 +451,10 @@ async def background_worker_task(task_id: str, url_sistema: str):
                     
                     # O "pulo do gato": O portal AngularJS às vezes não renderiza no primeiro redirect.
                     # Um reload resolve 100% das vezes nos testes manuais.
-                    await page.reload(wait_until="load", timeout=60000)
+                    try:
+                        await page.reload(wait_until="domcontentloaded", timeout=45000)
+                    except:
+                        db.add_log(task_id, "WARNING", "Timeout no reload forçado, tentando prosseguir...")
                     db.add_log(task_id, "INFO", "Página recarregada. Aguardando formulário novamente...")
                     
                     # Segunda tentativa: Espera mais longa após reload
