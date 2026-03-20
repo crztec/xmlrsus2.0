@@ -330,11 +330,13 @@ async def background_worker_task(task_id: str, url_sistema: str):
             # Isso faz o Playwright em UTC apagar o cookie instantaneamente achando que já expirou.
             # Forçamos PT-BR e fuso horário de SP para emular 100% o ambiente do robô local.
             context = await browser.new_context(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
                 viewport={'width': 1920, 'height': 1080},
                 ignore_https_errors=True,
                 timezone_id="America/Sao_Paulo",
-                locale="pt-BR"
+                locale="pt-BR",
+                device_scale_factor=1,
+                has_touch=False
             )
             page = await context.new_page()
             page.set_default_navigation_timeout(60000)
@@ -346,21 +348,34 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 page.on("console", lambda msg: db.add_log(task_id, "DEBUG" if msg.type != "error" else "ERROR", f"[Browser Console] {msg.text[:500]}") if msg.type in ['error', 'warning'] else None)
                 page.on("pageerror", lambda err: db.add_log(task_id, "ERROR", f"[Uncaught Exception] {str(err)[:500]}"))
                 
-                # INTERCEPTOR DE RESPOSTAS PARA VER OS HEADERS DE COOKIE DE FORMA BRUTA
+                # INTERCEPTOR DE RESPOSTAS PARA INJEÇÃO CIRÚRGICA DE COOKIES
                 async def handle_response(response):
-                    # Monitoramos TUDO que vem do domínio do sistema
+                    # Monitoramos o domínio do sistema para forçar persistência de cookies
                     if url_sistema.split('/')[2] in response.url:
-                        # Pega os headers brutos (incluindo duplicados)
                         try:
-                            raw_headers = await response.all_headers()
-                            set_cookie = raw_headers.get('set-cookie')
+                            headers = await response.all_headers()
+                            set_cookie = headers.get('set-cookie')
                             if set_cookie:
-                                db.add_log(task_id, "DEBUG", f"[COOKIE DETECTADO] URL: {response.url[:60]}... | Cookie: {set_cookie[:150]}")
-                            
-                            # Se for um 302 sem cookie, logamos todos os nomes de header para suspeita de bloqueio
-                            if response.status == 302 and not set_cookie:
-                                h_names = ", ".join(raw_headers.keys())
-                                db.add_log(task_id, "DEBUG", f"[URL REDIRECT] {response.url[:60]}... -> {raw_headers.get('location')} | Headers: {h_names}")
+                                # Divide múltiplos cookies (separados por \n no all_headers do Playwright)
+                                sc_list = set_cookie.split('\n')
+                                for sc in sc_list:
+                                    # Parse básico do cookie string
+                                    parts = [p.strip() for p in sc.split(';')]
+                                    if not parts: continue
+                                    name_val = parts[0].split('=', 1)
+                                    if len(name_val) < 2: continue
+                                    
+                                    # Injeção manual ignorando SameSite/Secure do navegador
+                                    await context.add_cookies([{
+                                        "name": name_val[0],
+                                        "value": name_val[1],
+                                        "domain": url_sistema.split('/')[2],
+                                        "path": "/",
+                                        "secure": True,
+                                        "sameSite": "Lax",
+                                        "httpOnly": True
+                                    }])
+                                db.add_log(task_id, "DEBUG", f"[COOKIE FORÇADO] Tokens de sessão de {response.url[:50]}... reinjetados.")
                         except: pass
                 
                 page.on("response", handle_response)
