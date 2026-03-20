@@ -13,35 +13,6 @@ import tempfile
 import logging
 import sys
 
-async def preencher_campo_angular(target, selector, value):
-    """
-    Preenche campos de formulários AngularJS de forma robusta disparando eventos manuais.
-    Equivalente ao comportamento do robô antigo em Selenium.
-    """
-    if not value: return False
-    try:
-        element = target.locator(selector).first
-        if await element.count() > 0:
-            # Limpa e foca
-            await element.click()
-            await element.fill("")
-            # Digita o valor
-            await element.type(str(value), delay=30)
-            # Dispara eventos JS para o Angular capturar o $digest
-            await target.evaluate(f"""(sel) => {{
-                const el = document.querySelector(sel);
-                if (el) {{
-                    el.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                    el.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                    el.dispatchEvent(new Event('blur', {{ bubbles: true }}));
-                }}
-            }}""", selector)
-            return True
-    except Exception as e:
-        logger.warning(f"Erro ao preencher campo {selector}: {e}")
-    return False
-
-
 # Configure standard logging
 logging.basicConfig(level=logging.INFO, stream=sys.stdout, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -344,13 +315,8 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 ignore_https_errors=True
             )
             page = await context.new_page()
-            
-            # Captura logs do console e erros de JS para diagnóstico
-            page.on("console", lambda msg: logger.debug(f"BROWSER CONSOLE: [{msg.type}] {msg.text}"))
-            page.on("pageerror", lambda exc: db.add_log(task_id, "ERROR", f"BROWSER JS ERROR: {exc}"))
-            
-            page.set_default_navigation_timeout(90000)
-            page.set_default_timeout(90000)
+            page.set_default_navigation_timeout(60000)
+            page.set_default_timeout(60000)
 
             # 1. Abre url_sistema diretamente (padrão do robô antigo que funcionava perfeitamente)
             # O portal redireciona para login se não autenticado. Após login, volta para url_sistema.
@@ -570,20 +536,25 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 db.add_log(task_id, "INFO", f"[{i+1}/{total}] Iniciando preenchimento do ABI {abi}...")
                 
                 try:
-                    # ─── ETAPA 1: Preparar dados do arquivo ───
-                    num_processo = file.get("numero_processo", "")
+                    # ─── ETAPA 1: Preencher campo Protocolo (somente numeroProcesso do XML) ───
+                    num_processo = file.get('numero_processo', '')
+                    db.add_log(task_id, "INFO", f"Preenchendo Protocolo: {num_processo}")
+                    protocolo_field = form_target.locator("input#numeroProtocolo").first
+                    await protocolo_field.click()
+                    await protocolo_field.fill("")
+                    await protocolo_field.type(str(num_processo), delay=50)
+                    
+                    # ─── ETAPA 2: Preencher campos de data e valores ───
                     dt_recebimento = file.get("data_recebimento_oficio") or file.get("data_registro_transacao", "")
                     dt_prazo = file.get("prazo_resposta_ans", "")
                     competencias = file.get("competencias", "")
                     qtd = str(file.get("quantidade_processo", "0"))
                     valor = str(file.get("valor_total_processo", "0"))
                     
-                    db.add_log(task_id, "INFO", f"Preenchendo Protocolo: {num_processo}")
                     db.add_log(task_id, "INFO", f"Dados: dt_rec={dt_recebimento}, prazo={dt_prazo}, comp={competencias}, qtd={qtd}, val={valor}")
-
-                    # ─── ETAPA 2: Preencher campos com lógica robusta de AngularJS ───
+                    
+                    # Preenche campos individualmente com Playwright (mais confiável que evaluate)
                     field_map = {
-                        "input#numeroProtocolo": str(num_processo),
                         "input#dataRecebimentoOficio": dt_recebimento,
                         "input#dataPrazoRespostaAns": dt_prazo,
                         "input#competencias": competencias,
@@ -592,10 +563,19 @@ async def background_worker_task(task_id: str, url_sistema: str):
                     }
                     
                     for sel, val in field_map.items():
-                        if await preencher_campo_angular(form_target, sel, val):
-                            db.add_log(task_id, "DEBUG", f"  Campo {sel} = '{val}' ✓")
-                        else:
-                            db.add_log(task_id, "WARNING", f"  Falha no campo {sel}")
+                        if not val:
+                            continue
+                        try:
+                            field = form_target.locator(sel).first
+                            if await field.count() > 0:
+                                await field.click()
+                                await field.fill("")
+                                await field.type(str(val), delay=30)
+                                db.add_log(task_id, "DEBUG", f"  Campo {sel} = '{val}' ✓")
+                            else:
+                                db.add_log(task_id, "WARNING", f"  Campo {sel} NÃO encontrado na página")
+                        except Exception as field_err:
+                            db.add_log(task_id, "WARNING", f"  Erro no campo {sel}: {str(field_err)[:60]}")
                     
                     # ─── ETAPA 3: Upload do arquivo XML ───
                     db.add_log(task_id, "INFO", f"Fazendo upload do XML: {nome}")
