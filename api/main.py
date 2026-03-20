@@ -293,21 +293,9 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 "--no-sandbox", 
                 "--disable-dev-shm-usage", 
                 "--disable-gpu",
-                "--disable-background-networking",
-                "--disable-default-apps",
-                "--disable-sync",
-                "--disable-translate",
-                "--metrics-recording-only",
-                "--safebrowsing-disable-auto-update",
-                "--no-first-run",
-                "--disable-notifications",
-                "--disable-background-timer-throttling",
-                "--disable-backgrounding-occluded-windows",
-                "--disable-breakpad",
-                "--disable-component-update",
-                "--disable-domain-reliability",
-                "--proxy-server='direct://'",
-                "--proxy-bypass-list=*"
+                "--window-size=1920,1080",
+                # IMPORTANTE: Foram retiradas TODAS as flags de "otimização" (ex: --disable-background-networking)
+                # O Angular PRECISA de networking em background e timer throttling desativado para carregar os templates SVG/HTML.
             ]
             try:
                 # Tenta o launch padrão primeiro (muito mais rápido no Docker)
