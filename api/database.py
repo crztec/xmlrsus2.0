@@ -431,7 +431,7 @@ def get_files_for_task(task_id):
     docs = firestore_db.collection('task_files').where('task_id', '==', task_id).stream()
     return [{**doc.to_dict(), 'id': doc.id} for doc in docs]
 
-def get_logs_for_task(task_id, limit=50):
+def get_logs_for_task(task_id, limit=500):
     try:
         task_doc = firestore_db.collection('tasks').document(task_id).get()
         if not task_doc.exists: return []

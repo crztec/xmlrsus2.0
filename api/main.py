@@ -184,6 +184,60 @@ async def get_xml_details(file_id: str):
     details = parser.parse_fine_details_from_bytes(content)
     return details
 
+@app.get("/xml-data/{file_id}/export")
+async def export_single_xml_details(file_id: str):
+    import pandas as pd
+    from fastapi.responses import StreamingResponse
+    import io
+    
+    # Busca o arquivo e extrai os detalhes (mesma lógica do endpoint de detalhes)
+    doc = db.firestore_db.collection('task_files').document(file_id).get()
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Arquivo não encontrado")
+    
+    data = doc.to_dict()
+    storage_path = data.get("storage_path")
+    file_name = data.get("file_name", f"detalhes_{file_id}")
+    
+    import tempfile
+    with tempfile.NamedTemporaryFile(delete=False) as tmp:
+        success = db.download_xml_from_storage(storage_path, tmp.name)
+        if not success:
+            raise HTTPException(status_code=500, detail="Erro ao baixar arquivo")
+        with open(tmp.name, 'rb') as f:
+            content = f.read()
+    os.unlink(tmp.name)
+    
+    details = parser.parse_fine_details_from_bytes(content)
+    if not details:
+        # Se não houver detalhes, retorna um erro amigável ao invés de Excel vazio
+        raise HTTPException(status_code=404, detail="Nenhum detalhe encontrado para este XML para exportação.")
+        
+    df = pd.DataFrame(details)
+    
+    # Renomeia para colunas amigáveis
+    df_export = df.rename(columns={
+        "beneficiario_cod": "Cód. Beneficiário",
+        "beneficiario_nome": "Nome do Beneficiário",
+        "data": "Data Atendimento",
+        "procedimento_cod": "Cód. Procedimento",
+        "procedimento_nome": "Descrição Procedimento",
+        "valor": "Valor (R$)"
+    })
+    
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df_export.to_excel(writer, index=False, sheet_name='Detalhes XML')
+    output.seek(0)
+    
+    safe_filename = file_name.replace('.xml', '').replace('.XML', '') + "_detalhes.xlsx"
+    
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={safe_filename}"}
+    )
+
 @app.get("/users")
 async def get_users():
     return db.get_all_users()
@@ -260,8 +314,8 @@ async def get_task_status(task_id: str):
     if total > 0:
         progress = int((processed / total) * 100)
     
-    # Busca os logs (limite aumentado para 50 para suportar a barra de rolagem no dashboard)
-    logs = db.get_logs_for_task(task_id, limit=50)
+    # Busca os logs (limite aumentado para 500 para evitar desaparecimento de logs antigos)
+    logs = db.get_logs_for_task(task_id, limit=500)
     
     return {
         "id": task_id,
@@ -316,7 +370,7 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 browser = await p.chromium.launch(headless=True, args=browser_args)
             except Exception as launch_err:
                 # Fallback: Mantém os argumentos de segurança e certificado
-                db.add_log(task_id, "INFO", "Binários ausentes. Instalando Chromium...")
+                db.add_log(task_id, "DEBUG", "Binários ausentes. Instalando Chromium...")
                 import subprocess, sys
                 subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], check=False)
                 browser = await p.chromium.launch(headless=True, args=browser_args)
@@ -347,8 +401,8 @@ async def background_worker_task(task_id: str, url_sistema: str):
 
             # 2. Navegação Orgânica (Simulando o robô antigo)
             try:
-                # LISTENER DE CONSOLE PARA CAPTURAR O ERRO INVISÍVEL DO ANGULARJS!
-                page.on("console", lambda msg: db.add_log(task_id, "DEBUG" if msg.type != "error" else "ERROR", f"[Browser Console] {msg.text[:500]}") if msg.type in ['error', 'warning'] else None)
+                # LISTENER DE CONSOLE PARA CAPTURAR ERROS (MANTIDO EM DEBUG PARA NÃO POLUIR O ACOMPANHAMENTO)
+                page.on("console", lambda msg: db.add_log(task_id, "DEBUG", f"[Browser Console] {msg.text[:500]}") if msg.type in ['error', 'warning'] else None)
                 page.on("pageerror", lambda err: db.add_log(task_id, "ERROR", f"[Uncaught Exception] {str(err)[:500]}"))
                 
                 # INTERCEPTOR DE RESPOSTAS PARA INJEÇÃO CIRÚRGICA DE COOKIES

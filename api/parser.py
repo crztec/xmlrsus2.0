@@ -132,11 +132,17 @@ def parse_fine_details_from_bytes(conteudo_bytes):
     try:
         root = ET.fromstring(conteudo_bytes)
         
-        # Procura por itens de serviço/resumo em qualquer lugar do XML
-        # Tags comuns: itemResumoApuracao, procedimentoResumo, etc.
+        # Tags de agrupamento comuns em XMLs de faturamento (ABI/TISS)
+        vessel_tags = [
+            "itemResumoApuracao", "procedimentoFaturado", "servicoExecutado", 
+            "detalheItem", "itemGuia", "dadosProcedimento", "procedimentoResumo",
+            "faturamentoItem", "itemFaturamento"
+        ]
+        
+        # Busca por itens estruturados primeiro
         for elem in root.iter():
             tag = elem.tag.split('}')[-1]
-            if tag in ["itemResumoApuracao", "procedimentoFaturado", "servicoExecutado"]:
+            if any(v.lower() == tag.lower() for v in vessel_tags):
                 item = {
                     "beneficiario_cod": "",
                     "beneficiario_nome": "",
@@ -145,27 +151,32 @@ def parse_fine_details_from_bytes(conteudo_bytes):
                     "procedimento_nome": "",
                     "valor": ""
                 }
-                # Mapeamento dinâmico baseado em tags conhecidas
                 for child in elem.iter():
-                    c_tag = child.tag.split('}')[-1]
+                    c_tag = child.tag.split('}')[-1].lower()
                     val = child.text if child.text else ""
                     
-                    if c_tag in ["codigoBeneficiario", "numeroCarteira"]: item["beneficiario_cod"] = val
-                    elif c_tag in ["nomeBeneficiario", "nmBeneficiario"]: item["beneficiario_nome"] = val
-                    elif c_tag in ["dataAtendimento", "dtAtendimento", "dataInicio"]: item["data"] = val
-                    elif c_tag in ["codigoProcedimento", "cdProcedimento"]: item["procedimento_cod"] = val
-                    elif c_tag in ["descricaoProcedimento", "dsProcedimento"]: item["procedimento_nome"] = val
-                    elif c_tag in ["valorTotalItem", "vlTotalItem", "valorProcessado"]: item["valor"] = val
+                    if any(t in c_tag for t in ["codigobeneficiario", "numerocarteira", "cdbeneficiario"]): 
+                        item["beneficiario_cod"] = val
+                    elif any(t in c_tag for t in ["nomebeneficiario", "nmbeneficiario", "beneficiarionome"]): 
+                        item["beneficiario_nome"] = val
+                    elif any(t in c_tag for t in ["dataatendimento", "dtatendimento", "datainicio", "dtinicio"]): 
+                        item["data"] = val
+                    elif any(t in c_tag for t in ["codigoprocedimento", "cdprocedimento", "procedimentocodigo"]): 
+                        item["procedimento_cod"] = val
+                    elif any(t in c_tag for t in ["descricaoprocedimento", "dsprocedimento", "nmprocedimento", "procedimentodesc"]): 
+                        item["procedimento_nome"] = val
+                    elif any(t in c_tag for t in ["valortotalitem", "vltotalitem", "valorprocessado", "vlprocessado", "valorprocesso"]): 
+                        item["valor"] = formatar_valor_monetario(val)
                 
-                # Só adiciona se tiver pelo menos o básico
-                if item["beneficiario_nome"] or item["procedimento_nome"]:
+                if item["beneficiario_nome"] or item["procedimento_nome"] or item["beneficiario_cod"]:
                     detalhes.append(item)
                     
-        # Fallback se não encontrou nada estruturado: tenta buscar por guias
+        # Se não encontrou dados estruturados, tenta buscar por Guias (Nível superior)
         if not detalhes:
+            guia_tags = ["guiaSPSADT", "guiaResumoInternacao", "dadosGuia", "guiaFaturamento", "guia"]
             for elem in root.iter():
                 tag = elem.tag.split('}')[-1]
-                if tag in ["guiaSPSADT", "guiaResumoInternacao", "dadosGuia"]:
+                if any(g.lower() == tag.lower() for g in guia_tags):
                     item = {
                       "beneficiario_cod": "",
                       "beneficiario_nome": "Resumo de Guia",
@@ -175,16 +186,33 @@ def parse_fine_details_from_bytes(conteudo_bytes):
                       "valor": ""
                     }
                     for sub in elem.iter():
-                        s_tag = sub.tag.split('}')[-1]
+                        s_tag = sub.tag.split('}')[-1].lower()
                         v = sub.text if sub.text else ""
-                        if s_tag in ["codigoBeneficiario", "numeroCarteira"]: item["beneficiario_cod"] = v
-                        elif s_tag in ["nomeBeneficiario", "nmBeneficiario"]: item["beneficiario_nome"] = v
-                        elif s_tag in ["dataInicioFaturamento", "dtInicioFaturamento"]: item["data"] = v
-                        elif s_tag in ["valorTotalGuia", "vlTotalGuia"]: item["valor"] = v
+                        if any(t in s_tag for t in ["codigobeneficiario", "numerocarteira"]): item["beneficiario_cod"] = v
+                        elif any(t in s_tag for t in ["nomebeneficiario", "nmbeneficiario"]): item["beneficiario_nome"] = v
+                        elif any(t in s_tag for t in ["datainiciofaturamento", "dtiniciofaturamento", "dataemissaodeferimento"]): item["data"] = v
+                        elif any(t in s_tag for t in ["valortotalguia", "vltotalguia", "valorpago"]): item["valor"] = formatar_valor_monetario(v)
+                    
                     if item["beneficiario_nome"] != "Resumo de Guia" or item["beneficiario_cod"]:
                         detalhes.append(item)
+
+        # Último caso: Busca Global "Fuzzy" para capturar QUALQUER coisa que pareça item de faturamento
+        if not detalhes:
+            for elem in root.iter():
+                tag = elem.tag.split('}')[-1].lower()
+                # Se encontrarmos um "nome de beneficiário", assumimos que é um item
+                if "nmbeneficiario" in tag or "nomebeneficiario" in tag:
+                    detalhes.append({
+                        "beneficiario_cod": "Captura Global",
+                        "beneficiario_nome": elem.text if elem.text else "N/A",
+                        "data": "",
+                        "procedimento_cod": "XML",
+                        "procedimento_nome": "Extração Genérica",
+                        "valor": ""
+                    })
+
     except Exception as e:
-        print(f"Erro ao parsear detalhes finos: {e}")
+        print(f"Erro crítico ao parsear detalhes finos: {e}")
     return detalhes
 
 def extract_razao_social(conteudo_bytes):
