@@ -41,8 +41,9 @@ def extrair_dados_xml(arquivos_upload):
             root = ET.fromstring(conteudo_bytes)
             
             def obter_texto(tag_nome):
+                # Busca insensível a maiúsculas/minúsculas para maior resiliência
                 for elem in root.iter():
-                    if elem.tag.split('}')[-1] == tag_nome:
+                    if elem.tag.split('}')[-1].lower() == tag_nome.lower():
                         return elem.text if elem.text else ""
                 return ""
             

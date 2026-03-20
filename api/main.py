@@ -536,31 +536,17 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 db.add_log(task_id, "INFO", f"[{i+1}/{total}] Iniciando preenchimento do ABI {abi}...")
                 
                 try:
-                    # ─── ETAPA 1: Preencher campo Protocolo (somente numeroProcesso do XML) ───
+                    # ─── ETAPA 1: Preenchimento Robusto (Force-Fill) ───
+                    # Extração de dados com fallbacks
                     num_processo = file.get('numero_processo', '')
-                    db.add_log(task_id, "INFO", f"Preenchendo Protocolo: {num_processo}")
-                    
-                    # Usa evaluate para garantir preenchimento mesmo em campos com restrições de UI
-                    await form_target.evaluate(f"(val) => {{ \
-                        const el = document.querySelector('input#numeroProtocolo, #numeroProtocolo'); \
-                        if(el) {{ \
-                            el.value = val; \
-                            el.dispatchEvent(new Event('input', {{ bubbles: true }})); \
-                            el.dispatchEvent(new Event('change', {{ bubbles: true }})); \
-                        }} \
-                    }}", str(num_processo))
-                    
-                    # ─── ETAPA 2: Preencher campos de data e valores ───
                     dt_recebimento = file.get("data_recebimento_oficio") or file.get("data_registro_transacao", "")
                     dt_prazo = file.get("prazo_resposta_ans", "")
                     competencias = file.get("competencias", "")
                     qtd = str(file.get("quantidade_processo", "0"))
                     valor = str(file.get("valor_total_processo", "0"))
-                    
-                    db.add_log(task_id, "INFO", f"Dados: dt_rec={dt_recebimento}, prazo={dt_prazo}, comp={competencias}, qtd={qtd}, val={valor}")
-                    
-                    # Preenche campos via JavaScript para contornar restrições de 'readOnly' e AngularJS
+
                     field_map = {
+                        "input#numeroProtocolo": num_processo,
                         "input#dataRecebimentoOficio": dt_recebimento,
                         "input#dataPrazoRespostaAns": dt_prazo,
                         "input#competencias": competencias,
@@ -568,11 +554,13 @@ async def background_worker_task(task_id: str, url_sistema: str):
                         "input#valorTotalABI": valor,
                     }
                     
+                    db.add_log(task_id, "INFO", f"Preenchendo formulário para ABI {abi} (Processo: {num_processo})")
+                    
                     for sel, val in field_map.items():
-                        if not val:
-                            continue
+                        if not val: continue
                         try:
-                            # Tenta preenchimento forçado via JS
+                            # Tenta preenchimento forçado via JS para contornar readOnly e AngularJS
+                            # Dispara 'input', 'change' e 'blur' para garantir sincronização do framework
                             success = await form_target.evaluate(f"(args) => {{ \
                                 const el = document.querySelector(args.sel); \
                                 if (el) {{ \
@@ -586,9 +574,9 @@ async def background_worker_task(task_id: str, url_sistema: str):
                             }}", {"sel": sel, "val": str(val)})
                             
                             if success:
-                                db.add_log(task_id, "DEBUG", f"  Campo {sel} = '{val}' (Force-Fill ✓)")
+                                db.add_log(task_id, "DEBUG", f"  Campo {sel} preenchido ✓")
                             else:
-                                db.add_log(task_id, "WARNING", f"  Campo {sel} NÃO encontrado via JS")
+                                db.add_log(task_id, "WARNING", f"  Campo {sel} NÃO encontrado na página")
                         except Exception as field_err:
                             db.add_log(task_id, "WARNING", f"  Erro no campo {sel}: {str(field_err)[:60]}")
                     
@@ -662,42 +650,48 @@ async def background_worker_task(task_id: str, url_sistema: str):
                     
                     # ─── ETAPA 6: Aguardar confirmação do portal ───
                     db.add_log(task_id, "INFO", "Aguardando confirmação do portal...")
-                    await asyncio.sleep(5)  # Tempo para o portal processar
-                    
                     status_final_abi = "ERROR"
                     msg_feedback = ""
                     
-                    # Verifica por até 45 segundos
-                    for check_round in range(45):
+                    # Seletor expandido de mensagens (inclui toasts, alertas do navegador e mensagens de sistema)
+                    msg_selectors = ".header-message-top, .browseralert, .modal-content, .alert, .alert-success, .alert-danger, .alert-warning, .alert-info, .toast, .notification, .toast-message, #_browseralert, .help-block"
+                    
+                    # Verifica por até 60 segundos com maior frequência (0.5s) para capturar mensagens transientes
+                    for check_round in range(120):
                         try:
-                            # Busca qualquer mensagem visível (alertas, modais, mensagens do sistema)
-                            msg_selectors = ".header-message-top, .browseralert, .modal-content, .alert, .alert-success, .alert-danger, .alert-warning, .alert-info, .toast, .notification"
+                            # Busca qualquer mensagem visível
                             msgs = page.locator(msg_selectors)
-                            for m_idx in range(await msgs.count()):
+                            count = await msgs.count()
+                            for m_idx in range(count):
                                 msg_el = msgs.nth(m_idx)
-                                if await msg_el.is_visible(timeout=200):
+                                if await msg_el.is_visible(timeout=100):
                                     msg_text = (await msg_el.inner_text()).strip()
-                                    if not msg_text:
-                                        continue
+                                    if not msg_text: continue
                                     
-                                    db.add_log(task_id, "DEBUG", f"Mensagem detectada: '{msg_text[:100]}'")
+                                    db.add_log(task_id, "DEBUG", f"Mensagem detectada: '{msg_text[:140]}'")
                                     
-                                    if "SIS00010" in msg_text or "sucesso" in msg_text.lower() or "importad" in msg_text.lower():
-                                        db.add_log(task_id, "SUCCESS", f"Portal confirmou ABI {abi}: {msg_text[:100]}")
+                                    if any(key in msg_text.lower() for key in ["sucesso", "importad", "concluíd", "enviado"]):
+                                        db.add_log(task_id, "SUCCESS", f"Portal confirmou importação: {msg_text[:100]}")
                                         status_final_abi = "SUCCESS"
                                         msg_feedback = msg_text
                                         break
-                                    elif "SIS" in msg_text or "erro" in msg_text.lower() or "inválid" in msg_text.lower() or "não encontrado" in msg_text.lower():
-                                        db.add_log(task_id, "ERROR", f"Portal recusou ABI {abi}: {msg_text[:150]}")
+                                    elif any(key in msg_text.lower() for key in ["erro", "inválid", "rejeitad", "não encontrado", "sis00", "falhou"]):
+                                        db.add_log(task_id, "ERROR", f"Portal recusou importação: {msg_text[:150]}")
                                         status_final_abi = "ERROR"
                                         msg_feedback = msg_text
                                         break
                             
-                            if status_final_abi != "ERROR" or msg_feedback:
+                            if status_final_abi == "SUCCESS" or (status_final_abi == "ERROR" and msg_feedback):
+                                break
+                                
+                            # Se a URL mudar para a lista, assume que terminou
+                            if "/importacao" in page.url and "/novo" not in page.url:
+                                db.add_log(task_id, "INFO", "Redirecionado para lista de importações.")
+                                status_final_abi = "SUCCESS"
                                 break
                         except:
                             pass
-                        await asyncio.sleep(1)
+                        await asyncio.sleep(0.5)
                     
                     # Se nenhuma mensagem apareceu, captura screenshot e verifica URL
                     if status_final_abi == "ERROR" and not msg_feedback:
