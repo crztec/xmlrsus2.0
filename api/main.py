@@ -303,9 +303,11 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 "--disable-dev-shm-usage", 
                 "--disable-gpu",
                 "--window-size=1920,1080",
-                # DESATIVAR SAME-SITE: Portais legados muitas vezes mandam cookies sem 'Secure' ou 'SameSite'
-                # que o Chrome moderno recusa por padrão. Isso força a aceitação.
-                "--disable-features=SameSiteByDefaultCookies,CookiesWithoutSameSiteMustBeSecure,SameSiteDefaultChecksMethodRacy"
+                # DESATIVAR SAME-SITE E REGRAS DE SEGURANÇA: Portais legados muitas vezes mandam cookies 
+                # sem 'Secure' ou 'SameSite' que o Chrome moderno recusa por padrão.
+                "--disable-features=SameSiteByDefaultCookies,CookiesWithoutSameSiteMustBeSecure,SameSiteDefaultChecksMethodRacy",
+                "--disable-web-security",
+                "--allow-running-insecure-content"
             ]
             try:
                 # Tenta o launch padrão primeiro (muito mais rápido no Docker)
@@ -344,21 +346,22 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 page.on("console", lambda msg: db.add_log(task_id, "DEBUG" if msg.type != "error" else "ERROR", f"[Browser Console] {msg.text[:500]}") if msg.type in ['error', 'warning'] else None)
                 page.on("pageerror", lambda err: db.add_log(task_id, "ERROR", f"[Uncaught Exception] {str(err)[:500]}"))
                 
-                # INTERCEPTOR DE RESPOSTAS PARA VER OS HEADERS DE COOKIE
+                # INTERCEPTOR DE RESPOSTAS PARA VER OS HEADERS DE COOKIE DE FORMA BRUTA
                 async def handle_response(response):
-                    if "Login" in response.url or "/Account/" in response.url:
-                        # Pega todos os headers de uma vez e busca case-insensitive
-                        all_headers = response.headers
-                        # No Playwright as chaves do dicionário headers são minúsculas
-                        set_cookie = all_headers.get('set-cookie')
-                        
-                        if set_cookie:
-                            # Loga os primeiros 300 caracteres do cookie para não poluir demais o DB
-                            db.add_log(task_id, "DEBUG", f"[HTTP Cookie Catch] Status: {response.status}, Set-Cookie: {set_cookie[:300]}")
-                        elif response.status in [302, 200] and "Login" in response.url:
-                            # Se não achou 'set-cookie', loga os nomes de todos os headers recebidos para inspeção
-                            h_names = ", ".join(all_headers.keys())
-                            db.add_log(task_id, "DEBUG", f"[HTTP Meta Check] Status: {response.status}, Headers: {h_names}")
+                    # Monitoramos TUDO que vem do domínio do sistema
+                    if url_sistema.split('/')[2] in response.url:
+                        # Pega os headers brutos (incluindo duplicados)
+                        try:
+                            raw_headers = await response.all_headers()
+                            set_cookie = raw_headers.get('set-cookie')
+                            if set_cookie:
+                                db.add_log(task_id, "DEBUG", f"[COOKIE DETECTADO] URL: {response.url[:60]}... | Cookie: {set_cookie[:150]}")
+                            
+                            # Se for um 302 sem cookie, logamos todos os nomes de header para suspeita de bloqueio
+                            if response.status == 302 and not set_cookie:
+                                h_names = ", ".join(raw_headers.keys())
+                                db.add_log(task_id, "DEBUG", f"[URL REDIRECT] {response.url[:60]}... -> {raw_headers.get('location')} | Headers: {h_names}")
+                        except: pass
                 
                 page.on("response", handle_response)
 
@@ -414,10 +417,22 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 
                 await asyncio.sleep(3)
                 
-                # VERIFICAÇÃO DE SESSÃO: Logar cookies obtidos
+                # VERIFICAÇÃO DE SESSÃO: Logar cookies e LocalStorage
                 cookies = await context.cookies()
-                session_found = any('.ASPXAUTH' in c['name'] or 'ASP.NET_SessionId' in c['name'] for c in cookies)
-                db.add_log(task_id, "INFO", f"Login realizado. Cookies de sessão detectados: {'SIM' if session_found else 'NÃO'}")
+                session_found = any('.ASPXAUTH' in c['name'] or 'ASP.NET_SessionId' in c['name'] or 'Session' in c['name'] for c in cookies)
+                
+                storage_state = await page.evaluate("""
+                    () => {
+                        try {
+                            return JSON.stringify({
+                                local: Object.keys(localStorage),
+                                session: Object.keys(sessionStorage)
+                            });
+                        } catch(e) { return "Erro no Storage"; }
+                    }
+                """)
+                
+                db.add_log(task_id, "INFO", f"Login realizado. Cookies: {'SIM' if session_found else 'NÃO'} | WebStorage: {storage_state}")
                 
                 db.add_log(task_id, "INFO", "Aguardando o portal redirecionar de volta organicamente...")
                 
