@@ -323,7 +323,6 @@ async def background_worker_task(task_id: str, url_sistema: str):
             # Novo contexto com Stealth Máximo
             context = await browser.new_context(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-                viewport={'width': 1920, 'height': 1080},
                 ignore_https_errors=True,
                 timezone_id="America/Sao_Paulo",
                 locale="pt-BR"
@@ -332,8 +331,18 @@ async def background_worker_task(task_id: str, url_sistema: str):
             await context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
             
             page = await context.new_page()
-            page.set_default_navigation_timeout(60000)
-            page.set_default_timeout(60000)
+            
+            # --- HIPER-OTIMIZAÇÃO: BLOQUEIO DE ATIVOS PESADOS ---
+            # Bloqueia fontes e imagens para acelerar o carregamento e evitar erros de OTS/Decoding
+            async def block_assets(route):
+                if route.request.resource_type in ["image", "font"]:
+                    await route.abort()
+                else:
+                    await route.continue_()
+            await page.route("**/*", block_assets)
+            
+            page.set_default_navigation_timeout(90000) # Aumentado para 90s (Paciência Selenium)
+            page.set_default_timeout(90000)
 
             # 2. Navegação Orgânica (Simulando o robô antigo)
             try:
@@ -431,49 +440,40 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 
                 # NOVO: SE ESTAMOS PRESOS NA TELA DE LOGIN MAS TEMOS COOKIE, FORÇAMOS O SALTO TRIPLO
                 if has_session and ("Account/Login" in page.url or "Account/LogOff" in page.url):
-                    db.add_log(task_id, "WARNING", "Sessão detectada mas preso na tela de Login. Forçando Salto Triplo (Prova Real)...")
-                    # 1. Toca na raiz para garantir cookies de sessão base
-                    await page.goto(url_sistema.split('/novo')[0].rsplit('/', 1)[0], wait_until="commit", timeout=15000)
+                    db.add_log(task_id, "WARNING", "Sessão detectada mas preso na tela de Login. Forçando Salto Triplo (Hiper-Otimizado)...")
+                    # 1. Toca na raiz (wait: commit)
+                    await page.goto(url_sistema.split('/novo')[0].rsplit('/', 1)[0] + "/", wait_until="commit", timeout=30000)
                     # 2. Visita a lista (Index) - O segredo que funcionou localmente!
                     url_lista = url_sistema.replace("/novo", "")
-                    await page.goto(url_lista, wait_until="domcontentloaded", timeout=20000)
-                    await asyncio.sleep(2)
+                    await page.goto(url_lista, wait_until="commit", timeout=45000)
+                    await asyncio.sleep(3)
                     # 3. Finalmente vai para o formulário de novo registro
-                    await page.goto(url_sistema, wait_until="domcontentloaded", timeout=30000)
+                    await page.goto(url_sistema, wait_until="domcontentloaded", timeout=60000)
                 else:
-                    # Tática de "Double-Jump" Orgânico
-                    await asyncio.sleep(2)
-                    db.add_log(task_id, "INFO", "Aguardando redirecionamento orgânico. Forçando Double-Jump de segurança...")
+                    # Tática de "Double-Jump" Orgânico de Segurança
+                    db.add_log(task_id, "INFO", "Aguardando carregamento do formulário. Forçando Double-Jump para acordar AngularJS...")
                     url_lista = url_sistema.replace("/novo", "")
-                    await page.goto(url_lista, wait_until="domcontentloaded", timeout=20000)
-                    await asyncio.sleep(1)
-                    await page.goto(url_sistema, wait_until="domcontentloaded", timeout=30000)
+                    await page.goto(url_lista, wait_until="commit", timeout=30000)
+                    await asyncio.sleep(2)
+                    await page.goto(url_sistema, wait_until="domcontentloaded", timeout=60000)
                     
+                form_ready = False
+                try:
+                    # Tenta aguardar o formulário aparecer (Final wait com seletor específico)
+                    await page.wait_for_selector("input#numeroProtocolo", state="visible", timeout=60000)
+                    form_ready = True
+                    db.add_log(task_id, "SUCCESS", "Formulário renderizado com sucesso.")
+                except Exception as e_final:
+                    # SE AINDA ASSIM FALHAR (Página Branca Extrema): Colhe Diagnóstico
+                    html_dump = await page.content()
+                    db.add_log(task_id, "ERROR", f"Falha no carregamento final. HTML Parcial: {html_dump[:250]}...")
+                    # Salva o dump completo no Firebase Storage para análise profunda
                     try:
-                        # Espera mais rápida no salto nuclear
-                        await page.wait_for_selector("input#numeroProtocolo", state="attached", timeout=30000)
-                        form_ready = True
-                        db.add_log(task_id, "SUCCESS", "Formulário recuperado via Salto Nuclear!")
-                    except Exception as e_nuclear:
-                        # HARVEST HTML: Precisamos ver o que há dentro da página branca
-                        html_dump = await page.content()
-                        db.add_log(task_id, "ERROR", f"Falha no Salto Nuclear. HTML Parcial: {html_dump[:250]}...")
-                        # Salva o dump completo no Firebase Storage para análise profunda
-                        try:
-                            blob_name = f"debug/screenshots/{task_id}_white_page_dump.html"
-                            db.bucket.blob(blob_name).upload_from_string(html_dump, content_type='text/html')
-                            db.add_log(task_id, "INFO", f"HTML Dump da tela branca salvo: {blob_name}")
-                        except: pass
-                        raise e_nuclear
-                        db.add_log(task_id, "ERROR", f"Falha após refresh: Timeout!")
-                        try:
-                            html_content = await page.content()
-                            html_path = f"debug/screenshots/{task_id}_dump.html"
-                            bucket = db.storage.bucket()
-                            bucket.blob(html_path).upload_from_string(html_content.encode('utf-8'), content_type='text/html')
-                            db.add_log(task_id, "DEBUG", f"HTML Dump (após refresh) salvo: {html_path}")
-                        except Exception as dump_err:
-                            db.add_log(task_id, "ERROR", f"Falha ao salvar HTML Dump: {dump_err}")
+                        blob_name = f"debug/screenshots/{task_id}_white_page_dump.html"
+                        db.bucket.blob(blob_name).upload_from_string(html_dump, content_type='text/html')
+                        db.add_log(task_id, "INFO", f"HTML Dump salvo para auditoria: {blob_name}")
+                    except: pass
+                    raise e_final
                         
             except Exception as e:
                 import traceback
