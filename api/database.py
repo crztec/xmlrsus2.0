@@ -243,6 +243,25 @@ def get_all_xml_data():
     xml_data_list.sort(key=lambda x: extract_num(x['abi']), reverse=True)
     return xml_data_list
 
+def check_abi_already_imported(razao_social, numero_abi):
+    """
+    Checks if an ABI has already been successfully imported for a specific client.
+    """
+    if not razao_social or not numero_abi:
+        return False
+    try:
+        from google.cloud.firestore_v1.base_query import FieldFilter
+        # Busca em task_files por sucesso naquela ABI e Razão Social
+        docs = firestore_db.collection('task_files') \
+            .where(filter=FieldFilter("razao_social", "==", razao_social)) \
+            .where(filter=FieldFilter("numero_abi", "==", str(numero_abi))) \
+            .where(filter=FieldFilter("status_importacao", "==", "SUCESSO")) \
+            .limit(1).get()
+        return len(docs) > 0
+    except Exception as e:
+        logger.error(f"Erro ao verificar duplicidade de ABI {numero_abi}: {e}")
+        return False
+
 def update_user_status(email, new_status):
     if not email: return
     firestore_db.collection('users').document(email).update({'status': new_status})
@@ -424,21 +443,39 @@ def get_logs_for_task(task_id, limit=50):
         return []
 
 def clear_import_logs():
+    """
+    Clears all logs from tasks AND resets/deletes task records to keep history clean as requested.
+    """
     try:
+        # 1. Limpa logs das tarefas
         tasks = firestore_db.collection('tasks').stream()
         batch = firestore_db.batch()
         count = 0
         for doc in tasks:
-            batch.update(doc.reference, {'logs': []})
+            batch.delete(doc.reference) # Decidimos deletar a tarefa para um 'Limpar' real
             count += 1
             if count >= 500:
                 batch.commit()
                 batch = firestore_db.batch()
                 count = 0
         if count > 0: batch.commit()
+        
+        # 2. Limpa registros de arquivos processados
+        files = firestore_db.collection('task_files').stream()
+        batch = firestore_db.batch()
+        count = 0
+        for doc in files:
+            batch.delete(doc.reference)
+            count += 1
+            if count >= 500:
+                batch.commit()
+                batch = firestore_db.batch()
+                count = 0
+        if count > 0: batch.commit()
+        
         return True
     except Exception as e:
-        logger.error(f"Erro ao limpar logs: {e}")
+        logger.error(f"Erro ao limpar logs e tarefas: {e}")
         return False
 
 def reset_system_database():

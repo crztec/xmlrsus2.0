@@ -288,6 +288,7 @@ async def background_worker_task(task_id: str, url_sistema: str):
         task_data = task_doc.to_dict()
         usuario = task_data.get('usuario')
         senha = task_data.get('senha')
+        razao_social = task_data.get('razao_social', '')
 
         # Extrai URL base para o Login
         parsed_url = urlparse(url_sistema)
@@ -520,7 +521,7 @@ async def background_worker_task(task_id: str, url_sistema: str):
                     db.firestore_db.collection('tasks').document(task_id).update({'status': 'ERRO'})
                     return
 
-            db.add_log(task_id, "INFO", f"URL do formulário: {page.url}")
+            db.add_log(task_id, "DEBUG", f"URL do formulário: {page.url}")
             
             # 2.1 Define o alvo do formulário (suporte a frames se necessário)
             form_target = page
@@ -531,7 +532,7 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 for frame in page.frames:
                     if await frame.locator(protocolo_selector).count() > 0:
                         form_target = frame
-                        db.add_log(task_id, "INFO", "Formulário detectado dentro de IFrame.")
+                        db.add_log(task_id, "DEBUG", "Formulário detectado dentro de IFrame.")
                         break
 
             # 3. Processamento dos Arquivos
@@ -544,14 +545,28 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 match = re.search(r'(\d+)', str(num_abi_str))
                 return int(match.group(1)) if match else 0
             
-            files.sort(key=lambda x: extract_abi_num(x.get('numero_abi', '')), reverse=True)
-            
             for i, file in enumerate(files):
                 nome = file.get('nome_arquivo', 'Arquivo')
                 abi = file.get('numero_abi', '')
                 storage_path = file.get('storage_path')
                 
-                db.add_log(task_id, "INFO", f"[{i+1}/{total}] Iniciando preenchimento do ABI {abi}...")
+                db.add_log(task_id, "INFO", f"[{i+1}/{total}] Analisando ABI {abi}...")
+                
+                # --- NOVO: VERIFICAÇÃO DE DUPLICIDADE ---
+                if db.check_abi_already_imported(razao_social, abi):
+                    db.add_log(task_id, "INFO", f"⚠️ ABI {abi} já foi importada com sucesso anteriormente. Pulando...")
+                    # Atualiza o status no banco para não ficar pendente
+                    try:
+                        file_id = file.get('id')
+                        if file_id:
+                            db.firestore_db.collection('task_files').document(file_id).update({
+                                'status_importacao': 'SUCESSO',
+                                'error_message': 'Pulado: ABI já existia no histórico.'
+                            })
+                    except: pass
+                    continue
+
+                db.add_log(task_id, "INFO", f"Iniciando preenchimento do formulário (ABI: {abi})...")
                 try:
                     num_processo = file.get('numero_processo', '')
                     dt_recebimento = file.get("data_recebimento_oficio") or file.get("data_registro_transacao", "")

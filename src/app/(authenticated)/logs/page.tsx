@@ -11,12 +11,16 @@ interface Task {
   total_arquivos: number;
   arquivos_processados: number;
   logs: any[];
+  // Novos campos que vêm do back agora (ou calculados)
+  abi_list?: string[]; 
 }
 
 export default function LogsPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [stats, setStats] = useState({ total: 0, successRate: "0%", alerts: 0 });
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   const fetchTasks = async () => {
     setIsLoading(true);
@@ -87,22 +91,54 @@ export default function LogsPage() {
                 <Loader2 className="animate-spin text-gax-blue" size={32} />
               </div>
             ) : tasks.length > 0 ? (
-              tasks.map((task) => (
-                <LogItem 
-                  key={task.id}
-                  time={task.created_at.split(' ')[1].substring(0, 5)} 
-                  date={task.created_at.split(' ')[0]}
-                  type={task.status === 'CONCLUIDO' ? 'success' : task.status === 'ERRO' ? 'error' : 'info'} 
-                  title={`${task.razao_social || 'Cliente Geral'}`} 
-                  message={
-                    task.status === 'CONCLUIDO' 
-                    ? `Processamento finalizado: ${task.total_arquivos} arquivos.` 
-                    : task.status === 'EM ANDAMENTO'
-                    ? `Em progresso: ${task.arquivos_processados}/${task.total_arquivos} arquivos.`
-                    : `Status: ${task.status}`
-                  } 
-                />
-              ))
+              <>
+                {tasks
+                  .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                  .map((task) => (
+                    <LogItem 
+                      key={task.id}
+                      time={task.created_at.split(' ')[1].substring(0, 5)} 
+                      date={task.created_at.split(' ')[0]}
+                      type={task.status === 'CONCLUIDO' ? 'success' : task.status === 'ERRO' ? 'error' : 'info'} 
+                      title={`${task.razao_social || 'Cliente Geral'}`} 
+                      message={
+                        task.status === 'CONCLUIDO' 
+                        ? `Processamento finalizado: ${task.total_arquivos} arquivos.` 
+                        : task.status === 'EM ANDAMENTO'
+                        ? `Em progresso: ${task.arquivos_processados}/${task.total_arquivos} arquivos.`
+                        : `Status: ${task.status}`
+                      }
+                      abis={task.logs?.filter(l => l.message.includes("ABI")).map(l => {
+                        const m = l.message.match(/ABI (\d+)/);
+                        return m ? m[1] : null;
+                      }).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join(", ")}
+                    />
+                  ))
+                }
+                
+                {/* Pagination Controls */}
+                <div className="flex items-center justify-between border-t border-slate-50 bg-slate-50/30 px-6 py-4">
+                  <span className="text-xs text-slate-500 font-medium">
+                    Mostrando {(currentPage - 1) * itemsPerPage + 1} a {Math.min(currentPage * itemsPerPage, tasks.length)} de {tasks.length} registros
+                  </span>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                      disabled={currentPage === 1}
+                      className="px-4 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all"
+                    >
+                      Anterior
+                    </button>
+                    <button 
+                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, Math.ceil(tasks.length / itemsPerPage)))}
+                      disabled={currentPage === Math.ceil(tasks.length / itemsPerPage)}
+                      className="px-4 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all"
+                    >
+                      Próxima
+                    </button>
+                  </div>
+                </div>
+              </>
             ) : (
               <div className="py-20 flex flex-col items-center text-slate-300">
                 <ClipboardList size={48} className="opacity-20 mb-4" />
@@ -129,7 +165,7 @@ function StatCard({ icon, label, value }: { icon: React.ReactNode, label: string
   );
 }
 
-function LogItem({ time, date, type, title, message }: { time: string, date: string, type: 'success' | 'error' | 'info', title: string, message: string }) {
+function LogItem({ time, date, type, title, message, abis }: { time: string, date: string, type: 'success' | 'error' | 'info', title: string, message: string, abis?: string }) {
   return (
     <div className="group flex gap-4 px-6 py-5 transition-all hover:bg-slate-50/30">
       <div className="flex flex-col items-end min-w-[70px]">
@@ -137,9 +173,16 @@ function LogItem({ time, date, type, title, message }: { time: string, date: str
         <span className="text-[8px] text-slate-300 uppercase font-medium">{date}</span>
       </div>
       <div className="flex-1">
-        <h4 className={`text-xs font-bold ${
-          type === 'success' ? 'text-green-600' : type === 'error' ? 'text-red-600' : 'text-slate-800'
-        }`}>{title}</h4>
+        <div className="flex items-center justify-between gap-4">
+          <h4 className={`text-xs font-bold ${
+            type === 'success' ? 'text-green-600' : type === 'error' ? 'text-red-600' : 'text-slate-800'
+          }`}>{title}</h4>
+          {abis && (
+            <span className="text-[10px] font-bold text-gax-blue bg-gax-blue-light/30 px-2 py-0.5 rounded-full">
+              ABIs: {abis}
+            </span>
+          )}
+        </div>
         <p className="mt-1 text-xs leading-relaxed text-slate-500">{message}</p>
       </div>
     </div>

@@ -16,7 +16,8 @@ import { cn } from "@/lib/utils";
 export default function DashboardPage() {
   const [files, setFiles] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
-  const [logs, setLogs] = useState<{status: 'success' | 'error' | 'processing' | 'info', message: string, time: string}[]>([]);
+  const [logs, setLogs] = useState<{status: 'success' | 'error' | 'processing' | 'info' | 'debug', message: string, time: string}[]>([]);
+  const [showDetailedLogs, setShowDetailedLogs] = useState(false);
 
   const addLog = (message: string, status: 'success' | 'error' | 'processing' | 'info') => {
     const time = new Date().toLocaleTimeString('pt-BR');
@@ -78,7 +79,7 @@ export default function DashboardPage() {
           if (data.logs && data.logs.length > 0) {
             // Limpa logs locais e sincroniza com os do servidor para evitar duplicados ou sumiço
             setLogs(data.logs.map((l: any) => ({
-              status: l.level === 'INFO' ? 'info' : l.level === 'SUCCESS' ? 'success' : 'error',
+              status: l.level.toLowerCase() as any,
               message: l.message,
               time: l.timestamp
             })).reverse());
@@ -273,15 +274,28 @@ export default function DashboardPage() {
 
       {/* Monitoring Section */}
       <section className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-        <h3 className="mb-6 text-xl font-bold text-slate-800">Log de Execução</h3>
+        <div className="mb-6 flex items-center justify-between">
+          <h3 className="text-xl font-bold text-slate-800">Acompanhamento da Importação</h3>
+          {logs.length > 0 && (
+            <button 
+              onClick={() => setShowDetailedLogs(true)}
+              className="text-xs font-bold text-gax-blue hover:underline"
+            >
+              Ver Logs Detalhados
+            </button>
+          )}
+        </div>
         
         {logs.length > 0 ? (
           <div className="space-y-4">
             <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-6 max-h-[500px] overflow-y-auto custom-scrollbar">
               <div className="space-y-3">
-                {logs.map((log, i) => (
-                  <LogEntry key={i} status={log.status as any} message={log.message} time={log.time} />
-                ))}
+                {logs
+                  .filter(log => log.status !== 'debug') // Filtra para o resumo
+                  .map((log, i) => (
+                    <LogEntry key={i} status={log.status as any} message={log.message} time={log.time} />
+                  ))
+                }
               </div>
             </div>
           </div>
@@ -292,16 +306,62 @@ export default function DashboardPage() {
           </div>
         )}
       </section>
+
+      {/* Detailed Log Modal */}
+      {showDetailedLogs && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-4xl max-h-[80vh] flex flex-col rounded-2xl bg-white shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-slate-100 p-6">
+              <div>
+                <h3 className="text-lg font-bold text-slate-800">Log Detalhado de Execução</h3>
+                <p className="text-xs text-slate-500">Trace técnico completo para suporte e desenvolvimento</p>
+              </div>
+              <button 
+                onClick={() => setShowDetailedLogs(false)}
+                className="h-10 w-10 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6 font-mono text-[10px] bg-slate-950 text-slate-300 custom-scrollbar">
+              <div className="space-y-2">
+                {logs.map((log, i) => (
+                  <div key={i} className="flex gap-3 border-b border-white/5 pb-2">
+                    <span className="shrink-0 text-white/30">[{log.time}]</span>
+                    <span className={cn(
+                      "shrink-0 font-bold px-1 rounded uppercase",
+                      log.status === 'error' && "bg-red-500/20 text-red-400",
+                      log.status === 'success' && "bg-green-500/20 text-green-400",
+                      log.status === 'debug' && "bg-slate-500/20 text-slate-400",
+                      log.status === 'info' && "bg-blue-500/20 text-blue-400"
+                    )}>{log.status}</span>
+                    <span className="whitespace-pre-wrap">{log.message}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="border-t border-slate-100 p-4 flex justify-end">
+               <button 
+                onClick={() => setShowDetailedLogs(false)}
+                className="px-6 py-2 rounded-xl bg-slate-100 text-slate-600 text-sm font-bold hover:bg-slate-200 transition-colors"
+               >
+                Fechar
+               </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function LogEntry({ status, message, time }: { status: 'success' | 'error' | 'processing' | 'info', message: string, time: string }) {
+function LogEntry({ status, message, time }: { status: 'success' | 'error' | 'processing' | 'info' | 'debug', message: string, time: string }) {
   return (
     <div className="flex items-center gap-3 text-xs animate-in fade-in slide-in-from-top-1 duration-300">
       {status === 'success' && <CheckCircle2 size={16} className="text-green-500" />}
       {status === 'error' && <AlertCircle size={16} className="text-red-500" />}
       {status === 'info' && <Rocket size={16} className="text-gax-blue" />}
+      {status === 'debug' && <FileText size={16} className="text-slate-400" />}
       {status === 'processing' && <Loader2 size={16} className="animate-spin text-gax-blue" />}
       <span className={cn(
         "font-medium",
