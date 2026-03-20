@@ -44,3 +44,15 @@ next-env.d.ts
 firebase-key.json
 api/firebase-key.json
 *.json.key
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Debug and Temp
+debug/
+/tmp/
+*.log
+.ipynb_checkpoints/

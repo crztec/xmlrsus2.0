@@ -11,8 +11,8 @@ interface Task {
   total_arquivos: number;
   arquivos_processados: number;
   logs: any[];
-  // Novos campos que vêm do back agora (ou calculados)
   abi_list?: string[]; 
+  error_message?: string;
 }
 
 export default function LogsPage() {
@@ -27,7 +27,10 @@ export default function LogsPage() {
     try {
       const res = await fetch("/api/tasks");
       const data = await res.json();
-      setTasks(data);
+      
+      // Deduplicar tarefas por ID (evita registros duplicados técnicos)
+      const uniqueTasks = Array.from(new Map(data.map((t: any) => [t.id, t])).values()) as Task[];
+      setTasks(uniqueTasks);
       
       // Calcular estatísticas básicas
       const total = data.length;
@@ -106,11 +109,13 @@ export default function LogsPage() {
                         ? `Processamento finalizado: ${task.total_arquivos} arquivos.` 
                         : task.status === 'EM ANDAMENTO'
                         ? `Em progresso: ${task.arquivos_processados}/${task.total_arquivos} arquivos.`
+                        : task.status === 'ERRO' && task.error_message
+                        ? `Erro: ${task.error_message}`
                         : `Status: ${task.status}`
                       }
-                      abis={task.logs?.filter(l => l.message.includes("ABI")).map(l => {
-                        const m = l.message.match(/ABI (\d+)/);
-                        return m ? m[1] : null;
+                      abis={task.logs?.filter(l => l.message && l.message.includes("ABI")).map(l => {
+                        const m = l.message.match(/ABI\s*:?\s*(\d+)/i);
+                        return m ? m[1].trim() : null;
                       }).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join(", ")}
                     />
                   ))

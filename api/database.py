@@ -119,6 +119,27 @@ def delete_xml_from_storage(storage_path):
 def init_db():
     pass
 
+def get_friendly_error(technical_error):
+    """
+    Maps technical error messages from Playwright/Portal to user-friendly ones.
+    """
+    if not technical_error: return ""
+    te = str(technical_error).lower()
+    
+    if "timeout" in te:
+        return "O portal demorou muito para responder. Tente novamente."
+    if "login failed" in te or "credenciais" in te or "senha" in te:
+        return "Usuário ou senha incorretos para o portal RSUS."
+    if "selector" in te or "element" in te or "invisible" in te or "not found" in te:
+        return "O portal RSUS mudou ou está lento (Campo não encontrado). Tente novamente."
+    if "already imported" in te or "duplicidade" in te or "já foi importada" in te:
+        return "Esta ABI já foi importada anteriormente no portal."
+    if "net::err" in te or "connection" in te:
+        return "Erro de conexão com o portal. Verifique sua internet."
+    
+    # Fallback para o erro original mas sem o rastro técnico se for muito longo
+    return str(technical_error)[:100]
+
 # --- RBAC & USER MANAGEMENT ---
 def create_user_profile(email, first_name="", last_name=""):
     """Creates a user document in Firestore. Forces 'admin'/'approved' for the master email."""
