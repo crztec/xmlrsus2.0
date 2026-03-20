@@ -544,7 +544,7 @@ async def background_worker_task(task_id: str, url_sistema: str):
                             db.add_log(task_id, "WARNING", f"  Erro no campo {sel}: {str(field_err)[:60]}")
                     
                     # ─── ETAPA 3: Upload do arquivo XML ───
-                    db.add_log(task_id, "INFO", f"Fazendo upload do XML: {nome}")
+                    db.add_log(task_id, "INFO", f"Fazendo upload do XML: {nome} (ABI {abi})")
                     with tempfile.NamedTemporaryFile(suffix=".xml", delete=False) as tmp:
                         tmp_name = tmp.name
                     
@@ -557,9 +557,10 @@ async def background_worker_task(task_id: str, url_sistema: str):
                         file_input = form_target.locator("input[type='file']").first
                         await file_input.set_input_files(tmp_name)
                         await asyncio.sleep(2)
-                        db.add_log(task_id, "INFO", "Upload do XML realizado ✓")
-                    finally:
-                        if os.path.exists(tmp_name): os.unlink(tmp_name)
+                        db.add_log(task_id, "INFO", "Upload do XML selecionado no navegador ✓")
+                    except Exception as dl_err:
+                        db.add_log(task_id, "ERROR", f"Erro no upload local do XML: {dl_err}")
+                        continue
                     
                     # ─── ETAPA 4: Screenshot ANTES de clicar Importar (para diagnóstico) ───
                     try:
@@ -716,6 +717,12 @@ async def background_worker_task(task_id: str, url_sistema: str):
                         'status_importacao': 'ERRO',
                         'error_message': str(file_err)[:200]
                     })
+                
+                # ─── ETAPA FINAL: Limpeza do Arquivo Temporário ───
+                try:
+                    if 'tmp_name' in locals() and tmp_name and os.path.exists(tmp_name):
+                        os.unlink(tmp_name)
+                except: pass
 
                 # Atualiza progresso
                 processed = i + 1
