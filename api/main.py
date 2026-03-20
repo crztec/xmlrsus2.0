@@ -344,8 +344,13 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 ignore_https_errors=True
             )
             page = await context.new_page()
-            page.set_default_navigation_timeout(60000)
-            page.set_default_timeout(60000)
+            
+            # Captura logs do console e erros de JS para diagnóstico
+            page.on("console", lambda msg: logger.debug(f"BROWSER CONSOLE: [{msg.type}] {msg.text}"))
+            page.on("pageerror", lambda exc: db.add_log(task_id, "ERROR", f"BROWSER JS ERROR: {exc}"))
+            
+            page.set_default_navigation_timeout(90000)
+            page.set_default_timeout(90000)
 
             # 1. Abre url_sistema diretamente (padrão do robô antigo que funcionava perfeitamente)
             # O portal redireciona para login se não autenticado. Após login, volta para url_sistema.
