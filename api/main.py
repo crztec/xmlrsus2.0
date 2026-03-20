@@ -361,7 +361,7 @@ async def background_worker_task(task_id: str, url_sistema: str):
                     # Se cair na Home (/) ou demorar muito, força a ida direta para o formulário
                     curr_url = page.url
                     db.add_log(task_id, "WARNING", f"Redirecionamento incompleto (parou em {curr_url}). Forçando Novo Protocolo...")
-                    await page.goto(url_sistema, wait_until="networkidle", timeout=25000)
+                    await page.goto(url_sistema, wait_until="load", timeout=25000)
                 
                 # Aguarda renderização final do formulário AngularJS
                 try:
