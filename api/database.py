@@ -332,18 +332,29 @@ def get_all_xml_data():
 def check_abi_already_imported(razao_social, numero_abi):
     """
     Checks if an ABI has already been successfully imported for a specific client.
+    Normaliza o número para evitar erros com sufixos tipo '72°'
     """
     if not razao_social or not numero_abi:
         return False
     try:
+        import re
+        # Extrai apenas os números: '72°' -> '72'
+        abi_clean = re.sub(r'\D', '', str(numero_abi))
+        if not abi_clean: return False
+
         from google.cloud.firestore_v1.base_query import FieldFilter
         # Busca em task_files por sucesso naquela ABI e Razão Social
         docs = firestore_db.collection('task_files') \
             .where(filter=FieldFilter("razao_social", "==", razao_social)) \
-            .where(filter=FieldFilter("numero_abi", "==", str(numero_abi))) \
             .where(filter=FieldFilter("status_importacao", "==", "SUCESSO")) \
-            .limit(1).get()
-        return len(docs) > 0
+            .get()
+        
+        # Filtro manual para garantir normalização de ambos os lados se necessário
+        for doc in docs:
+            db_abi = re.sub(r'\D', '', str(doc.to_dict().get('numero_abi', '')))
+            if db_abi == abi_clean:
+                return True
+        return False
     except Exception as e:
         logger.error(f"Erro ao verificar duplicidade de ABI {numero_abi}: {e}")
         return False

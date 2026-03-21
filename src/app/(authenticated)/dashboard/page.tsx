@@ -18,6 +18,9 @@ export default function DashboardPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [logs, setLogs] = useState<{status: 'success' | 'error' | 'processing' | 'info' | 'debug', message: string, time: string}[]>([]);
   const [showDetailedLogs, setShowDetailedLogs] = useState(false);
+  const [duplicates, setDuplicates] = useState<string[]>([]);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [isChecking, setIsChecking] = useState(false);
 
   const addLog = (message: string, status: 'success' | 'error' | 'processing' | 'info') => {
     const time = new Date().toLocaleTimeString('pt-BR');
@@ -98,7 +101,7 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, [activeTaskId]);
 
-  const handleUpload = async () => {
+  const handleUpload = async (force = false) => {
     if (files.length === 0) return;
     if (!rsusUrl || !rsusUser || !rsusPass) {
       alert("Por favor, preencha as credenciais do RSUS antes de iniciar.");
@@ -110,6 +113,35 @@ export default function DashboardPage() {
       localStorage.setItem("rsusUser", rsusUser);
     }
 
+    // Se não for "force", faz o pre-check primeiro
+    if (!force) {
+      setIsChecking(true);
+      try {
+        const formDataCheck = new FormData();
+        files.forEach(f => formDataCheck.append("files", f));
+        
+        const resCheck = await fetch("/api/pre-check", {
+          method: "POST",
+          body: formDataCheck
+        });
+        
+        if (resCheck.ok) {
+          const dataCheck = await resCheck.json();
+          if (dataCheck.duplicates && dataCheck.duplicates.length > 0) {
+            setDuplicates(dataCheck.duplicates);
+            setShowConfirmModal(true);
+            setIsChecking(false);
+            return;
+          }
+        }
+      } catch (e) {
+        console.error("Erro no pre-check", e);
+      } finally {
+        setIsChecking(false);
+      }
+    }
+
+    setShowConfirmModal(false);
     setIsUploading(true);
     addLog(`Iniciando upload de ${files.length} arquivos...`, 'info');
 
@@ -118,6 +150,7 @@ export default function DashboardPage() {
     formData.append("url_sistema", rsusUrl);
     formData.append("usuario", rsusUser);
     formData.append("senha", rsusPass);
+    if (force) formData.append("force", "true");
 
     try {
       const response = await fetch("/api/upload", {
@@ -161,8 +194,8 @@ export default function DashboardPage() {
               disabled={isUploading}
               className="flex items-center gap-2 rounded-xl bg-gax-blue px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-gax-blue/20 transition-all hover:bg-gax-blue-hover active:scale-95 disabled:opacity-50"
             >
-              {isUploading ? <Loader2 size={18} className="animate-spin" /> : <Rocket size={18} />}
-              {isUploading ? "Enviando..." : "Iniciar Processamento"}
+               {isUploading || isChecking ? <Loader2 size={18} className="animate-spin" /> : <Rocket size={18} />}
+               {isChecking ? "Validando..." : isUploading ? "Enviando..." : "Iniciar Processamento"}
             </button>
           )}
         </div>
@@ -347,6 +380,47 @@ export default function DashboardPage() {
                >
                 Fechar
                </button>
+            </div>
+          </div>
+        </div>
+      {/* Modal de Confirmação de Duplicatas */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            <div className="border-b border-slate-100 bg-slate-50/50 p-6">
+              <div className="flex items-center gap-3 text-amber-600">
+                <AlertCircle size={24} />
+                <h4 className="text-lg font-bold">ABIs já importadas</h4>
+              </div>
+            </div>
+            <div className="p-6">
+              <p className="mb-4 text-sm text-slate-600">
+                Identificamos que as seguintes ABIs já foram enviadas com sucesso anteriormente:
+              </p>
+              <div className="mb-6 flex flex-wrap gap-2">
+                {duplicates.map(abi => (
+                  <span key={abi} className="rounded-lg bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700 border border-slate-200">
+                    ABI {abi}
+                  </span>
+                ))}
+              </div>
+              <p className="mb-6 text-sm font-medium text-slate-800">
+                Deseja reenviar e substituir essas informações no portal da ANS?
+              </p>
+              <div className="flex gap-4">
+                <button 
+                  onClick={() => setShowConfirmModal(false)}
+                  className="flex-1 rounded-xl border border-slate-200 py-3 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={() => handleUpload(true)}
+                  className="flex-1 rounded-xl bg-amber-600 py-3 text-sm font-bold text-white shadow-lg shadow-amber-600/20 transition-all hover:bg-amber-700 active:scale-95"
+                >
+                  Sim, Substituir
+                </button>
+              </div>
             </div>
           </div>
         </div>

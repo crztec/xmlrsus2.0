@@ -334,7 +334,7 @@ async def get_task_status(task_id: str):
         "logs": logs
     }
 
-async def background_worker_task(task_id: str, url_sistema: str):
+async def background_worker_task(task_id: str, url_sistema: str, force: bool = False):
     """
     Realize a automação real do preenchimento no portal RSUS usando Playwright.
     """
@@ -653,7 +653,7 @@ async def background_worker_task(task_id: str, url_sistema: str):
                     continue
 
                 # --- NOVO: VERIFICAÇÃO DE DUPLICIDADE ---
-                if db.check_abi_already_imported(razao_social, abi):
+                if not force and db.check_abi_already_imported(razao_social, abi):
                     db.add_log(task_id, "INFO", f"⚠️ ABI {abi} já foi importada com sucesso anteriormente. Pulando...")
                     # Atualiza o status no banco para não ficar pendente
                     try:
@@ -986,22 +986,54 @@ async def background_worker_task(task_id: str, url_sistema: str):
 
             await browser.close()
             
+        db.add_log(task_id, "SUCCESS", "Tudo pronto! Todos os arquivos foram processados e enviados com sucesso.")
         db.firestore_db.collection('tasks').document(task_id).update({
             'status': 'CONCLUIDO',
             'updated_at': db.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         })
-        db.add_log(task_id, "SUCCESS", "Tudo pronto! Todos os arquivos foram processados e enviados com sucesso.")
         
     except Exception as e:
         import traceback
         error_msg = traceback.format_exc()
         friendly_gen_err = db.get_friendly_error(e)
+        db.add_log(task_id, "ERROR", f"Houve um problema na automação: {friendly_gen_err}")
         db.firestore_db.collection('tasks').document(task_id).update({
             'status': 'ERRO',
             'error_message': friendly_gen_err,
             'updated_at': db.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         })
-        db.add_log(task_id, "ERROR", f"Houve um problema na automação: {friendly_gen_err}")
+
+@app.post("/api/pre-check")
+async def pre_check_duplicates(
+    files: List[UploadFile] = File(...)
+):
+    if not files:
+        return {"duplicates": []}
+    
+    arquivos_upload_data = []
+    for file in files:
+        content = await file.read()
+        arquivos_upload_data.append((file.filename, content))
+    
+    # Extrai os dados dos XMLs para identificar as ABIs
+    try:
+        extracted = parser.extrair_dados_xml(arquivos_upload_data)
+        if extracted.empty:
+            return {"duplicates": []}
+        
+        # Assume que todos os arquivos são da mesma Razão Social (pelo fluxo do sistema)
+        razao_social = parser.extract_razao_social(arquivos_upload_data[0][1])
+        
+        duplicates = []
+        for _, row in extracted.iterrows():
+            abi = str(row.get('numero_abi', ''))
+            if db.check_abi_already_imported(razao_social, abi):
+                duplicates.append(abi)
+        
+        return {"duplicates": duplicates, "razao_social": razao_social}
+    except Exception as e:
+        logger.error(f"Erro no pre-check: {e}")
+        return {"duplicates": [], "error": str(e)}
 
 @app.post("/upload")
 async def upload_xmls(
@@ -1009,7 +1041,8 @@ async def upload_xmls(
     files: List[UploadFile] = File(...),
     url_sistema: str = Form(...),
     usuario: str = Form(...),
-    senha: str = Form(...)
+    senha: str = Form(...),
+    force: bool = Form(False)
 ):
     if not files:
         return {"error": "Nenhum arquivo enviado."}
@@ -1067,7 +1100,7 @@ async def upload_xmls(
     db.update_task_total_files(task_id, len(files_info))
 
     # Inicia o processamento em segundo plano
-    background_tasks.add_task(background_worker_task, task_id, url_sistema)
+    background_tasks.add_task(background_worker_task, task_id, url_sistema, force)
 
     return {
         "message": f"{len(files)} arquivos recebidos. O robô iniciará o preenchimento no RSUS em instantes.",
