@@ -383,6 +383,7 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+      )}
       {/* Modal de Confirmação de Duplicatas */}
       {showConfirmModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
