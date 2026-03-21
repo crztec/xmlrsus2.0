@@ -52,18 +52,22 @@ export default function Sidebar() {
       {/* Header Sidebar */}
       <div className="flex h-16 items-center border-b border-slate-100 px-6">
         <div className="flex items-center gap-2 overflow-hidden">
-          {branding.logo_base64 ? (
-            <div className="h-8 w-8 overflow-hidden rounded-lg shrink-0">
-              <img src={branding.logo_base64} alt={`Logo ${branding.system_name}`} className="h-full w-full object-contain" />
-            </div>
-          ) : (
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gax-blue text-white shrink-0" aria-hidden="true">
-              <CloudUpload size={18} />
-            </div>
+          {branding.system_name && (
+            <>
+              {branding.logo_base64 ? (
+                <div className="h-8 w-8 overflow-hidden rounded-lg shrink-0">
+                  <img src={branding.logo_base64} alt={`Logo ${branding.system_name}`} className="h-full w-full object-contain" />
+                </div>
+              ) : (
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gax-blue text-white shrink-0" aria-hidden="true">
+                  <CloudUpload size={18} />
+                </div>
+              )}
+              <span className="text-lg font-bold tracking-tight text-slate-800 truncate">
+                {branding.system_name}
+              </span>
+            </>
           )}
-          <span className="text-lg font-bold tracking-tight text-slate-800 truncate">
-            {branding.system_name}
-          </span>
         </div>
       </div>
 
