@@ -1025,21 +1025,22 @@ async def upload_xmls(
     razao_social = parser.extract_razao_social(arquivos_upload_data[0][1])
     
     # NOVO: Prevenção de duplicidade (Idempotência)
-    # Verifica se já existe uma tarefa IGUAL criada nos últimos 10 segundos
-    recent_tasks = db.firestore_db.collection('tasks') \
-        .where('razao_social', '==', razao_social) \
-        .where('usuario', '==', usuario) \
-        .where('url_sistema', '==', url_sistema) \
+    # Verifica nos últimos 5 registros se já existe uma tarefa IGUAL criada nos últimos 10 segundos
+    # Simplificado para evitar a necessidade de criar um Índice Composto no Firestore
+    recent_docs = db.firestore_db.collection('tasks') \
         .order_by('created_at', direction='DESCENDING') \
-        .limit(1).get()
+        .limit(5).get()
     
-    if recent_tasks:
-        last_task = recent_tasks[0].to_dict()
-        from datetime import datetime
-        last_created = datetime.strptime(last_task['created_at'], "%Y-%m-%d %H:%M:%S")
-        if (datetime.now() - last_created).total_seconds() < 10:
-            logger.warning(f"Ignorando upload duplicado para {razao_social} (Idempotência)")
-            return {"status": "success", "message": "Upload já em processamento.", "task_id": recent_tasks[0].id}
+    for doc in recent_docs:
+        last_task = doc.to_dict()
+        if last_task.get('razao_social') == razao_social and \
+           last_task.get('usuario') == usuario and \
+           last_task.get('url_sistema') == url_sistema:
+            from datetime import datetime
+            last_created = datetime.strptime(last_task['created_at'], "%Y-%m-%d %H:%M:%S")
+            if (datetime.now() - last_created).total_seconds() < 10:
+                logger.warning(f"Ignorando upload duplicado para {razao_social} (Idempotência)")
+                return {"status": "success", "message": "Upload já em processamento.", "task_id": doc.id}
 
     # Cria a tarefa no banco com as credenciais reais
     task_id = db.create_task(
