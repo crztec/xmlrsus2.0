@@ -29,25 +29,11 @@ export default function LogsPage() {
       const res = await fetch("/api/tasks");
       const data = await res.json();
       
-      // Deduplicar tarefas por conteúdo (cliente + data + status)
-      // Resolve casos onde registros idênticos possuem IDs técnicos diferentes
-      const uniqueTasks = data.reduce((acc: Task[], current: Task) => {
-        const isDuplicate = acc.find(t => 
-          t.razao_social === current.razao_social && 
-          t.created_at === current.created_at &&
-          t.status === current.status
-        );
-        if (!isDuplicate) {
-          acc.push(current);
-        }
-        return acc;
-      }, []);
+      setTasks(data);
       
-      setTasks(uniqueTasks);
-      
-      // Calcular estatísticas com base nos dados únicos e status individuais
-      const total = uniqueTasks.length;
-      const success = uniqueTasks.filter((t: Task) => 
+      // Calcular estatísticas com base nos dados e status individuais
+      const total = data.length;
+      const success = data.filter((t: Task) => 
         t.status === 'CONCLUIDO' && 
         (!t.file_results || t.file_results.length === 0 || t.file_results.every(f => f.status === 'SUCESSO'))
       ).length;

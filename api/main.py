@@ -1024,6 +1024,23 @@ async def upload_xmls(
     # Identifica a Razão Social do primeiro arquivo para a tarefa
     razao_social = parser.extract_razao_social(arquivos_upload_data[0][1])
     
+    # NOVO: Prevenção de duplicidade (Idempotência)
+    # Verifica se já existe uma tarefa IGUAL criada nos últimos 10 segundos
+    recent_tasks = db.firestore_db.collection('tasks') \
+        .where('razao_social', '==', razao_social) \
+        .where('usuario', '==', usuario) \
+        .where('url_sistema', '==', url_sistema) \
+        .order_by('created_at', direction='DESCENDING') \
+        .limit(1).get()
+    
+    if recent_tasks:
+        last_task = recent_tasks[0].to_dict()
+        from datetime import datetime
+        last_created = datetime.strptime(last_task['created_at'], "%Y-%m-%d %H:%M:%S")
+        if (datetime.now() - last_created).total_seconds() < 10:
+            logger.warning(f"Ignorando upload duplicado para {razao_social} (Idempotência)")
+            return {"status": "success", "message": "Upload já em processamento.", "task_id": recent_tasks[0].id}
+
     # Cria a tarefa no banco com as credenciais reais
     task_id = db.create_task(
         url_sistema=url_sistema,
