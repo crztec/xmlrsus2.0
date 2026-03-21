@@ -518,15 +518,25 @@ async def background_worker_task(task_id: str, url_sistema: str):
                     url_lista = url_sistema.replace("/novo", "")
                     await page.goto(url_lista, wait_until="commit", timeout=30000)
                     await asyncio.sleep(2)
-                    await page.goto(url_sistema, wait_until="domcontentloaded", timeout=60000)
+                    await page.goto(url_sistema, wait_until="commit", timeout=60000)
                     
                 form_ready = False
+                # Tentativa 1: Aguarda o seletor com paciência
                 try:
-                    # Tenta aguardar o formulário aparecer (Final wait com seletor específico)
-                    await page.wait_for_selector("input#numeroProtocolo", state="visible", timeout=60000)
+                    await page.wait_for_selector("input#numeroProtocolo", state="visible", timeout=30000)
                     form_ready = True
+                except:
+                    db.add_log(task_id, "DEBUG", "Formulário não apareceu de imediato. Tentando carregamento pesado (networkidle)...")
+                    try:
+                        await page.goto(url_sistema, wait_until="networkidle", timeout=60000)
+                        await page.wait_for_selector("input#numeroProtocolo", state="visible", timeout=30000)
+                        form_ready = True
+                    except: pass
+
+                if form_ready:
                     db.add_log(task_id, "SUCCESS", "Sistema pronto para processar os arquivos.")
-                except Exception as e_final:
+                else:
+                    # SE AINDA ASSIM FALHAR... (Continua para o dump de erro)
                     # SE AINDA ASSIM FALHAR (Página Branca Extrema): Colhe Diagnóstico
                     html_dump = await page.content()
                     db.add_log(task_id, "ERROR", f"Falha no carregamento final. HTML Parcial: {html_dump[:250]}...")
@@ -562,19 +572,25 @@ async def background_worker_task(task_id: str, url_sistema: str):
 
             # Fallback final: Se ainda não carregou, tenta clicar em SELECIONAR ARQUIVO na lista
             if not form_ready:
-                db.add_log(task_id, "INFO", "Tentando navegação via menu (fallback final)...")
+                db.add_log(task_id, "INFO", "Tentando navegação via menu (fallback dinâmico)...")
                 try:
-                    await page.goto("https://rsuserechim.cubeti.com.br/importacao", wait_until="commit", timeout=60000)
+                    url_lista = url_sistema.replace("/novo", "")
+                    await page.goto(url_lista, wait_until="domcontentloaded", timeout=60000)
+                    await asyncio.sleep(3)
+                    
+                    # Log de onde estamos para diagnóstico
+                    db.add_log(task_id, "DEBUG", f"URL Atual no Fallback: {page.url}")
+                    
                     sel_btn = page.locator("a:has-text('SELECIONAR ARQUIVO'), a:has-text('Selecionar arquivo')").first
-                    if await sel_btn.is_visible(timeout=10000):
+                    if await sel_btn.is_visible(timeout=15000):
                         await sel_btn.click()
                         db.add_log(task_id, "INFO", "Clique em SELECIONAR ARQUIVO via lista ✓")
-                        await page.locator("input#numeroProtocolo").first.wait_for(state="visible", timeout=15000)
+                        await page.locator("input#numeroProtocolo").first.wait_for(state="visible", timeout=20000)
                         form_ready = True
                     else:
-                        raise Exception("Botão de seleção não encontrado na lista")
+                        raise Exception(f"Botão de seleção não encontrado em {page.url}")
                 except Exception as final_err:
-                    db.add_log(task_id, "ERROR", f"Formulário inacessível: {str(final_err)[:100]}")
+                    db.add_log(task_id, "ERROR", f"Formulário inacessível em {page.url}: {str(final_err)[:100]}")
                     try:
                         img_err = await page.screenshot(full_page=True)
                         db.upload_screenshot(f"debug/screenshots/{task_id}_fallback_failed.png", img_err)
