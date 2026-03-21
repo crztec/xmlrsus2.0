@@ -38,7 +38,7 @@ export default function LogsPage() {
         (!t.file_results || t.file_results.length === 0 || t.file_results.every(f => f.status === 'SUCESSO'))
       ).length;
       
-      const alerts = uniqueTasks.filter((t: Task) => 
+      const alerts = data.filter((t: Task) => 
         t.status === 'ERRO' || 
         (t.file_results && t.file_results.some(f => f.status === 'ERRO'))
       ).length;
