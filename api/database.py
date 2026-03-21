@@ -524,6 +524,19 @@ def get_files_for_task(task_id):
     docs = firestore_db.collection('task_files').where('task_id', '==', task_id).stream()
     return [{**doc.to_dict(), 'id': doc.id} for doc in docs]
 
+def mark_all_task_files_as_error(task_id, error_message):
+    try:
+        files = get_files_for_task(task_id)
+        for f in files:
+            firestore_db.collection('task_files').document(f['id']).update({
+                'status_importacao': 'ERRO',
+                'error_message': error_message
+            })
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao marcar arquivos como erro: {e}")
+        return False
+
 def get_logs_for_task(task_id, limit=500):
     try:
         task_doc = firestore_db.collection('tasks').document(task_id).get()

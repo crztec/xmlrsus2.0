@@ -568,8 +568,12 @@ async def background_worker_task(task_id: str, url_sistema: str):
                         db.add_log(task_id, "DEBUG", f"Screenshot salvo: {remote_path}")
                 except Exception as img_err:
                     pass
+                
+                # NOVO: Se o login/redirecionamento falhar, marca todos os arquivos como ERRO
+                db.mark_all_task_files_as_error(task_id, f"Falha no portal: {str(e)[:100]}")
+                db.firestore_db.collection('tasks').document(task_id).update({'status': 'ERRO'})
                 raise e
-
+ 
             # Fallback final: Se ainda não carregou, tenta clicar em SELECIONAR ARQUIVO na lista
             if not form_ready:
                 db.add_log(task_id, "INFO", "Tentando navegação via menu (fallback dinâmico)...")
@@ -596,6 +600,8 @@ async def background_worker_task(task_id: str, url_sistema: str):
                         db.upload_screenshot(f"debug/screenshots/{task_id}_fallback_failed.png", img_err)
                     except: pass
                     await browser.close()
+                    # NOVO: Marca todos os arquivos como erro se o fallback também falhar
+                    db.mark_all_task_files_as_error(task_id, f"Formulário inacessível: {str(final_err)[:100]}")
                     db.firestore_db.collection('tasks').document(task_id).update({'status': 'ERRO'})
                     return
 
