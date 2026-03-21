@@ -45,10 +45,17 @@ export default function LogsPage() {
       
       setTasks(uniqueTasks);
       
-      // Calcular estatísticas com base nos dados únicos
+      // Calcular estatísticas com base nos dados únicos e status individuais
       const total = uniqueTasks.length;
-      const success = uniqueTasks.filter((t: any) => t.status === 'CONCLUIDO').length;
-      const alerts = uniqueTasks.filter((t: any) => t.status === 'ERRO').length;
+      const success = uniqueTasks.filter((t: Task) => 
+        t.status === 'CONCLUIDO' && 
+        (!t.file_results || t.file_results.length === 0 || t.file_results.every(f => f.status === 'SUCESSO'))
+      ).length;
+      
+      const alerts = uniqueTasks.filter((t: Task) => 
+        t.status === 'ERRO' || 
+        (t.file_results && t.file_results.some(f => f.status === 'ERRO'))
+      ).length;
       
       setStats({
         total,
