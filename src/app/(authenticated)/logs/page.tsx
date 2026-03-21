@@ -115,7 +115,11 @@ export default function LogsPage() {
                       }
                       abis={task.logs?.filter(l => l.message && l.message.includes("ABI")).map(l => {
                         const m = l.message.match(/ABI\s*:?\s*(\d+)/i);
-                        return m ? m[1].trim() : null;
+                        if (!m) return null;
+                        const abi = m[1].trim();
+                        // Ignorar se parecer uma data (8 dígitos, ex: 14122020)
+                        if (abi.length === 8) return null;
+                        return abi;
                       }).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join(", ")}
                     />
                   ))

@@ -544,6 +544,17 @@ def clear_import_logs():
                 batch.commit()
                 batch = firestore_db.batch()
                 count = 0
+        # 2. Limpa os arquivos associados (evita 'fantasmas' nas estatísticas dos clientes)
+        task_files = firestore_db.collection('task_files').stream()
+        count = 0
+        for doc in task_files:
+            batch.delete(doc.reference)
+            count += 1
+            if count >= 500:
+                batch.commit()
+                batch = firestore_db.batch()
+                count = 0
+        
         if count > 0: batch.commit()
         
         return True

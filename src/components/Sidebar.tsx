@@ -31,7 +31,7 @@ const menuItems = [
 export default function Sidebar() {
   const pathname = usePathname();
   const isAdmin = true; // Placeholder para Role real
-  const [branding, setBranding] = React.useState({ system_name: "GAX 2.0", logo_base64: "" });
+  const [branding, setBranding] = React.useState({ system_name: "", logo_base64: "" });
 
   React.useEffect(() => {
     fetch("/api/branding")
