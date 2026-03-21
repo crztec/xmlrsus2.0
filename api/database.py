@@ -509,9 +509,16 @@ def get_pending_task():
         return task_data
     return None
 
-def get_tasks_for_dashboard(limit=5):
+def get_tasks_for_dashboard(limit=50):
     docs = firestore_db.collection('tasks').order_by('created_at', direction=firestore.Query.DESCENDING).limit(limit).stream()
-    return [{**doc.to_dict(), 'id': doc.id} for doc in docs]
+    tasks = []
+    for doc in docs:
+        task_data = {**doc.to_dict(), 'id': doc.id}
+        # Buscar arquivos desta tarefa para ver status individuais
+        files = firestore_db.collection('task_files').where('task_id', '==', doc.id).stream()
+        task_data['file_results'] = [{'abi': f.to_dict().get('numero_abi'), 'status': f.to_dict().get('status_importacao')} for f in files]
+        tasks.append(task_data)
+    return tasks
 
 def get_files_for_task(task_id):
     docs = firestore_db.collection('task_files').where('task_id', '==', task_id).stream()

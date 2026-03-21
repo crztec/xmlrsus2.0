@@ -13,6 +13,7 @@ interface Task {
   logs: any[];
   abi_list?: string[]; 
   error_message?: string;
+  file_results?: { abi: string; status: string }[];
 }
 
 export default function LogsPage() {
@@ -125,14 +126,7 @@ export default function LogsPage() {
                         ? `Erro: ${task.error_message}`
                         : `Status: ${task.status}`
                       }
-                      abis={task.logs?.filter(l => l.message && l.message.includes("ABI")).map(l => {
-                        const m = l.message.match(/ABI\s*:?\s*(\d+)/i);
-                        if (!m) return null;
-                        const abi = m[1].trim();
-                        // Ignorar se parecer uma data (8 dígitos, ex: 14122020)
-                        if (abi.length === 8) return null;
-                        return abi;
-                      }).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join(", ")}
+                      abiResults={task.file_results}
                     />
                   ))
                 }
@@ -186,7 +180,14 @@ function StatCard({ icon, label, value }: { icon: React.ReactNode, label: string
   );
 }
 
-function LogItem({ time, date, type, title, message, abis }: { time: string, date: string, type: 'success' | 'error' | 'info', title: string, message: string, abis?: string }) {
+function LogItem({ time, date, type, title, message, abiResults }: { 
+  time: string, 
+  date: string, 
+  type: 'success' | 'error' | 'info', 
+  title: string, 
+  message: string, 
+  abiResults?: { abi: string; status: string }[] 
+}) {
   return (
     <div className="group flex gap-4 px-6 py-5 transition-all hover:bg-slate-50/30">
       <div className="flex flex-col items-end min-w-[70px]">
@@ -198,11 +199,24 @@ function LogItem({ time, date, type, title, message, abis }: { time: string, dat
           <h4 className={`text-xs font-bold ${
             type === 'success' ? 'text-green-600' : type === 'error' ? 'text-red-600' : 'text-slate-800'
           }`}>{title}</h4>
-          {abis && (
-            <span className="text-[10px] font-bold text-gax-blue bg-gax-blue-light/30 px-2 py-0.5 rounded-full">
-              ABIs: {abis}
-            </span>
-          )}
+          
+          <div className="flex flex-wrap gap-1.5">
+            {abiResults?.map((res, idx) => (
+              <span 
+                key={idx}
+                title={res.status}
+                className={`text-[9px] font-bold px-2 py-0.5 rounded-full border shadow-sm ${
+                  res.status === 'SUCESSO' 
+                    ? 'bg-green-50 text-green-700 border-green-100' 
+                    : res.status === 'ERRO'
+                    ? 'bg-red-50 text-red-700 border-red-100'
+                    : 'bg-blue-50 text-blue-700 border-blue-100 shadow-none'
+                }`}
+              >
+                ABI {res.abi}
+              </span>
+            ))}
+          </div>
         </div>
         <p className="mt-1 text-xs leading-relaxed text-slate-500">{message}</p>
       </div>
