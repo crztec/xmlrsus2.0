@@ -904,8 +904,8 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 # Intervalo e refresh para próximo arquivo
                 if i < total - 1:
                     if status_final_abi == "SUCCESS":
-                        db.add_log(task_id, "INFO", "Aguardando breve estabilização do portal antes de continuar...")
-                        await asyncio.sleep(120)
+                        db.add_log(task_id, "INFO", "Aguardando 30s para estabilização do portal...")
+                        await asyncio.sleep(30)
                     else:
                         await asyncio.sleep(5)
                     
@@ -924,9 +924,18 @@ async def background_worker_task(task_id: str, url_sistema: str):
                             await asyncio.sleep(3)
                         except: pass
                     
+                    # --- RE-DETECÇÃO DE FRAME PÓS REFRESH ---
+                    form_target = page
+                    if await page.locator("input#numeroProtocolo").count() == 0:
+                        for frame in page.frames:
+                            if await frame.locator("input#numeroProtocolo").count() > 0:
+                                form_target = frame
+                                break
+
                     # Espera campo protocolo reaparecer
                     try:
                         await form_target.locator("input#numeroProtocolo").wait_for(state="visible", timeout=15000)
+                        db.add_log(task_id, "DEBUG", "Formulário re-identificado ✓")
                     except:
                         db.add_log(task_id, "WARNING", "Campo protocolo não reapareceu após refresh")
 
