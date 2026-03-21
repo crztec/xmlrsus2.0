@@ -585,18 +585,6 @@ async def background_worker_task(task_id: str, url_sistema: str):
 
             db.add_log(task_id, "DEBUG", f"URL do formulário: {page.url}")
             
-            # 2.1 Define o alvo do formulário (suporte a frames se necessário)
-            form_target = page
-            protocolo_selector = "input#numeroProtocolo"
-            
-            # Verificação final rápida para garantir que o elemento está acessível
-            if await page.locator(protocolo_selector).count() == 0:
-                for frame in page.frames:
-                    if await frame.locator(protocolo_selector).count() > 0:
-                        form_target = frame
-                        db.add_log(task_id, "DEBUG", "Formulário detectado dentro de IFrame.")
-                        break
-
             # 3. Processamento dos Arquivos
             files = db.get_files_for_task(task_id)
             total = len(files)
@@ -614,6 +602,34 @@ async def background_worker_task(task_id: str, url_sistema: str):
                 
                 db.add_log(task_id, "INFO", f"[{i+1}/{total}] Iniciando processamento da ABI {abi}.")
                 
+                # --- NOVO: RE-DETECÇÃO ROBUSTA DE FORMULÁRIO (Prevenir Stale Frames) ---
+                form_target = page
+                form_ready = False
+                for attempt in range(1, 4):
+                    try:
+                        if await page.locator("input#numeroProtocolo").count() > 0:
+                            form_ready = True
+                            break
+                        # Tenta procurar em IFrames
+                        for frame in page.frames:
+                            if await frame.locator("input#numeroProtocolo").count() > 0:
+                                form_target = frame
+                                form_ready = True
+                                break
+                        if form_ready: break
+                        
+                        db.add_log(task_id, "DEBUG", f"Aguardando formulário (Tentativa {attempt}/3)...")
+                        await asyncio.sleep(5)
+                    except: pass
+                
+                if not form_ready:
+                    db.add_log(task_id, "ERROR", f"Portal RSUS não carregou o formulário para ABI {abi}. Abortando.")
+                    db.firestore_db.collection('task_files').document(file['id']).update({
+                        'status_importacao': 'ERRO',
+                        'error_message': 'Erro de carregamento do portal (Timeout do Formulário)'
+                    })
+                    continue
+
                 # --- NOVO: VERIFICAÇÃO DE DUPLICIDADE ---
                 if db.check_abi_already_imported(razao_social, abi):
                     db.add_log(task_id, "INFO", f"⚠️ ABI {abi} já foi importada com sucesso anteriormente. Pulando...")
@@ -702,7 +718,8 @@ async def background_worker_task(task_id: str, url_sistema: str):
                             continue
                         
                         file_input = form_target.locator("input[type='file']").first
-                        await file_input.set_input_files(tmp_name)
+                        # Timeout de 30s para o upload XML (evita travamento total)
+                        await asyncio.wait_for(file_input.set_input_files(tmp_name), timeout=30.0)
                         await asyncio.sleep(2)
                         db.add_log(task_id, "INFO", "Arquivo XML anexado com sucesso.")
                     except Exception as dl_err:
@@ -736,20 +753,26 @@ async def background_worker_task(task_id: str, url_sistema: str):
                     await asyncio.sleep(2) # Buffer extra para o portal 'sentir' os campos preenchidos
                     
                     # Clique Final no botão de Importar (Robusto com evaluate)
-                    success_click = await page.evaluate("""() => {
-                        const buttons = Array.from(document.querySelectorAll('a, button, input[type="submit"]'));
-                        const btn = buttons.find(b => b.innerText.includes('IMPORTAR ARQUIVO') || b.value === 'IMPORTAR ARQUIVO');
-                        if (btn) {
-                            btn.scrollIntoView();
-                            btn.click();
-                            return true;
-                        }
-                        // Fallback dinâmico para qualquer botão verde de sucesso
-                        const btnGreen = document.querySelector('a.btn-success, button.btn-success');
-                        if (btnGreen) { btnGreen.click(); return true; }
-                        return false;
-                    }""")
-                    
+                    # Clique Final no botão de Importar (Robusto com evaluate + timeout)
+                    try:
+                        async def click_import():
+                            return await page.evaluate("""() => {
+                                const buttons = Array.from(document.querySelectorAll('a, button, input[type="submit"]'));
+                                const btn = buttons.find(b => b.innerText.includes('IMPORTAR ARQUIVO') || b.value === 'IMPORTAR ARQUIVO');
+                                if (btn) {
+                                    btn.scrollIntoView();
+                                    btn.click();
+                                    return true;
+                                }
+                                return false;
+                            }""")
+                        success_click = await asyncio.wait_for(click_import(), timeout=30.0)
+                    except asyncio.TimeoutError:
+                        db.add_log(task_id, "ERROR", "Timeout ao clicar em 'IMPORTAR ARQUIVO' (Portal travado).")
+                        continue
+                    except Exception as e:
+                        db.add_log(task_id, "ERROR", f"Erro no clique final: {e}")
+                        success_click = False
                     if not success_click:
                         db.add_log(task_id, "WARNING", "Clique via JS falhou, tentando clique nativo...")
                         import_selectors = ["a:has-text('IMPORTAR ARQUIVO')", "button:has-text('IMPORTAR ARQUIVO')", ".btn-success"]
