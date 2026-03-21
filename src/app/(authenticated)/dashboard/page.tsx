@@ -63,7 +63,7 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    let interval: any;
     if (activeTaskId) {
       localStorage.setItem("activeTaskId", activeTaskId);
       interval = setInterval(async () => {
@@ -190,12 +190,12 @@ export default function DashboardPage() {
           </div>
           {files.length > 0 && (
             <button 
-              onClick={handleUpload}
-              disabled={isUploading}
+              onClick={() => handleUpload(false)}
+              disabled={isUploading || isChecking}
               className="flex items-center gap-2 rounded-xl bg-gax-blue px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-gax-blue/20 transition-all hover:bg-gax-blue-hover active:scale-95 disabled:opacity-50"
             >
-               {isUploading || isChecking ? <Loader2 size={18} className="animate-spin" /> : <Rocket size={18} />}
-               {isChecking ? "Validando..." : isUploading ? "Enviando..." : "Iniciar Processamento"}
+              {isUploading || isChecking ? <Loader2 size={18} className="animate-spin" /> : <Rocket size={18} />}
+              {isChecking ? "Validando..." : isUploading ? "Enviando..." : "Iniciar Processamento"}
             </button>
           )}
         </div>
