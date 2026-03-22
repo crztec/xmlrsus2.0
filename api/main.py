@@ -322,8 +322,8 @@ async def get_task_status(task_id: str):
     if total > 0:
         progress = int((processed / total) * 100)
     
-    # Busca os logs (limite aumentado para 500 para evitar desaparecimento de logs antigos)
-    logs = db.get_logs_for_task(task_id, limit=500)
+    # Busca os logs (limite aumentado para 2000 para evitar desaparecimento de logs em tarefas longas)
+    logs = db.get_logs_for_task(task_id, limit=2000)
     
     return {
         "id": task_id,
