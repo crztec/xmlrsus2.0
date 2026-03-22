@@ -1079,8 +1079,8 @@ async def pre_check_duplicates(
         
         duplicates = []
         for _, row in extracted.iterrows():
-            abi = str(row.get('numero_abi', ''))
-            if db.check_abi_already_imported(razao_social, abi):
+            abi = str(row.get('Número ABI', row.get('numero_abi', '')))
+            if db.check_abi_already_imported(razao_social.strip(), abi):
                 duplicates.append(abi)
         
         return {"duplicates": duplicates, "razao_social": razao_social}

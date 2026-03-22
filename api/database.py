@@ -345,7 +345,7 @@ def check_abi_already_imported(razao_social, numero_abi):
         from google.cloud.firestore_v1.base_query import FieldFilter
         # Busca em task_files por sucesso naquela ABI e Razão Social
         docs = firestore_db.collection('task_files') \
-            .where(filter=FieldFilter("razao_social", "==", razao_social)) \
+            .where(filter=FieldFilter("razao_social", "==", razao_social.strip())) \
             .where(filter=FieldFilter("status_importacao", "==", "SUCESSO")) \
             .get()
         
