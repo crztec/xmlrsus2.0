@@ -4,6 +4,8 @@ import logging
 from datetime import datetime, timedelta, timezone
 import firebase_admin
 from firebase_admin import credentials, firestore, storage
+import time
+import uuid
 
 # Configure standard logging to output to stdout (which Cloud Run captures)
 logging.basicConfig(level=logging.INFO, stream=sys.stdout, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -494,10 +496,12 @@ def add_log(task_id, level, message):
     data_br = get_now_br()
     now_str = data_br.strftime("%Y-%m-%d %H:%M:%S")
     log_data = {
+        'id': str(uuid.uuid4())[:8],
         'timestamp': now_str, 
         'level': level, 
         'message': message,
-        'timestamp_ms': data_br.timestamp() * 1000
+        'timestamp_ms': data_br.timestamp() * 1000,
+        'timestamp_ns': time.time_ns()
     }
     firestore_db.collection('tasks').document(task_id).update({
         'logs': firestore.ArrayUnion([log_data])
@@ -548,12 +552,13 @@ def mark_all_task_files_as_error(task_id, error_message):
         logger.error(f"Erro ao marcar arquivos como erro: {e}")
         return False
 
-def get_logs_for_task(task_id, limit=500):
+def get_logs_for_task(task_id, limit=2000):
     try:
         task_doc = firestore_db.collection('tasks').document(task_id).get()
         if not task_doc.exists: return []
         logs = task_doc.to_dict().get('logs', [])
-        logs.sort(key=lambda x: x.get('timestamp_ms', 0), reverse=True)
+        # Ordenação robusta por nanosegundos (mais recentes no topo)
+        logs.sort(key=lambda x: x.get('timestamp_ns', x.get('timestamp_ms', 0)), reverse=True)
         return logs[:limit]
     except Exception as e:
         logger.error(f"Erro ao recuperar logs: {e}")
