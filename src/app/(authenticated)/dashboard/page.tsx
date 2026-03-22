@@ -24,7 +24,7 @@ export default function DashboardPage() {
 
   const addLog = (message: string, status: 'success' | 'error' | 'processing' | 'info') => {
     const time = new Date().toLocaleTimeString('pt-BR');
-    setLogs(prev => [{ status, message, time }, ...prev].slice(0, 50));
+    setLogs(prev => [{ status, message, time }, ...prev].slice(0, 500));
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -85,7 +85,7 @@ export default function DashboardPage() {
               status: l.level.toLowerCase() as any,
               message: l.message,
               time: l.timestamp
-            })).reverse());
+            })));
           }
 
           if (data.status === 'CONCLUIDO' || data.status === 'ERRO') {
@@ -93,7 +93,6 @@ export default function DashboardPage() {
             setTimeout(() => {
               localStorage.removeItem("activeTaskId");
               setActiveTaskId(null);
-              addLog(data.status === 'CONCLUIDO' ? "Processamento finalizado!" : "Ocorreu um erro no processamento.", data.status === 'CONCLUIDO' ? 'success' : 'error');
             }, 2000);
           }
         } catch (e) {
