@@ -89,9 +89,12 @@ export default function DashboardPage() {
           }
 
           if (data.status === 'CONCLUIDO' || data.status === 'ERRO') {
-            localStorage.removeItem("activeTaskId");
-            setActiveTaskId(null);
-            addLog(data.status === 'CONCLUIDO' ? "Processamento finalizado com sucesso!" : "Ocorreu um erro no processamento.", data.status === 'CONCLUIDO' ? 'success' : 'error');
+            // Pequeno delay para garantir que o último set de logs (com a mensagem final) foi processado
+            setTimeout(() => {
+              localStorage.removeItem("activeTaskId");
+              setActiveTaskId(null);
+              addLog(data.status === 'CONCLUIDO' ? "Processamento finalizado!" : "Ocorreu um erro no processamento.", data.status === 'CONCLUIDO' ? 'success' : 'error');
+            }, 2000);
           }
         } catch (e) {
           console.error("Erro polling", e);

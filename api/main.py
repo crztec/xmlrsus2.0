@@ -624,35 +624,43 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                 
                 db.add_log(task_id, "INFO", f"[{i+1}/{total}] Iniciando processamento da ABI {abi}.")
                 
-                # --- NOVO: RE-DETECÇÃO ROBUSTA DE FORMULÁRIO (Prevenir Stale Frames) ---
+                # --- RE-DETECÇÃO ROBUSTA DE FORMULÁRIO (Prevenir Stale Frames) ---
                 form_target = page
+                status_final_abi = "PENDENTE"
                 form_ready = False
-                for attempt in range(1, 4):
+                for attempt in range(1, 6): # Aumentado para 6 tentativas
                     try:
+                        # Verifica se o campo protocolo está no frame principal ou em algum IFrame
                         if await page.locator("input#numeroProtocolo").count() > 0:
                             form_ready = True
+                            db.add_log(task_id, "DEBUG", f"Formulário encontrado no frame principal (ABI {abi})")
                             break
+                        
                         # Tenta procurar em IFrames
                         for frame in page.frames:
-                            if await frame.locator("input#numeroProtocolo").count() > 0:
-                                form_target = frame
-                                form_ready = True
-                                break
+                            try:
+                                if await frame.locator("input#numeroProtocolo").count() > 0:
+                                    form_target = frame
+                                    form_ready = True
+                                    db.add_log(task_id, "DEBUG", f"Formulário encontrado no IFrame: {frame.name or frame.url[:50]} (ABI {abi})")
+                                    break
+                            except: continue
                         if form_ready: break
                         
-                        db.add_log(task_id, "DEBUG", f"Aguardando formulário (Tentativa {attempt}/3)...")
+                        db.add_log(task_id, "DEBUG", f"Aguardando formulário abrir (Tentativa {attempt}/5)...")
                         await asyncio.sleep(5)
                     except: pass
                 
                 if not form_ready:
-                    db.add_log(task_id, "ERROR", f"Portal RSUS não carregou o formulário para ABI {abi}. Abortando.")
+                    db.add_log(task_id, "ERROR", f"Portal RSUS não carregou o formulário para ABI {abi}. Pulando para o próximo.")
                     db.firestore_db.collection('task_files').document(file['id']).update({
                         'status_importacao': 'ERRO',
                         'error_message': 'Erro de carregamento do portal (Timeout do Formulário)'
                     })
-                    continue
+                    # Não damos continue aqui, deixamos cair no final do loop para preparar o próximo
 
                 # --- NOVO: VERIFICAÇÃO DE DUPLICIDADE ---
+                already_imported = False
                 if not force and db.check_abi_already_imported(razao_social, abi):
                     db.add_log(task_id, "INFO", f"⚠️ ABI {abi} já foi importada com sucesso anteriormente. Pulando...")
                     # Atualiza o status no banco para não ficar pendente
@@ -664,272 +672,266 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                                 'error_message': 'Pulado: ABI já existia no histórico.'
                             })
                     except: pass
-                    continue
-
-                db.add_log(task_id, "INFO", f"Preenchendo dados básicos da ABI {abi}...")
-                try:
-                    num_processo = file.get('numero_processo', '')
-                    dt_recebimento = file.get("data_recebimento_oficio") or file.get("data_registro_transacao", "")
-                    
-                    # ─── NOVO: Cálculo de Prazo (35 dias) if missing ───
-                    dt_prazo = file.get("prazo_resposta_ans", "")
-                    if not dt_prazo and dt_recebimento:
-                        try:
-                            from datetime import datetime, timedelta
-                            dt_obj = datetime.strptime(dt_recebimento, "%d/%m/%Y")
-                            dt_prazo = (dt_obj + timedelta(days=35)).strftime("%d/%m/%Y")
-                        except: pass
-
-                    competencias = file.get("competencias", "")
-                    qtd = str(file.get("quantidade_processo", "0"))
-                    valor = str(file.get("valor_total_processo", "0"))
-
-                    field_map = {
-                        "input#numeroProtocolo": num_processo,
-                        "input#dataRecebimentoOficio": dt_recebimento,
-                        "input#dataPrazoRespostaAns, input#prazoRespostaAns": dt_prazo,
-                        "input#competencias": competencias,
-                        "input#quantidadeAtendimentos": qtd,
-                        "input#valorTotalABI": valor,
-                    }
-                    
-                    db.add_log(task_id, "INFO", f"Preenchendo formulário para ABI {abi} (Processo: {num_processo})")
-                    
-                    # ─── NOVO: Definição de interface (Injeção CSS e jQuery Sync) ───
+                    already_imported = True
+                    status_final_abi = "SUCCESS"
+                
+                if not already_imported:
                     try:
-                        await page.evaluate("""() => {
-                            const style = document.createElement('style');
-                            style.innerHTML = '.datepicker { display: none !important; visibility: hidden !important; height: 0 !important; }';
-                            document.head.appendChild(style);
-                            if (window.jQuery && !window.$) window.$ = window.jQuery;
-                        }""")
-                        await asyncio.sleep(1)
-                    except: pass
-
-                    for sel, val in field_map.items():
-                        if not val: continue
+                        db.add_log(task_id, "INFO", f"Preenchendo dados básicos da ABI {abi}...")
                         try:
-                            # Preenchimento Robusto via JS (Validado na Prova Real Local)
-                            success = await form_target.evaluate("""([sel, val]) => {
-                                const elements = document.querySelectorAll(sel);
-                                const el = elements[0];
-                                if (el) {
-                                    el.value = val;
-                                    el.dispatchEvent(new Event('input', { bubbles: true }));
-                                    el.dispatchEvent(new Event('change', { bubbles: true }));
-                                    if (window.jQuery) window.jQuery(el).trigger('change');
-                                    return true;
-                                }
-                                return false;
-                            }""", [sel, str(val)])
+                            num_processo = file.get('numero_processo', '')
+                            dt_recebimento = file.get("data_recebimento_oficio") or file.get("data_registro_transacao", "")
                             
-                            if success:
-                                db.add_log(task_id, "DEBUG", f"  Campo {sel} preenchido ✓")
-                        except Exception as field_err:
-                            db.add_log(task_id, "WARNING", f"  Erro no campo {sel}: {str(field_err)[:50]}")
-                    
-                    # ─── ETAPA 3: Upload do arquivo XML ───
-                    db.add_log(task_id, "INFO", f"Fazendo upload do arquivo XML da ABI {abi}...")
-                    with tempfile.NamedTemporaryFile(suffix=".xml", delete=False) as tmp:
-                        tmp_name = tmp.name
-                    
-                    try:
-                        success_dl = db.download_xml_from_storage(storage_path, tmp_name)
-                        if not success_dl:
-                            db.add_log(task_id, "ERROR", f"Erro ao baixar {nome} do storage.")
-                            continue
-                        
-                        file_input = form_target.locator("input[type='file']").first
-                        # Timeout de 30s para o upload XML (evita travamento total)
-                        await asyncio.wait_for(file_input.set_input_files(tmp_name), timeout=30.0)
-                        await asyncio.sleep(2)
-                        db.add_log(task_id, "INFO", "Arquivo XML anexado com sucesso.")
-                    except Exception as dl_err:
-                        db.add_log(task_id, "ERROR", f"Erro no upload local do XML: {dl_err}")
-                        continue
-                    
-                    # ─── ETAPA 4: Screenshot ANTES de clicar Importar (para diagnóstico) ───
-                    try:
-                        pre_submit_path = f"debug/screenshots/{task_id}_abi_{abi}_pre_submit.png"
-                        img_bytes = await page.screenshot(full_page=True)
-                        db.upload_screenshot(pre_submit_path, img_bytes)
-                        db.add_log(task_id, "DEBUG", f"Screenshot pré-submit salvo: {pre_submit_path}")
-                    except: pass
-                    
-                    # ─── ETAPA 5: Clicar no botão IMPORTAR ARQUIVO ───
-                    db.add_log(task_id, "INFO", "Enviando dados para processamento final no portal...")
-                    
-                    # Interceptor para capturar o erro 400 do portal
-                    async def catch_import_error(response):
-                        if "importacao" in response.url.lower() and response.status == 400:
+                            # ─── NOVO: Cálculo de Prazo (35 dias) if missing ───
+                            dt_prazo = file.get("prazo_resposta_ans", "")
+                            if not dt_prazo and dt_recebimento:
+                                try:
+                                    from datetime import datetime, timedelta
+                                    dt_obj = datetime.strptime(dt_recebimento, "%d/%m/%Y")
+                                    dt_prazo = (dt_obj + timedelta(days=35)).strftime("%d/%m/%Y")
+                                except: pass
+
+                            competencias = file.get("competencias", "")
+                            qtd = str(file.get("quantidade_processo", "0"))
+                            valor = str(file.get("valor_total_processo", "0"))
+
+                            field_map = {
+                                "input#numeroProtocolo": num_processo,
+                                "input#dataRecebimentoOficio": dt_recebimento,
+                                "input#dataPrazoRespostaAns, input#prazoRespostaAns": dt_prazo,
+                                "input#competencias": competencias,
+                                "input#quantidadeAtendimentos": qtd,
+                                "input#valorTotalABI": valor,
+                            }
+                            
+                            db.add_log(task_id, "INFO", f"Preenchendo formulário para ABI {abi} (Processo: {num_processo})")
+                            
+                            # ─── NOVO: Definição de interface (Injeção CSS e jQuery Sync) ───
                             try:
-                                body = await response.text()
-                                # Loga o erro completo para debug (importante para o erro de 'null id in entry')
-                                db.add_log(task_id, "ERROR", f"ERRO PORTAL (400): {body}")
+                                await page.evaluate("""() => {
+                                    const style = document.createElement('style');
+                                    style.innerHTML = '.datepicker { display: none !important; visibility: hidden !important; height: 0 !important; }';
+                                    document.head.appendChild(style);
+                                    if (window.jQuery && !window.$) window.$ = window.jQuery;
+                                }""")
+                                await asyncio.sleep(1)
                             except: pass
-                    
-                    page.on("response", catch_import_error)
 
-                    # Rola para o topo para garantir visibilidade
-                    await page.evaluate("window.scrollTo(0, 0)")
-                    await asyncio.sleep(2) # Buffer extra para o portal 'sentir' os campos preenchidos
-                    
-                    # Clique Final no botão de Importar (Robusto com evaluate)
-                    # Clique Final no botão de Importar (Robusto com evaluate + timeout)
-                    try:
-                        async def click_import():
-                            return await page.evaluate("""() => {
-                                const buttons = Array.from(document.querySelectorAll('a, button, input[type="submit"]'));
-                                const btn = buttons.find(b => b.innerText.includes('IMPORTAR ARQUIVO') || b.value === 'IMPORTAR ARQUIVO');
-                                if (btn) {
-                                    btn.scrollIntoView();
-                                    btn.click();
-                                    return true;
-                                }
-                                return false;
-                            }""")
-                        success_click = await asyncio.wait_for(click_import(), timeout=30.0)
-                    except asyncio.TimeoutError:
-                        db.add_log(task_id, "ERROR", "Timeout ao clicar em 'IMPORTAR ARQUIVO' (Portal travado).")
-                        continue
-                    except Exception as e:
-                        db.add_log(task_id, "ERROR", f"Erro no clique final: {e}")
-                        success_click = False
-                    if not success_click:
-                        db.add_log(task_id, "WARNING", "Clique via JS falhou, tentando clique nativo...")
-                        import_selectors = ["a:has-text('IMPORTAR ARQUIVO')", "button:has-text('IMPORTAR ARQUIVO')", ".btn-success"]
-                        for selector in import_selectors:
-                            try:
-                                btn = page.locator(selector).first
-                                if await btn.count() > 0:
-                                    await btn.click(timeout=5000)
-                                    success_click = True
-                                    break
-                            except: continue
-
-                    if not success_click:
-                        db.add_log(task_id, "ERROR", "Não foi possível clicar em IMPORTAR ARQUIVO.")
-                        continue
-                    
-                    if success_click:
-                        # ─── NOVO: Lida com Modal de Confirmação (AngularJS) ───
-                        # Alguns portais abrem um modal 'Deseja realmente importar?' após o clique no botão superior
-                        await asyncio.sleep(1)
-                        try:
-                            confirm_selectors = [
-                                "button:has-text('Sim')", 
-                                "button:has-text('SIM')", 
-                                "a:has-text('Sim')",
-                                ".modal-footer button.btn-primary", # Padrão Bootstrap/Angular
-                                ".btn-footer:has-text('Sim')",
-                                "button:contains('Sim')"
-                            ]
-                            for sel_conf in confirm_selectors:
-                                btn_conf = page.locator(sel_conf).first
-                                if await btn_conf.is_visible(timeout=5000):
-                                    db.add_log(task_id, "INFO", f"Modal de confirmação detectado ({sel_conf}). Clicando em SIM...")
-                                    await btn_conf.click(force=True)
-                                    break
-                        except: pass
-                    else:
-                        db.add_log(task_id, "ERROR", f"Botão IMPORTAR ARQUIVO não encontrado para ABI {abi}")
-                        db.firestore_db.collection('task_files').document(file['id']).update({
-                            'status_importacao': 'ERRO',
-                            'error_message': 'Botão IMPORTAR ARQUIVO não encontrado'
-                        })
-                        continue
-                    
-                    # ─── ETAPA 6: Aguardar confirmação do portal ───
-                    db.add_log(task_id, "INFO", "Aguardando resposta de confirmação do sistema...")
-                    status_final_abi = "ERROR"
-                    msg_feedback = ""
-                    
-                    # Seletor expandido de mensagens (inclui toasts, alertas do navegador e mensagens de sistema)
-                    msg_selectors = ".header-message-top, .browseralert, .modal-content, .alert, .alert-success, .alert-danger, .alert-warning, .alert-info, .toast, .notification, .toast-message, #_browseralert, .help-block"
-                    
-                    # Verifica por até 60 segundos com maior frequência (0.5s) para capturar mensagens transientes
-                    for check_round in range(120):
-                        try:
-                            # Busca qualquer mensagem visível
-                            msgs = page.locator(msg_selectors)
-                            count = await msgs.count()
-                            for m_idx in range(count):
-                                msg_el = msgs.nth(m_idx)
-                                if await msg_el.is_visible(timeout=100):
-                                    msg_text = (await msg_el.inner_text()).strip()
-                                    if not msg_text: continue
+                            for sel, val in field_map.items():
+                                if not val: continue
+                                try:
+                                    # Preenchimento Robusto via JS (Validado na Prova Real Local)
+                                    success = await form_target.evaluate("""([sel, val]) => {
+                                        const elements = document.querySelectorAll(sel);
+                                        const el = elements[0];
+                                        if (el) {
+                                            el.value = val;
+                                            el.dispatchEvent(new Event('input', { bubbles: true }));
+                                            el.dispatchEvent(new Event('change', { bubbles: true }));
+                                            if (window.jQuery) window.jQuery(el).trigger('change');
+                                            return true;
+                                        }
+                                        return false;
+                                    }""", [sel, str(val)])
                                     
-                                    db.add_log(task_id, "DEBUG", f"Mensagem detectada: '{msg_text[:140]}'")
-                                    
-                                    if any(key in msg_text.lower() for key in ["sucesso", "importad", "concluíd", "enviado"]):
-                                        db.add_log(task_id, "SUCCESS", "Importação confirmada com sucesso pelo portal.")
-                                        status_final_abi = "SUCCESS"
-                                        msg_feedback = msg_text
-                                        break
-                                    elif any(key in msg_text.lower() for key in ["erro", "inválid", "rejeitad", "não encontrado", "sis00", "falhou"]):
-                                        db.add_log(task_id, "ERROR", f"Portal recusou importação: {msg_text[:150]}")
-                                        status_final_abi = "ERROR"
-                                        msg_feedback = msg_text
-                                        break
+                                    if success:
+                                        db.add_log(task_id, "DEBUG", f"  Campo {sel} preenchido ✓")
+                                except Exception as field_err:
+                                    db.add_log(task_id, "WARNING", f"  Erro no campo {sel}: {str(field_err)[:50]}")
                             
-                            if status_final_abi == "SUCCESS" or (status_final_abi == "ERROR" and msg_feedback):
-                                break
-                                
-                            # Se a URL mudar para a lista, assume que terminou
-                            if "/importacao" in page.url and "/novo" not in page.url:
-                                db.add_log(task_id, "INFO", "Processo concluído. Retornando para o início.")
-                                status_final_abi = "SUCCESS"
-                                break
-                        except:
-                            pass
-                        await asyncio.sleep(0.5)
-                    
-                    # Se nenhuma mensagem apareceu, captura screenshot e verifica URL
-                    if status_final_abi == "ERROR" and not msg_feedback:
-                        db.add_log(task_id, "WARNING", f"ABI {abi}: Nenhuma mensagem de confirmação após 45s.")
-                        
-                        # Verifica se a URL mudou (pode ter sido redirecionado)
-                        current_url = page.url
-                        db.add_log(task_id, "DEBUG", f"URL atual após submit: {current_url}")
-                        
-                        # Screenshot post-submit para diagnóstico
-                        try:
-                            timeout_path = f"debug/screenshots/{task_id}_abi_{abi}_timeout.png"
-                            img_bytes = await page.screenshot(full_page=True)
-                            db.upload_screenshot(timeout_path, img_bytes)
-                            db.add_log(task_id, "DEBUG", f"Screenshot pós-timeout salvo: {timeout_path}")
-                        except: pass
-                        
-                        # Captura o HTML visível para diagnóstico
-                        try:
-                            body_text = await page.locator("body").inner_text()
-                            # Loga os primeiros 300 chars para entender o que há na tela
-                            db.add_log(task_id, "DEBUG", f"Texto da página: {body_text[:300]}")
-                        except: pass
-                        
-                        msg_feedback = "Timeout - sem confirmação SIS (ver screenshots)"
-                    
-                    # Atualiza status do arquivo no Firestore
-                    db.firestore_db.collection('task_files').document(file['id']).update({
-                        'status_importacao': 'SUCESSO' if status_final_abi == "SUCCESS" else 'ERRO',
-                        'error_message': msg_feedback if status_final_abi == "ERROR" else "",
-                        'data_processamento': db.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    })
+                            # ─── ETAPA 3: Upload do arquivo XML ───
+                            db.add_log(task_id, "INFO", f"Fazendo upload do arquivo XML da ABI {abi}...")
+                            with tempfile.NamedTemporaryFile(suffix=".xml", delete=False) as tmp:
+                                tmp_name = tmp.name
+                            
+                            try:
+                                success_dl = db.download_xml_from_storage(storage_path, tmp_name)
+                                if not success_dl:
+                                    db.add_log(task_id, "ERROR", f"Erro ao baixar {nome} do storage.")
+                                else:
+                                    file_input = form_target.locator("input[type='file']").first
+                                    # Timeout de 30s para o upload XML (evita travamento total)
+                                    await asyncio.wait_for(file_input.set_input_files(tmp_name), timeout=30.0)
+                                    await asyncio.sleep(2)
+                                    db.add_log(task_id, "INFO", "Arquivo XML anexado com sucesso.")
+                            except Exception as dl_err:
+                                db.add_log(task_id, "ERROR", f"Erro no upload local do XML: {dl_err}")
+                            
+                            # ─── ETAPA 4: Screenshot ANTES de clicar Importar (para diagnóstico) ───
+                            try:
+                                pre_submit_path = f"debug/screenshots/{task_id}_abi_{abi}_pre_submit.png"
+                                img_bytes = await page.screenshot(full_page=True)
+                                db.upload_screenshot(pre_submit_path, img_bytes)
+                                db.add_log(task_id, "DEBUG", f"Screenshot pré-submit salvo: {pre_submit_path}")
+                            except: pass
+                            
+                            # ─── ETAPA 5: Clicar no botão IMPORTAR ARQUIVO ───
+                            db.add_log(task_id, "INFO", "Enviando dados para processamento final no portal...")
+                            
+                            # Interceptor para capturar o erro 400 do portal
+                            async def catch_import_error(response):
+                                if "importacao" in response.url.lower() and response.status == 400:
+                                    try:
+                                        body = await response.text()
+                                        # Loga o erro completo para debug (importante para o erro de 'null id in entry')
+                                        db.add_log(task_id, "ERROR", f"ERRO PORTAL (400): {body}")
+                                    except: pass
+                            
+                            page.on("response", catch_import_error)
 
-                except Exception as file_err:
-                    import traceback
-                    friendly_err = db.get_friendly_error(file_err)
-                    db.add_log(task_id, "ERROR", f"Erro na ABI {abi}: {friendly_err}")
-                    logger.error(f"Erro no ABI {abi}: {traceback.format_exc()}")
-                    try:
-                        err_path = f"debug/screenshots/{task_id}_abi_{abi}_exception.png"
-                        img_bytes = await page.screenshot(full_page=True)
-                        db.upload_screenshot(err_path, img_bytes)
-                    except: pass
-                    db.firestore_db.collection('task_files').document(file['id']).update({
-                        'status_importacao': 'ERRO',
-                        'error_message': db.get_friendly_error(file_err)
-                    })
+                            # Rola para o topo para garantir visibilidade
+                            await page.evaluate("window.scrollTo(0, 0)")
+                            await asyncio.sleep(2) # Buffer extra para o portal 'sentir' os campos preenchidos
+                            
+                            # Clique Final no botão de Importar (Robusto com evaluate)
+                            # Clique Final no botão de Importar (Robusto com evaluate + timeout)
+                            success_click = False
+                            try:
+                                async def click_import():
+                                    return await page.evaluate("""() => {
+                                        const buttons = Array.from(document.querySelectorAll('a, button, input[type="submit"]'));
+                                        const btn = buttons.find(b => b.innerText.includes('IMPORTAR ARQUIVO') || b.value === 'IMPORTAR ARQUIVO');
+                                        if (btn) {
+                                            btn.scrollIntoView();
+                                            btn.click();
+                                            return true;
+                                        }
+                                        return false;
+                                    }""")
+                                success_click = await asyncio.wait_for(click_import(), timeout=30.0)
+                            except asyncio.TimeoutError:
+                                db.add_log(task_id, "ERROR", "Timeout ao clicar em 'IMPORTAR ARQUIVO' (Portal travado).")
+                            except Exception as e:
+                                db.add_log(task_id, "ERROR", f"Erro no clique final: {e}")
+
+                            if not success_click:
+                                db.add_log(task_id, "WARNING", "Clique via JS falhou, tentando clique nativo...")
+                                import_selectors = ["a:has-text('IMPORTAR ARQUIVO')", "button:has-text('IMPORTAR ARQUIVO')", ".btn-success"]
+                                for selector in import_selectors:
+                                    try:
+                                        btn = page.locator(selector).first
+                                        if await btn.count() > 0:
+                                            await btn.click(timeout=5000)
+                                            success_click = True
+                                            break
+                                    except: continue
+
+                            if not success_click:
+                                db.add_log(task_id, "ERROR", "Não foi possível clicar em IMPORTAR ARQUIVO.")
+                            else:
+                                # ─── NOVO: Lida com Modal de Confirmação (AngularJS) ───
+                                # Alguns portais abrem um modal 'Deseja realmente importar?' após o clique no botão superior
+                                await asyncio.sleep(1)
+                                try:
+                                    confirm_selectors = [
+                                        "button:has-text('Sim')", 
+                                        "button:has-text('SIM')", 
+                                        "a:has-text('Sim')",
+                                        ".modal-footer button.btn-primary", # Padrão Bootstrap/Angular
+                                        ".btn-footer:has-text('Sim')",
+                                        "button:contains('Sim')"
+                                    ]
+                                    for sel_conf in confirm_selectors:
+                                        btn_conf = page.locator(sel_conf).first
+                                        if await btn_conf.is_visible(timeout=5000):
+                                            db.add_log(task_id, "INFO", f"Modal de confirmação detectado ({sel_conf}). Clicando em SIM...")
+                                            await btn_conf.click(force=True)
+                                            break
+                                except: pass
+                                
+                                # ─── ETAPA 6: Aguardar confirmação do portal ───
+                                db.add_log(task_id, "INFO", "Aguardando resposta de confirmação do sistema...")
+                                status_final_abi = "ERROR"
+                                msg_feedback = ""
+                                
+                                # Seletor expandido de mensagens (inclui toasts, alertas do navegador e mensagens de sistema)
+                                msg_selectors = ".header-message-top, .browseralert, .modal-content, .alert, .alert-success, .alert-danger, .alert-warning, .alert-info, .toast, .notification, .toast-message, #_browseralert, .help-block"
+                                
+                                # Verifica por até 60 segundos com maior frequência (0.5s) para capturar mensagens transientes
+                                for check_round in range(120):
+                                    try:
+                                        # Busca qualquer mensagem visível
+                                        msgs = page.locator(msg_selectors)
+                                        count = await msgs.count()
+                                        for m_idx in range(count):
+                                            msg_el = msgs.nth(m_idx)
+                                            if await msg_el.is_visible(timeout=100):
+                                                msg_text = (await msg_el.inner_text()).strip()
+                                                if not msg_text: continue
+                                                
+                                                db.add_log(task_id, "DEBUG", f"Mensagem detectada: '{msg_text[:140]}'")
+                                                
+                                                if any(key in msg_text.lower() for key in ["sucesso", "importad", "concluíd", "enviado"]):
+                                                    db.add_log(task_id, "SUCCESS", "Importação confirmada com sucesso pelo portal.")
+                                                    status_final_abi = "SUCCESS"
+                                                    msg_feedback = msg_text
+                                                    break
+                                                elif any(key in msg_text.lower() for key in ["erro", "inválid", "rejeitad", "não encontrado", "sis00", "falhou"]):
+                                                    db.add_log(task_id, "ERROR", f"Portal recusou importação: {msg_text[:150]}")
+                                                    status_final_abi = "ERROR"
+                                                    msg_feedback = msg_text
+                                                    break
+                                        
+                                        if status_final_abi == "SUCCESS" or (status_final_abi == "ERROR" and msg_feedback):
+                                            break
+                                            
+                                        # Se a URL mudar para a lista, assume que terminou
+                                        if "/importacao" in page.url and "/novo" not in page.url:
+                                            db.add_log(task_id, "INFO", "Processo concluído. Retornando para o início.")
+                                            status_final_abi = "SUCCESS"
+                                            break
+                                    except:
+                                        pass
+                                    await asyncio.sleep(0.5)
+                                
+                                # Se nenhuma mensagem apareceu, captura screenshot e verifica URL
+                                if status_final_abi == "ERROR" and not msg_feedback:
+                                    db.add_log(task_id, "WARNING", f"ABI {abi}: Nenhuma mensagem de confirmação após 45s.")
+                                    
+                                    # Verifica se a URL mudou (pode ter sido redirecionado)
+                                    current_url = page.url
+                                    db.add_log(task_id, "DEBUG", f"URL atual após submit: {current_url}")
+                                    
+                                    # Screenshot post-submit para diagnóstico
+                                    try:
+                                        timeout_path = f"debug/screenshots/{task_id}_abi_{abi}_timeout.png"
+                                        img_bytes = await page.screenshot(full_page=True)
+                                        db.upload_screenshot(timeout_path, img_bytes)
+                                        db.add_log(task_id, "DEBUG", f"Screenshot pós-timeout salvo: {timeout_path}")
+                                    except: pass
+                                    
+                                    # Captura o HTML visível para diagnóstico
+                                    try:
+                                        body_text = await page.locator("body").inner_text()
+                                        # Loga os primeiros 300 chars para entender o que há na tela
+                                        db.add_log(task_id, "DEBUG", f"Texto da página: {body_text[:300]}")
+                                    except: pass
+                                    
+                                    msg_feedback = "Timeout - sem confirmação SIS (ver screenshots)"
+                                
+                                # Atualiza status do arquivo no Firestore
+                                db.firestore_db.collection('task_files').document(file['id']).update({
+                                    'status_importacao': 'SUCESSO' if status_final_abi == "SUCCESS" else 'ERRO',
+                                    'error_message': msg_feedback if status_final_abi == "ERROR" else "",
+                                    'data_processamento': db.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                })
+
+                        except Exception as file_err:
+                            import traceback
+                            friendly_err = db.get_friendly_error(file_err)
+                            db.add_log(task_id, "ERROR", f"Erro na ABI {abi}: {friendly_err}")
+                            logger.error(f"Erro no ABI {abi}: {traceback.format_exc()}")
+                            try:
+                                err_path = f"debug/screenshots/{task_id}_abi_{abi}_exception.png"
+                                img_bytes = await page.screenshot(full_page=True)
+                                db.upload_screenshot(err_path, img_bytes)
+                            except: pass
+                            db.firestore_db.collection('task_files').document(file['id']).update({
+                                'status_importacao': 'ERRO',
+                                'error_message': db.get_friendly_error(file_err)
+                            })
+                    except Exception as e:
+                        db.add_log(task_id, "ERROR", f"Erro interno no processamento da ABI {abi}: {e}")
                 
                 # ─── ETAPA FINAL: Limpeza do Arquivo Temporário ───
                 try:
@@ -946,49 +948,100 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                     'updated_at': db.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 })
                 
-                # Intervalo e refresh para próximo arquivo
+                # Intervalo e limpeza para próximo arquivo
                 if i < total - 1:
+                    db.add_log(task_id, "INFO", f"Arquivo {i+1} finalizado. Preparando para o próximo...")
                     if status_final_abi == "SUCCESS":
-                        db.add_log(task_id, "INFO", "Aguardando 30s para estabilização do portal...")
-                        await asyncio.sleep(30)
+                        db.add_log(task_id, "INFO", "Aguardando 15s para estabilização do portal...")
+                        await asyncio.sleep(15)
                     else:
-                        await asyncio.sleep(5)
-                    
-                    # Refresh para limpar campos para próximo arquivo
-                    try:
-                        await page.reload(wait_until="domcontentloaded", timeout=60000)
-                        await asyncio.sleep(5)
-                    except:
-                        # Se reload falhar, volta à lista e clica SELECIONAR ARQUIVO
-                        db.add_log(task_id, "INFO", "Reload falhou. Voltando à lista...")
-                        await page.goto(f"{base_url}/importacao", wait_until="domcontentloaded", timeout=60000)
                         await asyncio.sleep(3)
-                        try:
-                            sel_btn = page.locator("a:has-text('SELECIONAR ARQUIVO')").first
+                    
+                    # Navegação explícita para a lista para limpar estado
+                    try:
+                        import_list_url = f"{base_url}/importacao"
+                        db.add_log(task_id, "DEBUG", "Limpando estado para o próximo arquivo...")
+                        
+                        # Tenta ir para a lista de importação
+                        await page.goto(import_list_url, wait_until="domcontentloaded", timeout=60000)
+                        await asyncio.sleep(5)
+                        
+                        # Procura o botão de forma robusta
+                        sel_btn = None
+                        btn_selectors = ["a:has-text('SELECIONAR ARQUIVO')", ".btn-primary:has-text('SELECIONAR ARQUIVO')", "a[href*='novo']"]
+                        for selector in btn_selectors:
+                            btn = page.locator(selector).first
+                            if await btn.count() > 0:
+                                sel_btn = btn
+                                break
+                        
+                        if sel_btn:
                             await sel_btn.click()
-                            await asyncio.sleep(3)
-                        except: pass
+                            db.add_log(task_id, "DEBUG", "Botão 'SELECIONAR ARQUIVO' clicado.")
+                            await asyncio.sleep(5)
+                        else:
+                            db.add_log(task_id, "WARNING", "Botão 'SELECIONAR ARQUIVO' não encontrado. Forçando reload...")
+                            await page.reload(wait_until="domcontentloaded")
+                            await asyncio.sleep(5)
+                            # Tenta novamente após reload
+                            for selector in btn_selectors:
+                                btn = page.locator(selector).first
+                                if await btn.count() > 0:
+                                    await btn.click()
+                                    break
+                    except Exception as nav_err:
+                        db.add_log(task_id, "WARNING", f"Erro na transição: {nav_err}. Tentando reload total...")
+                        await page.goto(f"{base_url}/importacao/novo", timeout=60000)
+                        await asyncio.sleep(5)
                     
                     # --- RE-DETECÇÃO DE FRAME PÓS REFRESH ---
+                    db.add_log(task_id, "DEBUG", "Aguardando novo formulário aparecer...")
                     form_target = page
-                    if await page.locator("input#numeroProtocolo").count() == 0:
+                    form_ready_next = False
+                    for attempt_next in range(1, 4):
+                        if await page.locator("input#numeroProtocolo").count() > 0:
+                            form_ready_next = True
+                            break
                         for frame in page.frames:
-                            if await frame.locator("input#numeroProtocolo").count() > 0:
-                                form_target = frame
-                                break
+                            try:
+                                if await frame.locator("input#numeroProtocolo").count() > 0:
+                                    form_target = frame
+                                    form_ready_next = True
+                                    break
+                            except: continue
+                        if form_ready_next: break
+                        await asyncio.sleep(5)
 
-                    # Espera campo protocolo reaparecer
-                    try:
-                        await form_target.locator("input#numeroProtocolo").wait_for(state="visible", timeout=15000)
+                    if form_ready_next:
                         db.add_log(task_id, "DEBUG", "Formulário re-identificado ✓")
-                    except:
-                        db.add_log(task_id, "WARNING", "Campo protocolo não reapareceu após refresh")
+                    else:
+                        db.add_log(task_id, "WARNING", "Campo protocolo não repareceu. O robô tentará identificar na próxima iteração.")
 
             await browser.close()
             
-        db.add_log(task_id, "SUCCESS", "Tudo pronto! Todos os arquivos foram processados e enviados com sucesso.")
+        # Determina mensagem final baseada nos resultados individuais
+        all_files = db.get_files_for_task(task_id)
+        success_count = sum(1 for f in all_files if f.get('status_importacao') == 'SUCESSO')
+        error_count = sum(1 for f in all_files if f.get('status_importacao') == 'ERRO')
+        
+        final_msg = f"Processamento concluído: {success_count} sucessos, {error_count} erros."
+        if error_count == 0:
+            final_msg = "Tudo pronto! Todos os arquivos foram processados e enviados com sucesso."
+            status_final_task = "CONCLUIDO"
+        elif success_count == 0:
+            final_msg = f"Falha crítica: Nenhum dos {total} arquivos pôde ser importado."
+            status_final_task = "ERRO"
+        else:
+            final_msg = f"Concluído com ressalvas: {success_count} importados, {error_count} falhas."
+            status_final_task = "CONCLUIDO" # Marcamos como concluído pois o loop terminou
+
+        db.add_log(task_id, "SUCCESS" if error_count == 0 else "WARNING", final_msg)
+        
+        # Delay de 3s antes de fechar a tarefa para dar tempo do polling do frontend capturar o último log
+        await asyncio.sleep(3)
+        
         db.firestore_db.collection('tasks').document(task_id).update({
-            'status': 'CONCLUIDO',
+            'status': status_final_task,
             'updated_at': db.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         })
         
@@ -1057,23 +1110,22 @@ async def upload_xmls(
     # Identifica a Razão Social do primeiro arquivo para a tarefa
     razao_social = parser.extract_razao_social(arquivos_upload_data[0][1])
     
-    # NOVO: Prevenção de duplicidade (Idempotência)
-    # Verifica nos últimos 5 registros se já existe uma tarefa IGUAL criada nos últimos 10 segundos
-    # Simplificado para evitar a necessidade de criar um Índice Composto no Firestore
-    recent_docs = db.firestore_db.collection('tasks') \
-        .order_by('created_at', direction='DESCENDING') \
-        .limit(5).get()
-    
-    for doc in recent_docs:
-        last_task = doc.to_dict()
-        if last_task.get('razao_social') == razao_social and \
-           last_task.get('usuario') == usuario and \
-           last_task.get('url_sistema') == url_sistema:
-            from datetime import datetime
-            last_created = datetime.strptime(last_task['created_at'], "%Y-%m-%d %H:%M:%S")
-            if (datetime.now() - last_created).total_seconds() < 10:
-                logger.warning(f"Ignorando upload duplicado para {razao_social} (Idempotência)")
-                return {"status": "success", "message": "Upload já em processamento.", "task_id": doc.id}
+    # NOVO: Prevenção de duplicidade (Idempotência) - Respeita o parâmetro 'force'
+    if not force:
+        recent_docs = db.firestore_db.collection('tasks') \
+            .order_by('created_at', direction='DESCENDING') \
+            .limit(5).get()
+        
+        for doc in recent_docs:
+            last_task = doc.to_dict()
+            if last_task.get('razao_social') == razao_social and \
+               last_task.get('usuario') == usuario and \
+               last_task.get('url_sistema') == url_sistema:
+                from datetime import datetime
+                last_created = datetime.strptime(last_task['created_at'], "%Y-%m-%d %H:%M:%S")
+                if (datetime.now() - last_created).total_seconds() < 10:
+                    logger.warning(f"Ignorando upload duplicado para {razao_social} (Idempotência)")
+                    return {"status": "success", "message": "Upload já em processamento.", "task_id": doc.id}
 
     # Cria a tarefa no banco com as credenciais reais
     task_id = db.create_task(
