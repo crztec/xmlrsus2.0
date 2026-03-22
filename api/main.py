@@ -952,8 +952,8 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                 if i < total - 1:
                     db.add_log(task_id, "INFO", f"Arquivo {i+1} finalizado. Preparando para o próximo...")
                     if status_final_abi == "SUCCESS":
-                        db.add_log(task_id, "INFO", "Aguardando 15s para estabilização do portal...")
-                        await asyncio.sleep(15)
+                        db.add_log(task_id, "INFO", "Aguardando 30s para estabilização do portal...")
+                        await asyncio.sleep(30)
                     else:
                         await asyncio.sleep(3)
                     
