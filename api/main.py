@@ -1363,6 +1363,7 @@ async def route_update_profile(
             return {"status": "success"}
     except Exception as e:
         logger.error(f"Erro ao atualizar perfil: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        error_detail = db.get_friendly_error(e)
+        raise HTTPException(status_code=400, detail=error_detail)
     
-    raise HTTPException(status_code=500, detail="Erro ao atualizar perfil.")
+    raise HTTPException(status_code=500, detail="Erro desconhecido ao atualizar perfil.")

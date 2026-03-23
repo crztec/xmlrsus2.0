@@ -128,6 +128,17 @@ def get_friendly_error(technical_error):
     if not technical_error: return ""
     te = str(technical_error).lower()
     
+    # Erros de Autenticação/Firebase
+    if "at least 6 characters" in te:
+        return "A senha deve conter pelo menos 6 caracteres."
+    if "invalid password" in te:
+        return "Senha inválida ou mal formatada."
+    if "user not found" in te:
+        return "Usuário não encontrado."
+    if "wrong password" in te:
+        return "Senha incorreta."
+    
+    # Erros do Portal RSUS/Playwright
     if "timeout" in te:
         return "O portal demorou muito para responder. Tente novamente."
     if "login failed" in te or "credenciais" in te or "senha" in te:

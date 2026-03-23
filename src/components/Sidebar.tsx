@@ -257,7 +257,7 @@ export default function Sidebar() {
                     type="text"
                     value={profileForm.first_name}
                     onChange={e => setProfileForm({...profileForm, first_name: e.target.value})}
-                    className="w-full rounded-lg border border-slate-200 bg-slate-50/30 px-3 py-2 text-sm focus:border-gax-blue focus:bg-white focus:outline-none focus:ring-2 focus:ring-gax-blue/10 transition-all font-medium text-slate-700"
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50/30 px-3 py-2 text-sm focus:border-gax-blue focus:bg-white focus:outline-none focus:ring-2 focus:ring-gax-blue/10 transition-all font-medium text-slate-700 placeholder:text-slate-300"
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -266,7 +266,7 @@ export default function Sidebar() {
                     type="text"
                     value={profileForm.last_name}
                     onChange={e => setProfileForm({...profileForm, last_name: e.target.value})}
-                    className="w-full rounded-lg border border-slate-200 bg-slate-50/30 px-3 py-2 text-sm focus:border-gax-blue focus:bg-white focus:outline-none focus:ring-2 focus:ring-gax-blue/10 transition-all font-medium text-slate-700"
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50/30 px-3 py-2 text-sm focus:border-gax-blue focus:bg-white focus:outline-none focus:ring-2 focus:ring-gax-blue/10 transition-all font-medium text-slate-700 placeholder:text-slate-300"
                   />
                 </div>
               </div>
