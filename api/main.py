@@ -468,6 +468,10 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                         except: pass
                 
                 page.on("response", handle_response)
+                
+                # --- AUTO-ACCEPT DIALOGS ---
+                # Evita que alertas do navegador (ex: 'Sair do site? As alterações não foram salvas') travem a automação
+                page.on("dialog", lambda dialog: asyncio.create_task(dialog.accept()))
 
                 db.add_log(task_id, "INFO", "Acessando a página de importação do sistema.")
                 
