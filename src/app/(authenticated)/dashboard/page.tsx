@@ -9,7 +9,8 @@ import {
   AlertCircle,
   Loader2,
   Rocket,
-  ClipboardList
+  ClipboardList,
+  AlertTriangle 
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -331,6 +332,7 @@ export default function DashboardPage() {
               <div className="space-y-3">
                 {logs
                   .filter(log => log.status !== 'debug') // Filtra para o resumo
+                  .slice(-5) // Limita para exibir apenas as últimas 5 linhas
                   .map((log, i) => (
                     <LogEntry key={i} status={log.status as any} message={log.message} time={log.time} />
                   ))
@@ -436,11 +438,12 @@ export default function DashboardPage() {
   );
 }
 
-function LogEntry({ status, message, time }: { status: 'success' | 'error' | 'processing' | 'info' | 'debug', message: string, time: string }) {
+function LogEntry({ status, message, time }: { status: 'success' | 'error' | 'processing' | 'info' | 'debug' | 'warning', message: string, time: string }) {
   return (
     <div className="flex items-center gap-3 text-xs animate-in fade-in slide-in-from-top-1 duration-300">
       {status === 'success' && <CheckCircle2 size={16} className="text-green-500" />}
       {status === 'error' && <AlertCircle size={16} className="text-red-500" />}
+      {status === 'warning' && <AlertTriangle size={16} className="text-amber-500" />}
       {status === 'info' && <Rocket size={16} className="text-gax-blue" />}
       {status === 'debug' && <FileText size={16} className="text-slate-400" />}
       {status === 'processing' && <Loader2 size={16} className="animate-spin text-gax-blue" />}
@@ -448,6 +451,7 @@ function LogEntry({ status, message, time }: { status: 'success' | 'error' | 'pr
         "font-medium",
         status === 'success' && "text-green-700",
         status === 'error' && "text-red-700",
+        status === 'warning' && "text-amber-700",
         status === 'info' && "text-gax-blue",
         status === 'processing' && "text-slate-600"
       )}>

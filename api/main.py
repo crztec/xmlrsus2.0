@@ -434,8 +434,7 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
             # 2. Navegação Orgânica (Simulando o robô antigo)
             try:
                 # LISTENER DE CONSOLE PARA CAPTURAR ERROS (MANTIDO EM DEBUG PARA NÃO POLUIR O ACOMPANHAMENTO)
-                page.on("console", lambda msg: db.add_log(task_id, "DEBUG", f"[Browser Console] {msg.text[:500]}") if msg.type in ['error', 'warning'] else None)
-                page.on("pageerror", lambda err: db.add_log(task_id, "ERROR", f"[Uncaught Exception] {str(err)[:500]}"))
+                # Removidos listeners de console do navegador para manter o log limpo apenas com erros da aplicação
                 
                 # INTERCEPTOR DE RESPOSTAS PARA INJEÇÃO CIRÚRGICA DE COOKIES
                 async def handle_response(response):
@@ -807,9 +806,10 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                                         erros_list = data.get("exception", {}).get("mensagens", [])
                                         msg_code = data.get("msg", "")
                                         if "SIS00121" in msg_code or any("cadastrada" in msg.lower() for msg in erros_list):
-                                            erro_limpo = " ".join(erros_list) if erros_list else "ABI já cadastrada."
-                                            intercepted_portal_error["text"] = erro_limpo
-                                            db.add_log(task_id, "WARNING", f"Portal rejeitou: {erro_limpo}")
+                                            if not intercepted_portal_error["text"]:
+                                                erro_limpo = " ".join(erros_list) if erros_list else "ABI já cadastrada no sistema."
+                                                intercepted_portal_error["text"] = erro_limpo
+                                                db.add_log(task_id, "WARNING", f"Portal recusou importação: {erro_limpo}")
                                         else:
                                             db.add_log(task_id, "ERROR", f"ERRO PORTAL (400): {body}")
                                     except:
@@ -888,7 +888,6 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                                 if intercepted_portal_error["text"]:
                                     status_final_abi = "ERROR"
                                     msg_feedback = intercepted_portal_error["text"]
-                                    db.add_log(task_id, "ERROR", f"Portal recusou importação (Interceptado via Rede): {msg_feedback[:150]}")
                                     # Zera a variável para usar o fallback de UI logo abaixo a fim de fechar a modal e passar ao próximo
                                     check_round_limit = 5 # Apenas dá um tempo rápido para a UI estabilizar
                                 
@@ -1085,8 +1084,8 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
             status_final_task = "ERRO"
         else:
             final_msg = f"Concluído com ressalvas: {success_count} importados, {error_count} falhas."
-            status_final_task = "CONCLUIDO" # Marcamos como concluído pois o loop terminou
-
+            status_final_task = "CONCLUIDO_COM_RESSALVAS" # Marcamos como concluído com ressalvas
+        
         db.add_log(task_id, "SUCCESS" if error_count == 0 else "WARNING", final_msg)
         
         # Delay de 3s antes de fechar a tarefa para dar tempo do polling do frontend capturar o último log
