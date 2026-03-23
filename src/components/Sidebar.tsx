@@ -3,12 +3,12 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { 
-  CloudUpload, 
-  ClipboardList, 
-  Users, 
-  UserPlus, 
-  Settings, 
+import {
+  CloudUpload,
+  ClipboardList,
+  Users,
+  UserPlus,
+  Settings,
   LogOut,
   ChevronLeft,
   LayoutDashboard,
@@ -21,8 +21,8 @@ const menuItems = [
   { label: "Upload", icon: <CloudUpload size={20} />, href: "/dashboard" },
   { label: "Dados XML", icon: <FileText size={20} />, href: "/xml-data" },
   { label: "Log de Importação", icon: <ClipboardList size={20} />, href: "/logs" },
-  { label: "Configurações", isTitle: true },
-  { label: "Clientes", icon: <Users size={20} />, href: "/clients" },
+  { label: "Configurações", isTitle: true, isAdmin: true },
+  { label: "Clientes", icon: <Users size={20} />, href: "/clients", isAdmin: true },
   { label: "Usuários", icon: <Users size={20} />, href: "/users", isAdmin: true },
   { label: "Pendentes", icon: <UserPlus size={20} />, href: "/pending", isAdmin: true },
   { label: "Sistema", icon: <Settings size={20} />, href: "/settings", isAdmin: true },
@@ -116,8 +116,8 @@ export default function Sidebar() {
                 href={item.href || "#"}
                 className={cn(
                   "flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-all outline-none focus-visible:ring-2 focus-visible:ring-gax-blue/20",
-                  isActive 
-                    ? "bg-gax-blue-light text-gax-blue" 
+                  isActive
+                    ? "bg-gax-blue-light text-gax-blue"
                     : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                 )}
                 aria-current={isActive ? "page" : undefined}
@@ -143,7 +143,7 @@ export default function Sidebar() {
             <p className="truncate text-xs font-bold text-slate-900">{userName}</p>
             <p className="truncate text-[10px] text-slate-500">{userEmail}</p>
           </div>
-          <button 
+          <button
             onClick={() => {
               if (confirm("Deseja realmente sair?")) {
                 window.location.href = "/login";
