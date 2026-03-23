@@ -124,10 +124,7 @@ export default function XmlDataPage() {
   if (!selectedClient) {
     return (
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Dados XML</h1>
-          <p className="text-sm text-slate-500">Selecione um cliente para visualizar os ABIs</p>
-        </div>
+        <div></div>
 
         <div className="relative max-w-md">
           <label htmlFor="client-search" className="sr-only">Buscar cliente</label>

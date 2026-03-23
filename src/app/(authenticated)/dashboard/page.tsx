@@ -188,10 +188,7 @@ export default function DashboardPage() {
       {/* Upload Section */}
       <section className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
         <div className="mb-6 flex items-center justify-between">
-          <div>
-            <h3 className="text-xl font-bold text-slate-800">Nova Importação</h3>
-            <p className="text-sm text-slate-500">Selecione arquivos XML para processamento (Limite: 5MB por arquivo)</p>
-          </div>
+          <div></div>
           {files.length > 0 && (
             <button 
               onClick={() => handleUpload(false)}

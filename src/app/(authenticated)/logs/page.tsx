@@ -72,10 +72,7 @@ export default function LogsPage() {
 
   return (
     <div className="space-y-6 text-sans">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-800">Histórico de Importações</h1>
-        <p className="text-sm text-slate-500">Logs detalhados de cada processamento realizado pelo robô</p>
-      </div>
+      <div></div>
 
       <div className="flex gap-4">
         <StatCard icon={<History className="text-gax-blue" />} label="Total Processado" value={stats.total.toString()} />

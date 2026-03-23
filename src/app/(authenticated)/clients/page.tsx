@@ -96,10 +96,7 @@ export default function ClientsPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Clientes Identificados</h1>
-          <p className="text-sm text-slate-500">Lista de clientes detectados nos XMLs processados</p>
-        </div>
+        <div></div>
 
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />

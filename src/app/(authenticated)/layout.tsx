@@ -9,7 +9,7 @@ export default function AuthenticatedLayout({
   return (
     <div className="flex bg-white">
       <Sidebar />
-      <MainLayout title="Bem-vindo ao GAX" breadcrumb={[{ label: "Dashboard", active: true }]}>
+      <MainLayout>
         {children}
       </MainLayout>
     </div>

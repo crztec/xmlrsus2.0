@@ -1,31 +1,58 @@
 "use client";
 
 import React from "react";
+import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 interface MainLayoutProps {
   children: React.ReactNode;
-  title?: string;
-  breadcrumb?: { label: string; active?: boolean }[];
 }
 
-export default function MainLayout({ children, title, breadcrumb }: MainLayoutProps) {
+const PAGE_METADATA: Record<string, { title: string; subtitle: string }> = {
+  "/dashboard": {
+    title: "Nova Importação",
+    subtitle: "Selecione arquivos XML para processamento (Limite: 5MB por arquivo)"
+  },
+  "/xml-data": {
+    title: "Dados XML",
+    subtitle: "Selecione um cliente para visualizar os ABIs"
+  },
+  "/logs": {
+    title: "Histórico de Importações",
+    subtitle: "Logs detalhados de cada processamento realizado pelo robô"
+  },
+  "/clients": {
+    title: "Clientes Identificados",
+    subtitle: "Lista de clientes detectados nos XMLs processados"
+  },
+  "/users": {
+    title: "Gerenciamento de Usuários",
+    subtitle: "Visualize e edite as permissões dos usuários do sistema"
+  },
+  "/pending": {
+    title: "Usuários Pendentes",
+    subtitle: "Novos cadastros aguardando aprovação administrativa"
+  },
+  "/settings": {
+    title: "Configurações do Sistema",
+    subtitle: "Personalize a aparência e gerencie os dados do GAX"
+  }
+};
+
+export default function MainLayout({ children }: MainLayoutProps) {
+  const pathname = usePathname();
+  const metadata = PAGE_METADATA[pathname] || { 
+    title: "GAX", 
+    subtitle: "Gestão de Arquivos XML" 
+  };
+
   return (
     <div className="flex h-screen flex-1 flex-col overflow-hidden bg-slate-50">
-      {/* Sub-Header / Breadcrumbs */}
-      <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-8">
+      {/* Dynamic Header */}
+      <header className="flex h-20 items-center justify-between border-b border-slate-200 bg-white px-8">
         <div className="flex flex-col">
-          {breadcrumb && (
-            <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-400">
-              {breadcrumb.map((item, idx) => (
-                <React.Fragment key={idx}>
-                  <span className={cn(item.active && "text-slate-600")}>{item.label}</span>
-                  {idx < breadcrumb.length - 1 && <span>/</span>}
-                </React.Fragment>
-              ))}
-            </div>
-          )}
-          <h2 className="text-sm font-bold text-slate-800">{title}</h2>
+          <h1 className="text-xl font-bold tracking-tight text-slate-800">{metadata.title}</h1>
+          <p className="text-sm font-medium text-slate-400">{metadata.subtitle}</p>
         </div>
 
         <div className="flex items-center gap-4">

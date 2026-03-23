@@ -62,10 +62,7 @@ export default function PendingUsersPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-800">Usuários Pendentes</h1>
-        <p className="text-sm text-slate-500">Novos cadastros aguardando aprovação administrativa</p>
-      </div>
+      <div></div>
 
       {users.length > 0 ? (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
