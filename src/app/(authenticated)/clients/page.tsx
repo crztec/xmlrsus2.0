@@ -44,6 +44,11 @@ export default function ClientsPage() {
   };
 
   useEffect(() => {
+    const role = localStorage.getItem("gax_user_role");
+    if (role !== "admin") {
+      window.location.href = "/dashboard";
+      return;
+    }
     fetchClients();
   }, []);
 
