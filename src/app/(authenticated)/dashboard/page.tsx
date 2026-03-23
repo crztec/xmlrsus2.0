@@ -332,7 +332,7 @@ export default function DashboardPage() {
               <div className="space-y-3">
                 {logs
                   .filter(log => log.status !== 'debug') // Filtra para o resumo
-                  .slice(-5) // Limita para exibir apenas as últimas 5 linhas
+                  .slice(0, 5) // Limita para exibir apenas as primeiras 5 linhas (mais recentes)
                   .map((log, i) => (
                     <LogEntry key={i} status={log.status as any} message={log.message} time={log.time} />
                   ))
