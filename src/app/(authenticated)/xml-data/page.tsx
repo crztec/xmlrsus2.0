@@ -138,7 +138,7 @@ export default function XmlDataPage() {
             placeholder="Buscar cliente..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all font-sans"
+            className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all font-sans text-slate-700 font-medium placeholder:text-slate-300"
           />
         </div>
 
@@ -206,7 +206,7 @@ export default function XmlDataPage() {
                 setSearchTerm(e.target.value);
                 setCurrentPage(1);
               }}
-              className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-10 pr-4 text-xs outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 sm:w-64 transition-all font-sans"
+              className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-10 pr-4 text-xs outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 sm:w-64 transition-all font-sans text-slate-700 font-medium placeholder:text-slate-300"
             />
           </div>
           <button 
