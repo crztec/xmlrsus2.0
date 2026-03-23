@@ -10,7 +10,12 @@ except ImportError:
 # To use Firebase Client Auth, we need the Web API Key from the Firebase project.
 # Since we don't have it hardcoded, we should expect it from an environment variable.
 # For Cloud Run, the user will need to set FIREBASE_API_KEY.
+import logging
+logger = logging.getLogger(__name__)
+
 FIREBASE_API_KEY = os.environ.get("FIREBASE_API_KEY", "")
+if not FIREBASE_API_KEY:
+    logger.warning("FIREBASE_API_KEY não foi encontrada nas variáveis de ambiente.")
 
 def sign_in_with_email_and_password(email, password):
     if not FIREBASE_API_KEY:

@@ -51,7 +51,15 @@ from fastapi.responses import JSONResponse
 async def global_exception_handler(request, exc):
     import traceback
     error_msg = traceback.format_exc()
-    print(f"CRITICAL ERROR: {error_msg}")
+    logger.error(f"CRITICAL ERROR: {error_msg}")
+    
+    # Se for uma HTTPException, respeita o status_code dela
+    if isinstance(exc, HTTPException):
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": str(exc.detail)}
+        )
+        
     return JSONResponse(
         status_code=500,
         content={"detail": str(exc)}
