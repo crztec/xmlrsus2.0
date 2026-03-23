@@ -14,16 +14,16 @@ const PAGE_METADATA: Record<string, { title: string; subtitle: string }> = {
     subtitle: "Selecione arquivos XML para processamento (Limite: 5MB por arquivo)"
   },
   "/xml-data": {
-    title: "Dados XML",
-    subtitle: "Selecione um cliente para visualizar os ABIs"
+    title: "Dados ABIs",
+    subtitle: "Selecione um cliente para visualizar os dados contidos nos ABIs"
   },
   "/logs": {
     title: "Histórico de Importações",
-    subtitle: "Logs detalhados de cada processamento realizado pelo robô"
+    subtitle: "Logs de cada processamento realizado"
   },
   "/clients": {
-    title: "Clientes Identificados",
-    subtitle: "Lista de clientes detectados nos XMLs processados"
+    title: "Clientes",
+    subtitle: "Clientes cadastrados no GAX"
   },
   "/users": {
     title: "Gerenciamento de Usuários",
@@ -41,9 +41,9 @@ const PAGE_METADATA: Record<string, { title: string; subtitle: string }> = {
 
 export default function MainLayout({ children }: MainLayoutProps) {
   const pathname = usePathname();
-  const metadata = PAGE_METADATA[pathname] || { 
-    title: "GAX", 
-    subtitle: "Gestão de Arquivos XML" 
+  const metadata = PAGE_METADATA[pathname] || {
+    title: "GAX",
+    subtitle: "Gestão de Arquivos XML"
   };
 
   return (
