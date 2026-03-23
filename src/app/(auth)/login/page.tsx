@@ -1,15 +1,15 @@
 "use client";
 
 import React, { useState } from "react";
-import { 
-  LogIn, 
-  Mail, 
-  Lock, 
-  Chrome, 
-  ChevronRight, 
-  CloudUpload, 
-  BarChart3, 
-  Users, 
+import {
+  LogIn,
+  Mail,
+  Lock,
+  Chrome,
+  ChevronRight,
+  CloudUpload,
+  BarChart3,
+  Users,
   ShieldCheck,
   X
 } from "lucide-react";
@@ -24,7 +24,7 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [showResetModal, setShowResetModal] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
-  const [resetStatus, setResetStatus] = useState<{type: 'success' | 'error', msg: string} | null>(null);
+  const [resetStatus, setResetStatus] = useState<{ type: 'success' | 'error', msg: string } | null>(null);
   const [isResetting, setIsResetting] = useState(false);
 
   const handleResetPassword = async (e: React.FormEvent) => {
@@ -39,13 +39,13 @@ export default function LoginPage() {
         body: formData,
       });
       if (res.ok) {
-        setResetStatus({type: 'success', msg: "E-mail de recuperação enviado com sucesso!"});
+        setResetStatus({ type: 'success', msg: "E-mail de recuperação enviado com sucesso!" });
       } else {
         const data = await res.json();
-        setResetStatus({type: 'error', msg: data.detail || "Erro ao enviar e-mail."});
+        setResetStatus({ type: 'error', msg: data.detail || "Erro ao enviar e-mail." });
       }
     } catch (err) {
-      setResetStatus({type: 'error', msg: "Erro de conexão."});
+      setResetStatus({ type: 'error', msg: "Erro de conexão." });
     } finally {
       setIsResetting(false);
     }
@@ -137,7 +137,7 @@ export default function LoginPage() {
                 <label className="block text-sm font-semibold text-slate-700" htmlFor="password">
                   Senha
                 </label>
-                <button 
+                <button
                   type="button"
                   onClick={() => setShowResetModal(true)}
                   className="text-sm font-semibold text-gax-blue transition-colors hover:text-gax-blue-hover"
@@ -203,36 +203,36 @@ export default function LoginPage() {
             <span className="mr-2 flex h-2 w-2 rounded-full bg-white"></span>
             Plataforma Integração RSUS
           </div>
-          
+
           <h2 className="text-5xl font-black leading-tight text-white">
             Gestão de ponta a ponta para <span className="text-white/70">Arquivos XML.</span>
           </h2>
-          
+
           <p className="mt-6 text-xl leading-relaxed text-gax-blue-light/80">
-            Ganhe tempo e controle total com o melhor sistema de gestão para 
-            importação RSUS do Brasil. Potencialize seu faturamento com relatórios 
+            Ganhe tempo e controle total com o melhor sistema de gestão para
+            importação RSUS do Brasil. Potencialize seu faturamento com relatórios
             inteligentes e processamento automatizado.
           </p>
 
           <div className="mt-12 grid grid-cols-2 gap-6">
-            <FeatureCard 
-              icon={<CloudUpload size={24} />} 
-              title="Upload Inteligente" 
-              desc="Processamento em lote com limite de 5MB por arquivo."
+            <FeatureCard
+              icon={<CloudUpload size={24} />}
+              title="Upload Inteligente"
+              desc="Processamento individual ou em lote, fácil, rápido e sem complicações."
             />
-            <FeatureCard 
-              icon={<BarChart3 size={24} />} 
-              title="Acompanhamento Real" 
+            <FeatureCard
+              icon={<BarChart3 size={24} />}
+              title="Acompanhamento Real"
               desc="Monitore cada importação com progresso em tempo real."
             />
-            <FeatureCard 
-              icon={<Users size={24} />} 
-              title="Gestão de Clientes" 
+            <FeatureCard
+              icon={<Users size={24} />}
+              title="Gestão de Clientes"
               desc="Dados organizados e segmentados por cada cliente."
             />
-            <FeatureCard 
-              icon={<ShieldCheck size={24} />} 
-              title="Segurança GAX" 
+            <FeatureCard
+              icon={<ShieldCheck size={24} />}
+              title="Segurança GAX"
               desc="Tudo o que você precisa em uma plataforma única e segura."
             />
           </div>
@@ -245,14 +245,14 @@ export default function LoginPage() {
           <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-2xl animate-in zoom-in-95 duration-300">
             <div className="mb-6 flex items-center justify-between">
               <h3 className="text-xl font-bold text-slate-900">Recuperar Senha</h3>
-              <button 
+              <button
                 onClick={() => { setShowResetModal(false); setResetStatus(null); }}
                 className="text-slate-400 hover:text-slate-600"
               >
                 <X size={24} />
               </button>
             </div>
-            
+
             <p className="mb-6 text-sm text-slate-500">
               Digite seu e-mail abaixo. Se houver uma conta associada, enviaremos instruções para redefinir sua senha.
             </p>
