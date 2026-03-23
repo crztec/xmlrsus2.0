@@ -204,8 +204,9 @@ export default function DashboardPage() {
 
         <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-3">
           <div className="space-y-1">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">URL do Sistema RSUS</label>
+            <label htmlFor="rsusUrlInput" className="text-[10px] font-bold uppercase tracking-wider text-slate-400">URL do Sistema RSUS</label>
             <input 
+              id="rsusUrlInput"
               type="text" 
               placeholder="https://..." 
               value={rsusUrl}
@@ -214,8 +215,9 @@ export default function DashboardPage() {
             />
           </div>
           <div className="space-y-1">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Usuário</label>
+            <label htmlFor="rsusUserInput" className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Usuário</label>
             <input 
+              id="rsusUserInput"
               type="text" 
               placeholder="Digite seu login" 
               value={rsusUser}
@@ -224,8 +226,9 @@ export default function DashboardPage() {
             />
           </div>
           <div className="space-y-1">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Senha</label>
+            <label htmlFor="rsusPassInput" className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Senha</label>
             <input 
+              id="rsusPassInput"
               type="password" 
               placeholder="••••••••" 
               value={rsusPass}
@@ -297,9 +300,10 @@ export default function DashboardPage() {
                 </div>
                 <button 
                   onClick={() => removeFile(idx)}
-                  className="absolute -right-1 -top-1 hidden h-6 w-6 items-center justify-center rounded-full bg-white text-slate-400 shadow-sm transition-all hover:text-red-500 group-hover:flex"
+                  className="absolute -right-1 -top-1 hidden h-6 w-6 items-center justify-center rounded-full bg-white text-slate-400 shadow-sm transition-all hover:text-red-500 group-hover:flex focus-visible:ring-2 focus-visible:ring-red-200 outline-none"
+                  aria-label={`Remover arquivo ${file.name}`}
                 >
-                  <X size={14} />
+                  <X size={14} aria-hidden="true" />
                 </button>
               </div>
             ))}

@@ -1,5 +1,5 @@
-# Palette's Journal 🎨
+# Palette's UX Journal
 
-## 2026-03-20 - [Accessibility Gap in New Components]
-**Learning:** Newly implemented components for client management and XML data lacked basic ARIA labels and explicit form associations, making them less accessible for screen reader and keyboard users.
-**Action:** Consistently apply `aria-label`, `htmlFor`, and `id` in all interactive elements and forms. Ensure icon-only buttons are discoverable and labeled.
+## 2026-03-23 - Missing Input Links in React State Forms
+**Learning:** Found a specific pattern in this React application where Controlled Inputs (like `rsusUrl`, `rsusUser`) had labels, but they weren't programmatically linked via `htmlFor` and `id`. Also, icon buttons relying on hover states to appear were missing `aria-label`s.
+**Action:** When reviewing React forms with state-bound inputs, ensuring `htmlFor` and `id` matching is fully implemented, even if visual grouping using utility classes exists. Also, always add semantic `aria-label`s to dynamically visible icon-only buttons.
