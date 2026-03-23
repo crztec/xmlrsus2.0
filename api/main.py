@@ -73,6 +73,10 @@ async def health_check():
 @app.post("/login")
 async def login(email: str = Form(...), password: str = Form(...)):
     try:
+        # Diagnostic Log
+        if not auth.FIREBASE_API_KEY:
+            logger.error("FIREBASE_API_KEY não configurada no backend!")
+        
         user = auth.sign_in_with_email_and_password(email, password)
         
         # Injeta o perfil da base de dados (Role, Nome, Status) na resposta
@@ -85,6 +89,7 @@ async def login(email: str = Form(...), password: str = Form(...)):
         db.add_audit_log(email, "Login", "Usuário acessou o sistema com sucesso.", "INFO")
         return user
     except Exception as e:
+        logger.error(f"Erro de Login para {email}: {str(e)}")
         db.add_audit_log(email, "Tentativa de Login Falhou", str(e), "WARNING")
         raise HTTPException(status_code=401, detail=str(e))
 
