@@ -292,6 +292,14 @@ export default function XmlDataPage() {
                   </span>
                   <div className="flex gap-2">
                     <button 
+                      onClick={() => setCurrentPage(1)}
+                      disabled={currentPage === 1}
+                      className="px-4 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all font-sans focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
+                      aria-label="Primeira página"
+                    >
+                      Primeira
+                    </button>
+                    <button 
                       onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                       disabled={currentPage === 1}
                       className="px-4 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all font-sans focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
@@ -306,6 +314,14 @@ export default function XmlDataPage() {
                       aria-label="Próxima página"
                     >
                       Próxima
+                    </button>
+                    <button 
+                      onClick={() => setCurrentPage(totalPages)}
+                      disabled={currentPage === totalPages || totalPages === 0}
+                      className="px-4 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all font-sans focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
+                      aria-label="Última página"
+                    >
+                      Última
                     </button>
                   </div>
                 </div>
@@ -392,18 +408,34 @@ export default function XmlDataPage() {
                       </span>
                       <div className="flex gap-1">
                         <button 
+                          onClick={() => setModalPage(1)}
+                          disabled={modalPage === 1}
+                          className="px-3 py-1 rounded border border-slate-200 bg-white text-[10px] font-bold text-slate-600 disabled:opacity-30 hover:bg-slate-50 transition-colors"
+                          title="Primeira página"
+                        >
+                          &laquo;
+                        </button>
+                        <button 
                           onClick={() => setModalPage(p => Math.max(p - 1, 1))}
                           disabled={modalPage === 1}
-                          className="px-3 py-1 rounded border border-slate-200 bg-white text-[10px] font-bold text-slate-600 disabled:opacity-30"
+                          className="px-3 py-1 rounded border border-slate-200 bg-white text-[10px] font-bold text-slate-600 disabled:opacity-30 hover:bg-slate-50 transition-colors"
                         >
                           Ant.
                         </button>
                         <button 
                           onClick={() => setModalPage(p => Math.min(p + 1, totalModalPages))}
                           disabled={modalPage === totalModalPages}
-                          className="px-3 py-1 rounded border border-slate-200 bg-white text-[10px] font-bold text-slate-600 disabled:opacity-30"
+                          className="px-3 py-1 rounded border border-slate-200 bg-white text-[10px] font-bold text-slate-600 disabled:opacity-30 hover:bg-slate-50 transition-colors"
                         >
                           Próx.
+                        </button>
+                        <button 
+                          onClick={() => setModalPage(totalModalPages)}
+                          disabled={modalPage === totalModalPages || totalModalPages === 0}
+                          className="px-3 py-1 rounded border border-slate-200 bg-white text-[10px] font-bold text-slate-600 disabled:opacity-30 hover:bg-slate-50 transition-colors"
+                          title="Última página"
+                        >
+                          &raquo;
                         </button>
                       </div>
                     </div>

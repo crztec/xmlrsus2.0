@@ -131,18 +131,32 @@ export default function LogsPage() {
                   </span>
                   <div className="flex gap-2">
                     <button 
+                      onClick={() => setCurrentPage(1)}
+                      disabled={currentPage === 1}
+                      className="px-4 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all font-sans focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
+                    >
+                      Primeira
+                    </button>
+                    <button 
                       onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                       disabled={currentPage === 1}
-                      className="px-4 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all"
+                      className="px-4 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all font-sans focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
                     >
                       Anterior
                     </button>
                     <button 
                       onClick={() => setCurrentPage(prev => Math.min(prev + 1, Math.ceil(tasks.length / itemsPerPage)))}
                       disabled={currentPage === Math.ceil(tasks.length / itemsPerPage)}
-                      className="px-4 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all"
+                      className="px-4 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all font-sans focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
                     >
                       Próxima
+                    </button>
+                    <button 
+                      onClick={() => setCurrentPage(Math.max(1, Math.ceil(tasks.length / itemsPerPage)))}
+                      disabled={currentPage === Math.ceil(tasks.length / itemsPerPage) || tasks.length === 0}
+                      className="px-4 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all font-sans focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
+                    >
+                      Última
                     </button>
                   </div>
                 </div>
