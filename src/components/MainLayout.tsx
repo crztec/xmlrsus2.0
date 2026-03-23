@@ -22,8 +22,8 @@ const PAGE_METADATA: Record<string, { title: string; subtitle: string }> = {
     subtitle: "Logs de cada processamento realizado"
   },
   "/clients": {
-    title: "Clientes",
-    subtitle: "Clientes cadastrados no GAX"
+    title: "Clientes Cadastrados",
+    subtitle: "Lista de clientes detectados nos XMLs processados"
   },
   "/users": {
     title: "Gerenciamento de Usuários",
