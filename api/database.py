@@ -197,6 +197,40 @@ def update_user_profile(current_email, new_email, first_name, last_name, role=No
         logger.error(f"Failed to update user profile in Firestore: {e}")
         return False
 
+# --- VERIFICATION CODES ---
+def save_verification_code(email, code, action_type):
+    """Saves a 6-digit code for email/password change. Expires in 10 minutes."""
+    try:
+        expires_at = int((get_now_br() + timedelta(minutes=10)).timestamp())
+        firestore_db.collection('verification_codes').document(email).set({
+            'code': str(code),
+            'type': action_type,
+            'expires_at': expires_at
+        })
+        return True
+    except Exception as e:
+        logger.error(f"Failed to save verification code: {e}")
+        return False
+
+def verify_code(email, code, action_type):
+    """Checks if the code is valid for the given email and type."""
+    try:
+        doc_ref = firestore_db.collection('verification_codes').document(email)
+        doc = doc_ref.get()
+        if not doc.exists: return False
+        
+        data = doc.to_dict()
+        now_ts = int(get_now_br().timestamp())
+        
+        if data['code'] == str(code) and data['type'] == action_type and now_ts <= data['expires_at']:
+            # Deleta pós uso único
+            doc_ref.delete()
+            return True
+        return False
+    except Exception as e:
+        logger.error(f"Failed to verify code: {e}")
+        return False
+
 def get_user_profile(email):
     if not email: return None
     doc = firestore_db.collection('users').document(email).get()

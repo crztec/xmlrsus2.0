@@ -10,8 +10,10 @@ import api.auth as auth
 import api.parser as parser
 from playwright.async_api import async_playwright
 import tempfile
-import logging
 import sys
+import logging
+import random
+import api.email_utils as email_utils
 
 # Configure standard logging
 logging.basicConfig(level=logging.INFO, stream=sys.stdout, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -1247,3 +1249,58 @@ async def route_clear_audit_logs():
         db.add_audit_log("Admin/Sistema", "Limpar Logs de Auditoria", f"{count} registros foram excluídos manualmente.", "WARNING")
         return {"status": "success", "message": f"{count} logs deletados."}
     raise HTTPException(status_code=500, detail="Erro ao deletar auditoria")
+# --- USER PROFILE ENDPOINTS ---
+@app.get("/profile")
+async def route_get_profile(email: str):
+    profile = db.get_user_profile(email)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Perfil não encontrado.")
+    return profile
+
+@app.post("/profile/request-code")
+async def route_request_verification_code(email: str = Form(...), action_type: str = Form(...)):
+    """Generates and sends a 6-digit code to the user's email."""
+    code = random.randint(100000, 999999)
+    if db.save_verification_code(email, code, action_type):
+        # Envia e-mail de verdade (ou loga se SMTP não estiver configurado)
+        email_utils.send_verification_email(email, code, action_type)
+        return {"status": "success", "message": "Código enviado para seu e-mail."}
+    raise HTTPException(status_code=500, detail="Erro ao gerar código de verificação.")
+
+@app.post("/profile/update")
+async def route_update_profile(
+    current_email: str = Form(...),
+    first_name: str = Form(...),
+    last_name: str = Form(...),
+    new_email: Optional[str] = Form(None),
+    new_password: Optional[str] = Form(None),
+    code: Optional[str] = Form(None)
+):
+    """Updates profile. requires code if email or password is being changed."""
+    
+    # Se mudar e-mail ou senha, EXIGE código
+    needs_code = (new_email and new_email != current_email) or new_password
+    
+    if needs_code:
+        if not code:
+            raise HTTPException(status_code=400, detail="Código de verificação é obrigatório para estas alterações.")
+        
+        action_type = 'email_change' if (new_email and new_email != current_email) else 'password_change'
+        if not db.verify_code(current_email, code, action_type):
+            raise HTTPException(status_code=400, detail="Código inválido ou expirado.")
+
+    try:
+        # 1. Atualiza no Firebase Auth se necessário
+        if needs_code:
+            auth.update_user_credentials(current_email, new_email, new_password)
+            
+        # 2. Atualiza no Firestore
+        success = db.update_user_profile(current_email, new_email or current_email, first_name, last_name)
+        
+        if success:
+            db.add_audit_log(current_email, "Atualização de Perfil", f"Usuário alterou seus dados básicos.", "INFO")
+            return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+    raise HTTPException(status_code=500, detail="Erro ao atualizar perfil.")
