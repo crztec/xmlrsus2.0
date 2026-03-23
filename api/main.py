@@ -287,6 +287,16 @@ async def delete_user(user_email: str):
 
 @app.patch("/users/{user_email}")
 async def update_user(user_email: str, data: dict):
+    # Se uma nova senha for fornecida, atualiza no Firebase Auth
+    new_password = data.get("password")
+    if new_password and len(str(new_password).strip()) > 0:
+        try:
+            auth.update_user_credentials(user_email, new_password=new_password)
+            db.add_audit_log("Admin/Sistema", "Alteração de Senha (Admin)", f"Senha do usuário {user_email} alterada pelo administrador.", "WARNING")
+        except Exception as e:
+            logger.error(f"Erro ao atualizar senha via admin para {user_email}: {e}")
+            raise HTTPException(status_code=400, detail=f"Erro ao atualizar senha no Auth: {str(e)}")
+
     success = db.update_user_profile(
         user_email, 
         data.get("email"), 

@@ -9,6 +9,7 @@ interface User {
   last_name?: string;
   role: string;
   status: string;
+  password?: string;
 }
 
 export default function UsersPage() {
@@ -178,7 +179,7 @@ export default function UsersPage() {
                   <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-slate-400">Nome</label>
                   <input 
                     type="text" 
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm outline-none focus:border-gax-blue focus:bg-white focus:ring-4 focus:ring-gax-blue/10"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm outline-none focus:border-gax-blue focus:bg-white focus:ring-4 focus:ring-gax-blue/10 text-slate-700 font-medium"
                     value={selectedUser.first_name || ""}
                     onChange={(e) => setSelectedUser({...selectedUser, first_name: e.target.value})}
                   />
@@ -187,7 +188,7 @@ export default function UsersPage() {
                   <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-slate-400">Sobrenome</label>
                   <input 
                     type="text" 
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm outline-none focus:border-gax-blue focus:bg-white focus:ring-4 focus:ring-gax-blue/10"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm outline-none focus:border-gax-blue focus:bg-white focus:ring-4 focus:ring-gax-blue/10 text-slate-700 font-medium"
                     value={selectedUser.last_name || ""}
                     onChange={(e) => setSelectedUser({...selectedUser, last_name: e.target.value})}
                   />
@@ -198,7 +199,7 @@ export default function UsersPage() {
                 <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-slate-400">E-mail</label>
                 <input 
                   type="email" 
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm outline-none focus:border-gax-blue focus:bg-white focus:ring-4 focus:ring-gax-blue/10"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm outline-none focus:border-gax-blue focus:bg-white focus:ring-4 focus:ring-gax-blue/10 text-slate-700 font-medium"
                   value={selectedUser.email}
                   onChange={(e) => setSelectedUser({...selectedUser, email: e.target.value})}
                 />
@@ -207,7 +208,7 @@ export default function UsersPage() {
               <div>
                 <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-slate-400">Papel (Role)</label>
                 <select 
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm outline-none focus:border-gax-blue focus:bg-white focus:ring-4 focus:ring-gax-blue/10"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm outline-none focus:border-gax-blue focus:bg-white focus:ring-4 focus:ring-gax-blue/10 text-slate-700 font-medium"
                   value={selectedUser.role}
                   onChange={(e) => setSelectedUser({...selectedUser, role: e.target.value})}
                 >
@@ -219,13 +220,24 @@ export default function UsersPage() {
               <div>
                 <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-slate-400">Status</label>
                 <select 
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm outline-none focus:border-gax-blue focus:bg-white focus:ring-4 focus:ring-gax-blue/10"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm outline-none focus:border-gax-blue focus:bg-white focus:ring-4 focus:ring-gax-blue/10 text-slate-700 font-medium"
                   value={selectedUser.status}
                   onChange={(e) => setSelectedUser({...selectedUser, status: e.target.value})}
                 >
                   <option value="approved">Ativo</option>
                   <option value="pending">Pendente</option>
                 </select>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-slate-400">Nova Senha (Opcional)</label>
+                <input 
+                  type="password" 
+                  placeholder="Deixe em branco para não alterar"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm outline-none focus:border-gax-blue focus:bg-white focus:ring-4 focus:ring-gax-blue/10 text-slate-700 font-medium placeholder:text-slate-300"
+                  value={selectedUser.password || ""}
+                  onChange={(e) => setSelectedUser({...selectedUser, password: e.target.value})}
+                />
               </div>
 
               <div className="pt-4 flex gap-3">
