@@ -10,10 +10,8 @@ import api.auth as auth
 import api.parser as parser
 from playwright.async_api import async_playwright
 import tempfile
-import sys
 import logging
-import random
-import api.email_utils as email_utils
+import sys
 
 # Configure standard logging
 logging.basicConfig(level=logging.INFO, stream=sys.stdout, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -51,15 +49,7 @@ from fastapi.responses import JSONResponse
 async def global_exception_handler(request, exc):
     import traceback
     error_msg = traceback.format_exc()
-    logger.error(f"CRITICAL ERROR: {error_msg}")
-    
-    # Se for uma HTTPException, respeita o status_code dela
-    if isinstance(exc, HTTPException):
-        return JSONResponse(
-            status_code=exc.status_code,
-            content={"detail": str(exc.detail)}
-        )
-        
+    logging.error(f"CRITICAL ERROR: {error_msg}")
     return JSONResponse(
         status_code=500,
         content={"detail": str(exc)}
@@ -81,10 +71,6 @@ async def health_check():
 @app.post("/login")
 async def login(email: str = Form(...), password: str = Form(...)):
     try:
-        # Diagnostic Log
-        if not auth.FIREBASE_API_KEY:
-            logger.error("FIREBASE_API_KEY não configurada no backend!")
-        
         user = auth.sign_in_with_email_and_password(email, password)
         
         # Injeta o perfil da base de dados (Role, Nome, Status) na resposta
@@ -97,7 +83,6 @@ async def login(email: str = Form(...), password: str = Form(...)):
         db.add_audit_log(email, "Login", "Usuário acessou o sistema com sucesso.", "INFO")
         return user
     except Exception as e:
-        logger.error(f"Erro de Login para {email}: {str(e)}")
         db.add_audit_log(email, "Tentativa de Login Falhou", str(e), "WARNING")
         raise HTTPException(status_code=401, detail=str(e))
 

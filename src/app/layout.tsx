@@ -16,9 +16,9 @@ export const metadata: Metadata = {
   title: "GAX - Gestão de Arquivos XML",
   description: "Plataforma profissional de integração XML para o sistema RSUS",
   icons: {
-    icon: "/Imagens/favicon.png",
-    shortcut: "/Imagens/favicon.png",
-    apple: "/Imagens/favicon.png",
+    icon: "/favicon.png",
+    shortcut: "/favicon.png",
+    apple: "/favicon.png",
   },
   robots: {
     index: false,
