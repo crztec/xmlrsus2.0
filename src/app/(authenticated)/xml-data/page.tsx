@@ -11,6 +11,7 @@ import {
   XCircle, 
   ArrowLeft,
   Building2,
+  ChevronLeft,
   ChevronRight
 } from "lucide-react";
 
@@ -290,36 +291,37 @@ export default function XmlDataPage() {
                   <span className="text-xs text-slate-500 font-medium" aria-live="polite">
                     Mostrando {paginatedData.length} de {filteredData.length} registros (ABI/Arquivo)
                   </span>
-                  <div className="flex gap-2">
+                  <div className="flex items-center gap-2">
                     <button 
                       onClick={() => setCurrentPage(1)}
                       disabled={currentPage === 1}
                       className="px-4 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all font-sans focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
-                      aria-label="Primeira página"
                     >
                       Primeira
                     </button>
                     <button 
                       onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                       disabled={currentPage === 1}
-                      className="px-4 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all font-sans focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
+                      className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
                       aria-label="Página anterior"
                     >
-                      Anterior
+                      <ChevronLeft size={16} />
                     </button>
+                    <span className="text-xs font-bold text-slate-700 px-2">
+                      {currentPage} / {totalPages || 1}
+                    </span>
                     <button 
                       onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                      disabled={currentPage === totalPages}
-                      className="px-4 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all font-sans focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
+                      disabled={currentPage === totalPages || filteredData.length === 0}
+                      className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
                       aria-label="Próxima página"
                     >
-                      Próxima
+                      <ChevronRight size={16} />
                     </button>
                     <button 
                       onClick={() => setCurrentPage(totalPages)}
                       disabled={currentPage === totalPages || totalPages === 0}
                       className="px-4 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all font-sans focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
-                      aria-label="Última página"
                     >
                       Última
                     </button>
@@ -406,36 +408,41 @@ export default function XmlDataPage() {
                       <span className="text-[10px] text-slate-500 font-medium">
                         Pagina {modalPage} de {totalModalPages} ({fileDetails.length} itens)
                       </span>
-                      <div className="flex gap-1">
+                      <div className="flex items-center gap-2">
                         <button 
                           onClick={() => setModalPage(1)}
                           disabled={modalPage === 1}
-                          className="px-3 py-1 rounded border border-slate-200 bg-white text-[10px] font-bold text-slate-600 disabled:opacity-30 hover:bg-slate-50 transition-colors"
+                          className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-[10px] font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
                           title="Primeira página"
                         >
-                          &laquo;
+                          Primeira
                         </button>
                         <button 
                           onClick={() => setModalPage(p => Math.max(p - 1, 1))}
                           disabled={modalPage === 1}
-                          className="px-3 py-1 rounded border border-slate-200 bg-white text-[10px] font-bold text-slate-600 disabled:opacity-30 hover:bg-slate-50 transition-colors"
+                          className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
+                          aria-label="Anterior"
                         >
-                          Ant.
+                          <ChevronLeft size={14} />
                         </button>
+                        <span className="text-[10px] font-bold text-slate-700 px-2 leading-none">
+                          {modalPage} / {totalModalPages || 1}
+                        </span>
                         <button 
                           onClick={() => setModalPage(p => Math.min(p + 1, totalModalPages))}
-                          disabled={modalPage === totalModalPages}
-                          className="px-3 py-1 rounded border border-slate-200 bg-white text-[10px] font-bold text-slate-600 disabled:opacity-30 hover:bg-slate-50 transition-colors"
+                          disabled={modalPage === totalModalPages || fileDetails.length === 0}
+                          className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
+                          aria-label="Próxima"
                         >
-                          Próx.
+                          <ChevronRight size={14} />
                         </button>
                         <button 
                           onClick={() => setModalPage(totalModalPages)}
                           disabled={modalPage === totalModalPages || totalModalPages === 0}
-                          className="px-3 py-1 rounded border border-slate-200 bg-white text-[10px] font-bold text-slate-600 disabled:opacity-30 hover:bg-slate-50 transition-colors"
+                          className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-[10px] font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
                           title="Última página"
                         >
-                          &raquo;
+                          Última
                         </button>
                       </div>
                     </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { ClipboardList, History, FileCheck, AlertTriangle, Loader2 } from "lucide-react";
+import { ClipboardList, History, FileCheck, AlertTriangle, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 
 interface Task {
   id: string;
@@ -129,7 +129,7 @@ export default function LogsPage() {
                   <span className="text-xs text-slate-500 font-medium">
                     Mostrando {(currentPage - 1) * itemsPerPage + 1} a {Math.min(currentPage * itemsPerPage, tasks.length)} de {tasks.length} registros
                   </span>
-                  <div className="flex gap-2">
+                  <div className="flex items-center gap-2">
                     <button 
                       onClick={() => setCurrentPage(1)}
                       disabled={currentPage === 1}
@@ -140,16 +140,21 @@ export default function LogsPage() {
                     <button 
                       onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                       disabled={currentPage === 1}
-                      className="px-4 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all font-sans focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
+                      className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
+                      aria-label="Anterior"
                     >
-                      Anterior
+                      <ChevronLeft size={16} />
                     </button>
+                    <span className="text-xs font-bold text-slate-700 px-2">
+                      {currentPage} / {Math.ceil(tasks.length / itemsPerPage) || 1}
+                    </span>
                     <button 
                       onClick={() => setCurrentPage(prev => Math.min(prev + 1, Math.ceil(tasks.length / itemsPerPage)))}
-                      disabled={currentPage === Math.ceil(tasks.length / itemsPerPage)}
-                      className="px-4 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all font-sans focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
+                      disabled={currentPage === Math.ceil(tasks.length / itemsPerPage) || tasks.length === 0}
+                      className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
+                      aria-label="Próxima"
                     >
-                      Próxima
+                      <ChevronRight size={16} />
                     </button>
                     <button 
                       onClick={() => setCurrentPage(Math.max(1, Math.ceil(tasks.length / itemsPerPage)))}

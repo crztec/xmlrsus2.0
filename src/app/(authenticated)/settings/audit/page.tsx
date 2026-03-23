@@ -159,7 +159,7 @@ export default function AuditLogsPage() {
             <span className="text-xs text-slate-500 font-medium">
               Mostrando {(currentPage - 1) * itemsPerPage + 1} a {Math.min(currentPage * itemsPerPage, logs.length)} de {logs.length} registros
             </span>
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2">
               <button 
                 onClick={() => setCurrentPage(1)}
                 disabled={currentPage === 1}
@@ -170,16 +170,21 @@ export default function AuditLogsPage() {
               <button 
                 onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                 disabled={currentPage === 1}
-                className="px-4 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all font-sans focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
+                className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
+                aria-label="Anterior"
               >
-                Anterior
+                <ChevronLeft size={16} />
               </button>
+              <span className="text-xs font-bold text-slate-700 px-2">
+                {currentPage} / {totalPages || 1}
+              </span>
               <button 
                 onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                disabled={currentPage === totalPages}
-                className="px-4 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all font-sans focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
+                disabled={currentPage === totalPages || logs.length === 0}
+                className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
+                aria-label="Próxima"
               >
-                Próxima
+                <ChevronRight size={16} />
               </button>
               <button 
                 onClick={() => setCurrentPage(totalPages)}
