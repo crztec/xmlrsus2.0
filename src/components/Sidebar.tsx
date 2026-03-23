@@ -32,6 +32,7 @@ export default function Sidebar() {
   const pathname = usePathname();
   const isAdmin = true; // Placeholder para Role real
   const [branding, setBranding] = React.useState({ system_name: "GAX", logo_base64: "" });
+  const [isLoadingBranding, setIsLoadingBranding] = React.useState(true);
 
   React.useEffect(() => {
     fetch("/api/branding")
@@ -47,7 +48,8 @@ export default function Sidebar() {
           });
         }
       })
-      .catch(err => console.error("Erro ao carregar branding:", err));
+      .catch(err => console.error("Erro ao carregar branding:", err))
+      .finally(() => setIsLoadingBranding(false));
   }, []);
 
   return (
@@ -55,18 +57,27 @@ export default function Sidebar() {
       {/* Header Sidebar */}
       <div className="flex h-16 items-center border-b border-slate-100 px-6">
         <div className="flex items-center gap-2 overflow-hidden w-full">
-          {branding.logo_base64 ? (
-            <div className="h-8 w-8 overflow-hidden rounded-lg shrink-0">
-              <img src={branding.logo_base64} alt={`Logo ${branding.system_name}`} className="h-full w-full object-contain" />
+          {isLoadingBranding ? (
+            <div className="flex items-center gap-3 w-full animate-pulse">
+              <div className="h-8 w-8 rounded-lg bg-slate-200 shrink-0"></div>
+              <div className="h-4 w-24 rounded bg-slate-200"></div>
             </div>
           ) : (
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gax-blue text-white shrink-0" aria-hidden="true">
-              <CloudUpload size={18} />
-            </div>
+            <>
+              {branding.logo_base64 ? (
+                <div className="h-8 w-8 overflow-hidden rounded-lg shrink-0">
+                  <img src={branding.logo_base64} alt={`Logo ${branding.system_name}`} className="h-full w-full object-contain" />
+                </div>
+              ) : (
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gax-blue text-white shrink-0" aria-hidden="true">
+                  <CloudUpload size={18} />
+                </div>
+              )}
+              <span className="text-lg font-bold tracking-tight text-slate-800 truncate" title={branding.system_name}>
+                {branding.system_name}
+              </span>
+            </>
           )}
-          <span className="text-lg font-bold tracking-tight text-slate-800 truncate" title={branding.system_name}>
-            {branding.system_name}
-          </span>
         </div>
       </div>
 
