@@ -69,26 +69,43 @@ def extrair_dados_xml(arquivos_upload):
         try:
             root = ET.fromstring(conteudo_bytes)
             
-            def obter_texto(tag_nome):
-                # Busca insensível a maiúsculas/minúsculas para maior resiliência
-                for elem in root.iter():
-                    if elem.tag.split('}')[-1].lower() == tag_nome.lower():
-                        return elem.text if elem.text else ""
-                return ""
+            extracted_data = {}
+            competencias_list = []
             
-            num_abi = obter_texto("numeroABI")
-            razao_social = obter_texto("razaoSocial")
+            # Tags needed for extraction (lowercased for case-insensitive matching)
+            tags_of_interest = {
+                "numeroabi", "razaosocial", "datarecebimentooficio", 
+                "dataregistrotransacao", "valortotalprocesso", 
+                "quantidadeprocesso", "numeroprocesso", "competencia"
+            }
+            
+            expected_unique = 7 # We need 7 unique fields + up to 3 competencias
+            unique_found = 0
+            
+            # Single pass over the XML tree with early exit
+            for elem in root.iter():
+                tag = elem.tag
+                idx = tag.rfind('}')
+                tag_name = tag[idx+1:].lower() if idx != -1 else tag.lower()
+                
+                if tag_name in tags_of_interest:
+                    val = elem.text if elem.text else ""
+                    if tag_name == "competencia":
+                        if val and val not in competencias_list and len(competencias_list) < 3:
+                            competencias_list.append(val)
+                    elif tag_name not in extracted_data:
+                        extracted_data[tag_name] = val
+                        unique_found += 1
+                        
+                # Early exit if we found everything
+                if unique_found == expected_unique and len(competencias_list) >= 3:
+                    break
+            
+            num_abi = extracted_data.get("numeroabi", "")
+            razao_social = extracted_data.get("razaosocial", "")
             if not num_abi: continue 
             
-            competencias_list = []
-            for elem in root.iter():
-                if elem.tag.split('}')[-1] == "competencia":
-                    comp = elem.text
-                    if comp and comp not in competencias_list:
-                        competencias_list.append(comp)
-                        if len(competencias_list) == 3: break
-            
-            data_recebimento_str = obter_texto("dataRecebimentoOficio") or obter_texto("dataRegistroTransacao")
+            data_recebimento_str = extracted_data.get("datarecebimentooficio", "") or extracted_data.get("dataregistrotransacao", "")
             prazo_ans_str = ""
             
             if data_recebimento_str:
@@ -107,17 +124,17 @@ def extrair_dados_xml(arquivos_upload):
             # Formatações específicas para o Portal RSUS
             competencias_str = ", ".join(competencias_list)
             competencias_site = formatar_competencia_site(competencias_str)
-            valor_total = formatar_valor_monetario(obter_texto("valorTotalProcesso"))
+            valor_total = formatar_valor_monetario(extracted_data.get("valortotalprocesso", ""))
 
             dados_extraidos.append({
                 "Nome do Arquivo": nome_arq,
                 "Número ABI": num_abi,
                 "Razão Social": razao_social,
                 "Valor Total do Processo": valor_total,
-                "Quantidade de Processo": obter_texto("quantidadeProcesso"),
+                "Quantidade de Processo": extracted_data.get("quantidadeprocesso", ""),
                 "Datas de Competência": competencias_site,
-                "Número do Processo": obter_texto("numeroProcesso"),
-                "Data de Registro da Transação": obter_texto("dataRegistroTransacao"),
+                "Número do Processo": extracted_data.get("numeroprocesso", ""),
+                "Data de Registro da Transação": extracted_data.get("dataregistrotransacao", ""),
                 "Data Recebimento Ofício": data_recebimento_str,
                 "Prazo Resposta ANS": prazo_ans_str,
                 "conteudo_bytes": conteudo_bytes
