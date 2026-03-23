@@ -30,7 +30,7 @@ const menuItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const isAdmin = true; // Placeholder para Role real
+  const [isAdmin, setIsAdmin] = React.useState(false);
   const [branding, setBranding] = React.useState({ system_name: "GAX", logo_base64: "" });
   const [isLoadingBranding, setIsLoadingBranding] = React.useState(true);
   const [userName, setUserName] = React.useState("Usuário");
@@ -40,8 +40,10 @@ export default function Sidebar() {
     // Busca os dados do usuário logado na máquina
     const storedName = localStorage.getItem("gax_user_name");
     const storedEmail = localStorage.getItem("gax_user_email");
+    const storedRole = localStorage.getItem("gax_user_role");
     if (storedName) setUserName(storedName);
     if (storedEmail) setUserEmail(storedEmail);
+    if (storedRole === "admin") setIsAdmin(true);
   }, []);
 
   React.useEffect(() => {

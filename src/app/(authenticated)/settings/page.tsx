@@ -9,6 +9,12 @@ export default function SettingsPage() {
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
+    const role = localStorage.getItem("gax_user_role");
+    if (role !== "admin") {
+      window.location.href = "/dashboard";
+      return;
+    }
+    
     fetch("/api/branding")
       .then(res => res.json())
       .then(data => {

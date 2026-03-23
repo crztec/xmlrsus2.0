@@ -72,6 +72,14 @@ async def health_check():
 async def login(email: str = Form(...), password: str = Form(...)):
     try:
         user = auth.sign_in_with_email_and_password(email, password)
+        
+        # Injeta o perfil da base de dados (Role, Nome, Status) na resposta
+        user_profile = db.get_user_profile(email)
+        if user_profile:
+            user["role"] = user_profile.get("role", "user")
+            user["first_name"] = user_profile.get("first_name", "")
+            user["last_name"] = user_profile.get("last_name", "")
+            
         db.add_audit_log(email, "Login", "Usuário acessou o sistema com sucesso.", "INFO")
         return user
     except Exception as e:

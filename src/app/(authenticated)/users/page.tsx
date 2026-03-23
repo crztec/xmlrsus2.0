@@ -32,6 +32,11 @@ export default function UsersPage() {
   };
 
   useEffect(() => {
+    const role = localStorage.getItem("gax_user_role");
+    if (role !== "admin") {
+      window.location.href = "/dashboard";
+      return;
+    }
     fetchUsers();
   }, []);
 

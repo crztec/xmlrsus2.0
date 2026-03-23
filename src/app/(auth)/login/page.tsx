@@ -70,6 +70,7 @@ export default function LoginPage() {
       if (res.ok) {
         localStorage.setItem("gax_user_email", email);
         localStorage.setItem("gax_user_name", data?.first_name || email.split('@')[0]);
+        localStorage.setItem("gax_user_role", data?.role || "user");
         window.location.href = "/";
       } else {
         setError(data.detail || "Falha no login. Verifique suas credenciais.");

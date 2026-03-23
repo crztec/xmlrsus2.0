@@ -21,6 +21,11 @@ export default function AuditLogsPage() {
   const itemsPerPage = 15;
 
   useEffect(() => {
+    const role = localStorage.getItem("gax_user_role");
+    if (role !== "admin") {
+      window.location.href = "/dashboard";
+      return;
+    }
     fetchLogs();
   }, []);
 
