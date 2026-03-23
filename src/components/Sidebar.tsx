@@ -297,6 +297,8 @@ export default function Sidebar() {
                     <Key className="absolute left-3 top-2.5 text-slate-300" size={16} />
                     <input 
                       type="password"
+                      id="gax-new-password-field"
+                      name="password_new_null"
                       placeholder="mínimo 6 caracteres"
                       autoComplete="new-password"
                       value={profileForm.new_password}
@@ -341,6 +343,7 @@ export default function Sidebar() {
                         if (res.ok) {
                           setShowCodeField(true);
                           setResendTimer(30);
+                          setProfileForm(prev => ({ ...prev, code: "" }));
                           setStatusMsg({ type: "success", text: "Código enviado para " + userEmail });
                         } else {
                           setStatusMsg({ type: "error", text: data.detail || "Erro ao solicitar código." });
@@ -386,6 +389,7 @@ export default function Sidebar() {
                               const data = await res.json();
                               if (res.ok) {
                                 setResendTimer(30);
+                                setProfileForm(prev => ({ ...prev, code: "" }));
                                 setStatusMsg({ type: "success", text: "Novo código enviado!" });
                               } else {
                                 setStatusMsg({ type: "error", text: data.detail || "Erro ao reenviar." });
@@ -442,12 +446,9 @@ export default function Sidebar() {
                         localStorage.setItem("gax_user_email", profileForm.new_email);
                         setUserEmail(profileForm.new_email);
                       }
-                      setTimeout(() => {
-                        setIsProfileModalOpen(false);
-                        setShowCodeField(false);
-                        setStatusMsg({ type: "", text: "" });
-                        setProfileForm(prev => ({ ...prev, new_email: "", new_password: "", current_password: "", code: "" }));
-                      }, 2000);
+                      // Limpa campos sensíveis mas mantém a modal aberta
+                      setProfileForm(prev => ({ ...prev, new_email: "", new_password: "", current_password: "", code: "" }));
+                      setShowCodeField(false);
                     } else {
                       setStatusMsg({ type: "error", text: data.detail || "Erro ao atualizar perfil." });
                     }
