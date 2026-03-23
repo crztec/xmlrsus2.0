@@ -125,7 +125,7 @@ export default function XmlDataPage() {
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Dados XML</h1>
-          <p className="text-sm text-slate-500">Selecione um cliente para visualizar as ABIs</p>
+          <p className="text-sm text-slate-500">Selecione um cliente para visualizar os ABIs</p>
         </div>
 
         <div className="relative max-w-md">
@@ -266,7 +266,7 @@ export default function XmlDataPage() {
                             onClick={() => handleViewDetails(xml)}
                             className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-100 bg-white text-slate-400 hover:border-gax-blue/30 hover:text-gax-blue shadow-sm transition-all focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
                             title="Ver Detalhes"
-                            aria-label={`Ver detalhes da ABI ${xml.abi}`}
+                            aria-label={`Ver detalhes do ABI ${xml.abi}`}
                           >
                             <Eye size={14} aria-hidden="true" />
                           </button>
@@ -274,7 +274,7 @@ export default function XmlDataPage() {
                             onClick={() => handleExportFile(xml.id)}
                             className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-100 bg-white text-slate-400 hover:border-gax-blue/30 hover:text-gax-blue shadow-sm transition-all focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
                             title="Baixar Excel deste Item"
-                            aria-label={`Baixar Excel da ABI ${xml.abi}`}
+                            aria-label={`Baixar Excel do ABI ${xml.abi}`}
                           >
                             <Download size={14} aria-hidden="true" />
                           </button>
@@ -342,7 +342,7 @@ export default function XmlDataPage() {
           <div className="w-full max-w-5xl max-h-[90vh] flex flex-col rounded-2xl bg-white shadow-2xl animate-in zoom-in-95 duration-300">
             <div className="flex items-center justify-between border-b border-slate-100 p-6">
               <div>
-                <h3 id="details-modal-title" className="text-xl font-bold text-slate-900">Detalhes do Faturamento</h3>
+                <h3 id="details-modal-title" className="text-xl font-bold text-slate-900">Detalhes do ABI</h3>
                 <p className="text-sm text-slate-500">ABI: {selectedFile?.abi} | {selectedFile?.client}</p>
               </div>
               <div className="flex items-center gap-4">
@@ -402,7 +402,7 @@ export default function XmlDataPage() {
                   </div>
 
                   {totalModalPages > 1 && (
-                    <div className="flex items-center justify-between border-t border-slate-50 bg-slate-50/20 px-4 py-3 rounded-b-xl border border-slate-200 border-t-0">
+                    <div className="flex items-center justify-between border-t border-slate-50 bg-slate-50/20 px-4 py-3">
                       <span className="text-[10px] text-slate-500 font-medium">
                         Pagina {modalPage} de {totalModalPages} ({fileDetails.length} itens)
                       </span>

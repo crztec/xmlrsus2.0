@@ -18,7 +18,7 @@ export default function AuditLogsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isClearing, setIsClearing] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 15;
+  const itemsPerPage = 10;
 
   useEffect(() => {
     const role = localStorage.getItem("gax_user_role");
@@ -155,41 +155,38 @@ export default function AuditLogsPage() {
         </div>
         
         {totalPages > 1 && (
-          <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/50 px-6 py-3">
-            <span className="text-xs text-slate-500">
-              Mostrando {((currentPage - 1) * itemsPerPage) + 1} a {Math.min(currentPage * itemsPerPage, logs.length)} de {logs.length} registros
+          <div className="flex items-center justify-between border-t border-slate-50 bg-slate-50/30 px-6 py-4">
+            <span className="text-xs text-slate-500 font-medium">
+              Mostrando {(currentPage - 1) * itemsPerPage + 1} a {Math.min(currentPage * itemsPerPage, logs.length)} de {logs.length} registros
             </span>
-            <div className="flex items-center gap-2">
+            <div className="flex gap-2">
               <button 
                 onClick={() => setCurrentPage(1)}
                 disabled={currentPage === 1}
-                className="rounded-lg p-2 text-slate-400 hover:bg-slate-200 hover:text-slate-700 disabled:opacity-50"
+                className="px-4 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all font-sans focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
               >
-                <span className="text-xs font-bold px-1">Primeira</span>
+                Primeira
               </button>
               <button 
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                 disabled={currentPage === 1}
-                className="rounded-lg p-2 text-slate-400 hover:bg-slate-200 hover:text-slate-700 disabled:opacity-50"
+                className="px-4 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all font-sans focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
               >
-                <ChevronLeft size={16} />
+                Anterior
               </button>
-              <span className="text-xs font-bold text-slate-700 px-2">
-                {currentPage} / {totalPages}
-              </span>
               <button 
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                 disabled={currentPage === totalPages}
-                className="rounded-lg p-2 text-slate-400 hover:bg-slate-200 hover:text-slate-700 disabled:opacity-50"
+                className="px-4 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all font-sans focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
               >
-                <ChevronRight size={16} />
+                Próxima
               </button>
               <button 
                 onClick={() => setCurrentPage(totalPages)}
-                disabled={currentPage === totalPages}
-                className="rounded-lg p-2 text-slate-400 hover:bg-slate-200 hover:text-slate-700 disabled:opacity-50"
+                disabled={currentPage === totalPages || totalPages === 0}
+                className="px-4 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all font-sans focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
               >
-                <span className="text-xs font-bold px-1">Última</span>
+                Última
               </button>
             </div>
           </div>

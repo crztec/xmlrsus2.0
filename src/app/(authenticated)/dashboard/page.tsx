@@ -400,12 +400,12 @@ export default function DashboardPage() {
             <div className="border-b border-slate-100 bg-slate-50/50 p-6">
               <div className="flex items-center gap-3 text-amber-600">
                 <AlertCircle size={24} />
-                <h4 className="text-lg font-bold">ABIs já importadas</h4>
+                <h4 className="text-lg font-bold">ABIs já importados</h4>
               </div>
             </div>
             <div className="p-6">
               <p className="mb-4 text-sm text-slate-600">
-                Identificamos que as seguintes ABIs já foram enviadas com sucesso anteriormente:
+                Identificamos que os seguintes ABIs já foram enviados com sucesso anteriormente:
               </p>
               <div className="mb-6 flex flex-wrap gap-2">
                 {duplicates.map(abi => (
