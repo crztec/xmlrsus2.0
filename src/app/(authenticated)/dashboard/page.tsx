@@ -153,6 +153,7 @@ export default function DashboardPage() {
     formData.append("url_sistema", rsusUrl);
     formData.append("usuario", rsusUser);
     formData.append("senha", rsusPass);
+    formData.append("gax_user_email", localStorage.getItem("gax_user_email") || "Admin/Sistema");
     if (force) formData.append("force", "true");
 
     try {

@@ -33,6 +33,16 @@ export default function Sidebar() {
   const isAdmin = true; // Placeholder para Role real
   const [branding, setBranding] = React.useState({ system_name: "GAX", logo_base64: "" });
   const [isLoadingBranding, setIsLoadingBranding] = React.useState(true);
+  const [userName, setUserName] = React.useState("Usuário");
+  const [userEmail, setUserEmail] = React.useState("carregando...");
+
+  React.useEffect(() => {
+    // Busca os dados do usuário logado na máquina
+    const storedName = localStorage.getItem("gax_user_name");
+    const storedEmail = localStorage.getItem("gax_user_email");
+    if (storedName) setUserName(storedName);
+    if (storedEmail) setUserEmail(storedEmail);
+  }, []);
 
   React.useEffect(() => {
     fetch("/api/branding")
@@ -125,11 +135,11 @@ export default function Sidebar() {
       <div className="border-t border-slate-100 p-4">
         <div className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/50 p-2 text-left transition-colors hover:bg-slate-50">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-200 text-slate-500 font-bold text-xs uppercase" aria-hidden="true">
-            V
+            {userName ? userName.charAt(0) : "U"}
           </div>
           <div className="flex-1 overflow-hidden">
-            <p className="truncate text-xs font-bold text-slate-900">Victor</p>
-            <p className="truncate text-[10px] text-slate-500">victor@cubeti.com.br</p>
+            <p className="truncate text-xs font-bold text-slate-900">{userName}</p>
+            <p className="truncate text-[10px] text-slate-500">{userEmail}</p>
           </div>
           <button 
             onClick={() => {

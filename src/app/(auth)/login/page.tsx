@@ -66,11 +66,12 @@ export default function LoginPage() {
         body: formData,
       });
 
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        // Simple success handling - ideally we'd store a token/cookie
+        localStorage.setItem("gax_user_email", email);
+        localStorage.setItem("gax_user_name", data?.first_name || email.split('@')[0]);
         window.location.href = "/";
       } else {
-        const data = await res.json();
         setError(data.detail || "Falha no login. Verifique suas credenciais.");
       }
     } catch (err: any) {

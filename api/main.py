@@ -1152,6 +1152,7 @@ async def upload_xmls(
     url_sistema: str = Form(...),
     usuario: str = Form(...),
     senha: str = Form(...),
+    gax_user_email: str = Form("Admin/Sistema"),
     force: bool = Form(False)
 ):
     if not files:
@@ -1212,7 +1213,7 @@ async def upload_xmls(
     background_tasks.add_task(background_worker_task, task_id, url_sistema, force)
 
     # Audita a importação
-    db.add_audit_log(usuario, "Upload e Importação", f"Iniciou a fila de importação para a empresa '{razao_social}' no portal alvo: {url_sistema}", "INFO")
+    db.add_audit_log(gax_user_email, "Upload e Importação", f"Iniciou a fila de importação para a empresa '{razao_social}' no portal alvo: {url_sistema}", "INFO")
 
     return {
         "message": f"{len(files)} arquivos recebidos. O robô iniciará o preenchimento no RSUS em instantes.",
