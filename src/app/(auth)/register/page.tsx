@@ -57,7 +57,9 @@ export default function RegisterPage() {
         }, 3000);
       } else {
         const errData = await res.json();
-        setError(errData.detail || "Erro ao criar conta.");
+        const errorDetail = errData.detail;
+        const msg = typeof errorDetail === 'string' ? errorDetail : JSON.stringify(errorDetail);
+        setError(msg || "Erro ao criar conta.");
       }
     } catch (err) {
       setError("Erro de conexão com o servidor.");

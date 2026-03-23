@@ -42,7 +42,9 @@ export default function LoginPage() {
         setResetStatus({ type: 'success', msg: "E-mail de recuperação enviado com sucesso!" });
       } else {
         const data = await res.json();
-        setResetStatus({ type: 'error', msg: data.detail || "Erro ao enviar e-mail." });
+        const errorDetail = data.detail;
+        const msg = typeof errorDetail === 'string' ? errorDetail : JSON.stringify(errorDetail);
+        setResetStatus({ type: 'error', msg: msg || "Erro ao enviar e-mail." });
       }
     } catch (err) {
       setResetStatus({ type: 'error', msg: "Erro de conexão." });
@@ -73,7 +75,9 @@ export default function LoginPage() {
         localStorage.setItem("gax_user_role", data?.role || "user");
         window.location.href = "/";
       } else {
-        setError(data.detail || "Falha no login. Verifique suas credenciais.");
+        const errorDetail = data.detail;
+        const msg = typeof errorDetail === 'string' ? errorDetail : JSON.stringify(errorDetail);
+        setError(msg || "Falha no login. Verifique suas credenciais.");
       }
     } catch (err: any) {
       setError("Erro de conexão com o servidor.");

@@ -382,22 +382,24 @@ export default function Sidebar() {
                             setStatusMsg({ type: "", text: "" });
                             try {
                               const type = profileForm.new_email ? 'email_change' : 'password_change';
-                              const body = new FormData();
-                              body.append("email", userEmail);
-                              body.append("action_type", type);
-                              const res = await fetch("/api/profile/request-code", { method: "POST", body });
-                              const data = await res.json();
-                              if (res.ok) {
-                                setResendTimer(30);
-                                setProfileForm(prev => ({ ...prev, code: "" }));
-                                setStatusMsg({ type: "success", text: "Novo código enviado!" });
-                              } else {
-                                setStatusMsg({ type: "error", text: data.detail || "Erro ao reenviar." });
-                              }
+                               const body = new FormData();
+                               body.append("email", userEmail);
+                               body.append("action_type", type);
+                               const res = await fetch("/api/profile/request-code", { method: "POST", body });
+                               const data = await res.json();
+                               if (res.ok) {
+                                 setResendTimer(30);
+                                 setProfileForm(prev => ({ ...prev, code: "" }));
+                                 setStatusMsg({ type: "success", text: "Novo código enviado!" });
+                               } else {
+                                 const errDetail = data.detail;
+                                 const msg = typeof errDetail === 'string' ? errDetail : JSON.stringify(errDetail);
+                                 setStatusMsg({ type: "error", text: msg || "Erro ao reenviar." });
+                               }
                             } catch (err) {
-                              setStatusMsg({ type: "error", text: "Erro de rede." });
+                               setStatusMsg({ type: "error", text: "Erro de rede." });
                             } finally {
-                              setIsRequestingCode(false);
+                               setIsRequestingCode(false);
                             }
                           }}
                           className="text-[10px] font-bold text-gax-blue hover:underline uppercase tracking-tighter"
@@ -450,7 +452,8 @@ export default function Sidebar() {
                       setProfileForm(prev => ({ ...prev, new_email: "", new_password: "", current_password: "", code: "" }));
                       setShowCodeField(false);
                     } else {
-                      setStatusMsg({ type: "error", text: data.detail || "Erro ao atualizar perfil." });
+                      const msg = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
+                      setStatusMsg({ type: "error", text: msg || "Erro ao atualizar perfil." });
                     }
                   } catch (err) {
                     setStatusMsg({ type: "error", text: "Erro na rede ao atualizar perfil." });
