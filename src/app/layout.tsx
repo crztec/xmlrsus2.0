@@ -13,8 +13,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "GAX | Integração RSUS 2.0",
+  title: "GAX - Gestão de Arquivos XML",
   description: "Plataforma profissional de integração XML para o sistema RSUS",
+  icons: {
+    icon: "/Imagens/favicon.png",
+    shortcut: "/Imagens/favicon.png",
+    apple: "/Imagens/favicon.png",
+  },
   robots: {
     index: false,
     follow: false,

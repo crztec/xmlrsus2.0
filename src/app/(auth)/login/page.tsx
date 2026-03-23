@@ -89,8 +89,8 @@ export default function LoginPage() {
         <div className="mx-auto w-full max-w-md">
           {/* Logo Placeholder */}
           <div className="mb-10 flex items-center gap-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gax-blue text-white shadow-sm">
-              <CloudUpload size={24} />
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg overflow-hidden bg-white shadow-sm border border-slate-100">
+              <img src="/Imagens/Glogo.png" alt="GAX Logo" className="h-full w-full object-contain" />
             </div>
             <span className="text-xl font-bold tracking-tight text-slate-800">GAX - Gestão de Arquivos XML</span>
           </div>
