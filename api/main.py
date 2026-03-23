@@ -793,13 +793,23 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                             db.add_log(task_id, "INFO", "Enviando dados para processamento final no portal...")
                             
                             # Interceptor para capturar o erro 400 do portal
+                            intercepted_portal_error = {"text": ""}
                             async def catch_import_error(response):
                                 if "importacao" in response.url.lower() and response.status == 400:
                                     try:
                                         body = await response.text()
-                                        # Loga o erro completo para debug (importante para o erro de 'null id in entry')
-                                        db.add_log(task_id, "ERROR", f"ERRO PORTAL (400): {body}")
-                                    except: pass
+                                        import json
+                                        data = json.loads(body)
+                                        erros_list = data.get("exception", {}).get("mensagens", [])
+                                        msg_code = data.get("msg", "")
+                                        if "SIS00121" in msg_code or any("cadastrada" in msg.lower() for msg in erros_list):
+                                            erro_limpo = " ".join(erros_list) if erros_list else "ABI já cadastrada."
+                                            intercepted_portal_error["text"] = erro_limpo
+                                            db.add_log(task_id, "WARNING", f"Portal rejeitou: {erro_limpo}")
+                                        else:
+                                            db.add_log(task_id, "ERROR", f"ERRO PORTAL (400): {body}")
+                                    except:
+                                        pass
                             
                             page.on("response", catch_import_error)
 
@@ -843,24 +853,26 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                             if not success_click:
                                 db.add_log(task_id, "ERROR", "Não foi possível clicar em IMPORTAR ARQUIVO.")
                             else:
-                                # ─── NOVO: Lida com Modal de Confirmação (AngularJS) ───
-                                # Alguns portais abrem um modal 'Deseja realmente importar?' após o clique no botão superior
+                                # ─── NOVO: Lida com Modal de Confirmação ou Erro Imediato (AngularJS) ───
                                 await asyncio.sleep(1)
                                 try:
-                                    confirm_selectors = [
-                                        "button:has-text('Sim')", 
-                                        "button:has-text('SIM')", 
-                                        "a:has-text('Sim')",
-                                        ".modal-footer button.btn-primary", # Padrão Bootstrap/Angular
-                                        ".btn-footer:has-text('Sim')",
-                                        "button:contains('Sim')"
-                                    ]
-                                    for sel_conf in confirm_selectors:
-                                        btn_conf = page.locator(sel_conf).first
-                                        if await btn_conf.is_visible(timeout=5000):
-                                            db.add_log(task_id, "INFO", f"Modal de confirmação detectado ({sel_conf}). Clicando em SIM...")
-                                            await btn_conf.click(force=True)
-                                            break
+                                    # Procura botões de Sim/Não (Confirmação) ou Ok (Erro)
+                                    btn_sim = page.locator("button:has-text('Sim'), button:has-text('SIM'), a:has-text('Sim'), .btn-footer:has-text('Sim')").first
+                                    btn_ok = page.locator("button:has-text('Ok'), button:has-text('OK'), a:has-text('Ok')").first
+                                    
+                                    if await btn_ok.is_visible(timeout=3000):
+                                        db.add_log(task_id, "INFO", "Modal de aviso/erro detectado. Fechando (Ok)...")
+                                        await btn_ok.click(force=True)
+                                    elif await btn_sim.is_visible(timeout=1000):
+                                        db.add_log(task_id, "INFO", "Modal de confirmação detectado. Clicando em SIM...")
+                                        await btn_sim.click(force=True)
+                                    else:
+                                        # Fallback para o modal-primary, mas verificando o texto para não fechar erros cego:
+                                        generic_btn = page.locator(".modal-footer button.btn-primary").first
+                                        if await generic_btn.is_visible(timeout=1000):
+                                            btn_text = await generic_btn.inner_text()
+                                            db.add_log(task_id, "INFO", f"Modal dinâmico detectado ({btn_text}). Clicando...")
+                                            await generic_btn.click(force=True)
                                 except: pass
                                 
                                 # ─── ETAPA 6: Aguardar confirmação do portal ───
@@ -868,11 +880,22 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                                 status_final_abi = "ERROR"
                                 msg_feedback = ""
                                 
+                                # Se o erro já foi capturado pelo interceptor de rede, não precisa esperar 60s
+                                if intercepted_portal_error["text"]:
+                                    status_final_abi = "ERROR"
+                                    msg_feedback = intercepted_portal_error["text"]
+                                    db.add_log(task_id, "ERROR", f"Portal recusou importação (Interceptado via Rede): {msg_feedback[:150]}")
+                                    # Zera a variável para usar o fallback de UI logo abaixo a fim de fechar a modal e passar ao próximo
+                                    check_round_limit = 5 # Apenas dá um tempo rápido para a UI estabilizar
+                                
+                                else:
+                                    check_round_limit = 120
+                                
                                 # Seletor expandido de mensagens (inclui toasts, alertas do navegador e mensagens de sistema)
                                 msg_selectors = ".header-message-top, .browseralert, .modal-content, .alert, .alert-success, .alert-danger, .alert-warning, .alert-info, .toast, .notification, .toast-message, #_browseralert, .help-block"
                                 
                                 # Verifica por até 60 segundos com maior frequência (0.5s) para capturar mensagens transientes
-                                for check_round in range(120):
+                                for check_round in range(check_round_limit):
                                     try:
                                         # Busca qualquer mensagem visível
                                         msgs = page.locator(msg_selectors)
@@ -883,7 +906,7 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                                                 msg_text = (await msg_el.inner_text()).strip()
                                                 if not msg_text: continue
                                                 
-                                                db.add_log(task_id, "DEBUG", f"Mensagem detectada: '{msg_text[:140]}'")
+                                                db.add_log(task_id, "DEBUG", f"Mensagem detectada da UI: '{msg_text[:140]}'")
                                                 
                                                 if any(key in msg_text.lower() for key in ["sucesso", "importad", "concluíd", "enviado"]):
                                                     db.add_log(task_id, "SUCCESS", "Importação confirmada com sucesso pelo portal.")
@@ -891,12 +914,13 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                                                     msg_feedback = msg_text
                                                     break
                                                 elif any(key in msg_text.lower() for key in ["erro", "inválid", "rejeitad", "não encontrado", "sis00", "falhou"]):
-                                                    db.add_log(task_id, "ERROR", f"Portal recusou importação: {msg_text[:150]}")
-                                                    status_final_abi = "ERROR"
-                                                    msg_feedback = msg_text
+                                                    if not intercepted_portal_error["text"]:
+                                                        db.add_log(task_id, "ERROR", f"Portal recusou importação: {msg_text[:150]}")
+                                                        status_final_abi = "ERROR"
+                                                        msg_feedback = msg_text
                                                     break
                                         
-                                        if status_final_abi == "SUCCESS" or (status_final_abi == "ERROR" and msg_feedback):
+                                        if status_final_abi == "SUCCESS" or (status_final_abi == "ERROR" and msg_feedback and not intercepted_portal_error["text"]):
                                             break
                                             
                                         # Se a URL mudar para a lista, assume que terminou
