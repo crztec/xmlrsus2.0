@@ -15,6 +15,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "GAX | Integração RSUS 2.0",
   description: "Plataforma profissional de integração XML para o sistema RSUS",
+  robots: {
+    index: false,
+    follow: false,
+  },
 };
 
 export default function RootLayout({
