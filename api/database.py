@@ -199,9 +199,9 @@ def update_user_profile(current_email, new_email, first_name, last_name, role=No
 
 # --- VERIFICATION CODES ---
 def save_verification_code(email, code, action_type):
-    """Saves a 6-digit code for email/password change. Expires in 10 minutes."""
+    """Saves a 6-digit code for email/password change. Expires in 1 minute."""
     try:
-        expires_at = int((get_now_br() + timedelta(minutes=10)).timestamp())
+        expires_at = int((get_now_br() + timedelta(minutes=1)).timestamp())
         firestore_db.collection('verification_codes').document(email).set({
             'code': str(code),
             'type': action_type,

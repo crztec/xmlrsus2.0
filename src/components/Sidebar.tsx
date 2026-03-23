@@ -17,7 +17,8 @@ import {
   Mail,
   Key,
   Shield,
-  Loader2
+  Loader2,
+  X
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -51,7 +52,18 @@ export default function Sidebar() {
   });
   const [isRequestingCode, setIsRequestingCode] = React.useState(false);
   const [showCodeField, setShowCodeField] = React.useState(false);
+  const [resendTimer, setResendTimer] = React.useState(0);
   const [statusMsg, setStatusMsg] = React.useState({ type: "", text: "" });
+
+  React.useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (resendTimer > 0) {
+      interval = setInterval(() => {
+        setResendTimer(prev => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [resendTimer]);
 
   React.useEffect(() => {
     // Busca os dados do usuário logado na máquina
@@ -217,11 +229,12 @@ export default function Sidebar() {
                   setIsProfileModalOpen(false);
                   setShowCodeField(false);
                   setStatusMsg({ type: "", text: "" });
+                  setResendTimer(0);
                 }}
                 className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
                 aria-label="Fechar"
               >
-                <ChevronLeft className="rotate-180" size={20} />
+                <X size={20} />
               </button>
             </div>
 
@@ -306,6 +319,7 @@ export default function Sidebar() {
                         
                         if (res.ok) {
                           setShowCodeField(true);
+                          setResendTimer(30);
                           setStatusMsg({ type: "success", text: "Código enviado para " + userEmail });
                         } else {
                           setStatusMsg({ type: "error", text: data.detail || "Erro ao solicitar código." });
@@ -324,7 +338,7 @@ export default function Sidebar() {
                 )}
 
                 {showCodeField && (
-                  <div className="space-y-1.5 animate-in slide-in-from-bottom-2">
+                  <div className="space-y-3 animate-in slide-in-from-bottom-2">
                     <label className="text-[11px] font-bold uppercase tracking-wider text-gax-blue ml-1 italic text-center block">Digite o código de 6 dígitos enviado ao seu e-mail</label>
                     <input 
                       type="text"
@@ -334,6 +348,39 @@ export default function Sidebar() {
                       onChange={e => setProfileForm({...profileForm, code: e.target.value.replace(/\D/g, "")})}
                       className="w-full rounded-lg border-2 border-gax-blue/30 bg-white px-3 py-3 text-center text-xl font-bold tracking-[0.5em] focus:border-gax-blue focus:outline-none focus:ring-4 focus:ring-gax-blue/10 transition-all text-slate-800"
                     />
+                    <div className="flex justify-center">
+                      {resendTimer > 0 ? (
+                        <p className="text-[10px] text-slate-400 font-medium italic">Reenviar código em {resendTimer}s</p>
+                      ) : (
+                        <button
+                          onClick={async () => {
+                            setIsRequestingCode(true);
+                            setStatusMsg({ type: "", text: "" });
+                            try {
+                              const type = profileForm.new_email ? 'email_change' : 'password_change';
+                              const body = new FormData();
+                              body.append("email", userEmail);
+                              body.append("action_type", type);
+                              const res = await fetch("/api/profile/request-code", { method: "POST", body });
+                              const data = await res.json();
+                              if (res.ok) {
+                                setResendTimer(30);
+                                setStatusMsg({ type: "success", text: "Novo código enviado!" });
+                              } else {
+                                setStatusMsg({ type: "error", text: data.detail || "Erro ao reenviar." });
+                              }
+                            } catch (err) {
+                              setStatusMsg({ type: "error", text: "Erro de rede." });
+                            } finally {
+                              setIsRequestingCode(false);
+                            }
+                          }}
+                          className="text-[10px] font-bold text-gax-blue hover:underline uppercase tracking-tighter"
+                        >
+                          Não recebeu? Reenviar código agora
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

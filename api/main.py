@@ -1260,14 +1260,14 @@ def send_verification_email(to_email, code, action_type):
     smtp_pass = os.environ.get("SMTP_PASS", "")
 
     if not smtp_user or not smtp_pass:
-        logger.warning(f"SMTP credentials not set. Code for {to_email} is: {code}")
+        logger.warning(f"!!! SMTP NÃO CONFIGURADO !!! Código de verificação para {to_email} ({action_type}): {code}")
         return False
 
     subject = "Código de Verificação - GAX"
     if action_type == 'email_change':
-        body = f"Você solicitou a alteração do seu e-mail no GAX.\n\nSeu código de confirmação é: {code}\n\nEste código expira em 10 minutos."
+        body = f"Você solicitou a alteração do seu e-mail no GAX.\n\nSeu código de confirmação é: {code}\n\nEste código expira em 1 minuto."
     else:
-        body = f"Você solicitou a alteração da sua senha no GAX.\n\nSeu código de confirmação é: {code}\n\nEste código expira em 10 minutos."
+        body = f"Você solicitou a alteração da sua senha no GAX.\n\nSeu código de confirmação é: {code}\n\nEste código expira em 1 minuto."
 
     try:
         msg = MIMEMultipart()
