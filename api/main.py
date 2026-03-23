@@ -72,8 +72,10 @@ async def health_check():
 async def login(email: str = Form(...), password: str = Form(...)):
     try:
         user = auth.sign_in_with_email_and_password(email, password)
+        db.add_audit_log(email, "Login", "Usuário acessou o sistema com sucesso.", "INFO")
         return user
     except Exception as e:
+        db.add_audit_log(email, "Tentativa de Login Falhou", str(e), "WARNING")
         raise HTTPException(status_code=401, detail=str(e))
 
 @app.post("/register")
@@ -93,6 +95,7 @@ async def register(
 async def reset_password(email: str = Form(...)):
     try:
         auth.send_password_reset_email(email)
+        db.add_audit_log(email, "Reset de Senha Solicitado", "E-mail de recuperação de senha foi enviado.", "WARNING")
         return {"message": "E-mail de recuperação enviado."}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -267,6 +270,7 @@ async def reject_user(user_email: str):
 @app.delete("/users/{user_email}")
 async def delete_user(user_email: str):
     db.delete_user_profile(user_email)
+    db.add_audit_log("Admin/Sistema", "Exclusão de Usuário", f"Perfil {user_email} excluído.", "WARNING")
     return {"message": "Usuário excluído com sucesso."}
 
 @app.patch("/users/{user_email}")
@@ -291,12 +295,14 @@ async def save_branding(data: dict):
 @app.post("/maintenance/clear-logs")
 async def clear_logs():
     if db.clear_import_logs():
+        db.add_audit_log("Admin/Sistema", "Limpar Histórico", "Admin executou a limpeza do histórico de importação do painel principal.", "WARNING")
         return {"message": "Logs limpos com sucesso."}
     raise HTTPException(status_code=500, detail="Erro ao limpar logs.")
 
 @app.post("/maintenance/reset-db")
 async def reset_db():
     if db.reset_system_database():
+        db.add_audit_log("Admin/Sistema", "Reset de Banco", "Admin reiniciou completamente o banco de dados (Hard Reset).", "ERROR")
         return {"message": "Banco de dados resetado com sucesso."}
     raise HTTPException(status_code=500, detail="Erro ao resetar banco.")
 
@@ -1205,6 +1211,9 @@ async def upload_xmls(
     # Inicia o processamento em segundo plano
     background_tasks.add_task(background_worker_task, task_id, url_sistema, force)
 
+    # Audita a importação
+    db.add_audit_log(usuario, "Upload e Importação", f"Iniciou a fila de importação para a empresa '{razao_social}' no portal alvo: {url_sistema}", "INFO")
+
     return {
         "message": f"{len(files)} arquivos recebidos. O robô iniciará o preenchimento no RSUS em instantes.",
         "task_id": task_id,
@@ -1212,3 +1221,20 @@ async def upload_xmls(
         "total_files": len(files_info),
         "status": "Iniciado"
     }
+
+# --- AUDIT LOGS ENDPOINTS ---
+@app.get("/api/audit")
+async def route_get_audit_logs():
+    # Limpeza lazy
+    db.auto_delete_old_audit_logs()
+    logs = db.get_audit_logs(limit=1000)
+    return {"status": "success", "logs": logs}
+
+@app.delete("/api/audit")
+async def route_clear_audit_logs():
+    success, count = db.clear_audit_logs()
+    if success:
+        # Registra a própria ação na tabela limpa
+        db.add_audit_log("Admin/Sistema", "Limpar Logs de Auditoria", f"{count} registros foram excluídos manualmente.", "WARNING")
+        return {"status": "success", "message": f"{count} logs deletados."}
+    raise HTTPException(status_code=500, detail="Erro ao deletar auditoria")

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Settings, Image as ImageIcon, Type, Trash2, Save, CloudUpload, Loader2 } from "lucide-react";
+import { Settings, Image as ImageIcon, Type, Trash2, Save, CloudUpload, Loader2, ShieldCheck } from "lucide-react";
 
 export default function SettingsPage() {
   const [systemName, setSystemName] = useState("");
@@ -149,6 +149,34 @@ export default function SettingsPage() {
             {isSaving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
             Salvar Nome do Sistema
           </button>
+        </section>
+
+        <section className="space-y-6 rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+          <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-500">
+              <ShieldCheck size={20} />
+            </div>
+            <h2 className="text-lg font-bold text-slate-800">Segurança e Auditoria</h2>
+          </div>
+
+          <div className="space-y-6">
+            <div className="rounded-xl bg-slate-50 border border-slate-100 p-4">
+              <p className="text-xs text-slate-500">O sistema mantém um rastreio automático de todas as ações administrativas, como deleções, logins e manutenções, arquivados fisicamente por 30 dias.</p>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-bold text-slate-700">Logs de Auditoria do Sistema</p>
+                <p className="text-[11px] text-slate-400">Ver rastreabilidade de ações de usuários na plataforma.</p>
+              </div>
+              <a 
+                href="/settings/audit"
+                className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                Acessar Logs
+              </a>
+            </div>
+          </div>
         </section>
 
         {/* Maintenance Section */}

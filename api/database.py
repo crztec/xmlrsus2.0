@@ -615,3 +615,78 @@ def reset_system_database():
     except Exception as e:
         logger.error(f"Erro ao resetar banco: {e}")
         return False
+
+# --- SYSTEM AUDIT LOGS ---
+def add_audit_log(user_email, action, details, level="INFO"):
+    """
+    Saves an action to the system audit log. Level can be INFO, WARNING or ERROR.
+    """
+    try:
+        now = get_now_br()
+        log_entry = {
+            "id": str(uuid.uuid4())[:12],
+            "timestamp": now.strftime("%Y-%m-%d %H:%M:%S"),
+            "timestamp_val": int(now.timestamp()),
+            "user": user_email,
+            "action": action,
+            "details": details,
+            "level": level.upper()
+        }
+        firestore_db.collection('audit_logs').add(log_entry)
+        logger.info(f"[AUDIT] {user_email} - {action} - {level}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to add audit log: {e}")
+        return False
+
+def get_audit_logs(limit=1000):
+    try:
+        docs = firestore_db.collection('audit_logs').order_by('timestamp_val', direction=firestore.Query.DESCENDING).limit(limit).stream()
+        logs = [doc.to_dict() for doc in docs]
+        return logs
+    except Exception as e:
+        logger.error(f"Erro ao recuperar logs de auditoria: {e}")
+        return []
+
+def clear_audit_logs():
+    """Manual clear function for the system audit logs."""
+    try:
+        docs = firestore_db.collection('audit_logs').stream()
+        batch = firestore_db.batch()
+        count = 0
+        deleted_count = 0
+        for doc in docs:
+            batch.delete(doc.reference)
+            count += 1
+            deleted_count += 1
+            if count >= 500:
+                batch.commit()
+                batch = firestore_db.batch()
+                count = 0
+        if count > 0: batch.commit()
+        return True, deleted_count
+    except Exception as e:
+        logger.error(f"Erro ao limpar logs de auditoria: {e}")
+        return False, 0
+
+def auto_delete_old_audit_logs():
+    """Deletes audit logs older than 30 days. To be called lazily."""
+    try:
+        thirty_days_ago = get_now_br() - timedelta(days=30)
+        thirty_days_ago_ts = int(thirty_days_ago.timestamp())
+        # To avoid creating a composite index, we can just fetch without order
+        docs = firestore_db.collection('audit_logs').where('timestamp_val', '<', thirty_days_ago_ts).stream()
+        batch = firestore_db.batch()
+        count = 0
+        for doc in docs:
+            batch.delete(doc.reference)
+            count += 1
+            if count >= 500:
+                batch.commit()
+                batch = firestore_db.batch()
+                count = 0
+        if count > 0: batch.commit()
+        if count > 0:
+            logger.info(f"[AUDIT] {count} logs antigos (>30 dias) deletados automaticamente.")
+    except Exception as e:
+        logger.error(f"Erro na limpeza automática de auditoria: {e}")
