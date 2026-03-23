@@ -1121,7 +1121,7 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
             'updated_at': db.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         })
 
-@app.post("/api/pre-check")
+@app.post("/pre-check")
 async def pre_check_duplicates(
     files: List[UploadFile] = File(...)
 ):
@@ -1232,14 +1232,14 @@ async def upload_xmls(
     }
 
 # --- AUDIT LOGS ENDPOINTS ---
-@app.get("/api/audit")
+@app.get("/audit")
 async def route_get_audit_logs():
     # Limpeza lazy
     db.auto_delete_old_audit_logs()
     logs = db.get_audit_logs(limit=1000)
     return {"status": "success", "logs": logs}
 
-@app.delete("/api/audit")
+@app.delete("/audit")
 async def route_clear_audit_logs():
     success, count = db.clear_audit_logs()
     if success:
