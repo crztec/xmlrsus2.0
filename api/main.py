@@ -1107,7 +1107,7 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
         
         db.firestore_db.collection('tasks').document(task_id).update({
             'status': status_final_task,
-            'updated_at': db.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            'updated_at': db.get_now_br().strftime("%Y-%m-%d %H:%M:%S")
         })
         
     except Exception as e:
@@ -1118,7 +1118,7 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
         db.firestore_db.collection('tasks').document(task_id).update({
             'status': 'ERRO',
             'error_message': friendly_gen_err,
-            'updated_at': db.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            'updated_at': db.get_now_br().strftime("%Y-%m-%d %H:%M:%S")
         })
 
 @app.post("/pre-check")
@@ -1189,7 +1189,7 @@ async def upload_xmls(
                last_task.get('url_sistema') == url_sistema:
                 from datetime import datetime
                 last_created = datetime.strptime(last_task['created_at'], "%Y-%m-%d %H:%M:%S")
-                if (datetime.now() - last_created).total_seconds() < 10:
+                if (db.get_now_br().replace(tzinfo=None) - last_created).total_seconds() < 10:
                     logger.warning(f"Ignorando upload duplicado para {razao_social} (Idempotência)")
                     return {"status": "success", "message": "Upload já em processamento.", "task_id": doc.id}
 

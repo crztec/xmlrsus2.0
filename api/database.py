@@ -417,13 +417,13 @@ def save_client_config(razao_social, url_sistema):
     try:
         firestore_db.collection('client_configs').document(razao_social).set({
             'url_sistema': url_sistema,
-            'updated_at': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            'updated_at': get_now_br().strftime("%Y-%m-%d %H:%M:%S")
         }, merge=True)
     except Exception as e:
         logger.error(f"Erro ao salvar configuração do cliente {razao_social}: {e}")
 
 def create_task(url_sistema, usuario, senha, razao_social=""):
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now = get_now_br().strftime("%Y-%m-%d %H:%M:%S")
     task_ref = firestore_db.collection('tasks').document()
     task_data = {
         'status': 'PENDENTE',
