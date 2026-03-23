@@ -8,8 +8,11 @@ WORKDIR /app/frontend
 COPY package*.json ./
 RUN npm ci --silent
 
-# Build do Next.js
-COPY . .
+# Build do Next.js copiando APENAS o necessário para o frontend
+# Assim, se alterarmos um arquivo Python na pasta api/, o cache do NPM não será quebrado!
+COPY tsconfig.json next.config.ts postcss.config.mjs eslint.config.mjs ./
+COPY public ./public
+COPY src ./src
 ENV NEXT_TELEMETRY_DISABLED 1
 RUN npm run build
 

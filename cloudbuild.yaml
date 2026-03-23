@@ -4,10 +4,13 @@ steps:
     entrypoint: 'bash'
     args: ['-c', 'docker pull gcr.io/$PROJECT_ID/xmlrsus2:latest || exit 0']
 
-  # 2. Build da imagem Docker com cache
+  # 2. Build da imagem Docker com cache e BuildKit habilitado
   - name: 'gcr.io/cloud-builders/docker'
+    env:
+      - 'DOCKER_BUILDKIT=1'
     args: [
       'build', 
+      '--build-arg', 'BUILDKIT_INLINE_CACHE=1',
       '--cache-from', 'gcr.io/$PROJECT_ID/xmlrsus2:latest',
       '-t', 'gcr.io/$PROJECT_ID/xmlrsus2:latest', 
       '.'
