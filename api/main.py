@@ -12,6 +12,10 @@ from playwright.async_api import async_playwright
 import tempfile
 import logging
 import sys
+import random
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 # Configure standard logging
 logging.basicConfig(level=logging.INFO, stream=sys.stdout, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -1247,6 +1251,42 @@ async def route_clear_audit_logs():
         db.add_audit_log("Admin/Sistema", "Limpar Logs de Auditoria", f"{count} registros foram excluídos manualmente.", "WARNING")
         return {"status": "success", "message": f"{count} logs deletados."}
     raise HTTPException(status_code=500, detail="Erro ao deletar auditoria")
+# --- EMAIL UTILS (INLINED FOR STABILITY) ---
+def send_verification_email(to_email, code, action_type):
+    """Sends a 6-digit verification code to the user's email."""
+    smtp_host = os.environ.get("SMTP_HOST", "smtp.gmail.com")
+    smtp_port = int(os.environ.get("SMTP_PORT", "587"))
+    smtp_user = os.environ.get("SMTP_USER", "")
+    smtp_pass = os.environ.get("SMTP_PASS", "")
+
+    if not smtp_user or not smtp_pass:
+        logger.warning(f"SMTP credentials not set. Code for {to_email} is: {code}")
+        return False
+
+    subject = "Código de Verificação - GAX"
+    if action_type == 'email_change':
+        body = f"Você solicitou a alteração do seu e-mail no GAX.\n\nSeu código de confirmação é: {code}\n\nEste código expira em 10 minutos."
+    else:
+        body = f"Você solicitou a alteração da sua senha no GAX.\n\nSeu código de confirmação é: {code}\n\nEste código expira em 10 minutos."
+
+    try:
+        msg = MIMEMultipart()
+        msg['From'] = f"GAX Sistema <{smtp_user}>"
+        msg['To'] = to_email
+        msg['Subject'] = subject
+        msg.attach(MIMEText(body, 'plain'))
+
+        server = smtplib.SMTP(smtp_host, smtp_port)
+        server.starttls()
+        server.login(smtp_user, smtp_pass)
+        server.send_message(msg)
+        server.quit()
+        logger.info(f"Verification email sent to {to_email}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to send email to {to_email}: {e}")
+        return False
+
 # --- USER PROFILE ENDPOINTS ---
 @app.get("/profile")
 async def route_get_profile(email: str):
@@ -1260,8 +1300,7 @@ async def route_request_verification_code(email: str = Form(...), action_type: s
     """Generates and sends a 6-digit code to the user's email."""
     code = random.randint(100000, 999999)
     if db.save_verification_code(email, code, action_type):
-        # Envia e-mail de verdade (ou loga se SMTP não estiver configurado)
-        email_utils.send_verification_email(email, code, action_type)
+        send_verification_email(email, code, action_type)
         return {"status": "success", "message": "Código enviado para seu e-mail."}
     raise HTTPException(status_code=500, detail="Erro ao gerar código de verificação.")
 
@@ -1277,7 +1316,7 @@ async def route_update_profile(
     """Updates profile. requires code if email or password is being changed."""
     
     # Se mudar e-mail ou senha, EXIGE código
-    needs_code = (new_email and new_email != current_email) or new_password
+    needs_code = (new_email and new_email != current_email) or (new_password and len(new_password) > 0)
     
     if needs_code:
         if not code:
@@ -1299,6 +1338,7 @@ async def route_update_profile(
             db.add_audit_log(current_email, "Atualização de Perfil", f"Usuário alterou seus dados básicos.", "INFO")
             return {"status": "success"}
     except Exception as e:
+        logger.error(f"Erro ao atualizar perfil: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     
     raise HTTPException(status_code=500, detail="Erro ao atualizar perfil.")
