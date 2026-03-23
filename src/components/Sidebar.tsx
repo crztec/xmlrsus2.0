@@ -48,6 +48,7 @@ export default function Sidebar() {
     last_name: "",
     new_email: "",
     new_password: "",
+    current_password: "",
     code: ""
   });
   const [isRequestingCode, setIsRequestingCode] = React.useState(false);
@@ -295,7 +296,7 @@ export default function Sidebar() {
                     <Key className="absolute left-3 top-2.5 text-slate-300" size={16} />
                     <input 
                       type="password"
-                      placeholder="deixe vazio para não alterar"
+                      placeholder="mínimo 6 caracteres"
                       value={profileForm.new_password}
                       onChange={e => setProfileForm({...profileForm, new_password: e.target.value})}
                       className="w-full rounded-lg border border-slate-200 bg-slate-50/30 pl-10 pr-3 py-2 text-sm focus:border-gax-blue focus:bg-white focus:outline-none focus:ring-2 focus:ring-gax-blue/10 transition-all font-medium text-slate-700 placeholder:text-slate-300"
@@ -303,16 +304,34 @@ export default function Sidebar() {
                   </div>
                 </div>
 
-                {(profileForm.new_email || profileForm.new_password) && !showCodeField && (
+                {(profileForm.new_password || (profileForm.new_email && profileForm.new_email !== userEmail)) && (
+                  <div className="space-y-1.5 animate-in slide-in-from-top-2">
+                    <label className="text-[11px] font-bold uppercase tracking-wider text-red-500 ml-1">Confirmação: Senha Atual</label>
+                    <div className="relative">
+                      <Shield className="absolute left-3 top-2.5 text-red-300" size={16} />
+                      <input 
+                        type="password"
+                        placeholder="digite sua senha atual"
+                        value={profileForm.current_password}
+                        onChange={e => setProfileForm({...profileForm, current_password: e.target.value})}
+                        className="w-full rounded-lg border border-red-200 bg-red-50/10 pl-10 pr-3 py-2 text-sm focus:border-red-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-red-100 transition-all font-medium text-slate-700 placeholder:text-slate-300"
+                      />
+                    </div>
+                    {(profileForm.new_email && profileForm.new_email !== userEmail) && (
+                      <p className="text-[10px] text-slate-500 italic ml-1">Para mudar o e-mail, também será necessário um código de verificação.</p>
+                    )}
+                  </div>
+                )}
+
+                {(profileForm.new_email && profileForm.new_email !== userEmail) && !showCodeField && (
                   <button
                     onClick={async () => {
                       setIsRequestingCode(true);
                       setStatusMsg({ type: "", text: "" });
                       try {
-                        const type = profileForm.new_email ? 'email_change' : 'password_change';
                         const body = new FormData();
                         body.append("email", userEmail);
-                        body.append("action_type", type);
+                        body.append("action_type", 'email_change');
                         
                         const res = await fetch("/api/profile/request-code", { method: "POST", body });
                         const data = await res.json();
@@ -333,7 +352,7 @@ export default function Sidebar() {
                     disabled={isRequestingCode}
                     className="w-full flex items-center justify-center gap-2 rounded-lg bg-gax-blue/10 px-4 py-2 text-xs font-bold text-gax-blue hover:bg-gax-blue/20 transition-all disabled:opacity-50"
                   >
-                    {isRequestingCode ? <Loader2 className="animate-spin" size={14} /> : "Solicitar Código de Verificação"}
+                    {isRequestingCode ? <Loader2 className="animate-spin" size={14} /> : "Solicitar Código para Mudar E-mail"}
                   </button>
                 )}
 
@@ -406,6 +425,7 @@ export default function Sidebar() {
                   body.append("last_name", profileForm.last_name);
                   if (profileForm.new_email) body.append("new_email", profileForm.new_email);
                   if (profileForm.new_password) body.append("new_password", profileForm.new_password);
+                  if (profileForm.current_password) body.append("current_password", profileForm.current_password);
                   if (profileForm.code) body.append("code", profileForm.code);
 
                   try {
@@ -424,7 +444,7 @@ export default function Sidebar() {
                         setIsProfileModalOpen(false);
                         setShowCodeField(false);
                         setStatusMsg({ type: "", text: "" });
-                        setProfileForm(prev => ({ ...prev, new_email: "", new_password: "", code: "" }));
+                        setProfileForm(prev => ({ ...prev, new_email: "", new_password: "", current_password: "", code: "" }));
                       }, 2000);
                     } else {
                       setStatusMsg({ type: "error", text: data.detail || "Erro ao atualizar perfil." });

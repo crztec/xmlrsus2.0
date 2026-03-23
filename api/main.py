@@ -1311,31 +1311,45 @@ async def route_update_profile(
     last_name: str = Form(...),
     new_email: Optional[str] = Form(None),
     new_password: Optional[str] = Form(None),
+    current_password: Optional[str] = Form(None),
     code: Optional[str] = Form(None)
 ):
-    """Updates profile. requires code if email or password is being changed."""
+    """
+    Updates profile. 
+    - Email change: needs code.
+    - Password change: needs current_password.
+    - Name change: direct.
+    """
     
-    # Se mudar e-mail ou senha, EXIGE código
-    needs_code = (new_email and new_email != current_email) or (new_password and len(new_password) > 0)
-    
-    if needs_code:
+    # 1. Verificação se está tentando mudar o e-mail
+    is_changing_email = new_email and new_email != current_email
+    if is_changing_email:
         if not code:
-            raise HTTPException(status_code=400, detail="Código de verificação é obrigatório para estas alterações.")
-        
-        action_type = 'email_change' if (new_email and new_email != current_email) else 'password_change'
-        if not db.verify_code(current_email, code, action_type):
-            raise HTTPException(status_code=400, detail="Código inválido ou expirado.")
+            raise HTTPException(status_code=400, detail="O código de verificação é obrigatório para alterar o e-mail.")
+        if not db.verify_code(current_email, code, 'email_change'):
+            raise HTTPException(status_code=400, detail="Código de verificação de e-mail inválido ou expirado.")
+
+    # 2. Verificação se está tentando mudar a senha
+    is_changing_password = new_password and len(new_password) > 0
+    if is_changing_password:
+        if not current_password:
+            raise HTTPException(status_code=400, detail="A senha atual é obrigatória para definir uma nova senha.")
+        try:
+            # Tenta logar com a senha atual para validar
+            auth.sign_in_with_email_and_password(current_email, current_password)
+        except Exception:
+            raise HTTPException(status_code=400, detail="A senha atual informada está incorreta.")
 
     try:
-        # 1. Atualiza no Firebase Auth se necessário
-        if needs_code:
+        # 3. Atualiza no Firebase Auth se necessário (E-mail ou Senha)
+        if is_changing_email or is_changing_password:
             auth.update_user_credentials(current_email, new_email, new_password)
             
-        # 2. Atualiza no Firestore
+        # 4. Atualiza no Firestore (Nome, Sobrenome e novo E-mail se houver)
         success = db.update_user_profile(current_email, new_email or current_email, first_name, last_name)
         
         if success:
-            db.add_audit_log(current_email, "Atualização de Perfil", f"Usuário alterou seus dados básicos.", "INFO")
+            db.add_audit_log(current_email, "Atualização de Perfil", f"Usuário alterou seus dados.", "INFO")
             return {"status": "success"}
     except Exception as e:
         logger.error(f"Erro ao atualizar perfil: {e}")
