@@ -354,6 +354,30 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
 
         # Extrai URL base para o Login
         parsed_url = urlparse(url_sistema)
+        
+        # --- SSRF PROTECTION ---
+        # Prevent navigation to internal network IPs, loopback, and cloud metadata servers
+        hostname = parsed_url.hostname or ""
+        
+        is_internal = False
+        if hostname in ["localhost", "127.0.0.1", "169.254.169.254", "::1"] or \
+           hostname.startswith("10.") or \
+           hostname.startswith("192.168."):
+            is_internal = True
+        elif hostname.startswith("172."):
+            parts = hostname.split('.')
+            if len(parts) >= 2:
+                try:
+                    if 16 <= int(parts[1]) <= 31:
+                        is_internal = True
+                except ValueError:
+                    pass
+        
+        if is_internal:
+            db.add_log(task_id, "ERROR", "VULNERABILIDADE SSRF BLOQUEADA: URL aponta para rede interna.")
+            db.firestore_db.collection('tasks').document(task_id).update({'status': 'ERRO'})
+            return
+            
         base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
         login_url = f"{base_url}/Account/Login"
 
