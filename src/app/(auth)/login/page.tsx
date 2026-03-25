@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { auth, googleProvider } from "@/lib/firebase";
+import { signInWithPopup } from "firebase/auth";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -86,6 +88,42 @@ export default function LoginPage() {
     }
   };
 
+  const handleGoogleLogin = async () => {
+    setIsLoading(true);
+    setError("");
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const user = result.user;
+      const idToken = await user.getIdToken();
+
+      const formData = new FormData();
+      formData.append("id_token", idToken);
+
+      const res = await fetch("/api/auth/google", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        localStorage.setItem("gax_user_email", user.email || "");
+        localStorage.setItem("gax_user_name", data?.first_name || user.displayName || user.email?.split('@')[0] || "");
+        localStorage.setItem("gax_user_role", data?.role || "user");
+        window.location.href = "/";
+      } else {
+        const errorDetail = data.detail;
+        const msg = typeof errorDetail === 'string' ? errorDetail : JSON.stringify(errorDetail);
+        setError(msg || "Falha na autenticação com o Google.");
+      }
+    } catch (err: any) {
+      if (err.code !== "auth/popup-closed-by-user") {
+        setError("Erro ao autenticar com o Google.");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="flex min-h-screen bg-white font-sans text-slate-900">
       {/* Lado Esquerdo: Formulário de Login */}
@@ -105,7 +143,12 @@ export default function LoginPage() {
           </div>
 
           {/* Botão Google */}
-          <button className="flex w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white py-3 font-semibold text-slate-700 transition-all hover:bg-slate-50 hover:border-gax-blue/30 focus:outline-none focus:ring-2 focus:ring-gax-blue/20">
+          <button 
+            type="button"
+            onClick={handleGoogleLogin}
+            disabled={isLoading}
+            className="flex w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white py-3 font-semibold text-slate-700 transition-all hover:bg-slate-50 hover:border-gax-blue/30 focus:outline-none focus:ring-2 focus:ring-gax-blue/20 disabled:opacity-50"
+          >
             <Chrome size={20} className="text-gax-blue" />
             Continuar com o Google
           </button>
