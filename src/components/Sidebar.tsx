@@ -37,10 +37,32 @@ const menuItems = [
 export default function Sidebar() {
   const pathname = usePathname();
   const [isAdmin, setIsAdmin] = React.useState(false);
-  const [branding, setBranding] = React.useState({ system_name: "GAX", logo_base64: "" });
+  const [branding, setBranding] = React.useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("gax_branding");
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch (e) {
+          return { system_name: "GAX", logo_base64: "" };
+        }
+      }
+    }
+    return { system_name: "GAX", logo_base64: "" };
+  });
   const [isLoadingBranding, setIsLoadingBranding] = React.useState(true);
-  const [userName, setUserName] = React.useState("Usuário");
-  const [userEmail, setUserEmail] = React.useState("carregando...");
+  const [userName, setUserName] = React.useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("gax_user_name") || "Usuário";
+    }
+    return "Usuário";
+  });
+  const [userEmail, setUserEmail] = React.useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("gax_user_email") || "...";
+    }
+    return "...";
+  });
 
   const [isProfileModalOpen, setIsProfileModalOpen] = React.useState(false);
   const [profileForm, setProfileForm] = React.useState({
@@ -79,7 +101,9 @@ export default function Sidebar() {
         .then(res => res.json())
         .then(data => {
           if (data && !data.detail) {
-            setUserName(`${data.first_name} ${data.last_name}`.trim() || data.email);
+            const fullName = `${data.first_name} ${data.last_name}`.trim() || data.email;
+            setUserName(fullName);
+            localStorage.setItem("gax_user_name", fullName);
             setProfileForm(prev => ({
               ...prev,
               first_name: data.first_name || "",
@@ -101,10 +125,12 @@ export default function Sidebar() {
       })
       .then(data => {
         if (data && data.system_name) {
-          setBranding({
+          const freshBranding = {
             system_name: data.system_name,
             logo_base64: data.logo_base64 || ""
-          });
+          };
+          setBranding(freshBranding);
+          localStorage.setItem("gax_branding", JSON.stringify(freshBranding));
         }
       })
       .catch(err => console.error("Erro ao carregar branding:", err))
