@@ -48,7 +48,7 @@ export default function LoginPage() {
         const msg = typeof errorDetail === 'string' ? errorDetail : JSON.stringify(errorDetail);
         setResetStatus({ type: 'error', msg: msg || "Erro ao enviar e-mail." });
       }
-    } catch (err) {
+    } catch (_err) {
       setResetStatus({ type: 'error', msg: "Erro de conexão." });
     } finally {
       setIsResetting(false);
@@ -81,7 +81,7 @@ export default function LoginPage() {
         const msg = typeof errorDetail === 'string' ? errorDetail : JSON.stringify(errorDetail);
         setError(msg || "Falha no login. Verifique suas credenciais.");
       }
-    } catch (err: any) {
+    } catch (_err: any) {
       setError("Erro de conexão com o servidor.");
     } finally {
       setIsLoading(false);
@@ -115,8 +115,8 @@ export default function LoginPage() {
         const msg = typeof errorDetail === 'string' ? errorDetail : JSON.stringify(errorDetail);
         setError(msg || "Falha na autenticação com o Google.");
       }
-    } catch (err: any) {
-      if (err.code !== "auth/popup-closed-by-user") {
+    } catch (_err: any) {
+      if (_err.code !== "auth/popup-closed-by-user") {
         setError("Erro ao autenticar com o Google.");
       }
     } finally {
@@ -132,7 +132,7 @@ export default function LoginPage() {
           {/* Logo Section */}
           <div className="mb-12 flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-gax-blue to-gax-blue-hover p-1.5 shadow-xl shadow-gax-blue/30">
-              <img src="/Imagens/Glogo.png" alt="GAX Logo" className="h-full w-full object-contain brightness-0 invert" />
+              <img src="/Imagens/Glogo.png" alt="GAX Logo" className="h-full w-full object-contain brightness-0 invert" width={48} height={48} />
             </div>
             <div>
               <span className="text-2xl font-display font-bold tracking-tight text-slate-800 block leading-none">GAX</span>

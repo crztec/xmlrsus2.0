@@ -9,7 +9,7 @@ import {
   FileCheck, 
   Loader2, 
   Pencil, 
-  X, 
+  X,
   MapPin, 
   CreditCard,
   ExternalLink,
@@ -44,8 +44,8 @@ export default function ClientsPage() {
       const res = await fetch("/api/clients");
       const data = await res.json();
       setClients(data);
-    } catch (error) {
-      console.error("Erro ao buscar clientes:", error);
+    } catch (_err) {
+      console.error("Erro ao buscar clientes:", _err);
     } finally {
       setIsLoading(false);
     }
@@ -117,8 +117,8 @@ export default function ClientsPage() {
         const errorData = await res.json();
         setErrorMessage(errorData.detail || "Erro ao salvar alterações.");
       }
-    } catch (error) {
-      console.error("Erro ao salvar:", error);
+    } catch (_err) {
+      console.error("Erro ao salvar:", _err);
       setErrorMessage("Erro de conexão com o servidor.");
     } finally {
       setIsSaving(false);

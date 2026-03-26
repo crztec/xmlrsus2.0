@@ -1,17 +1,18 @@
+import logging
 import os
 import sys
-import logging
-from datetime import datetime, timedelta, timezone
-import firebase_admin
-from firebase_admin import credentials, firestore, storage
 import time
 import uuid
+from datetime import datetime, timedelta, timezone
+
+import firebase_admin
+from firebase_admin import credentials, firestore, storage
 
 # Configure standard logging to output to stdout (which Cloud Run captures)
 logging.basicConfig(level=logging.INFO, stream=sys.stdout, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# O nome do bucket do Firebase Storage 
+# O nome do bucket do Firebase Storage
 FIREBASE_STORAGE_BUCKET = os.environ.get('FIREBASE_STORAGE_BUCKET', 'xmlrsus.firebasestorage.app')
 
 # Initialize Firebase only once
@@ -68,10 +69,10 @@ def upload_xml_to_storage(task_id, filename, file_content_bytes):
     unique_id = str(uuid.uuid4())[:8]
     clean_filename = filename.replace("/", "_").replace("\\", "_")
     destination_blob_name = f"tasks/{task_id}/{unique_id}_{clean_filename}"
-    
+
     blob = bucket.blob(destination_blob_name)
     blob.upload_from_string(file_content_bytes, content_type='application/xml')
-    
+
     logger.info(f"File uploaded to Storage successfully: {destination_blob_name}")
     return destination_blob_name
 
@@ -127,7 +128,7 @@ def get_friendly_error(technical_error):
     """
     if not technical_error: return ""
     te = str(technical_error).lower()
-    
+
     # Erros de Autenticação/Firebase
     if "at least 6 characters" in te:
         return "A senha deve conter pelo menos 6 caracteres."
@@ -137,7 +138,7 @@ def get_friendly_error(technical_error):
         return "Usuário não encontrado."
     if "wrong password" in te:
         return "Senha incorreta."
-    
+
     # Erros do Portal RSUS/Playwright
     if "timeout" in te:
         return "O portal demorou muito para responder. Tente novamente."
@@ -149,7 +150,7 @@ def get_friendly_error(technical_error):
         return "Esta ABI já foi importada anteriormente no portal."
     if "net::err" in te or "connection" in te:
         return "Erro de conexão com o portal. Verifique sua internet."
-    
+
     # Fallback para o erro original mas sem o rastro técnico se for muito longo
     return str(technical_error)[:100]
 
@@ -157,10 +158,10 @@ def get_friendly_error(technical_error):
 def create_user_profile(email, first_name="", last_name=""):
     """Creates a user document in Firestore. Forces 'admin'/'approved' for the master email."""
     if not email: return
-    
+
     doc_ref = firestore_db.collection('users').document(email)
     doc = doc_ref.get()
-    
+
     if not doc.exists:
         if email.lower() == "victor@cubeti.com.br":
             role = "admin"
@@ -168,7 +169,7 @@ def create_user_profile(email, first_name="", last_name=""):
         else:
             role = "user"
             status = "pending"
-            
+
         doc_ref.set({
             'email': email,
             'first_name': first_name,
@@ -184,13 +185,13 @@ def update_user_profile(current_email, new_email, first_name, last_name, role=No
         old_doc_ref = firestore_db.collection('users').document(current_email)
         doc = old_doc_ref.get()
         if not doc.exists: return False
-        
+
         data = doc.to_dict()
         data['first_name'] = first_name
         data['last_name'] = last_name
         if role: data['role'] = role
         if status: data['status'] = status
-        
+
         if new_email and new_email != current_email:
             data['email'] = new_email
             new_doc_ref = firestore_db.collection('users').document(new_email)
@@ -198,7 +199,7 @@ def update_user_profile(current_email, new_email, first_name, last_name, role=No
             old_doc_ref.delete()
         else:
             old_doc_ref.update({
-                'first_name': first_name, 
+                'first_name': first_name,
                 'last_name': last_name,
                 'role': data['role'],
                 'status': data['status']
@@ -229,10 +230,10 @@ def verify_code(email, code, action_type):
         doc_ref = firestore_db.collection('verification_codes').document(email)
         doc = doc_ref.get()
         if not doc.exists: return False
-        
+
         data = doc.to_dict()
         now_ts = int(get_now_br().timestamp())
-        
+
         if data['code'] == str(code) and data['type'] == action_type and now_ts <= data['expires_at']:
             # Deleta pós uso único
             doc_ref.delete()
@@ -266,17 +267,17 @@ def get_pending_users():
 def get_all_clients():
     clients = []
     docs = firestore_db.collection('client_configs').stream()
-    
-    # Cache para evitar múltiplas queries por cliente se possível, 
+
+    # Cache para evitar múltiplas queries por cliente se possível,
     # mas para stats em tempo real, vamos consultar task_files
     for doc in docs:
         data = doc.to_dict()
         client_name = data.get('razao_social') or data.get('name') or doc.id
-        
+
         # Calcular Total de ABIs Únicas e Última Importação
         total_abis = 0
         ultima_importacao = "-"
-        
+
         try:
             from google.cloud.firestore_v1.base_query import FieldFilter
             # Busca todos os arquivos de sucesso para este cliente
@@ -284,15 +285,15 @@ def get_all_clients():
                 .where(filter=FieldFilter("razao_social", "==", client_name)) \
                 .where(filter=FieldFilter("status_importacao", "==", "SUCESSO")) \
                 .stream()
-            
+
             abis = set()
             latest_date = None
-            
+
             for f_doc in files_docs:
                 f_data = f_doc.to_dict()
                 abi = f_data.get("numero_abi")
                 if abi: abis.add(str(abi))
-                
+
                 # Data de processamento
                 d_str = f_data.get("data_processamento")
                 if d_str and d_str != "-":
@@ -301,7 +302,7 @@ def get_all_clients():
                         if not latest_date or d_dt > latest_date:
                             latest_date = d_dt
                     except: pass
-            
+
             total_abis = len(abis)
             if latest_date:
                 ultima_importacao = latest_date.strftime("%d/%m/%Y %H:%M")
@@ -345,12 +346,12 @@ def update_client_config(client_id, update_data):
 def get_all_xml_data():
     xml_data_list = []
     docs = firestore_db.collection('task_files').order_by('data_processamento', direction=firestore.Query.DESCENDING).limit(500).stream()
-    
+
     seen_abis = set()
     for doc in docs:
         data = doc.to_dict()
         abi = data.get("numero_abi") or doc.id
-        
+
         # Deduplicação: Mantém apenas a entrada mais recente para cada ABI
         if abi not in seen_abis:
             seen_abis.add(abi)
@@ -369,13 +370,13 @@ def get_all_xml_data():
                 "status": "Importado" if data.get("status_importacao") == "SUCESSO" else "Pendente" if data.get("status_importacao") == "Pendente" else "Erro",
                 "storage_path": data.get("storage_path", "")
             })
-            
+
     # Ordenação por ABI Decrescente (Numérica)
     def extract_num(s):
         import re
         m = re.search(r'(\d+)', str(s))
         return int(m.group(1)) if m else 0
-        
+
     xml_data_list.sort(key=lambda x: extract_num(x['abi']), reverse=True)
     return xml_data_list
 
@@ -398,7 +399,7 @@ def check_abi_already_imported(razao_social, numero_abi):
             .where(filter=FieldFilter("razao_social", "==", razao_social.strip())) \
             .where(filter=FieldFilter("status_importacao", "==", "SUCESSO")) \
             .get()
-        
+
         # Filtro manual para garantir normalização de ambos os lados se necessário
         for doc in docs:
             db_abi = re.sub(r'\D', '', str(doc.to_dict().get('numero_abi', '')))
@@ -412,11 +413,11 @@ def check_abi_already_imported(razao_social, numero_abi):
 def update_user_status(email, new_status):
     if not email: return
     firestore_db.collection('users').document(email).update({'status': new_status})
-    
+
 def update_user_role(email, new_role):
     if not email: return
     firestore_db.collection('users').document(email).update({'role': new_role})
-    
+
 def delete_user_profile(email):
     if not email: return
     firestore_db.collection('users').document(email).delete()
@@ -449,8 +450,8 @@ def get_last_url_for_client(razao_social):
     try:
         doc = firestore_db.collection('client_configs').document(razao_social).get()
         if doc.exists: return doc.to_dict().get('url_sistema', '')
-        from google.cloud.firestore_v1.base_query import FieldFilter
         from firebase_admin import firestore
+        from google.cloud.firestore_v1.base_query import FieldFilter
         docs = firestore_db.collection('tasks') \
             .where(filter=FieldFilter("razao_social", "==", razao_social)) \
             .order_by("created_at", direction=firestore.Query.DESCENDING) \
@@ -545,8 +546,8 @@ def add_log(task_id, level, message):
     now_str = data_br.strftime("%Y-%m-%d %H:%M:%S")
     log_data = {
         'id': str(uuid.uuid4())[:8],
-        'timestamp': now_str, 
-        'level': level, 
+        'timestamp': now_str,
+        'level': level,
         'message': message,
         'timestamp_ms': data_br.timestamp() * 1000,
         'timestamp_ns': time.time_ns()
@@ -638,9 +639,9 @@ def clear_import_logs():
                 batch.commit()
                 batch = firestore_db.batch()
                 count = 0
-        
+
         if count > 0: batch.commit()
-        
+
         return True
     except Exception as e:
         logger.error(f"Erro ao limpar logs e tarefas: {e}")

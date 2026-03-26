@@ -1,9 +1,8 @@
-import pytest
-from unittest.mock import MagicMock, patch
-from datetime import datetime
+from unittest.mock import MagicMock
 
 # Import database module for testing
 import api.database as db
+
 
 def test_get_all_clients_metrics(mock_db):
     """
@@ -38,7 +37,7 @@ def test_get_all_clients_metrics(mock_db):
         "data_processamento": "2026-03-20 09:00:00",
         "status_importacao": "SUCESSO"
     }
-    
+
     # Mock da query chain
     mock_db.collection('task_files').where.return_value.where.return_value.stream.return_value = [file_1, file_2, file_3]
 
@@ -63,9 +62,9 @@ def test_update_client_config(mock_db):
         "registro_ans": "12345",
         "endereco": "Rua Teste, 100"
     }
-    
+
     success = db.update_client_config("client_id_123", update_data)
-    
+
     assert success is True
     # Verifica se document().set() foi chamado com os dados corretos (merge=True)
     mock_db.collection('client_configs').document.assert_called_with("client_id_123")
@@ -84,6 +83,6 @@ def test_get_all_clients_no_files(mock_db):
     mock_db.collection('task_files').where.return_value.where.return_value.stream.return_value = []
 
     clients = db.get_all_clients()
-    
+
     assert clients[0]['total_abis'] == 0
     assert clients[0]['ultima_importacao'] == "-"

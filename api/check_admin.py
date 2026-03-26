@@ -5,10 +5,11 @@ sys.path.append(os.getcwd())
 
 import api.database as db
 
+
 def check_admin(email):
     print(f"Verificando usuário: {email}")
     profile = db.get_user_profile(email)
-    
+
     if profile:
         print(f"Perfil encontrado: {profile}")
         if profile.get('role') != 'admin' or profile.get('status') != 'approved':

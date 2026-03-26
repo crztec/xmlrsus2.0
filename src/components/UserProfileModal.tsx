@@ -291,11 +291,11 @@ export default function UserProfileModal({ isOpen, onClose, userEmail, userName 
                   }
                   // Notifica o sistema da mudança (opcional se o Sidebar ler do localStorage)
                   window.dispatchEvent(new CustomEvent('profile-updated', { detail: { name: fullName, email: profileForm.new_email || userEmail } }));
-                  
+
                   // Limpa campos sensíveis
                   setProfileForm(prev => ({ ...prev, new_email: "", new_password: "", current_password: "", code: "" }));
                   setShowCodeField(false);
-                  
+
                   // Fecha após 1.5s
                   setTimeout(() => onClose(), 1500);
                 } else {

@@ -72,7 +72,6 @@ export default function Sidebar({ onOpenProfile }: SidebarProps) {
 
   React.useEffect(() => {
     // Busca os dados do usuário logado na máquina
-    const storedName = localStorage.getItem("gax_user_name");
     const storedEmail = localStorage.getItem("gax_user_email");
     const storedRole = localStorage.getItem("gax_user_role");
 
@@ -128,7 +127,7 @@ export default function Sidebar({ onOpenProfile }: SidebarProps) {
             <>
               {branding.logo_base64 ? (
                 <div className="h-8 w-8 overflow-hidden rounded-lg shrink-0 shadow-sm border border-slate-100">
-                  <img src={branding.logo_base64} alt={`Logo ${branding.system_name}`} className="h-full w-full object-contain p-1" />
+                  <img src={branding.logo_base64} alt={`Logo ${branding.system_name}`} className="h-full w-full object-contain p-1" width={32} height={32} />
                 </div>
               ) : (
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gax-blue text-white shrink-0 shadow-lg shadow-gax-blue/20" aria-hidden="true">

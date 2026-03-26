@@ -1,18 +1,19 @@
-import io
-import xml.etree.ElementTree as ET
-import pandas as pd
+import defusedxml.ElementTree as ET
 from datetime import datetime, timedelta
+
+import pandas as pd
+
 
 def formatar_valor_monetario(valor):
     if pd.isna(valor) or str(valor).strip() == "": return ""
     try:
         # Se já for número, apenas formata com 2 casas
-        if isinstance(valor, (float, int)): 
+        if isinstance(valor, (float, int)):
             return "{:.2f}".format(valor).replace('.', ',')
-        
+
         # Se for string, limpa símbolos monetários
         s = str(valor).replace('R$', '').strip()
-        
+
         # Lógica para detectar se o ponto é decimal ou separador de milhar
         # No XML (ABI), o padrão costuma ser 12345.67 (ponto decimal)
         if ',' in s and '.' in s:
@@ -32,11 +33,11 @@ def formatar_valor_monetario(valor):
                 # Provável separador de milhar (padrão de sistema legado)
                 # s = s.replace('.', '')
                 # Mas no RSUS/XML, vamos assumir padrão decimal se for FLOAT-LIKE
-                try: 
+                try:
                     float(s)
-                except: 
+                except:
                     s = s.replace('.', '')
-        
+
         val_float = float(s)
         return "{:.2f}".format(val_float).replace('.', ',')
     except Exception as e:
@@ -64,30 +65,30 @@ def extrair_dados_xml(arquivos_upload):
     Recebe uma lista de tuplas (nome_arquivo, conteudo_bytes).
     """
     dados_extraidos = []
-    
+
     for nome_arq, conteudo_bytes in arquivos_upload:
         try:
             root = ET.fromstring(conteudo_bytes)
-            
+
             extracted_data = {}
             competencias_list = []
-            
+
             # Tags needed for extraction (lowercased for case-insensitive matching)
             tags_of_interest = {
-                "numeroabi", "razaosocial", "datarecebimentooficio", 
-                "dataregistrotransacao", "valortotalprocesso", 
+                "numeroabi", "razaosocial", "datarecebimentooficio",
+                "dataregistrotransacao", "valortotalprocesso",
                 "quantidadeprocesso", "numeroprocesso", "competencia"
             }
-            
+
             expected_unique = 7 # We need 7 unique fields + up to 3 competencias
             unique_found = 0
-            
+
             # Single pass over the XML tree with early exit
             for elem in root.iter():
                 tag = elem.tag
                 idx = tag.rfind('}')
                 tag_name = tag[idx+1:].lower() if idx != -1 else tag.lower()
-                
+
                 if tag_name in tags_of_interest:
                     val = elem.text if elem.text else ""
                     if tag_name == "competencia":
@@ -96,25 +97,25 @@ def extrair_dados_xml(arquivos_upload):
                     elif tag_name not in extracted_data:
                         extracted_data[tag_name] = val
                         unique_found += 1
-                        
+
                 # Early exit if we found everything
                 if unique_found == expected_unique and len(competencias_list) >= 3:
                     break
-            
+
             num_abi = extracted_data.get("numeroabi", "")
             razao_social = extracted_data.get("razaosocial", "")
-            if not num_abi: continue 
-            
+            if not num_abi: continue
+
             data_recebimento_str = extracted_data.get("datarecebimentooficio", "") or extracted_data.get("dataregistrotransacao", "")
             prazo_ans_str = ""
-            
+
             if data_recebimento_str:
                 try:
                     if "-" in data_recebimento_str:
                         dt_rec = datetime.strptime(data_recebimento_str[:10], "%Y-%m-%d")
                     else:
                         dt_rec = datetime.strptime(data_recebimento_str[:10], "%d/%m/%Y")
-                    
+
                     dt_prazo = dt_rec + timedelta(days=35)
                     prazo_ans_str = dt_prazo.strftime("%d/%m/%Y")
                     data_recebimento_str = dt_rec.strftime("%d/%m/%Y")
@@ -141,21 +142,21 @@ def extrair_dados_xml(arquivos_upload):
             })
         except Exception as e:
             print(f"Erro ao extrair dados do arquivo {nome_arq}: {e}")
-            
+
     return pd.DataFrame(dados_extraidos)
 
 def parse_fine_details_from_bytes(conteudo_bytes):
     detalhes = []
     try:
         root = ET.fromstring(conteudo_bytes)
-        
+
         # Tags de agrupamento comuns em XMLs de faturamento (ABI/TISS)
         vessel_tags = [
-            "atendimento", "guia", "itemResumoApuracao", "procedimentoFaturado", 
-            "servicoExecutado", "detalheItem", "itemGuia", "dadosProcedimento", 
+            "atendimento", "guia", "itemResumoApuracao", "procedimentoFaturado",
+            "servicoExecutado", "detalheItem", "itemGuia", "dadosProcedimento",
             "procedimentoResumo", "faturamentoItem", "itemFaturamento"
         ]
-        
+
         # Busca por itens estruturados primeiro
         for elem in root.iter():
             tag = elem.tag.split('}')[-1]
@@ -173,13 +174,13 @@ def parse_fine_details_from_bytes(conteudo_bytes):
                     c_tag = child.tag.split('}')[-1].lower()
                     val = child.text if child.text else ""
                     # print(f"DEBUG TAG: {c_tag} | Val: {val}")
-                    if any(t in c_tag for t in ["codigobeneficiario", "numerocarteira", "cdbeneficiario"]): 
+                    if any(t in c_tag for t in ["codigobeneficiario", "numerocarteira", "cdbeneficiario"]):
                         item["beneficiario_cod"] = val
-                    elif any(t in c_tag for t in ["nomebeneficiario", "nmbeneficiario", "nomepaciente", "nmpaciente"]): 
+                    elif any(t in c_tag for t in ["nomebeneficiario", "nmbeneficiario", "nomepaciente", "nmpaciente"]):
                         item["beneficiario_nome"] = val
-                    elif any(t in c_tag for t in ["dataatendimento", "dtatendimento", "datainicio"]): 
+                    elif any(t in c_tag for t in ["dataatendimento", "dtatendimento", "datainicio"]):
                         item["data"] = val
-                
+
                 # Pass 2: Captura sub-procedimentos ou o próprio item
                 has_sub_procs = False
                 for sub in elem.iter():
@@ -193,10 +194,10 @@ def parse_fine_details_from_bytes(conteudo_bytes):
                             if any(t in sc_tag for t in ["codigoprocedimento", "cdprocedimento"]): sub_item["procedimento_cod"] = s_val
                             elif any(t in sc_tag for t in ["descricaoprocedimento", "dsprocedimento", "nmprocedimento"]): sub_item["procedimento_nome"] = s_val
                             elif any(t in sc_tag for t in ["valortotalitem", "vltotalitem", "valorprocessado", "vlprocessado"]): sub_item["valor"] = formatar_valor_monetario(s_val)
-                        
+
                         if sub_item["procedimento_nome"] or sub_item["beneficiario_nome"]:
                             detalhes.append(sub_item)
-                
+
                 if not has_sub_procs:
                     # Se não tinha sub-procedimentos, tenta preencher os campos do item principal
                     if not item["procedimento_nome"]:
@@ -209,7 +210,7 @@ def parse_fine_details_from_bytes(conteudo_bytes):
 
                     if item["beneficiario_nome"] or item["procedimento_nome"] or item["beneficiario_cod"]:
                         detalhes.append(item)
-                    
+
         # Se não encontrou dados estruturados, tenta buscar por Guias (Nível superior)
         if not detalhes:
             guia_tags = ["guiaSPSADT", "guiaResumoInternacao", "dadosGuia", "guiaFaturamento", "guia"]
@@ -231,7 +232,7 @@ def parse_fine_details_from_bytes(conteudo_bytes):
                         elif any(t in s_tag for t in ["nomebeneficiario", "nmbeneficiario"]): item["beneficiario_nome"] = v
                         elif any(t in s_tag for t in ["datainiciofaturamento", "dtiniciofaturamento", "dataemissaodeferimento"]): item["data"] = v
                         elif any(t in s_tag for t in ["valortotalguia", "vltotalguia", "valorpago"]): item["valor"] = formatar_valor_monetario(v)
-                    
+
                     if item["beneficiario_nome"] != "Resumo de Guia" or item["beneficiario_cod"]:
                         detalhes.append(item)
 

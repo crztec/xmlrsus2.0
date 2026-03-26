@@ -1,21 +1,23 @@
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks
-from fastapi.middleware.cors import CORSMiddleware
-from typing import List, Optional
-import os
-import json
 import asyncio
-from urllib.parse import urlparse
-import api.database as db
-import api.auth as auth
-import api.parser as parser
-from playwright.async_api import async_playwright
-import tempfile
 import logging
-import sys
+import os
 import random
+import secrets
 import smtplib
-from email.mime.text import MIMEText
+import sys
+import tempfile
 from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from typing import List, Optional
+from urllib.parse import urlparse
+
+from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from playwright.async_api import async_playwright
+
+import api.auth as auth
+import api.database as db
+import api.parser as parser
 
 # Configure standard logging
 logging.basicConfig(level=logging.INFO, stream=sys.stdout, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -49,6 +51,7 @@ async def log_requests(request, call_next):
 
 from fastapi.responses import JSONResponse
 
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
     import traceback
@@ -76,14 +79,14 @@ async def health_check():
 async def login(email: str = Form(...), password: str = Form(...)):
     try:
         user = auth.sign_in_with_email_and_password(email, password)
-        
+
         # Injeta o perfil da base de dados (Role, Nome, Status) na resposta
         user_profile = db.get_user_profile(email)
         if user_profile:
             user["role"] = user_profile.get("role", "user")
             user["first_name"] = user_profile.get("first_name", "")
             user["last_name"] = user_profile.get("last_name", "")
-            
+
         db.add_audit_log(email, "Login", "Usuário acessou o sistema com sucesso.", "INFO")
         return user
     except Exception as e:
@@ -92,7 +95,7 @@ async def login(email: str = Form(...), password: str = Form(...)):
 
 @app.post("/register")
 async def register(
-    email: str = Form(...), 
+    email: str = Form(...),
     password: str = Form(...),
     first_name: str = Form(""),
     last_name: str = Form("")
@@ -142,13 +145,14 @@ async def get_xml_data():
 
 @app.get("/xml-data/export")
 async def export_xml_data():
+    import io
+
     import pandas as pd
     from fastapi.responses import StreamingResponse
-    import io
-    
+
     data = db.get_all_xml_data()
     df = pd.DataFrame(data)
-    
+
     # Renomeia para as colunas amigáveis do usuário
     df_export = df.rename(columns={
         "file_name": "Nome do Arquivo",
@@ -162,17 +166,17 @@ async def export_xml_data():
         "recebimento_oficio": "Data Recebimento Ofício",
         "date": "Data Processamento"
     })
-    
+
     # Remove colunas técnicas e desnecessárias
     cols_to_drop = ["storage_path", "id", "status"]
     for col in cols_to_drop:
         if col in df_export.columns: df_export = df_export.drop(columns=[col])
-    
+
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df_export.to_excel(writer, index=False, sheet_name='Dados XML')
     output.seek(0)
-    
+
     return StreamingResponse(
         output,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -184,44 +188,45 @@ async def get_xml_details(file_id: str):
     doc = db.firestore_db.collection('task_files').document(file_id).get()
     if not doc.exists:
         raise HTTPException(status_code=404, detail="Arquivo não encontrado")
-    
+
     data = doc.to_dict()
     storage_path = data.get("storage_path")
     if not storage_path:
         raise HTTPException(status_code=400, detail="Caminho do storage não encontrado para este arquivo")
-        
+
     # Download do XML para memória
     import tempfile
     with tempfile.NamedTemporaryFile(delete=False) as tmp:
         success = db.download_xml_from_storage(storage_path, tmp.name)
         if not success:
             raise HTTPException(status_code=500, detail="Erro ao baixar arquivo do Storage")
-        
+
         with open(tmp.name, 'rb') as f:
             content = f.read()
-            
+
     # Remove o arquivo temporário
     os.unlink(tmp.name)
-    
+
     # Parse dos detalhes finos
     details = parser.parse_fine_details_from_bytes(content)
     return details
 
 @app.get("/xml-data/{file_id}/export")
 async def export_single_xml_details(file_id: str):
+    import io
+
     import pandas as pd
     from fastapi.responses import StreamingResponse
-    import io
-    
+
     # Busca o arquivo e extrai os detalhes (mesma lógica do endpoint de detalhes)
     doc = db.firestore_db.collection('task_files').document(file_id).get()
     if not doc.exists:
         raise HTTPException(status_code=404, detail="Arquivo não encontrado")
-    
+
     data = doc.to_dict()
     storage_path = data.get("storage_path")
     file_name = data.get("file_name", f"detalhes_{file_id}")
-    
+
     import tempfile
     with tempfile.NamedTemporaryFile(delete=False) as tmp:
         success = db.download_xml_from_storage(storage_path, tmp.name)
@@ -230,14 +235,14 @@ async def export_single_xml_details(file_id: str):
         with open(tmp.name, 'rb') as f:
             content = f.read()
     os.unlink(tmp.name)
-    
+
     details = parser.parse_fine_details_from_bytes(content)
     if not details:
         # Se não houver detalhes, retorna um erro amigável ao invés de Excel vazio
         raise HTTPException(status_code=404, detail="Nenhum detalhe encontrado para este XML para exportação.")
-        
+
     df = pd.DataFrame(details)
-    
+
     # Renomeia para colunas amigáveis
     df_export = df.rename(columns={
         "beneficiario_cod": "Cód. Beneficiário",
@@ -247,14 +252,14 @@ async def export_single_xml_details(file_id: str):
         "procedimento_nome": "Descrição Procedimento",
         "valor": "Valor (R$)"
     })
-    
+
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df_export.to_excel(writer, index=False, sheet_name='Detalhes XML')
     output.seek(0)
-    
+
     safe_filename = file_name.replace('.xml', '').replace('.XML', '') + "_detalhes.xlsx"
-    
+
     return StreamingResponse(
         output,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -298,9 +303,9 @@ async def update_user(user_email: str, data: dict):
             raise HTTPException(status_code=400, detail=f"Erro ao atualizar senha no Auth: {str(e)}")
 
     success = db.update_user_profile(
-        user_email, 
-        data.get("email"), 
-        data.get("first_name"), 
+        user_email,
+        data.get("email"),
+        data.get("first_name"),
         data.get("last_name"),
         data.get("role"),
         data.get("status")
@@ -338,21 +343,21 @@ async def get_tasks():
 async def get_task_status(task_id: str):
     task_ref = db.firestore_db.collection('tasks').document(task_id)
     task_doc = task_ref.get()
-    
+
     if not task_doc.exists:
         raise HTTPException(status_code=404, detail="Tarefa não encontrada")
-    
+
     task_data = task_doc.to_dict()
     total = task_data.get('total_arquivos', 0)
     processed = task_data.get('arquivos_processados', 0)
-    
+
     progress = 0
     if total > 0:
         progress = int((processed / total) * 100)
-    
+
     # Busca os logs (limite aumentado para 2000 para evitar desaparecimento de logs em tarefas longas)
     logs = db.get_logs_for_task(task_id, limit=2000)
-    
+
     return {
         "id": task_id,
         "status": task_data.get('status'),
@@ -382,11 +387,11 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
 
         # Extrai URL base para o Login
         parsed_url = urlparse(url_sistema)
-        
+
         # --- SSRF PROTECTION ---
         # Prevent navigation to internal network IPs, loopback, and cloud metadata servers
         hostname = parsed_url.hostname or ""
-        
+
         is_internal = False
         if hostname in ["localhost", "127.0.0.1", "169.254.169.254", "::1"] or \
            hostname.startswith("10.") or \
@@ -400,12 +405,12 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                         is_internal = True
                 except ValueError:
                     pass
-        
+
         if is_internal:
             db.add_log(task_id, "ERROR", "VULNERABILIDADE SSRF BLOQUEADA: URL aponta para rede interna.")
             db.firestore_db.collection('tasks').document(task_id).update({'status': 'ERRO'})
             return
-            
+
         base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
         login_url = f"{base_url}/Account/Login"
 
@@ -414,8 +419,8 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
             # Incorporando flags de otimização do robô antigo para máxima estabilidade
             browser_args = [
                 "--headless=new",
-                "--no-sandbox", 
-                "--disable-dev-shm-usage", 
+                "--no-sandbox",
+                "--disable-dev-shm-usage",
                 "--disable-gpu",
                 "--window-size=1920,1080",
                 # DESATIVAR SAME-SITE E REGRAS DE SEGURANÇA
@@ -428,10 +433,11 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
             try:
                 # Tenta o launch padrão primeiro
                 browser = await p.chromium.launch(headless=True, args=browser_args)
-            except Exception as launch_err:
+            except Exception:
                 # Fallback: Mantém os argumentos de segurança e certificado
                 db.add_log(task_id, "DEBUG", "Binários ausentes. Instalando Chromium...")
-                import subprocess, sys
+                import subprocess
+                import sys
                 subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], check=False)
                 browser = await p.chromium.launch(headless=True, args=browser_args)
 
@@ -444,9 +450,9 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
             )
             # Evasão contra detecção de automação (Webdriver)
             await context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-            
+
             page = await context.new_page()
-            
+
             # --- HIPER-OTIMIZAÇÃO: BLOQUEIO DE ATIVOS PESADOS ---
             # Bloqueia fontes e imagens para acelerar o carregamento e evitar erros de OTS/Decoding
             async def block_assets(route):
@@ -455,7 +461,7 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                 else:
                     await route.continue_()
             await page.route("**/*", block_assets)
-            
+
             page.set_default_navigation_timeout(90000) # Aumentado para 90s (Paciência Selenium)
             page.set_default_timeout(90000)
 
@@ -463,7 +469,7 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
             try:
                 # LISTENER DE CONSOLE PARA CAPTURAR ERROS (MANTIDO EM DEBUG PARA NÃO POLUIR O ACOMPANHAMENTO)
                 # Removidos listeners de console do navegador para manter o log limpo apenas com erros da aplicação
-                
+
                 # INTERCEPTOR DE RESPOSTAS PARA INJEÇÃO CIRÚRGICA DE COOKIES
                 async def handle_response(response):
                     # Monitoramos o domínio do sistema para forçar persistência de cookies
@@ -480,7 +486,7 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                                     if not parts: continue
                                     name_val = parts[0].split('=', 1)
                                     if len(name_val) < 2: continue
-                                    
+
                                     # Injeção manual ignorando SameSite/Secure do navegador
                                     await context.add_cookies([{
                                         "name": name_val[0],
@@ -493,23 +499,23 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                                     }])
                                 db.add_log(task_id, "DEBUG", f"[COOKIE FORÇADO] Tokens de sessão de {response.url[:50]}... reinjetados.")
                         except: pass
-                
+
                 page.on("response", handle_response)
-                
+
                 # --- AUTO-ACCEPT DIALOGS ---
                 # Evita que alertas do navegador (ex: 'Sair do site? As alterações não foram salvas') travem a automação
                 page.on("dialog", lambda dialog: asyncio.create_task(dialog.accept()))
 
                 db.add_log(task_id, "INFO", "Acessando a página de importação do sistema.")
-                
+
                 # Debug de Horário e Identidade do Navegador
                 browser_time = await page.evaluate("new Date().toString()")
                 db.add_log(task_id, "DEBUG", f"[Fuso Navegador] {browser_time}")
-                
+
                 # Entra diretamenta na URL do sistema (ex: /importacao/novo)
                 # O portal vai redirecionar automaticamente para a tela de login preservando a rota de retorno (ReturnUrl)
                 await page.goto(url_sistema, wait_until="commit", timeout=60000)
-                
+
                 # Tratar modais/avisos iniciais (fast scan)
                 try:
                     alert = page.locator("#_browseralert, .browseralert").first
@@ -528,34 +534,34 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
 
                 await email_field.wait_for(state="visible", timeout=25000)
                 db.add_log(task_id, "INFO", "Identificando tela de acesso. Preenchendo login...")
-                
+
                 # Preenchimento tático usando type (igual send_keys do Selenium) para acordar o AngularJS
                 # Evitamos o fill() pois portais velhos às vezes não disparam o $watch do Angular a tempo
                 await email_field.click()
                 await email_field.type(usuario, delay=40)
                 await asyncio.sleep(0.5)
-                
+
                 pwd_field = page.locator("input#password, input#Password").first
                 await pwd_field.click()
                 await pwd_field.type(senha, delay=40)
                 await asyncio.sleep(0.5)
-                
+
                 # Botão de Login orgânico
                 btn_login = page.locator("#logIn, button[type='submit']").first
                 await btn_login.click()
-                
+
                 # Aguarda sumiço do botão de login ou mudança de URL (mais robusto que sleep(2))
                 try:
                     await page.wait_for_selector("#logIn, button[type='submit']", state="hidden", timeout=15000)
                 except:
                     db.add_log(task_id, "WARNING", "Botão de login ainda visível após clique. Prosseguindo...")
-                
+
                 # VERIFICAÇÃO DE SESSÃO: Logar cookies e LocalStorage
                 cookies = await context.cookies()
                 has_session = any('.ASPXAUTH' in c['name'] or 'Identity' in c['name'] or 'ASP.NET_SessionId' in c['name'] for c in cookies)
-                
+
                 db.add_log(task_id, "INFO", "Acesso autorizado. Iniciando sessão de trabalho.")
-                
+
                 # NOVO: SE ESTAMOS PRESOS NA TELA DE LOGIN MAS TEMOS COOKIE, FORÇAMOS O SALTO TRIPLO
                 if has_session and ("Account/Login" in page.url or "Account/LogOff" in page.url):
                     db.add_log(task_id, "WARNING", "Sessão detectada mas preso na tela de Login. Forçando Salto Triplo (Hiper-Otimizado)...")
@@ -574,7 +580,7 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                     await page.goto(url_lista, wait_until="commit", timeout=30000)
                     await asyncio.sleep(2)
                     await page.goto(url_sistema, wait_until="commit", timeout=60000)
-                    
+
                 form_ready = False
                 # Tentativa 1: Aguarda o seletor com paciência
                 try:
@@ -602,7 +608,7 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                         db.add_log(task_id, "INFO", f"HTML Dump salvo para auditoria: {blob_name}")
                     except: pass
                     raise e_final
-                        
+
             except Exception as e:
                 import traceback
                 error_detail = traceback.format_exc()
@@ -621,14 +627,14 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                         blob = bucket.blob(remote_path)
                         blob.upload_from_string(buf, content_type='image/png')
                         db.add_log(task_id, "DEBUG", f"Screenshot salvo: {remote_path}")
-                except Exception as img_err:
+                except Exception:
                     pass
-                
+
                 # NOVO: Se o login/redirecionamento falhar, marca todos os arquivos como ERRO
                 db.mark_all_task_files_as_error(task_id, f"Falha no portal: {str(e)[:100]}")
                 db.firestore_db.collection('tasks').document(task_id).update({'status': 'ERRO'})
                 raise e
- 
+
             # Fallback final: Se ainda não carregou, tenta clicar em SELECIONAR ARQUIVO na lista
             if not form_ready:
                 db.add_log(task_id, "INFO", "Tentando navegação via menu (fallback dinâmico)...")
@@ -636,10 +642,10 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                     url_lista = url_sistema.replace("/novo", "")
                     await page.goto(url_lista, wait_until="domcontentloaded", timeout=60000)
                     await asyncio.sleep(3)
-                    
+
                     # Log de onde estamos para diagnóstico
                     db.add_log(task_id, "DEBUG", f"URL Atual no Fallback: {page.url}")
-                    
+
                     sel_btn = page.locator("a:has-text('SELECIONAR ARQUIVO'), a:has-text('Selecionar arquivo')").first
                     if await sel_btn.is_visible(timeout=15000):
                         await sel_btn.click()
@@ -661,24 +667,24 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                     return
 
             db.add_log(task_id, "DEBUG", f"URL do formulário: {page.url}")
-            
+
             # 3. Processamento dos Arquivos
             files = db.get_files_for_task(task_id)
             total = len(files)
-            
+
             # Ordenação numérica decrescente por ABI conforme o sistema antigo
             def extract_abi_num(num_abi_str):
                 import re
                 match = re.search(r'(\d+)', str(num_abi_str))
                 return int(match.group(1)) if match else 0
-            
+
             for i, file in enumerate(files):
                 nome = file.get('nome_arquivo', 'Arquivo')
                 abi = file.get('numero_abi', '')
                 storage_path = file.get('storage_path')
-                
+
                 db.add_log(task_id, "INFO", f"[{i+1}/{total}] Iniciando processamento da ABI {abi}.")
-                
+
                 # --- RE-DETECÇÃO ROBUSTA DE FORMULÁRIO (Prevenir Stale Frames) ---
                 form_target = page
                 status_final_abi = "PENDENTE"
@@ -690,7 +696,7 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                             form_ready = True
                             db.add_log(task_id, "DEBUG", f"Formulário encontrado no frame principal (ABI {abi})")
                             break
-                        
+
                         # Tenta procurar em IFrames
                         for frame in page.frames:
                             try:
@@ -701,11 +707,11 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                                     break
                             except: continue
                         if form_ready: break
-                        
+
                         db.add_log(task_id, "DEBUG", f"Aguardando formulário abrir (Tentativa {attempt}/5)...")
                         await asyncio.sleep(5)
                     except: pass
-                
+
                 if not form_ready:
                     db.add_log(task_id, "ERROR", f"Portal RSUS não carregou o formulário para ABI {abi}. Pulando para o próximo.")
                     db.firestore_db.collection('task_files').document(file['id']).update({
@@ -729,14 +735,14 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                     except: pass
                     already_imported = True
                     status_final_abi = "SUCCESS"
-                
+
                 if not already_imported:
                     try:
                         db.add_log(task_id, "INFO", f"Preenchendo dados básicos da ABI {abi}...")
                         try:
                             num_processo = file.get('numero_processo', '')
                             dt_recebimento = file.get("data_recebimento_oficio") or file.get("data_registro_transacao", "")
-                            
+
                             # ─── NOVO: Cálculo de Prazo (35 dias) if missing ───
                             dt_prazo = file.get("prazo_resposta_ans", "")
                             if not dt_prazo and dt_recebimento:
@@ -758,9 +764,9 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                                 "input#quantidadeAtendimentos": qtd,
                                 "input#valorTotalABI": valor,
                             }
-                            
+
                             db.add_log(task_id, "INFO", f"Preenchendo formulário para ABI {abi} (Processo: {num_processo})")
-                            
+
                             # ─── NOVO: Definição de interface (Injeção CSS e jQuery Sync) ───
                             try:
                                 await page.evaluate("""() => {
@@ -788,17 +794,17 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                                         }
                                         return false;
                                     }""", [sel, str(val)])
-                                    
+
                                     if success:
                                         db.add_log(task_id, "DEBUG", f"  Campo {sel} preenchido ✓")
                                 except Exception as field_err:
                                     db.add_log(task_id, "WARNING", f"  Erro no campo {sel}: {str(field_err)[:50]}")
-                            
+
                             # ─── ETAPA 3: Upload do arquivo XML ───
                             db.add_log(task_id, "INFO", f"Fazendo upload do arquivo XML da ABI {abi}...")
                             with tempfile.NamedTemporaryFile(suffix=".xml", delete=False) as tmp:
                                 tmp_name = tmp.name
-                            
+
                             try:
                                 success_dl = db.download_xml_from_storage(storage_path, tmp_name)
                                 if not success_dl:
@@ -811,7 +817,7 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                                     db.add_log(task_id, "INFO", "Arquivo XML anexado com sucesso.")
                             except Exception as dl_err:
                                 db.add_log(task_id, "ERROR", f"Erro no upload local do XML: {dl_err}")
-                            
+
                             # ─── ETAPA 4: Screenshot ANTES de clicar Importar (para diagnóstico) ───
                             try:
                                 pre_submit_path = f"debug/screenshots/{task_id}_abi_{abi}_pre_submit.png"
@@ -819,10 +825,10 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                                 db.upload_screenshot(pre_submit_path, img_bytes)
                                 db.add_log(task_id, "DEBUG", f"Screenshot pré-submit salvo: {pre_submit_path}")
                             except: pass
-                            
+
                             # ─── ETAPA 5: Clicar no botão IMPORTAR ARQUIVO ───
                             db.add_log(task_id, "INFO", "Enviando dados para processamento final no portal...")
-                            
+
                             # Interceptor para capturar o erro 400 do portal
                             intercepted_portal_error = {"text": ""}
                             async def catch_import_error(response):
@@ -842,13 +848,13 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                                             db.add_log(task_id, "ERROR", f"ERRO PORTAL (400): {body}")
                                     except:
                                         pass
-                            
+
                             page.on("response", catch_import_error)
 
                             # Rola para o topo para garantir visibilidade
                             await page.evaluate("window.scrollTo(0, 0)")
                             await asyncio.sleep(2) # Buffer extra para o portal 'sentir' os campos preenchidos
-                            
+
                             # Clique Final no botão de Importar (Robusto com evaluate)
                             # Clique Final no botão de Importar (Robusto com evaluate + timeout)
                             success_click = False
@@ -891,7 +897,7 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                                     # Procura botões de Sim/Não (Confirmação) ou Ok (Erro)
                                     btn_sim = page.locator("button:has-text('Sim'), button:has-text('SIM'), a:has-text('Sim'), .btn-footer:has-text('Sim')").first
                                     btn_ok = page.locator("button:has-text('Ok'), button:has-text('OK'), a:has-text('Ok')").first
-                                    
+
                                     if await btn_ok.is_visible(timeout=3000):
                                         db.add_log(task_id, "INFO", "Modal de aviso/erro detectado. Fechando (Ok)...")
                                         await btn_ok.click(force=True)
@@ -906,25 +912,25 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                                             db.add_log(task_id, "INFO", f"Modal dinâmico detectado ({btn_text}). Clicando...")
                                             await generic_btn.click(force=True)
                                 except: pass
-                                
+
                                 # ─── ETAPA 6: Aguardar confirmação do portal ───
                                 db.add_log(task_id, "INFO", "Aguardando resposta de confirmação do sistema...")
                                 status_final_abi = "ERROR"
                                 msg_feedback = ""
-                                
+
                                 # Se o erro já foi capturado pelo interceptor de rede, não precisa esperar 60s
                                 if intercepted_portal_error["text"]:
                                     status_final_abi = "ERROR"
                                     msg_feedback = intercepted_portal_error["text"]
                                     # Zera a variável para usar o fallback de UI logo abaixo a fim de fechar a modal e passar ao próximo
                                     check_round_limit = 5 # Apenas dá um tempo rápido para a UI estabilizar
-                                
+
                                 else:
                                     check_round_limit = 120
-                                
+
                                 # Seletor expandido de mensagens (inclui toasts, alertas do navegador e mensagens de sistema)
                                 msg_selectors = ".header-message-top, .browseralert, .modal-content, .alert, .alert-success, .alert-danger, .alert-warning, .alert-info, .toast, .notification, .toast-message, #_browseralert, .help-block"
-                                
+
                                 # Verifica por até 60 segundos com maior frequência (0.5s) para capturar mensagens transientes
                                 for check_round in range(check_round_limit):
                                     try:
@@ -936,9 +942,9 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                                             if await msg_el.is_visible(timeout=100):
                                                 msg_text = (await msg_el.inner_text()).strip()
                                                 if not msg_text: continue
-                                                
+
                                                 db.add_log(task_id, "DEBUG", f"Mensagem detectada da UI: '{msg_text[:140]}'")
-                                                
+
                                                 if any(key in msg_text.lower() for key in ["sucesso", "importad", "concluíd", "enviado"]):
                                                     db.add_log(task_id, "SUCCESS", "Importação confirmada com sucesso pelo portal.")
                                                     status_final_abi = "SUCCESS"
@@ -950,10 +956,10 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                                                         status_final_abi = "ERROR"
                                                         msg_feedback = msg_text
                                                     break
-                                        
+
                                         if status_final_abi == "SUCCESS" or (status_final_abi == "ERROR" and msg_feedback and not intercepted_portal_error["text"]):
                                             break
-                                            
+
                                         # Se a URL mudar para a lista, assume que terminou
                                         if "/importacao" in page.url and "/novo" not in page.url:
                                             db.add_log(task_id, "INFO", "Processo concluído. Retornando para o início.")
@@ -962,15 +968,15 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                                     except:
                                         pass
                                     await asyncio.sleep(0.5)
-                                
+
                                 # Se nenhuma mensagem apareceu, captura screenshot e verifica URL
                                 if status_final_abi == "ERROR" and not msg_feedback:
                                     db.add_log(task_id, "WARNING", f"ABI {abi}: Nenhuma mensagem de confirmação após 45s.")
-                                    
+
                                     # Verifica se a URL mudou (pode ter sido redirecionado)
                                     current_url = page.url
                                     db.add_log(task_id, "DEBUG", f"URL atual após submit: {current_url}")
-                                    
+
                                     # Screenshot post-submit para diagnóstico
                                     try:
                                         timeout_path = f"debug/screenshots/{task_id}_abi_{abi}_timeout.png"
@@ -978,16 +984,16 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                                         db.upload_screenshot(timeout_path, img_bytes)
                                         db.add_log(task_id, "DEBUG", f"Screenshot pós-timeout salvo: {timeout_path}")
                                     except: pass
-                                    
+
                                     # Captura o HTML visível para diagnóstico
                                     try:
                                         body_text = await page.locator("body").inner_text()
                                         # Loga os primeiros 300 chars para entender o que há na tela
                                         db.add_log(task_id, "DEBUG", f"Texto da página: {body_text[:300]}")
                                     except: pass
-                                    
+
                                     msg_feedback = "Timeout - sem confirmação SIS (ver screenshots)"
-                                
+
                                 # Atualiza status do arquivo no Firestore
                                 db.firestore_db.collection('task_files').document(file['id']).update({
                                     'status_importacao': 'SUCESSO' if status_final_abi == "SUCCESS" else 'ERRO',
@@ -1011,7 +1017,7 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                             })
                     except Exception as e:
                         db.add_log(task_id, "ERROR", f"Erro interno no processamento da ABI {abi}: {e}")
-                
+
                 # ─── ETAPA FINAL: Limpeza do Arquivo Temporário ───
                 try:
                     if 'tmp_name' in locals() and tmp_name and os.path.exists(tmp_name):
@@ -1026,7 +1032,7 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                     'progress': progress,
                     'updated_at': db.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 })
-                
+
                 # Intervalo e limpeza para próximo arquivo
                 if i < total - 1:
                     db.add_log(task_id, "INFO", f"Arquivo {i+1} finalizado. Preparando para o próximo...")
@@ -1035,16 +1041,16 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                         await asyncio.sleep(30)
                     else:
                         await asyncio.sleep(3)
-                    
+
                     # Navegação explícita para a lista para limpar estado
                     try:
                         import_list_url = f"{base_url}/importacao"
                         db.add_log(task_id, "DEBUG", "Limpando estado para o próximo arquivo...")
-                        
+
                         # Tenta ir para a lista de importação
                         await page.goto(import_list_url, wait_until="domcontentloaded", timeout=60000)
                         await asyncio.sleep(5)
-                        
+
                         # Procura o botão de forma robusta
                         sel_btn = None
                         btn_selectors = ["a:has-text('SELECIONAR ARQUIVO')", ".btn-primary:has-text('SELECIONAR ARQUIVO')", "a[href*='novo']"]
@@ -1053,7 +1059,7 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                             if await btn.count() > 0:
                                 sel_btn = btn
                                 break
-                        
+
                         if sel_btn:
                             await sel_btn.click()
                             db.add_log(task_id, "DEBUG", "Botão 'SELECIONAR ARQUIVO' clicado.")
@@ -1072,7 +1078,7 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                         db.add_log(task_id, "WARNING", f"Erro na transição: {nav_err}. Tentando reload total...")
                         await page.goto(f"{base_url}/importacao/novo", timeout=60000)
                         await asyncio.sleep(5)
-                    
+
                     # --- RE-DETECÇÃO DE FRAME PÓS REFRESH ---
                     db.add_log(task_id, "DEBUG", "Aguardando novo formulário aparecer...")
                     form_target = page
@@ -1097,12 +1103,12 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                         db.add_log(task_id, "WARNING", "Campo protocolo não repareceu. O robô tentará identificar na próxima iteração.")
 
             await browser.close()
-            
+
         # Determina mensagem final baseada nos resultados individuais
         all_files = db.get_files_for_task(task_id)
         success_count = sum(1 for f in all_files if f.get('status_importacao') == 'SUCESSO')
         error_count = sum(1 for f in all_files if f.get('status_importacao') == 'ERRO')
-        
+
         final_msg = f"Processamento concluído: {success_count} sucessos, {error_count} erros."
         if error_count == 0:
             final_msg = "Tudo pronto! Todos os arquivos foram processados e enviados com sucesso."
@@ -1113,17 +1119,17 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
         else:
             final_msg = f"Concluído com ressalvas: {success_count} importados, {error_count} falhas."
             status_final_task = "CONCLUIDO_COM_RESSALVAS" # Marcamos como concluído com ressalvas
-        
+
         db.add_log(task_id, "SUCCESS" if error_count == 0 else "WARNING", final_msg)
-        
+
         # Delay de 3s antes de fechar a tarefa para dar tempo do polling do frontend capturar o último log
         await asyncio.sleep(3)
-        
+
         db.firestore_db.collection('tasks').document(task_id).update({
             'status': status_final_task,
             'updated_at': db.get_now_br().strftime("%Y-%m-%d %H:%M:%S")
         })
-        
+
     except Exception as e:
         import traceback
         error_msg = traceback.format_exc()
@@ -1141,27 +1147,27 @@ async def pre_check_duplicates(
 ):
     if not files:
         return {"duplicates": []}
-    
+
     arquivos_upload_data = []
     for file in files:
         content = await file.read()
         arquivos_upload_data.append((file.filename, content))
-    
+
     # Extrai os dados dos XMLs para identificar as ABIs
     try:
         extracted = parser.extrair_dados_xml(arquivos_upload_data)
         if extracted.empty:
             return {"duplicates": []}
-        
+
         # Assume que todos os arquivos são da mesma Razão Social (pelo fluxo do sistema)
         razao_social = parser.extract_razao_social(arquivos_upload_data[0][1])
-        
+
         duplicates = []
         for _, row in extracted.iterrows():
             abi = str(row.get('Número ABI', row.get('numero_abi', '')))
             if db.check_abi_already_imported(razao_social.strip(), abi):
                 duplicates.append(abi)
-        
+
         return {"duplicates": duplicates, "razao_social": razao_social}
     except Exception as e:
         logger.error(f"Erro no pre-check: {e}")
@@ -1189,13 +1195,13 @@ async def upload_xmls(
 
     # Identifica a Razão Social do primeiro arquivo para a tarefa
     razao_social = parser.extract_razao_social(arquivos_upload_data[0][1])
-    
+
     # NOVO: Prevenção de duplicidade (Idempotência) - Respeita o parâmetro 'force'
     if not force:
         recent_docs = db.firestore_db.collection('tasks') \
             .order_by('created_at', direction='DESCENDING') \
             .limit(5).get()
-        
+
         for doc in recent_docs:
             last_task = doc.to_dict()
             if last_task.get('razao_social') == razao_social and \
@@ -1210,11 +1216,11 @@ async def upload_xmls(
     # Cria a tarefa no banco com as credenciais reais
     task_id = db.create_task(
         url_sistema=url_sistema,
-        usuario=usuario, 
-        senha=senha, 
+        usuario=usuario,
+        senha=senha,
         razao_social=razao_social
     )
-    
+
     # Upload dos arquivos para o Storage e prepara dados para o Firestore
     files_info = []
     for filename, content in arquivos_upload_data:
@@ -1308,7 +1314,7 @@ async def route_get_profile(email: str):
 @app.post("/profile/request-code")
 async def route_request_verification_code(email: str = Form(...), action_type: str = Form(...)):
     """Generates and sends a 6-digit code to the user's email."""
-    code = random.randint(100000, 999999)
+    code = secrets.randbelow(900000) + 100000
     if db.save_verification_code(email, code, action_type):
         send_verification_email(email, code, action_type)
         return {"status": "success", "message": "Código enviado para seu e-mail."}
@@ -1330,7 +1336,7 @@ async def route_update_profile(
     - Password change: needs current_password.
     - Name change: direct.
     """
-    
+
     # 1. Verificação se está tentando mudar o e-mail
     is_changing_email = new_email and new_email != current_email
     if is_changing_email:
@@ -1354,16 +1360,16 @@ async def route_update_profile(
         # 3. Atualiza no Firebase Auth se necessário (E-mail ou Senha)
         if is_changing_email or is_changing_password:
             auth.update_user_credentials(current_email, new_email, new_password)
-            
+
         # 4. Atualiza no Firestore (Nome, Sobrenome e novo E-mail se houver)
         success = db.update_user_profile(current_email, new_email or current_email, first_name, last_name)
-        
+
         if success:
-            db.add_audit_log(current_email, "Atualização de Perfil", f"Usuário alterou seus dados.", "INFO")
+            db.add_audit_log(current_email, "Atualização de Perfil", "Usuário alterou seus dados.", "INFO")
             return {"status": "success"}
     except Exception as e:
         logger.error(f"Erro ao atualizar perfil: {e}")
         error_detail = db.get_friendly_error(e)
         raise HTTPException(status_code=400, detail=error_detail)
-    
+
     raise HTTPException(status_code=500, detail="Erro desconhecido ao atualizar perfil.")

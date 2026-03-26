@@ -4,8 +4,8 @@ import sys
 # Adiciona o diretório raiz ao path para importar api.database
 sys.path.append(os.getcwd())
 
+
 import api.database as db
-from google.cloud import firestore
 
 clients_data = [
     ("Unimed Cabo Frio", "https://rsuscabofrio.cubeti.com.br/"),
@@ -72,21 +72,21 @@ clients_data = [
 
 def sync():
     print(f"Iniciando sincronização de {len(clients_data)} clientes...")
-    
+
     for name, url in clients_data:
         # Usa o nome como ID do documento ou busca se já existe
         # No Firestore do GAX, client_configs parecem usar nomes ou IDs uuid
         # Vamos usar o nome como ID para facilitar a busca e evitar duplicados por nome comercial
-        
+
         doc_ref = db.firestore_db.collection('client_configs').document(name)
         doc = doc_ref.get()
-        
+
         data = {
             'razao_social': name,
             'url_sistema': url,
             'updated_at': db.get_now_br().strftime("%Y-%m-%d %H:%M:%S")
         }
-        
+
         if doc.exists:
             # Mantém campos extras (CNPJ, ANS) se existirem
             doc_ref.update(data)
