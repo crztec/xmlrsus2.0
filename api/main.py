@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 import random
+import requests
 import secrets
 import smtplib
 import sys
@@ -90,6 +91,7 @@ async def login(email: str = Form(...), password: str = Form(...)):
         db.add_audit_log(email, "Login", "Usuário acessou o sistema com sucesso.", "INFO")
         return user
     except Exception as e:
+        logger.error(f"Login failed for {email}: {e}")
         db.add_audit_log(email, "Tentativa de Login Falhou", str(e), "WARNING")
         raise HTTPException(status_code=401, detail=str(e))
 
