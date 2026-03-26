@@ -95,66 +95,75 @@ export default function ClientsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div></div>
-
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+      <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between animate-in fade-in duration-500">
+        <div className="relative group max-w-md w-full">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-gax-blue transition-colors" size={18} />
           <input 
             type="text" 
             placeholder="Buscar por nome ou CNPJ..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 text-slate-700 font-medium placeholder:text-slate-300 sm:w-80"
+            className="w-full rounded-2xl border border-slate-200/60 bg-white px-12 py-3.5 text-xs outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all font-medium placeholder:text-slate-300"
           />
         </div>
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-20">
-          <Loader2 className="animate-spin text-gax-blue" size={40} />
+        <div className="flex flex-col items-center justify-center py-40 gap-4">
+          <Loader2 className="animate-spin text-gax-blue" size={48} />
+          <p className="text-sm font-medium text-slate-400">Carregando base de clientes...</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
-          {filteredClients.map((client) => (
-            <div key={client.id} className="group relative rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition-all hover:border-gax-blue/30 hover:shadow-md">
-              <button 
-                onClick={() => handleEditClick(client)}
-                className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full bg-slate-50 text-slate-400 opacity-0 transition-all hover:bg-gax-blue-light hover:text-gax-blue group-hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
-                title="Editar Cliente"
-                aria-label={`Editar ${client.name}`}
-              >
-                <Pencil size={14} />
-              </button>
-
-              <div className="mb-4 flex items-start justify-between">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gax-blue-light text-gax-blue">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
+          {filteredClients.map((client, idx) => (
+            <div 
+              key={client.id} 
+              className="group relative flex flex-col rounded-3xl border border-slate-200/60 bg-white/70 p-6 shadow-sm backdrop-blur-sm transition-all hover:border-gax-blue/30 hover:shadow-xl hover:shadow-slate-200/50 animate-in fade-in slide-in-from-bottom-4 duration-700"
+              style={{ animationDelay: `${idx * 50}ms`, animationFillMode: 'both' }}
+            >
+              <div className="mb-6 flex items-start justify-between">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-gax-blue/10 to-gax-blue/5 text-gax-blue shadow-inner group-hover:scale-110 transition-transform duration-500">
                   <Building2 size={24} aria-hidden="true" />
                 </div>
-                <span className="rounded-full bg-green-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-green-600">Ativo</span>
+                <div className="flex items-center gap-2">
+                  <span className="rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-600 border border-emerald-100/50">Ativo</span>
+                  <button 
+                    onClick={() => handleEditClick(client)}
+                    className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-50 text-slate-400 opacity-0 group-hover:opacity-100 hover:bg-gax-blue hover:text-white transition-all shadow-sm"
+                    title="Editar Cliente"
+                  >
+                    <Pencil size={16} />
+                  </button>
+                </div>
               </div>
 
-              <h3 className="mb-1 text-lg font-bold text-slate-800 group-hover:text-gax-blue">{client.name}</h3>
-              <div className="mb-6 space-y-1">
-                <p className="text-xs text-slate-400 flex items-center gap-1.5">
-                  <CreditCard size={12} aria-hidden="true" />
-                  <span className="sr-only">CNPJ:</span> {client.cnpj || "Não informado"}
-                </p>
+              <h3 className="mb-2 text-lg font-bold text-slate-800 transition-colors group-hover:text-gax-blue leading-tight">{client.name}</h3>
+              <div className="mb-6 space-y-2">
+                <div className="flex items-center gap-2.5 text-xs text-slate-500">
+                  <div className="flex h-5 w-5 items-center justify-center rounded bg-slate-100 text-slate-400">
+                    <CreditCard size={12} />
+                  </div>
+                  <span className="font-medium">{client.cnpj || "CNPJ não informado"}</span>
+                </div>
                 {client.registro_ans && (
-                  <p className="text-xs text-slate-400 flex items-center gap-1.5">
-                    <FileCheck size={12} aria-hidden="true" />
-                    <span className="sr-only">ANS:</span> {client.registro_ans}
-                  </p>
+                  <div className="flex items-center gap-2.5 text-xs text-slate-500">
+                    <div className="flex h-5 w-5 items-center justify-center rounded bg-slate-100 text-slate-400">
+                      <FileCheck size={12} />
+                    </div>
+                    <span className="font-medium">ANS: {client.registro_ans}</span>
+                  </div>
                 )}
                 {client.endereco && (
-                  <p className="text-xs text-slate-400 flex items-center gap-1.5 truncate" title={client.endereco}>
-                    <MapPin size={12} aria-hidden="true" />
-                    <span className="sr-only">Endereço:</span> {client.endereco}
-                  </p>
+                  <div className="flex items-center gap-2.5 text-xs text-slate-500">
+                    <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-slate-100 text-slate-400">
+                      <MapPin size={12} />
+                    </div>
+                    <span className="font-medium truncate" title={client.endereco}>{client.endereco}</span>
+                  </div>
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-4 border-t border-slate-100 pt-4">
+              <div className="grid grid-cols-2 gap-4 border-t border-slate-100/50 pt-5 mt-auto">
                 <div>
                   <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                     <Calendar size={12} aria-hidden="true" />

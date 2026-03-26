@@ -184,9 +184,9 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
       {/* Upload Section */}
-      <section className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+      <section className="rounded-3xl border border-slate-200/60 bg-white/70 p-8 shadow-sm backdrop-blur-sm">
         <div className="mb-6 flex items-center justify-between">
           <div></div>
           {files.length > 0 && (
@@ -201,38 +201,38 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-3">
-          <div className="space-y-1">
-            <label htmlFor="rsusUrlInput" className="text-[10px] font-bold uppercase tracking-wider text-slate-400">URL do Sistema RSUS</label>
+        <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-3">
+          <div className="space-y-2">
+            <label htmlFor="rsusUrlInput" className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400 ml-1">URL do Sistema RSUS</label>
             <input 
               id="rsusUrlInput"
               type="text" 
               placeholder="https://..." 
               value={rsusUrl}
               onChange={(e) => setRsusUrl(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2 text-xs outline-none focus:border-gax-blue focus:bg-white focus:ring-4 focus:ring-gax-blue/10 text-slate-700 font-medium placeholder:text-slate-300"
+              className="w-full rounded-2xl border border-slate-200 bg-white/50 px-4 py-3 text-xs outline-none focus:border-gax-blue focus:bg-white focus:ring-4 focus:ring-gax-blue/10 text-slate-700 font-medium transition-all placeholder:text-slate-300"
             />
           </div>
-          <div className="space-y-1">
-            <label htmlFor="rsusUserInput" className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Usuário</label>
+          <div className="space-y-2">
+            <label htmlFor="rsusUserInput" className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400 ml-1">Usuário</label>
             <input 
               id="rsusUserInput"
               type="text" 
               placeholder="Digite seu login" 
               value={rsusUser}
               onChange={(e) => setRsusUser(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2 text-xs outline-none focus:border-gax-blue focus:bg-white focus:ring-4 focus:ring-gax-blue/10 text-slate-700 font-medium placeholder:text-slate-300"
+              className="w-full rounded-2xl border border-slate-200 bg-white/50 px-4 py-3 text-xs outline-none focus:border-gax-blue focus:bg-white focus:ring-4 focus:ring-gax-blue/10 text-slate-700 font-medium transition-all placeholder:text-slate-300"
             />
           </div>
-          <div className="space-y-1">
-            <label htmlFor="rsusPassInput" className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Senha</label>
+          <div className="space-y-2">
+            <label htmlFor="rsusPassInput" className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400 ml-1">Senha</label>
             <input 
               id="rsusPassInput"
               type="password" 
               placeholder="••••••••" 
               value={rsusPass}
               onChange={(e) => setRsusPass(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2 text-xs outline-none focus:border-gax-blue focus:bg-white focus:ring-4 focus:ring-gax-blue/10 text-slate-700 font-medium placeholder:text-slate-300"
+              className="w-full rounded-2xl border border-slate-200 bg-white/50 px-4 py-3 text-xs outline-none focus:border-gax-blue focus:bg-white focus:ring-4 focus:ring-gax-blue/10 text-slate-700 font-medium transition-all placeholder:text-slate-300"
             />
           </div>
         </div>
@@ -268,8 +268,8 @@ export default function DashboardPage() {
 
         <div 
           className={cn(
-            "relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50 py-10 transition-all hover:bg-slate-50",
-            files.length > 0 && "border-gax-blue/30 bg-gax-blue-light/10"
+            "relative flex flex-col items-center justify-center rounded-3xl border-2 border-dashed border-slate-200 bg-slate-50/30 py-12 transition-all hover:bg-white hover:border-gax-blue/30 group",
+            files.length > 0 && "border-gax-blue/20 bg-gax-blue-light/5"
           )}
         >
           <input 
@@ -279,18 +279,22 @@ export default function DashboardPage() {
             onChange={handleFileChange}
             className="absolute inset-0 cursor-pointer opacity-0"
           />
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white shadow-md text-gax-blue">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white shadow-xl shadow-slate-200/40 text-gax-blue group-hover:scale-110 transition-transform duration-500">
             <CloudUpload size={32} />
           </div>
-          <p className="mt-4 text-sm font-bold text-slate-700">Arraste seus arquivos aqui ou clique para procurar</p>
-          <p className="mt-1 text-xs text-slate-400">Apenas arquivos .XML são aceitos</p>
+          <p className="mt-6 text-sm font-bold text-slate-700">Arraste seus arquivos aqui ou clique para procurar</p>
+          <p className="mt-1.5 text-xs text-slate-400 font-medium">Apenas arquivos .XML são aceitos (máx 5MB)</p>
         </div>
 
         {files.length > 0 && (
-          <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {files.map((file, idx) => (
-              <div key={idx} className="group relative flex items-center gap-3 rounded-xl border border-slate-100 bg-white p-3 shadow-sm transition-all hover:border-gax-blue/20 hover:shadow-md">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gax-blue-light text-gax-blue">
+              <div 
+                key={idx} 
+                className="group relative flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm transition-all hover:border-gax-blue/20 hover:shadow-xl hover:shadow-slate-200/50 animate-in zoom-in-95 duration-300"
+                style={{ animationDelay: `${idx * 50}ms`, animationFillMode: 'both' }}
+              >
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gax-blue-light/50 text-gax-blue">
                   <FileText size={20} />
                 </div>
                 <div className="flex-1 overflow-hidden">

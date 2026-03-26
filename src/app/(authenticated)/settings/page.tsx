@@ -98,14 +98,14 @@ export default function SettingsPage() {
     <div className="space-y-8">
       <div></div>
 
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-2 animate-in fade-in duration-700">
         {/* Branding Section */}
-        <section className="space-y-6 rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-          <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gax-blue-light text-gax-blue">
-              <Settings size={20} />
+        <section className="space-y-6 rounded-3xl border border-slate-200/60 bg-white/70 p-8 shadow-sm backdrop-blur-sm">
+          <div className="flex items-center gap-4 border-b border-slate-100/50 pb-6">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-gax-blue/10 to-gax-blue/5 text-gax-blue shadow-inner">
+              <Settings size={24} />
             </div>
-            <h2 className="text-lg font-bold text-slate-800">Identidade Visual</h2>
+            <h2 className="text-xl font-bold text-slate-900">Identidade Visual</h2>
           </div>
 
           <div className="space-y-4">
@@ -154,12 +154,12 @@ export default function SettingsPage() {
           </button>
         </section>
 
-        <section className="space-y-6 rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-          <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-500">
-              <ShieldCheck size={20} />
+        <section className="space-y-6 rounded-3xl border border-slate-200/60 bg-white/70 p-8 shadow-sm backdrop-blur-sm">
+          <div className="flex items-center gap-4 border-b border-slate-100/50 pb-6">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-50 to-emerald-50/10 text-emerald-500 shadow-inner">
+              <ShieldCheck size={24} />
             </div>
-            <h2 className="text-lg font-bold text-slate-800">Segurança e Auditoria</h2>
+            <h2 className="text-xl font-bold text-slate-900">Segurança e Auditoria</h2>
           </div>
 
           <div className="space-y-6">

@@ -74,20 +74,20 @@ export default function LogsPage() {
     <div className="space-y-6 text-sans">
       <div></div>
 
-      <div className="flex gap-4">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-3 animate-in fade-in duration-700">
         <StatCard icon={<History className="text-gax-blue" />} label="Total Processado" value={stats.total.toString()} />
-        <StatCard icon={<FileCheck className="text-green-500" />} label="Sucesso" value={stats.successRate} />
-        <StatCard icon={<AlertTriangle className="text-amber-500" />} label="Erros/Alertas" value={stats.alerts.toString()} />
+        <StatCard icon={<FileCheck className="text-emerald-500" />} label="Taxa de Sucesso" value={stats.successRate} />
+        <StatCard icon={<AlertTriangle className="text-amber-500" />} label="Alertas Detectados" value={stats.alerts.toString()} />
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-         <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/50 px-6 py-4">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Atividade Recente</span>
+      <div className="rounded-3xl border border-slate-200/60 bg-white/70 shadow-sm backdrop-blur-sm overflow-hidden animate-in fade-in duration-1000">
+         <div className="flex items-center justify-between border-b border-slate-100/50 bg-slate-50/30 px-8 py-5">
+            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Linha do Tempo de Atividade</span>
             <button 
               onClick={handleClearLogs}
-              className="text-xs font-bold text-gax-blue hover:text-gax-blue-hover transition-colors"
+              className="text-[11px] font-bold text-gax-blue hover:text-gax-blue-hover transition-colors uppercase tracking-wider"
             >
-              Limpar Logs
+              Limpar Tudo
             </button>
          </div>
          

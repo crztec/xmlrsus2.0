@@ -139,32 +139,33 @@ export default function XmlDataPage() {
           />
         </div>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredClients.map(client => (
-            <button
-              key={client.id}
-              onClick={() => {
-                setSelectedClient(client.name);
-                setSearchTerm(""); // Clear search when client selected
-              }}
-              className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-5 text-left transition-all hover:border-gax-blue/30 hover:shadow-md group focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
-              aria-label={`Selecionar cliente ${client.name}`}
-            >
-              <div className="flex items-center gap-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gax-blue-light text-gax-blue group-hover:scale-110 transition-transform">
-                  <Building2 size={20} aria-hidden="true" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-slate-700">{client.name}</h3>
-                  <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">
-                    {client.total_abis || "0"} ABIs Identificadas
-                  </p>
-                </div>
-              </div>
-              <ChevronRight className="text-slate-200 group-hover:text-gax-blue transition-colors" size={20} aria-hidden="true" />
-            </button>
-          ))}
-        </div>
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 animate-in fade-in slide-in-from-bottom-4 duration-700">
+        {filteredClients.map((client, idx) => (
+          <button
+            key={client.id}
+            onClick={() => {
+              setSelectedClient(client.name);
+              setSearchTerm("");
+            }}
+            className="group relative flex flex-col items-start rounded-3xl border border-slate-200/60 bg-white/70 p-6 text-left transition-all hover:border-gax-blue/30 hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 backdrop-blur-sm"
+            style={{ animationDelay: `${idx * 50}ms`, animationFillMode: 'both' }}
+          >
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-gax-blue/10 to-gax-blue/5 text-gax-blue shadow-inner group-hover:scale-110 transition-transform duration-500">
+              <Building2 size={24} />
+            </div>
+            <h3 className="text-lg font-bold text-slate-800 transition-colors group-hover:text-gax-blue">{client.name}</h3>
+            <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-slate-100/50 px-3 py-1">
+              <div className="h-1.5 w-1.5 rounded-full bg-gax-blue"></div>
+              <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-500">
+                {client.total_abis || "0"} ABIs Detectadas
+              </span>
+            </div>
+            <div className="absolute bottom-6 right-6 h-8 w-8 flex items-center justify-center rounded-full bg-slate-50 text-slate-300 group-hover:bg-gax-blue group-hover:text-white transition-all transform translate-x-2 opacity-0 group-hover:translate-x-0 group-hover:opacity-100">
+              <ChevronRight size={16} />
+            </div>
+          </button>
+        ))}
+      </div>
       </div>
     );
   }
@@ -172,71 +173,69 @@ export default function XmlDataPage() {
   // --- RENDERING: DATA TABLE ---
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-center gap-5">
           <button 
             onClick={() => {
               setSelectedClient(null);
               setSearchTerm("");
             }}
-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-400 hover:bg-slate-50 transition-colors focus-visible:ring-2 focus-visible:ring-slate-200 outline-none"
-            aria-label="Voltar para seleção de clientes"
+            className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-400 hover:border-gax-blue/30 hover:text-gax-blue hover:shadow-lg hover:shadow-gax-blue/10 transition-all"
+            aria-label="Voltar"
           >
             <ArrowLeft size={20} />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-slate-800">{selectedClient}</h1>
-            <p className="text-sm text-slate-500">Listagem de ABIs e arquivos relacionados</p>
+            <h1 className="text-3xl font-display font-bold text-slate-900 tracking-tight">{selectedClient}</h1>
+            <p className="text-xs font-medium text-slate-400 uppercase tracking-widest">Base de Dados Global</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="relative mr-2">
-            <label htmlFor="abi-search" className="sr-only">Buscar ABI ou arquivo</label>
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} aria-hidden="true" />
+        <div className="flex items-center gap-4">
+          <div className="relative group">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-gax-blue transition-colors" size={18} />
             <input 
               id="abi-search"
               type="text" 
-              placeholder="Buscar ABI ou arquivo..." 
+              placeholder="ABI ou Arquivo..." 
               value={searchTerm}
               onChange={(e) => {
                 setSearchTerm(e.target.value);
                 setCurrentPage(1);
               }}
-              className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-10 pr-4 text-xs outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 sm:w-64 transition-all font-sans text-slate-700 font-medium placeholder:text-slate-300"
+              className="w-full rounded-2xl border border-slate-200/60 bg-white px-12 py-3.5 text-xs outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 sm:w-72 transition-all font-medium placeholder:text-slate-300"
             />
           </div>
           <button 
             onClick={handleExportAll}
-            className="flex items-center gap-2 rounded-xl bg-gax-blue px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-gax-blue/10 hover:bg-gax-blue-hover focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none transition-all"
-            aria-label="Exportar todos os dados para Excel"
+            className="flex items-center gap-2 rounded-2xl bg-gax-blue px-6 py-3.5 text-xs font-bold text-white shadow-xl shadow-gax-blue/20 hover:bg-gax-blue-hover transition-all active:scale-[0.98]"
           >
-            <Download size={16} aria-hidden="true" />
-            Exportar Geral
+            <Download size={18} />
+            <span>Exportar Base</span>
           </button>
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-hidden rounded-3xl border border-slate-200/60 bg-white/70 shadow-sm backdrop-blur-sm">
         <div className="overflow-x-auto">
           {paginatedData.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-slate-300">
-              <FileText size={48} className="opacity-20 mb-4" aria-hidden="true" />
-              <p className="text-sm font-medium">Nenhum dado encontrado para os filtros atuais.</p>
+              <FileText size={48} className="opacity-20 mb-4" />
+              <p className="text-sm font-bold text-slate-400">Nenhum dado encontrado para os filtros atuais.</p>
             </div>
           ) : (
             <>
-              <table className="w-full text-left font-sans text-[11px]">
-                <thead className="bg-slate-50/50 text-[9px] font-bold uppercase tracking-widest text-slate-400">
-                  <tr>
-                    <th className="px-4 py-4">Arquivo</th>
-                    <th className="px-4 py-4">ABI</th>
-                    <th className="px-4 py-4 text-right">Valor Total</th>
-                    <th className="px-4 py-4 text-center">Qtd. Proc.</th>
-                    <th className="px-4 py-4 text-center">Competências</th>
-                    <th className="px-4 py-4">Nº Processo</th>
-                    <th className="px-4 py-4">Data Proc.</th>
-                    <th className="px-4 py-4 text-center">Ações</th>
+              <table className="w-full text-left font-sans text-xs">
+                <thead className="bg-slate-50/30 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">
+                  <tr className="border-b border-slate-100/50">
+                    <th className="px-5 py-5 font-bold">Arquivo</th>
+                    <th className="px-5 py-5 font-bold">ABI</th>
+                    <th className="px-5 py-5 text-right font-bold">Valor Total</th>
+                    <th className="px-5 py-5 text-center font-bold">Qtd. Proc.</th>
+                    <th className="px-5 py-5 text-center font-bold">Competência</th>
+                    <th className="px-5 py-5 font-bold">Nº Processo</th>
+                    <th className="px-5 py-5 font-bold">Data Proc.</th>
+                    <th className="px-5 py-5 text-center font-bold">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Users, Shield, Mail, Trash2, Edit2, Loader2, CheckCircle, XCircle } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface User {
   email: string;
@@ -90,10 +91,10 @@ export default function UsersPage() {
     <div className="space-y-6">
       <div></div>
 
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <table className="w-full text-left font-sans text-sm">
-          <thead className="bg-slate-50 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-            <tr>
+      <div className="overflow-hidden rounded-3xl border border-slate-200/60 bg-white/70 shadow-sm backdrop-blur-sm animate-in fade-in duration-500">
+        <table className="w-full text-left font-sans text-xs">
+          <thead className="bg-slate-50/30 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">
+            <tr className="border-b border-slate-100/50">
               <th className="px-6 py-4">Usuário</th>
               <th className="px-6 py-4">E-mail</th>
               <th className="px-6 py-4">Papel</th>
@@ -101,30 +102,31 @@ export default function UsersPage() {
               <th className="px-6 py-4 text-center">Ações</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-slate-100/50">
             {users.map((user) => (
-              <tr key={user.email} className="hover:bg-slate-50/50">
+              <tr key={user.email} className="hover:bg-white transition-colors group">
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gax-blue-light text-gax-blue font-bold">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-gax-blue/10 to-gax-blue/5 text-gax-blue font-bold shadow-inner">
                       {(user.first_name || user.email).charAt(0).toUpperCase()}
                     </div>
-                    <span className="font-bold text-slate-700">{user.first_name} {user.last_name}</span>
+                    <span className="font-bold text-slate-700 group-hover:text-gax-blue transition-colors">{user.first_name} {user.last_name}</span>
                   </div>
                 </td>
-                <td className="px-6 py-4 text-slate-600">{user.email}</td>
+                <td className="px-6 py-4 text-slate-500 font-medium">{user.email}</td>
                 <td className="px-6 py-4">
-                  <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                    user.role === 'admin' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'
+                  <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${
+                    user.role === 'admin' ? 'bg-gax-blue-light text-gax-blue border border-gax-blue/10' : 'bg-slate-50 text-slate-500 border border-slate-100'
                   }`}>
                     <Shield size={10} />
                     {user.role}
                   </span>
                 </td>
                 <td className="px-6 py-4">
-                  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                    user.status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                  <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${
+                    user.status === 'approved' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-amber-50 text-amber-600 border border-amber-100'
                   }`}>
+                    <div className={cn("h-1.5 w-1.5 rounded-full", user.status === 'approved' ? 'bg-emerald-500' : 'bg-amber-500')} />
                     {user.status === 'approved' ? 'Ativo' : 'Pendente'}
                   </span>
                 </td>
@@ -133,7 +135,7 @@ export default function UsersPage() {
                     {user.status === 'pending' && (
                       <button 
                         onClick={() => handleApprove(user.email)}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-green-100 bg-green-50 text-green-600 hover:bg-green-100 shadow-sm"
+                        className="flex h-8 w-8 items-center justify-center rounded-xl border border-emerald-100 bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white transition-all shadow-sm"
                         title="Aprovar Usuário"
                       >
                         <CheckCircle size={14} />
@@ -141,14 +143,14 @@ export default function UsersPage() {
                     )}
                     <button 
                       onClick={() => { setSelectedUser(user); setShowEditModal(true); }}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-100 bg-white text-slate-400 hover:text-gax-blue shadow-sm"
+                      className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-100 bg-white text-slate-400 hover:border-gax-blue/30 hover:text-gax-blue hover:shadow-lg hover:shadow-gax-blue/10 transition-all"
                       title="Editar"
                     >
                       <Edit2 size={14} />
                     </button>
                     <button 
                       onClick={() => handleDelete(user.email)}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-100 bg-white text-slate-400 hover:text-red-500 shadow-sm"
+                      className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-100 bg-white text-slate-400 hover:border-red-100 hover:text-red-500 hover:shadow-lg hover:shadow-red-500/10 transition-all"
                       title="Excluir"
                     >
                       <Trash2 size={14} />

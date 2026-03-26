@@ -49,15 +49,15 @@ export default function MainLayout({ children }: MainLayoutProps) {
   return (
     <div className="flex h-screen flex-1 flex-col overflow-hidden bg-slate-50">
       {/* Dynamic Header */}
-      <header className="flex h-20 items-center justify-between border-b border-slate-200 bg-white px-8">
+      <header className="flex h-20 items-center justify-between border-b border-slate-200/60 bg-white/50 backdrop-blur-md px-8 sticky top-0 z-20">
         <div className="flex flex-col">
-          <h1 className="text-xl font-bold tracking-tight text-slate-800">{metadata.title}</h1>
-          <p className="text-sm font-medium text-slate-400">{metadata.subtitle}</p>
+          <h1 className="text-xl font-display font-bold tracking-tight text-slate-900 leading-tight">{metadata.title}</h1>
+          <p className="text-[13px] font-medium text-slate-400">{metadata.subtitle}</p>
         </div>
 
         <div className="flex items-center gap-4">
-          <div className="h-2 w-2 animate-pulse rounded-full bg-green-500"></div>
-          <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Sistema Online</span>
+          <div className="h-2 w-2 animate-pulse rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]"></div>
+          <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400/80">Sistema Online</span>
         </div>
       </header>
 

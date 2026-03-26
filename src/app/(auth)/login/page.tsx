@@ -125,21 +125,24 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen bg-white font-sans text-slate-900">
+    <div className="flex min-h-screen bg-slate-50 font-sans text-slate-900">
       {/* Lado Esquerdo: Formulário de Login */}
-      <div className="flex w-full flex-col justify-center px-8 sm:px-16 lg:w-[45%]">
-        <div className="mx-auto w-full max-w-md">
-          {/* Logo Placeholder */}
-          <div className="mb-10 flex items-center gap-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg overflow-hidden bg-white shadow-sm border border-slate-100">
-              <img src="/Imagens/Glogo.png" alt="GAX Logo" className="h-full w-full object-contain" />
+      <div className="flex w-full flex-col justify-center px-8 sm:px-16 lg:w-[45%] bg-white shadow-2xl z-10 border-r border-slate-200/50">
+        <div className="mx-auto w-full max-w-md animate-in fade-in slide-in-from-left-4 duration-700">
+          {/* Logo Section */}
+          <div className="mb-12 flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-gax-blue to-gax-blue-hover p-1.5 shadow-xl shadow-gax-blue/30">
+              <img src="/Imagens/Glogo.png" alt="GAX Logo" className="h-full w-full object-contain brightness-0 invert" />
             </div>
-            <span className="text-xl font-bold tracking-tight text-slate-800">GAX - Gestão de Arquivos XML</span>
+            <div>
+              <span className="text-2xl font-display font-bold tracking-tight text-slate-800 block leading-none">GAX</span>
+              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Gestão de Arquivos XML</span>
+            </div>
           </div>
 
-          <div className="mb-8">
-            <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">Entrar</h1>
-            <p className="mt-2 text-slate-500">Bem-vindo de volta! Faça login na sua conta.</p>
+          <div className="mb-10">
+            <h1 className="text-4xl font-display font-bold tracking-tight text-slate-900">Entrar</h1>
+            <p className="mt-3 text-slate-500 font-medium tracking-tight">Bem-vindo de volta! Faça login na sua conta.</p>
           </div>
 
           {/* Botão Google */}
@@ -147,32 +150,32 @@ export default function LoginPage() {
             type="button"
             onClick={handleGoogleLogin}
             disabled={isLoading}
-            className="flex w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white py-3 font-semibold text-slate-700 transition-all hover:bg-slate-50 hover:border-gax-blue/30 focus:outline-none focus:ring-2 focus:ring-gax-blue/20 disabled:opacity-50"
+            className="group flex w-full items-center justify-center gap-4 rounded-2xl border border-slate-200/60 bg-white py-4 font-bold text-slate-700 transition-all hover:bg-slate-50 hover:border-gax-blue/30 hover:shadow-xl hover:shadow-slate-200/50 focus:outline-none focus:ring-4 focus:ring-gax-blue/10 disabled:opacity-50"
           >
-            <Chrome size={20} className="text-gax-blue" />
+            <Chrome size={20} className="text-gax-blue group-hover:scale-110 transition-transform" />
             Continuar com o Google
           </button>
 
-          <div className="my-8 flex items-center gap-4">
-            <div className="h-px flex-1 bg-slate-100"></div>
-            <span className="text-xs font-medium uppercase tracking-wider text-slate-400">Ou entre com e-mail</span>
-            <div className="h-px flex-1 bg-slate-100"></div>
+          <div className="my-10 flex items-center gap-4 text-slate-300">
+            <div className="h-px flex-1 bg-gradient-to-r from-transparent to-slate-200"></div>
+            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 px-2 text-center">Ou use suas credenciais</span>
+            <div className="h-px flex-1 bg-gradient-to-l from-transparent to-slate-200"></div>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-5">
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-700" htmlFor="email">
+          <form onSubmit={handleLogin} className="space-y-6">
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold uppercase tracking-widest text-slate-500 ml-1" htmlFor="email">
                 E-mail
               </label>
-              <div className="relative">
-                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400">
+              <div className="relative group">
+                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-300 group-focus-within:text-gax-blue transition-colors">
                   <Mail size={18} />
                 </div>
                 <input
                   id="email"
                   type="email"
                   placeholder="seu.email@exemplo.com"
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-3 pl-11 pr-4 text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-gax-blue focus:bg-white focus:ring-4 focus:ring-gax-blue/10"
+                  className="w-full rounded-2xl border border-slate-200/60 bg-slate-50/50 py-4 pl-12 pr-4 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-300 focus:border-gax-blue focus:bg-white focus:ring-4 focus:ring-gax-blue/10 font-medium"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -180,28 +183,28 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <div>
-              <div className="mb-2 flex items-center justify-between">
-                <label className="block text-sm font-semibold text-slate-700" htmlFor="password">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between ml-1">
+                <label className="text-[11px] font-bold uppercase tracking-widest text-slate-500" htmlFor="password">
                   Senha
                 </label>
                 <button
                   type="button"
                   onClick={() => setShowResetModal(true)}
-                  className="text-sm font-semibold text-gax-blue transition-colors hover:text-gax-blue-hover"
+                  className="text-[11px] font-bold text-gax-blue hover:text-gax-blue-hover transition-colors"
                 >
-                  Esqueceu a senha?
+                  Esqueceu?
                 </button>
               </div>
-              <div className="relative">
-                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400">
+              <div className="relative group">
+                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-300 group-focus-within:text-gax-blue transition-colors">
                   <Lock size={18} />
                 </div>
                 <input
                   id="password"
                   type="password"
                   placeholder="••••••••••••"
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-3 pl-11 pr-4 text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-gax-blue focus:bg-white focus:ring-4 focus:ring-gax-blue/10"
+                  className="w-full rounded-2xl border border-slate-200/60 bg-slate-50/50 py-4 pl-12 pr-4 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-300 focus:border-gax-blue focus:bg-white focus:ring-4 focus:ring-gax-blue/10 font-medium"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -210,7 +213,7 @@ export default function LoginPage() {
             </div>
 
             {error && (
-              <div className="rounded-lg bg-red-50 p-3 text-sm font-medium text-red-600">
+              <div className="rounded-xl bg-red-50 p-4 text-[13px] font-bold text-red-600 animate-in shake-1 duration-300 border border-red-100/50">
                 {error}
               </div>
             )}
@@ -218,51 +221,55 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-gax-blue py-3.5 font-bold text-white shadow-lg shadow-gax-blue/20 transition-all hover:bg-gax-blue-hover hover:shadow-xl hover:shadow-gax-blue/30 active:scale-[0.98] disabled:opacity-50"
+              className="relative flex w-full items-center justify-center overflow-hidden rounded-2xl bg-gax-blue py-4 font-bold text-white shadow-xl shadow-gax-blue/30 transition-all hover:bg-gax-blue-hover active:scale-[0.98] disabled:opacity-50"
             >
               {isLoading ? (
-                <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                <div className="flex items-center gap-3">
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"></div>
+                  <span>Iniciando Sessão...</span>
+                </div>
               ) : (
-                <>
+                <div className="flex items-center gap-2">
                   <LogIn size={20} />
-                  Entrar
-                </>
+                  <span>Acessar Painel</span>
+                </div>
               )}
             </button>
           </form>
 
-          <p className="mt-8 text-center text-sm font-medium text-slate-500">
-            Ainda não tem uma conta?{" "}
+          <p className="mt-8 text-center text-[13px] font-medium text-slate-500">
+            Ainda não possui acesso?{" "}
             <Link href="/register" className="font-bold text-gax-blue transition-colors hover:text-gax-blue-hover">
-              Cadastre-se gratuitamente
+              Solicitar Credenciais
             </Link>
           </p>
         </div>
       </div>
 
-      {/* Lado Direito: Features/Destaques (Design Premium) */}
-      <div className="relative hidden w-[55%] flex-col justify-center overflow-hidden bg-gax-blue p-16 lg:flex">
-        {/* Background Decorative Circles */}
-        <div className="absolute -right-20 -top-20 h-96 w-96 rounded-full bg-white/5 blur-3xl"></div>
-        <div className="absolute -bottom-40 -left-20 h-96 w-96 rounded-full bg-gax-blue-hover/30 blur-3xl"></div>
+      {/* Lado Direito: Visual Premium Grid */}
+      <div className="relative hidden w-[55%] flex-col justify-center overflow-hidden bg-slate-900 p-20 lg:flex">
+        {/* Background Decorative */}
+        <div className="absolute -right-20 -top-20 h-96 w-96 rounded-full bg-gax-blue/20 blur-3xl opacity-50"></div>
+        <div className="absolute -bottom-40 -left-20 h-96 w-96 rounded-full bg-gax-blue-hover/10 blur-3xl opacity-30"></div>
+        
+        {/* Modern Grid Background */}
+        <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, #ffffff 1px, transparent 0)', backgroundSize: '40px 40px' }}></div>
 
-        <div className="relative z-10 max-w-2xl">
-          <div className="mb-6 inline-flex items-center rounded-full bg-white/10 px-4 py-1.5 text-sm font-bold text-white backdrop-blur-md">
-            <span className="mr-2 flex h-2 w-2 rounded-full bg-white"></span>
-            Plataforma Integração RSUS
+        <div className="relative z-10 max-w-xl animate-in fade-in zoom-in-95 duration-1000">
+          <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 backdrop-blur-md px-4 py-2">
+            <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-gax-blue shadow-[0_0_8px_#3B82F6]"></div>
+            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/60">Plataforma Integração RSUS</span>
           </div>
 
-          <h2 className="text-5xl font-black leading-tight text-white">
-            Gestão de ponta a ponta para <span className="text-white/70">Arquivos XML.</span>
+          <h2 className="text-5xl font-display font-black leading-tight text-white mb-8">
+            Gestão de <span className="text-gax-blue">ponta a ponta</span> para Arquivos XML.
           </h2>
 
-          <p className="mt-6 text-xl leading-relaxed text-gax-blue-light/80">
-            Ganhe tempo e controle total com o melhor sistema de gestão para
-            importação RSUS do Brasil. Potencialize seu faturamento com relatórios
-            inteligentes e processamento automatizado.
+          <p className="text-slate-400 text-lg leading-relaxed mb-12 font-medium">
+            Integração nativa com o sistema RSUS, processamento automatizado e relatórios inteligentes em uma única interface profissional.
           </p>
 
-          <div className="mt-12 grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-2 gap-6">
             <FeatureCard
               icon={<CloudUpload size={24} />}
               title="Upload Inteligente"
