@@ -322,15 +322,18 @@ def get_all_clients():
 
 def update_client_config(client_id, update_data):
     """
-    Updates client configuration metadata like CNPJ, ANS, Address.
+    Updates client configuration metadata like Name, CNPJ, ANS, Address and System URL.
     """
     if not client_id: return False
     try:
         # Normaliza chaves para garantir consistência no Firestore
         clean_data = {
+            'name': update_data.get('name', update_data.get('razao_social', '')),
+            'razao_social': update_data.get('name', update_data.get('razao_social', '')),
             'cnpj': update_data.get('cnpj', ''),
             'registro_ans': update_data.get('registro_ans', ''),
             'endereco': update_data.get('endereco', ''),
+            'url_sistema': update_data.get('url_sistema', ''),
             'updated_at': get_now_br().strftime("%Y-%m-%d %H:%M:%S")
         }
         firestore_db.collection('client_configs').document(client_id).set(clean_data, merge=True)

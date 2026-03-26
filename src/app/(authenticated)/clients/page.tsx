@@ -11,7 +11,8 @@ import {
   Pencil, 
   X, 
   MapPin, 
-  CreditCard 
+  CreditCard,
+  ExternalLink 
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -22,12 +23,16 @@ export default function ClientsPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<any | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
 
   // Form states
   const [formData, setFormData] = useState({
+    name: "",
     cnpj: "",
     registro_ans: "",
-    endereco: ""
+    endereco: "",
+    url_sistema: ""
   });
 
   const fetchClients = async () => {
@@ -52,12 +57,29 @@ export default function ClientsPage() {
     fetchClients();
   }, []);
 
+  const formatCNPJ = (value: string) => {
+    const digits = value.replace(/\D/g, "").slice(0, 14);
+    return digits
+      .replace(/^(\d{2})(\d)/, "$1.$2")
+      .replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3")
+      .replace(/\.(\d{3})(\d)/, ".$1/$2")
+      .replace(/(\d{4})(\d)/, "$1-$2");
+  };
+
+  const formatANS = (value: string) => {
+    return value.replace(/\D/g, "").slice(0, 10);
+  };
+
   const handleEditClick = (client: any) => {
     setEditingClient(client);
+    setSuccessMessage("");
+    setErrorMessage("");
     setFormData({
+      name: client.name || "",
       cnpj: client.cnpj || "",
       registro_ans: client.registro_ans || "",
-      endereco: client.endereco || ""
+      endereco: client.endereco || "",
+      url_sistema: client.url_sistema || ""
     });
     setIsEditModalOpen(true);
   };
@@ -66,7 +88,17 @@ export default function ClientsPage() {
     e.preventDefault();
     if (!editingClient) return;
 
+    // Validation
+    const cleanCNPJ = formData.cnpj.replace(/\D/g, "");
+    if (cleanCNPJ && cleanCNPJ.length !== 14) {
+      setErrorMessage("CNPJ deve conter 14 dígitos.");
+      return;
+    }
+
     setIsSaving(true);
+    setErrorMessage("");
+    setSuccessMessage("");
+    
     try {
       const res = await fetch(`/api/clients/${editingClient.id}`, {
         method: "POST",
@@ -75,14 +107,16 @@ export default function ClientsPage() {
       });
 
       if (res.ok) {
-        setIsEditModalOpen(false);
+        setSuccessMessage("Alterações salvas com sucesso!");
         fetchClients();
+        setTimeout(() => setSuccessMessage(""), 5000);
       } else {
-        alert("Erro ao salvar alterações.");
+        const errorData = await res.json();
+        setErrorMessage(errorData.detail || "Erro ao salvar alterações.");
       }
     } catch (error) {
       console.error("Erro ao salvar:", error);
-      alert("Erro de conexão.");
+      setErrorMessage("Erro de conexão com o servidor.");
     } finally {
       setIsSaving(false);
     }
@@ -137,7 +171,19 @@ export default function ClientsPage() {
                 </div>
               </div>
 
-              <h3 className="mb-2 text-lg font-bold text-slate-800 transition-colors group-hover:text-gax-blue leading-tight">{client.name}</h3>
+              {client.url_sistema ? (
+                <a 
+                  href={client.url_sistema} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="group/link mb-2 flex items-center gap-2 text-lg font-bold text-slate-800 transition-colors hover:text-gax-blue leading-tight"
+                >
+                  {client.name}
+                  <ExternalLink size={16} className="opacity-0 group-hover/link:opacity-100 transition-all -translate-x-2 group-hover/link:translate-x-0" />
+                </a>
+              ) : (
+                <h3 className="mb-2 text-lg font-bold text-slate-800 transition-colors group-hover:text-gax-blue leading-tight">{client.name}</h3>
+              )}
               <div className="mb-6 space-y-2">
                 <div className="flex items-center gap-2.5 text-xs text-slate-500">
                   <div className="flex h-5 w-5 items-center justify-center rounded bg-slate-100 text-slate-400">
@@ -204,15 +250,32 @@ export default function ClientsPage() {
               </button>
             </div>
 
+            {successMessage && (
+              <div className="mb-4 rounded-xl bg-emerald-50 p-3 text-xs font-bold text-emerald-600 border border-emerald-100 flex items-center gap-2 animate-in slide-in-from-top-2">
+                <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                {successMessage}
+              </div>
+            )}
+
+            {errorMessage && (
+              <div className="mb-4 rounded-xl bg-rose-50 p-3 text-xs font-bold text-rose-600 border border-rose-100 flex items-center gap-2 animate-in shake duration-500">
+                <X size={14} className="text-rose-400" />
+                {errorMessage}
+              </div>
+            )}
+
             <form onSubmit={handleSave} className="space-y-4">
               <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Razão Social</label>
-                <div 
-                  className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-2.5 text-xs font-medium text-slate-500"
-                  aria-readonly="true"
-                >
-                  {editingClient?.name}
-                </div>
+                <label htmlFor="client-name" className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Razão Social</label>
+                <input 
+                  id="client-name"
+                  type="text" 
+                  value={formData.name}
+                  onChange={(e) => setFormData({...formData, name: e.target.value})}
+                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-xs outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all font-sans text-slate-700 font-bold"
+                  placeholder="Nome da Operadora"
+                  required
+                />
               </div>
 
               <div className="space-y-1">
@@ -221,7 +284,7 @@ export default function ClientsPage() {
                   id="client-cnpj"
                   type="text" 
                   value={formData.cnpj}
-                  onChange={(e) => setFormData({...formData, cnpj: e.target.value})}
+                  onChange={(e) => setFormData({...formData, cnpj: formatCNPJ(e.target.value)})}
                   className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-xs outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all font-sans text-slate-700 font-medium"
                   placeholder="00.000.000/0000-00"
                 />
@@ -233,9 +296,9 @@ export default function ClientsPage() {
                   id="client-ans"
                   type="text" 
                   value={formData.registro_ans}
-                  onChange={(e) => setFormData({...formData, registro_ans: e.target.value})}
+                  onChange={(e) => setFormData({...formData, registro_ans: formatANS(e.target.value)})}
                   className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-xs outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all font-sans text-slate-700 font-medium"
-                  placeholder="Ex: 123456"
+                  placeholder="Ex: 123456 (Somente números)"
                 />
               </div>
 
@@ -247,6 +310,18 @@ export default function ClientsPage() {
                   onChange={(e) => setFormData({...formData, endereco: e.target.value})}
                   className="w-full min-h-[80px] rounded-xl border border-slate-200 px-4 py-2.5 text-xs outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all font-sans text-slate-700 font-medium"
                   placeholder="Rua, Número, Bairro, Cidade - UF"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label htmlFor="client-url" className="text-[10px] font-bold uppercase tracking-wider text-slate-400">URL do Portal RSUS</label>
+                <input 
+                  id="client-url"
+                  type="url" 
+                  value={formData.url_sistema}
+                  onChange={(e) => setFormData({...formData, url_sistema: e.target.value})}
+                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-xs outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all font-sans text-slate-700 font-medium italic text-gax-blue"
+                  placeholder="https://exemplo.cubeti.com.br"
                 />
               </div>
 

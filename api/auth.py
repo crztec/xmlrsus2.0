@@ -3,7 +3,8 @@ import json
 import os
 try:
     from dotenv import load_dotenv
-    load_dotenv()
+    # Procura o arquivo .env no diretório atual ou acima (raiz do projeto)
+    load_dotenv(os.path.join(os.getcwd(), '.env'))
 except ImportError:
     pass
 
