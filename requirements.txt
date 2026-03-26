@@ -5,3 +5,5 @@ uvicorn
 python-dotenv
 ruff
 mypy
+defusedxml
+requests

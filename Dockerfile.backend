@@ -4,10 +4,8 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Instalar dependências
-COPY package.json . 
-# (Nota: package.json no backend é só um placeholder se necessário, mas aqui usamos requirements)
-# Criando um requirements.txt rápido baseado no que usamos
-RUN pip install fastapi[standard] python-multipart firebase-admin uvicorn python-dotenv
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY ./api ./api
 
