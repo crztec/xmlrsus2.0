@@ -12,7 +12,9 @@ import {
   X, 
   MapPin, 
   CreditCard,
-  ExternalLink 
+  ExternalLink,
+  LayoutGrid,
+  List
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -25,6 +27,7 @@ export default function ClientsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
   // Form states
   const [formData, setFormData] = useState({
@@ -140,6 +143,33 @@ export default function ClientsPage() {
             className="w-full rounded-2xl border border-slate-200/60 bg-white px-12 py-3.5 text-xs text-slate-700 outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all font-medium placeholder:text-slate-300"
           />
         </div>
+
+        <div className="flex items-center gap-1.5 rounded-2xl border border-slate-200/60 bg-white p-1.5 shadow-sm">
+          <button
+            onClick={() => setViewMode("grid")}
+            className={cn(
+              "flex h-9 w-9 items-center justify-center rounded-xl transition-all",
+              viewMode === "grid" 
+                ? "bg-gax-blue text-white shadow-md shadow-gax-blue/20" 
+                : "text-slate-400 hover:bg-slate-50 hover:text-slate-600"
+            )}
+            title="Visualização em Grade"
+          >
+            <LayoutGrid size={18} />
+          </button>
+          <button
+            onClick={() => setViewMode("list")}
+            className={cn(
+              "flex h-9 w-9 items-center justify-center rounded-xl transition-all",
+              viewMode === "list" 
+                ? "bg-gax-blue text-white shadow-md shadow-gax-blue/20" 
+                : "text-slate-400 hover:bg-slate-50 hover:text-slate-600"
+            )}
+            title="Visualização em Lista"
+          >
+            <List size={18} />
+          </button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -147,7 +177,7 @@ export default function ClientsPage() {
           <Loader2 className="animate-spin text-gax-blue" size={48} />
           <p className="text-sm font-medium text-slate-400">Carregando base de clientes...</p>
         </div>
-      ) : (
+      ) : viewMode === "grid" ? (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
           {filteredClients.map((client, idx) => (
             <div 
@@ -155,6 +185,7 @@ export default function ClientsPage() {
               className="group relative flex flex-col rounded-3xl border border-slate-200/60 bg-white/70 p-6 shadow-sm backdrop-blur-sm transition-all hover:border-gax-blue/30 hover:shadow-xl hover:shadow-slate-200/50 animate-in fade-in slide-in-from-bottom-4 duration-700"
               style={{ animationDelay: `${idx * 50}ms`, animationFillMode: 'both' }}
             >
+              {/* Card Content (Manter original) */}
               <div className="mb-6 flex items-start justify-between">
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-gax-blue/10 to-gax-blue/5 text-gax-blue shadow-inner group-hover:scale-110 transition-transform duration-500">
                   <Building2 size={24} aria-hidden="true" />
@@ -227,6 +258,77 @@ export default function ClientsPage() {
               </div>
             </div>
           ))}
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-3xl border border-slate-200/60 bg-white/70 shadow-sm backdrop-blur-sm animate-in fade-in duration-500">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-50/50">
+                  <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">Cliente</th>
+                  <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">CNPJ / ANS</th>
+                  <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400 hidden lg:table-cell">Endereço</th>
+                  <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">Última Atividade</th>
+                  <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400 text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredClients.map((client, idx) => (
+                  <tr key={client.id} className="group hover:bg-gax-blue/[0.02] transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-gax-blue/10 to-gax-blue/5 text-gax-blue shadow-inner group-hover:scale-105 transition-transform">
+                          <Building2 size={16} />
+                        </div>
+                        <div className="flex flex-col">
+                          {client.url_sistema ? (
+                            <a 
+                              href={client.url_sistema} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1.5 text-sm font-bold text-slate-700 hover:text-gax-blue transition-colors"
+                            >
+                              {client.name}
+                              <ExternalLink size={12} className="text-slate-300" />
+                            </a>
+                          ) : (
+                            <span className="text-sm font-bold text-slate-700">{client.name}</span>
+                          )}
+                          <span className="text-[10px] font-medium text-slate-400 uppercase tracking-tight">ID: {client.id.slice(0, 8)}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[11px] font-bold text-slate-600">{client.cnpj || "-"}</span>
+                        {client.registro_ans && <span className="text-[10px] font-medium text-slate-400 italic">ANS: {client.registro_ans}</span>}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 hidden lg:table-cell">
+                      <span className="block max-w-[200px] truncate text-xs text-slate-500 font-medium" title={client.endereco}>
+                        {client.endereco || "-"}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-xs font-bold text-slate-600">{client.ultima_importacao || "Sem registros"}</span>
+                        <span className="text-[10px] font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full w-fit border border-emerald-100/50">{client.total_abis} XMLs</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <button 
+                        onClick={() => handleEditClick(client)}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-slate-50 text-slate-400 hover:bg-gax-blue hover:text-white transition-all shadow-sm active:scale-95"
+                        title="Editar"
+                      >
+                        <Pencil size={16} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
