@@ -203,9 +203,8 @@ async def run_api_check_for_client(client_id, task_id=None):
             try:
                 log_task("Localizando ABI e abrindo menu hambúrguer...")
                 
-                # Aguarda carregamento do DOM (mais resiliente que networkidle para RSUS)
-                await page.wait_for_load_state("domcontentloaded", timeout=20000)
-                await asyncio.sleep(3)
+                # REFINAMENTO FINAL: Removemos esperas globais por domcontentloaded/networkidle
+                # Iniciamos polling ativo pelos elementos da grid IMEDIATAMENTE.
                 
                 # Função auxiliar para encontrar e clicar em elementos em qualquer frame
                 async def click_in_frames(selector, text_match=None, title_match=None):
@@ -240,15 +239,28 @@ async def run_api_check_for_client(client_id, task_id=None):
                     return False
 
                 # 1. Tenta localizar o hambúrguer (.fa-bars ou button.dropdown-toggle)
+                # Implementa o "Triple Jump": se não achar em 15s, força a URL de importação
                 found_bars = False
-                for _ in range(6): # Aumentado para 30s total
+                jump_triggered = False
+                
+                for i in range(12): # Total de 60s (5s * 12)
                     if await click_in_frames('.fa-bars, button.dropdown-toggle'):
                         found_bars = True
                         break
+                    
+                    # Se após 15s (3 iterações) não achou, força o salto para destravar
+                    if i >= 2 and not jump_triggered:
+                        log_task("Grid não detectada. Forçando 'Triple Jump' para /importacao...")
+                        # Limpa sufixos common e força a rota de importação
+                        base_url = rsus_url.split('/login')[0]
+                        target_url = f"{base_url.rstrip('/')}/importacao"
+                        await page.goto(target_url, wait_until="domcontentloaded", timeout=20000)
+                        jump_triggered = True
+                        
                     await asyncio.sleep(5)
                 
                 if not found_bars:
-                    raise Exception("Menu de contexto (.fa-bars) não encontrado.")
+                    raise Exception("Menu de contexto (.fa-bars) não encontrado após polling e Triple Jump.")
                 
                 # 2. Aguarda o menu aparecer
                 await asyncio.sleep(1)
@@ -267,11 +279,9 @@ async def run_api_check_for_client(client_id, task_id=None):
                 if not found_atend:
                     raise Exception("Link 'Atendimentos' não encontrado.")
                 
-                await page.wait_for_load_state("domcontentloaded", timeout=20000)
                 await asyncio.sleep(3)
             except Exception as e:
                 log_task(f"Erro de navegação (Atendimentos): {str(e)}", "ERROR")
-                # Retorna status 'erro' (não 'offline') se falhar a navegação inicial
                 return "error", f"Falha na navegação: {str(e)[:50]}"
 
             # 3. Navegação para Beneficiário (Novo hambúrguer na tela de atendimentos)
