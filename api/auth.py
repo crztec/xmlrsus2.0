@@ -28,6 +28,8 @@ logger = logging.getLogger(__name__)
 FIREBASE_API_KEY = os.environ.get("FIREBASE_API_KEY", "")
 if not FIREBASE_API_KEY:
     logger.warning("FIREBASE_API_KEY não foi encontrada nas variáveis de ambiente.")
+else:
+    logger.info(f"FIREBASE_API_KEY carregada com sucesso (Início: {FIREBASE_API_KEY[:6]}...)")
 
 def sign_in_with_email_and_password(email, password):
     if not FIREBASE_API_KEY:

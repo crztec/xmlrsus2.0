@@ -4,9 +4,8 @@ import os
 import platform
 import sys
 
-# Correção para Windows: Suporte a subprocessos (Playwright) em loops async
-if platform.system() == 'Windows':
-    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+# if platform.system() == 'Windows':
+#     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 import tempfile
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -45,12 +44,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.middleware("http")
-async def log_requests(request, call_next):
-    print(f"Incoming request: {request.method} {request.url}")
-    response = await call_next(request)
-    print(f"Response status: {response.status_code}")
-    return response
+
+# @app.middleware("http")
+# async def log_requests(request, call_next):
+#     print(f"Incoming request: {request.method} {request.url}")
+#     response = await call_next(request)
+#     print(f"Response status: {response.status_code}")
+#     return response
 
 from fastapi.responses import JSONResponse
 
@@ -1469,4 +1469,4 @@ async def route_save_rsus_credentials(
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("api.main:app", host="0.0.0.0", port=10000, reload=True)
+    uvicorn.run("api.main:app", host="0.0.0.0", port=10000, reload=False)
