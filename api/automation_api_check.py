@@ -177,6 +177,7 @@ async def run_api_check_for_client(client_id, task_id=None):
                 # Verifica erro de senha/login explícito na tela
                 login_error = await page.evaluate("""
                     () => {
+                        if (!document.body) return null;
                         const texts = ['inválido', 'incorreto', 'falhou', 'não encontrado', 'erro'];
                         const body = document.body.innerText.toLowerCase();
                         return texts.find(t => body.includes(t));

@@ -169,12 +169,8 @@ export default function ApiChecksPage() {
     : 0;
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6 bg-slate-50 min-h-screen">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Monitoramento de APIs</h1>
-          <p className="text-slate-500 mt-1">Verificação automática de conexões com os portais RSUS</p>
-        </div>
+    <div className="max-w-7xl mx-auto space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-end gap-4">
         <div className="flex gap-3">
           <button 
             onClick={fetchClients}
