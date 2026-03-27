@@ -53,9 +53,48 @@ async def run_api_check_for_client(client_id, task_id=None):
             try:
                 log_task("Realizando login no RSUS...")
                 await page.goto(url_sistema, wait_until="networkidle", timeout=60000)
-                await page.fill('input[name="usuario"]', usuario)
-                await page.fill('input[name="senha"]', senha)
-                await page.click('button[type="submit"]') 
+                
+                # Seletores de fallback para campos de usuário (Unimed usa 'usuario', outros usam 'email')
+                USER_SELECTORS = [
+                    'input[name="usuario"]',
+                    'input[name="email"]',
+                    'input[type="text"]:visible',
+                ]
+                PASS_SELECTORS = [
+                    'input[name="senha"]',
+                    'input[name="password"]',
+                    'input[type="password"]:visible',
+                ]
+                
+                user_field = None
+                for sel in USER_SELECTORS:
+                    try:
+                        await page.wait_for_selector(sel, timeout=8000)
+                        user_field = sel
+                        break
+                    except:
+                        pass
+                
+                if not user_field:
+                    log_task("Nenhum campo de usuário encontrado na página de login.", "ERROR")
+                    return "offline", "Campo de login não encontrado."
+                
+                pass_field = None
+                for sel in PASS_SELECTORS:
+                    try:
+                        await page.wait_for_selector(sel, timeout=5000)
+                        pass_field = sel
+                        break
+                    except:
+                        pass
+                
+                if not pass_field:
+                    log_task("Nenhum campo de senha encontrado na página de login.", "ERROR")
+                    return "offline", "Campo de senha não encontrado."
+                
+                await page.fill(user_field, usuario)
+                await page.fill(pass_field, senha)
+                await page.click('button[type="submit"]')
                 await page.wait_for_timeout(5000)
                 
                 if "login" in page.url.lower():
