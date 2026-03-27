@@ -203,9 +203,9 @@ async def run_api_check_for_client(client_id, task_id=None):
             try:
                 log_task("Localizando ABI e abrindo menu hambúrguer...")
                 
-                # Aguarda estabilização da rede para carregar a grid
-                await page.wait_for_load_state("networkidle", timeout=30000)
-                await asyncio.sleep(2)
+                # Aguarda carregamento do DOM (mais resiliente que networkidle para RSUS)
+                await page.wait_for_load_state("domcontentloaded", timeout=20000)
+                await asyncio.sleep(3)
                 
                 # Função auxiliar para encontrar e clicar em elementos em qualquer frame
                 async def click_in_frames(selector, text_match=None, title_match=None):
@@ -241,7 +241,7 @@ async def run_api_check_for_client(client_id, task_id=None):
 
                 # 1. Tenta localizar o hambúrguer (.fa-bars ou button.dropdown-toggle)
                 found_bars = False
-                for _ in range(5):
+                for _ in range(6): # Aumentado para 30s total
                     if await click_in_frames('.fa-bars, button.dropdown-toggle'):
                         found_bars = True
                         break
@@ -250,17 +250,16 @@ async def run_api_check_for_client(client_id, task_id=None):
                 if not found_bars:
                     raise Exception("Menu de contexto (.fa-bars) não encontrado.")
                 
-                # 2. Aguarda o menu aparecer (pode ser ul.sandwichButton ou .dropdown-menu)
+                # 2. Aguarda o menu aparecer
                 await asyncio.sleep(1)
                 
-                log_task("Menu aberto. Navegando para 'Atendimentos' (plural)...")
-                # Busca prioritária pelo título 'Atendimentos'
+                log_task("Menu aberto. Navegando para 'Atendimentos'...")
                 found_atend = False
                 for _ in range(3):
-                    if await click_in_frames('a', title_match='Atendimentos'): # Tenta Plural
+                    if await click_in_frames('a', title_match='Atendimentos'):
                         found_atend = True
                         break
-                    if await click_in_frames('a', text_match='Atendimento'): # Fallback para texto parcial
+                    if await click_in_frames('a', text_match='Atendimento'):
                         found_atend = True
                         break
                     await asyncio.sleep(2)
@@ -268,18 +267,19 @@ async def run_api_check_for_client(client_id, task_id=None):
                 if not found_atend:
                     raise Exception("Link 'Atendimentos' não encontrado.")
                 
-                await page.wait_for_load_state("networkidle", timeout=30000)
+                await page.wait_for_load_state("domcontentloaded", timeout=20000)
                 await asyncio.sleep(3)
             except Exception as e:
-                log_task(f"Erro ao navegar para Atendimentos: {str(e)}", "ERROR")
-                return "offline", "Não foi possível acessar Atendimentos."
+                log_task(f"Erro de navegação (Atendimentos): {str(e)}", "ERROR")
+                # Retorna status 'erro' (não 'offline') se falhar a navegação inicial
+                return "error", f"Falha na navegação: {str(e)[:50]}"
 
             # 3. Navegação para Beneficiário (Novo hambúrguer na tela de atendimentos)
             try:
                 log_task("Na tela de Atendimentos. Abrindo menu do beneficiário...")
                 
                 found_atend_bars = False
-                for _ in range(3):
+                for _ in range(4):
                     if await click_in_frames('.fa-bars, button.dropdown-toggle'):
                         found_atend_bars = True
                         break
@@ -297,8 +297,8 @@ async def run_api_check_for_client(client_id, task_id=None):
                 
                 await asyncio.sleep(3)
             except Exception as e:
-                log_task(f"Erro ao abrir Beneficiário: {str(e)}", "ERROR")
-                return "offline", "Não foi possível acessar dados do Beneficiário."
+                log_task(f"Erro de navegação (Beneficiário): {str(e)}", "ERROR")
+                return "error", f"Falha ao acessar Beneficiário: {str(e)[:50]}"
 
             # 4. Atualizar Dados (Modal Final)
             try:
@@ -307,8 +307,7 @@ async def run_api_check_for_client(client_id, task_id=None):
                 update_target = page
                 found_update = False
                 
-                # Busca o botão 'Atualizar' (pode estar no frame ou modal)
-                for _ in range(3):
+                for _ in range(4):
                     if await page.locator('button:has-text("Atualizar")').count() > 0:
                         found_update = True
                         break
@@ -323,18 +322,43 @@ async def run_api_check_for_client(client_id, task_id=None):
                 if not found_update:
                     raise Exception("Botão 'Atualizar' não encontrado.")
 
-                # Rola até o final do frame alvo e clica
+                # Rola e clica
                 await update_target.evaluate("window.scrollTo(0, document.body.scrollHeight)")
                 await asyncio.sleep(1)
                 await update_target.locator('button:has-text("Atualizar")').first.click()
-                await asyncio.sleep(3)
                 
-                log_task("Clique em 'Atualizar' realizado com sucesso.", "SUCCESS")
-                log_task("API configurada no RSUS está ATIVA.", "SUCCESS")
-                return "online", "Conexão RSUS Ativa e funcional."
+                log_task("Clique em 'Atualizar' realizado. Aguardando resposta do portal...")
+                
+                # --- VERIFICAÇÃO FINAL: ONLINE VS OFFLINE ---
+                # Aguarda modal de sucesso ou erro (plural/singular)
+                await asyncio.sleep(4)
+                
+                # Pega todo o texto visível (incluindo frames) para detectar a modal
+                all_text = await page.evaluate("document.body.innerText")
+                for frame in page.frames:
+                    try:
+                        all_text += " " + await frame.evaluate("document.body.innerText")
+                    except: pass
+                
+                all_text = all_text.lower()
+                
+                success_keywords = ['atualizado', 'sucesso', 'concluído', 'ok']
+                error_keywords = ['erro', 'falha', 'indisponível', 'tente novamente', 'conexão']
+                
+                if any(k in all_text for k in success_keywords):
+                    log_task("Mensagem de sucesso detectada: API configurada no RSUS está ATIVA.", "SUCCESS")
+                    return "online", "Conexão RSUS Ativa e funcional."
+                elif any(k in all_text for k in error_keywords):
+                    log_task("Mensagem de erro detectada no portal após clique em Atualizar.", "WARNING")
+                    return "offline", "Portal retornou erro na atualização (Offline)."
+                
+                # Fallback: se clicou e não deu erro explícito, assumimos online
+                log_task("Portal processou sem erro explícito. Assumindo conexão ATIVA.", "SUCCESS")
+                return "online", "Conexão operacional (sem erro reportado)."
+                
             except Exception as e:
-                log_task(f"Erro ao finalizar atualização: {str(e)}", "ERROR")
-                return "offline", "Erro ao interagir com formulário de Beneficiário."
+                log_task(f"Erro na etapa final: {str(e)}", "ERROR")
+                return "error", f"Erro no formulário final: {str(e)[:50]}"
 
     except Exception as e:
         import traceback
