@@ -732,8 +732,13 @@ def get_pending_task():
         return task_data
     return None
 
-def get_tasks_for_dashboard(limit=50):
-    docs = firestore_db.collection('tasks').order_by('created_at', direction=firestore.Query.DESCENDING).limit(limit).stream()
+def get_tasks_for_dashboard(limit=50, task_type=None):
+    query = firestore_db.collection('tasks').order_by('created_at', direction=firestore.Query.DESCENDING)
+    
+    if task_type:
+        query = query.where('type', '==', task_type)
+        
+    docs = query.limit(limit).stream()
     tasks = []
     for doc in docs:
         task_data = {**doc.to_dict(), 'id': doc.id}

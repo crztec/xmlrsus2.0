@@ -135,51 +135,73 @@ async def run_api_check_for_client(client_id, task_id=None):
 
 async def run_batch_api_check(task_id=None):
     """Executa a checagem para todos os clientes ativos com atualização de progresso."""
-    clients = db.get_all_clients()
-    total = len(clients)
-    
-    if task_id:
-        db.update_task(task_id, {"total": total, "current": 0, "status": "running"})
-        db.add_log(task_id, f"Iniciando checagem em lote para {total} clientes...")
-
-    for i, client in enumerate(clients):
-        client_name = client.get('name', 'Cliente Desconhecido')
-        if task_id:
-            db.update_task(task_id, {
-                "current": i + 1,
-                "current_client": client_name
-            })
-            db.add_log(task_id, f"Checando {i+1}/{total}: {client_name}...", "INFO")
+    try:
+        clients = db.get_all_clients()
+        total = len(clients)
         
-        status, message = await run_api_check_for_client(client['id'], task_id=task_id)
-        db.update_client_api_status(client['id'], status, message)
+        if task_id:
+            db.update_task(task_id, {"total": total, "current": 0, "status": "running"})
+            db.add_log(task_id, f"Iniciando checagem em lote para {total} clientes...")
 
-    if task_id:
-        db.update_task(task_id, {"status": "completed", "current_client": "Finalizado"})
-        db.add_log(task_id, "Checagem em lote finalizada com sucesso.")
+        for i, client in enumerate(clients):
+            client_name = client.get('name', 'Cliente Desconhecido')
+            if task_id:
+                db.update_task(task_id, {
+                    "current": i + 1,
+                    "current_client": client_name
+                })
+                db.add_log(task_id, f"Checando {i+1}/{total}: {client_name}...", "INFO")
+            
+            try:
+                status, message = await run_api_check_for_client(client['id'], task_id=task_id)
+                db.update_client_api_status(client['id'], status, message)
+            except Exception as e:
+                logger.error(f"Erro ao checar cliente {client.get('id')}: {e}")
+                if task_id:
+                    db.add_log(task_id, f"ERRO CRÍTICO no cliente {client_name}: {str(e)}", "ERROR")
+
+        if task_id:
+            db.update_task(task_id, {"status": "completed", "current_client": "Finalizado"})
+            db.add_log(task_id, "Checagem em lote finalizada.")
+            
+    except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        logger.error(f"FALHA ESTRUTURAL NO BATCH: {e}\n{error_trace}")
+        if task_id:
+            db.add_log(task_id, f"FALHA ESTRUTURAL NO PROCESSO: {str(e)}", "ERROR")
+            db.update_task(task_id, {"status": "error", "last_log": f"Falha no processo: {str(e)}"})
 
 async def run_single_api_check(client_id, task_id=None):
     """Executa a checagem para um único cliente."""
-    client = db.get_client_config(client_id)
-    client_name = client.get('name', client_id) if client else client_id
-    
-    if task_id:
-        db.update_task(task_id, {
-            "total": 1, 
-            "current": 0, 
-            "status": "running",
-            "current_client": client_name
-        })
-        db.add_log(task_id, f"Iniciando checagem individual: {client_name}", "INFO")
-        print(f"DEBUG: Tarefa {task_id} iniciada no processo para {client_name}")
-    
-    status, message = await run_api_check_for_client(client_id, task_id=task_id)
-    db.update_client_api_status(client_id, status, message)
-    
-    if task_id:
-        db.update_task(task_id, {
-            "status": "completed", 
-            "current": 1,
-            "current_client": "Finalizado"
-        })
-        db.add_log(task_id, f"Checagem de {client_name} finalizada: {status}")
+    try:
+        client = db.get_client_config(client_id)
+        client_name = client.get('name', client_id) if client else client_id
+        
+        if task_id:
+            db.update_task(task_id, {
+                "total": 1, 
+                "current": 0, 
+                "status": "running",
+                "current_client": client_name
+            })
+            db.add_log(task_id, f"Iniciando checagem individual: {client_name}", "INFO")
+        
+        status, message = await run_api_check_for_client(client_id, task_id=task_id)
+        db.update_client_api_status(client_id, status, message)
+        
+        if task_id:
+            db.update_task(task_id, {
+                "status": "completed", 
+                "current": 1,
+                "current_client": "Finalizado"
+            })
+            db.add_log(task_id, f"Checagem de {client_name} finalizada: {status}")
+            
+    except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        logger.error(f"FALHA NO PROCESSO INDIVIDUAL ({client_id}): {e}\n{error_trace}")
+        if task_id:
+            db.add_log(task_id, f"ERRO NA INICIALIZAÇÃO: {str(e)}", "ERROR")
+            db.update_task(task_id, {"status": "error", "last_log": str(e)})

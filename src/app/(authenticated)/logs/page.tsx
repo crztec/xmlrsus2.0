@@ -26,7 +26,7 @@ export default function LogsPage() {
   const fetchTasks = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch("/api/tasks");
+      const res = await fetch("/api/tasks?type=xml_import");
       const data = await res.json();
       
       setTasks(data);

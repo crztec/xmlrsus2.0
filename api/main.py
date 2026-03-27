@@ -372,10 +372,10 @@ async def reset_db():
     raise HTTPException(status_code=500, detail="Erro ao resetar banco.")
 
 @app.get("/tasks")
-async def get_tasks():
-    # Retorna o histórico de todas as tarefas para a página de logs
+async def get_tasks(type: Optional[str] = None):
+    # Retorna o histórico de tarefas para a página de logs, com filtro opcional por tipo
     # Usando o limite de 50 para evitar sobrecarga
-    return db.get_tasks_for_dashboard(limit=50)
+    return db.get_tasks_for_dashboard(limit=50, task_type=type)
 
 @app.get("/task/{task_id}")
 async def get_task_status(task_id: str):
