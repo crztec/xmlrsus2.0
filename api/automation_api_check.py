@@ -119,11 +119,17 @@ async def run_api_check_for_client(client_id, task_id=None):
                 return "offline", "API não retornou sucesso na atualização."
 
     except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
         log_task(f"Erro inesperado: {str(e)}", "ERROR")
+        if task_id:
+            db.add_log(task_id, f"TRACEBACK: {error_detail}", "ERROR")
         return "error", f"Erro técnico: {str(e)}"
     finally:
         if browser:
-            await browser.close()
+            try:
+                await browser.close()
+            except: pass
 
 async def run_batch_api_check(task_id=None):
     """Executa a checagem para todos os clientes ativos com atualização de progresso."""

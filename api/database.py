@@ -371,8 +371,9 @@ def add_log(task_id, message, level="INFO"):
             'updated_at': now.strftime("%Y-%m-%d %H:%M:%S")
         })
         
-        # Opcional: Atualiza status se for conclusão
-        if "finalizada" in message.lower() or "concluída" in message.lower():
+        # Atualiza status se for conclusão (apenas para tipos legados ou logs explícitos)
+        # O robô de monitoramento de API gerencia o próprio status agora.
+        if ("finalizada" in message.lower() or "concluída" in message.lower()) and "api_check" not in task_id:
             task_ref.update({'status': 'completed'})
             
     except Exception as e:
