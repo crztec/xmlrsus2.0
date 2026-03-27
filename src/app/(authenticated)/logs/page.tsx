@@ -26,8 +26,12 @@ export default function LogsPage() {
   const fetchTasks = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch("/api/tasks?type=xml_import");
-      const data = await res.json();
+      const res = await fetch("/api/tasks");
+      const allData = await res.json();
+      
+      // Exclude API check task types — show imports and legacy tasks with no type
+      const API_CHECK_TYPES = ['batch_api_check', 'single_api_check'];
+      const data = allData.filter((t: Task) => !API_CHECK_TYPES.includes((t as any).type));
       
       setTasks(data);
       

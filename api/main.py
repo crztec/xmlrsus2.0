@@ -1262,6 +1262,7 @@ async def upload_xmls(
 
     # Cria a tarefa no banco com as credenciais reais
     task_id = db.create_task(
+        task_type="xml_import",
         url_sistema=url_sistema,
         usuario=usuario,
         senha=senha,
