@@ -83,6 +83,34 @@ async def run_api_check_for_client(client_id, task_id=None):
             # Aceita dialogs automaticamente para não travar
             page.on("dialog", lambda dialog: asyncio.create_task(dialog.accept()))
             
+            # INTERCEPTOR DE COOKIES (idêntico ao robô de importação)
+            # Força reinjeção de cookies de sessão para contornar restrições SameSite/Secure do Cloud Run
+            async def handle_response(response):
+                if url_sistema.split('/')[2] in response.url:
+                    try:
+                        headers = await response.all_headers()
+                        set_cookie = headers.get('set-cookie')
+                        if set_cookie:
+                            sc_list = set_cookie.split('\n')
+                            for sc in sc_list:
+                                parts = [p.strip() for p in sc.split(';')]
+                                if not parts: continue
+                                name_val = parts[0].split('=', 1)
+                                if len(name_val) < 2: continue
+                                try:
+                                    await context.add_cookies([{
+                                        "name": name_val[0],
+                                        "value": name_val[1],
+                                        "domain": url_sistema.split('/')[2],
+                                        "path": "/",
+                                        "secure": True,
+                                        "sameSite": "Lax",
+                                        "httpOnly": True
+                                    }])
+                                except: pass
+                    except: pass
+            page.on("response", handle_response)
+            
             # 1. Login (idêntico ao robô de importação)
             try:
                 log_task("Realizando login no RSUS...")
@@ -127,15 +155,11 @@ async def run_api_check_for_client(client_id, task_id=None):
                 except:
                     log_task("Botão de login ainda visível após clique. Prosseguindo...", "WARNING")
                 
-                # Verifica cookie de sessão
-                cookies = await context.cookies()
-                has_session = any(
-                    '.ASPXAUTH' in c['name'] or 'Identity' in c['name'] or 'ASP.NET_SessionId' in c['name']
-                    for c in cookies
-                )
+                await asyncio.sleep(2)
                 
-                if not has_session and ("Account/Login" in page.url):
-                    log_task("Falha no login: sem cookie de sessão e ainda na tela de login.", "ERROR")
+                # Verifica login: se ainda está na tela de login após espera, falhou
+                if "Account/Login" in page.url and "Account/LogOff" not in page.url:
+                    log_task("Falha no login: ainda na tela de login após tentativa.", "ERROR")
                     return "offline", "Falha na autenticação RSUS."
                 
                 log_task("Login bem-sucedido. Sessão estabelecida.")
