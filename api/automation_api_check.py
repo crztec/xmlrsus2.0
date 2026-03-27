@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 from datetime import datetime
 from playwright.async_api import async_playwright
 import api.database as db
@@ -262,8 +263,8 @@ async def run_api_check_for_client(client_id, task_id=None):
                                 log_task(f"Tentativa {attempt + 1} de salto para {target_url}...")
                                 # timeout de 45s conforme solicitado para clientes lentos
                                 await page.goto(target_url, wait_until="commit", timeout=45000)
-                                # espera de 15s
-                                await page.wait_for_selector(".fa-bars, button.dropdown-toggle", timeout=15000)
+                                # espera de 30s (ajustado de 15s para dar mais fôlego à renderização da grid)
+                                await page.wait_for_selector(".fa-bars, button.dropdown-toggle", timeout=30000)
                                 log_task("Salto bem-sucedido. Grid detectada.")
                                 break
                             except Exception as e_jump:
