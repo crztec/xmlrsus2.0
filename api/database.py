@@ -379,6 +379,19 @@ def add_log(task_id, message, level="INFO"):
         logger.error(f"Erro ao adicionar log à tarefa {task_id}: {e}")
         return False
 
+def get_task_logs(task_id):
+    """Recupera todos os logs de uma tarefa específica, ordenados por tempo."""
+    try:
+        logs_ref = firestore_db.collection('tasks').document(task_id).collection('logs')
+        # Como o Firestore não garante ordem de inserção em subcoleções sem um campo de ordenação robusto,
+        # e aqui estamos usando um timestamp de string (HH:MM:SS), 
+        # para uma checagem rápida isso deve bastar, mas em lote pode precisar de mais precisão.
+        docs = logs_ref.order_by('timestamp').get()
+        return [doc.to_dict() for doc in docs]
+    except Exception as e:
+        logger.error(f"Erro ao recuperar logs da tarefa {task_id}: {e}")
+        return []
+
 def update_client_config(client_id, update_data):
     """
     Updates client configuration metadata like Name, CNPJ, ANS, Address and System URL.

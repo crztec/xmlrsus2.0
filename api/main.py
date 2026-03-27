@@ -1446,6 +1446,12 @@ async def route_get_task_status(task_id: str):
         raise HTTPException(status_code=404, detail="Tarefa não encontrada")
     return task.to_dict()
 
+@app.get("/task/{task_id}/logs")
+async def route_get_task_logs(task_id: str):
+    """Retorna a lista de logs de uma tarefa específica."""
+    logs = db.get_task_logs(task_id)
+    return logs
+
 # --- RSUS SETTINGS ENDPOINTS ---
 @app.get("/settings/rsus-credentials")
 async def route_get_rsus_credentials(type: str = "general"):

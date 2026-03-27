@@ -162,7 +162,8 @@ async def run_single_api_check(client_id, task_id=None):
             "status": "running",
             "current_client": client_name
         })
-        db.add_log(task_id, f"Iniciando checagem individual: {client_name}")
+        db.add_log(task_id, f"Iniciando checagem individual: {client_name}", "INFO")
+        print(f"DEBUG: Tarefa {task_id} iniciada no processo para {client_name}")
     
     status, message = await run_api_check_for_client(client_id, task_id=task_id)
     db.update_client_api_status(client_id, status, message)
