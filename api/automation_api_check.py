@@ -153,13 +153,44 @@ async def run_api_check_for_client(client_id, task_id=None):
                 try:
                     await page.wait_for_selector("#logIn, button[type='submit']", state="hidden", timeout=15000)
                 except:
-                    log_task("Botão de login ainda visível após clique. Prosseguindo...", "WARNING")
+                    log_task("Botão de login ainda visível após clique. Verificando erros na tela...", "WARNING")
                 
                 await asyncio.sleep(2)
                 
-                # Verifica login: se ainda está na tela de login após espera, falhou
-                if "Account/Login" in page.url and "Account/LogOff" not in page.url:
-                    log_task("Falha no login: ainda na tela de login após tentativa.", "ERROR")
+                # VERIFICAÇÃO DE SESSÃO: Logar cookies e LocalStorage (idêntico ao robô de importação)
+                cookies = await context.cookies()
+                has_session = any(
+                    '.ASPXAUTH' in c['name'] or 'Identity' in c['name'] or 'ASP.NET_SessionId' in c['name']
+                    for c in cookies
+                )
+
+                # NOVO: SE ESTAMOS PRESOS NA TELA DE LOGIN MAS TEMOS COOKIE, FORÇAMOS O SALTO TRIPLO
+                if has_session and ("Account/Login" in page.url or "Account/LogOff" in page.url):
+                    log_task("Sessão detectada mas preso na tela de Login. Forçando Salto Triplo (Hiper-Otimizado)...")
+                    # 1. Toca na raiz (wait: commit)
+                    await page.goto(url_sistema.split('?')[0].rsplit('/', 1)[0] + "/", wait_until="commit", timeout=30000)
+                    # 2. Visita a lista (Index) - O segredo que funcionou no robô de importação
+                    # No API Check não temos /novo, então tentamos a raiz novamente ou uma rota conhecida
+                    await page.goto(url_sistema, wait_until="commit", timeout=45000)
+                    await asyncio.sleep(3)
+                
+                # Verifica erro de senha/login explícito na tela
+                login_error = await page.evaluate("""
+                    () => {
+                        const texts = ['inválido', 'incorreto', 'falhou', 'não encontrado', 'erro'];
+                        const body = document.body.innerText.toLowerCase();
+                        return texts.find(t => body.includes(t));
+                    }
+                """)
+                
+                if login_error and ("Account/Login" in page.url):
+                    msg_fail = f"Falha na autenticação RSUS: mensagem de erro detectada ('{login_error}')."
+                    log_task(msg_fail, "ERROR")
+                    return "offline", msg_fail
+
+                # Se ainda está na tela de login sem sessão detectada, falhou
+                if "Account/Login" in page.url and not has_session:
+                    log_task("Falha no login: ainda na tela de login sem sessão válida.", "ERROR")
                     return "offline", "Falha na autenticação RSUS."
                 
                 log_task("Login bem-sucedido. Sessão estabelecida.")
