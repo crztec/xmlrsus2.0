@@ -18,7 +18,7 @@ RUN npm run build
 
 # --- Estágio 2: Runtime Final ---
 # Usamos a imagem oficial do Playwright que já vem com Python 3.10+, Browsers e Dependências de Sistema OS
-FROM mcr.microsoft.com/playwright/python:v1.40.0-jammy
+FROM mcr.microsoft.com/playwright/python:v1.58.0-jammy
 WORKDIR /app
 
 # Instala Node.js 20 para rodar o Next.js (via repositórios oficiais para ser mais rápido)
