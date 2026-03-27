@@ -1,9 +1,0 @@
-fastapi[standard]
-python-multipart
-firebase-admin
-uvicorn
-python-dotenv
-ruff
-mypy
-defusedxml
-requests
