@@ -248,29 +248,29 @@ async def run_api_check_for_client(client_id, task_id=None):
                         found_bars = True
                         break
                     
-                    # Se após 15s (3 iterações) não achou, força o salto para destravar
-                    if i >= 2 and not jump_triggered:
-                        log_task("Grid não detectada. Forçando 'Triple Jump' para /importacao...")
+                    # OTIMIZAÇÃO: Aumentamos a prioridade manual para 30s (6 iterações) antes do salto
+                    if i >= 5 and not jump_triggered:
+                        log_task("Grid não detectada manualmente. Tentando 'Triple Jump' como recurso...")
                         # Limpa sufixos common e força a rota de importação
                         base_url = url_sistema.split('/login')[0]
                         target_url = f"{base_url.rstrip('/')}/importacao"
                         
-                        # Tenta o salto até 2 vezes se houver timeout
+                        # Tenta o salto com timeouts reduzidos para não bloquear a navegação manual
                         for attempt in range(2):
                             try:
                                 log_task(f"Tentativa {attempt + 1} de salto para {target_url}...")
-                                # wait_until='commit' dispara assim que o servidor responde
-                                await page.goto(target_url, wait_until="commit", timeout=60000)
-                                # Espera explícita pela grid após o salto
-                                await page.wait_for_selector(".fa-bars, button.dropdown-toggle", timeout=30000)
-                                log_task("Salto bem-sucedido. Grid detectada após redirecionamento.")
+                                # timeout reduzido para 15s para fallback rápido
+                                await page.goto(target_url, wait_until="commit", timeout=15000)
+                                # espera reduzida para 10s
+                                await page.wait_for_selector(".fa-bars, button.dropdown-toggle", timeout=10000)
+                                log_task("Salto bem-sucedido. Grid detectada.")
                                 break
                             except Exception as e_jump:
                                 if attempt == 0:
-                                    log_task(f"Pequeno atraso no 1º salto ({str(e_jump)[:40]}). Tentando novamente...", "WARNING")
-                                    await asyncio.sleep(5)
+                                    log_task(f"Salto demorado ({str(e_jump)[:30]}). Re-tentando salto rápido...", "WARNING")
+                                    await asyncio.sleep(2)
                                 else:
-                                    log_task(f"Salto não resolveu após 2 tentativas: {str(e_jump)[:50]}", "WARNING")
+                                    log_task("Salto por URL falhou ou demorou demais. Continuando via polling manual...", "WARNING")
                         
                         jump_triggered = True
                         
