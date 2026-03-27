@@ -81,6 +81,7 @@ async def health_check():
 @app.post("/login")
 async def login(email: str = Form(...), password: str = Form(...)):
     try:
+        logger.info(f"Tentativa de login para: {email} (Senha len: {len(password)})")
         user = auth.sign_in_with_email_and_password(email, password)
 
         # Injeta o perfil da base de dados (Role, Nome, Status) na resposta
@@ -94,7 +95,8 @@ async def login(email: str = Form(...), password: str = Form(...)):
         return user
     except Exception as e:
         logger.error(f"Login failed for {email}: {e}")
-        db.add_audit_log(email, "Tentativa de Login Falhou", str(e), "WARNING")
+        # Loga mais detalhes no audit log para o agente ver
+        db.add_audit_log(email, "Tentativa de Login Falhou", f"Erro: {str(e)} | Email: {email} | Password Len: {len(password)}", "WARNING")
         raise HTTPException(status_code=401, detail=str(e))
 
 @app.post("/register")
