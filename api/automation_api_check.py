@@ -71,12 +71,20 @@ async def run_api_check_for_client(client_id, task_id=None):
 
             page = await context.new_page()
             
-            # Bloqueia assets pesados para acelerar carregamento
+            # Bloqueio agressivo de assets (Analytics, Fontes e Imagens) para evitar travamentos de rede
             async def block_assets(route):
-                if route.request.resource_type in ["image", "font"]:
+                heavy_patterns = ["image", "font", "media"]
+                block_urls = [
+                    "google-analytics", "googletagmanager", "facebook.net", 
+                    "fbcdn", "hotjar", "clarity.ms", "fonts.googleapis", "fonts.gstatic"
+                ]
+                
+                req_url = route.request.url.lower()
+                if route.request.resource_type in heavy_patterns or any(pattern in req_url for pattern in block_urls):
                     await route.abort()
                 else:
                     await route.continue_()
+            
             await page.route("**/*", block_assets)
             
             page.set_default_navigation_timeout(90000)
@@ -159,12 +167,13 @@ async def run_api_check_for_client(client_id, task_id=None):
                 except:
                     log_task("Botão de login ainda visível após clique. Verificando erros na tela...", "WARNING")
                 
-                # ESTABILIZAÇÃO DE SESSÃO: Aguarda rede ociosa para garantir carga de scripts/cookies
-                log_task("Aguardando estabilização da sessão (networkidle)...")
+                # ESTABILIZAÇÃO DE SESSÃO: Aguarda elemento real em vez de networkidle
+                log_task("Aguardando carregamento da interface pós-login...")
                 try:
-                    await page.wait_for_load_state('networkidle', timeout=30000)
+                    # Foca em um seletor que indica que a página carregou algo além do rodapé/loading
+                    await page.wait_for_selector(".navbar, .main-sidebar, .content-header, #wrapper", timeout=30000)
                 except:
-                    log_task("Timeout ao aguardar networkidle. Aguardando 5s extras de fallback...", "WARNING")
+                    log_task("Interface principal não detectada em 30s. Continuando com pausa de segurança...", "WARNING")
                     await asyncio.sleep(5)
                 
                 await asyncio.sleep(2)
@@ -277,24 +286,45 @@ async def run_api_check_for_client(client_id, task_id=None):
                         for attempt in range(2):
                             try:
                                 base_url = url_sistema.split('/login')[0] if '/login' in url_sistema else url_sistema.rsplit('/', 1)[0]
+                                base_url = base_url.rstrip('/')
                                 
-                                # 1º SALTO: Raiz do portal (Acorda o servidor)
-                                log_task(f"Salto 1/3: {base_url} (Raiz)...")
-                                await page.goto(base_url, wait_until="commit", timeout=45000)
+                                # 1º SALTO: Raiz do portal
+                                log_task(f"Salto 1/3: {base_url}/ (Raiz)...")
+                                await page.goto(f"{base_url}/", wait_until="commit", timeout=45000)
                                 
-                                # 2º SALTO: Lista de Atendimentos/ABIs (Gera contexto de grid)
-                                target_list = f"{base_url.rstrip('/')}/importacao" if "cassems" in base_url else f"{base_url.rstrip('/')}/Atendimento"
-                                log_task(f"Salto 2/3: {target_list} (Lista)...")
-                                await page.goto(target_list, wait_until="commit", timeout=45000)
+                                # 2º SALTO: Home/Index (Força contexto de dashboard)
+                                home_url = f"{base_url}/Home/Index"
+                                log_task(f"Salto 2/3: {home_url} (Home)...")
+                                await page.goto(home_url, wait_until="commit", timeout=45000)
                                 await asyncio.sleep(2)
                                 
                                 # 3º SALTO: Destino Final
                                 log_task(f"Salto 3/3: {target_url} (Final)...")
-                                await page.goto(target_url, wait_until="networkidle", timeout=60000)
+                                await page.goto(target_url, wait_until="commit", timeout=60000)
                                 
-                                # Busca exaustiva pela grid
-                                await page.wait_for_selector(".fa-bars, button.dropdown-toggle", timeout=30000)
-                                log_task("Salto Triplo bem-sucedido. Grid detectada.")
+                                # Busca agressiva por qualquer sinal de vida (60s timeout)
+                                log_task("Aguardando renderização da grid (max 60s)...")
+                                try:
+                                    await page.wait_for_selector(".fa-bars, button.dropdown-toggle, .grid, .loading", timeout=60000)
+                                except:
+                                    # Fallback de IFrame Scroll: se estiver branco, tenta dar scroll em todos os frames
+                                    log_task("Tela possivelmente branca. Forçando scroll em todos os IFrames...", "WARNING")
+                                    await page.evaluate("""
+                                        () => {
+                                            const frames = document.querySelectorAll('iframe');
+                                            frames.forEach(f => {
+                                                try {
+                                                    f.contentWindow.scrollTo(0, 100);
+                                                    f.contentWindow.scrollTo(0, 0);
+                                                } catch(e) {}
+                                            });
+                                            window.scrollTo(0, 100);
+                                        }
+                                    """)
+                                    await asyncio.sleep(3)
+                                    await page.wait_for_selector(".fa-bars, button.dropdown-toggle", timeout=15000)
+
+                                log_task("Navegação bem-sucedida. Grid detectada.")
                                 break
                             except Exception as e_jump:
                                 if attempt == 0:
