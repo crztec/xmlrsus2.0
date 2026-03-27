@@ -129,6 +129,29 @@ async def google_auth(id_token: str = Form(...)):
 async def get_branding():
     return db.get_branding()
 
+# --- RSUS CREDENTIALS MANAGEMENT ---
+@app.get("/api/settings/rsus-credentials")
+async def get_rsus_creds(type: str):
+    """Returns stored credentials for RSUS."""
+    creds = db.get_rsus_credentials(type)
+    if not creds:
+        return {"username": "", "password": ""}
+    # Em um cenário real, verificaríamos se o usuário logado é Admin aqui
+    return creds
+
+@app.post("/api/settings/rsus-credentials")
+async def save_rsus_creds(type: str = Form(...), username: str = Form(...), password: str = Form(...)):
+    if db.save_rsus_credentials(type, username, password):
+        return {"status": "success"}
+    raise HTTPException(status_code=500, detail="Erro ao salvar credenciais.")
+
+@app.post("/api/check-integrations")
+async def check_integrations(background_tasks: BackgroundTasks):
+    """Dispara a automação de checagem em background."""
+    import api.automation_api_check as auto_check
+    background_tasks.add_task(auto_check.run_batch_api_check)
+    return {"status": "pending", "message": "Checagem de APIs iniciada em background."}
+
 @app.get("/clients")
 async def get_clients():
     return db.get_all_clients()
@@ -1195,8 +1218,17 @@ async def upload_xmls(
             return {"error": f"Arquivo {file.filename} excede o limite de 5MB."}
         arquivos_upload_data.append((file.filename, content))
 
-    # Identifica a Razão Social do primeiro arquivo para a tarefa
-    razao_social = parser.extract_razao_social(arquivos_upload_data[0][1])
+    # Tenta obter credenciais automáticas se não fornecidas
+    if not usuario or not senha:
+        cred_type = "unimed_vitoria" if "vitoria" in url_sistema.lower() else "general"
+        stored = db.get_rsus_credentials(cred_type)
+        if stored:
+            usuario = stored.get('username', usuario)
+            senha = stored.get('password', senha)
+
+    if not razao_social:
+        # Tenta identificar a Razão Social do primeiro arquivo para a tarefa
+        razao_social = parser.extract_razao_social(arquivos_upload_data[0][1])
 
     # NOVO: Prevenção de duplicidade (Idempotência) - Respeita o parâmetro 'force'
     if not force:

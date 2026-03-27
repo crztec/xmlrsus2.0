@@ -317,7 +317,10 @@ def get_all_clients():
             'endereco': data.get('endereco') or "",
             'url_sistema': data.get('url_sistema') or "",
             'total_abis': total_abis,
-            'ultima_importacao': ultima_importacao
+            'ultima_importacao': ultima_importacao,
+            'api_status': data.get('api_status', 'unknown'),
+            'api_last_check': data.get('api_last_check', '-'),
+            'api_last_message': data.get('api_last_message', '')
         })
     return clients
 
@@ -342,6 +345,46 @@ def update_client_config(client_id, update_data):
     except Exception as e:
         logger.error(f"Erro ao atualizar cliente {client_id}: {e}")
         return False
+
+def update_client_api_status(client_id, status, message):
+    """Updates the API monitoring status for a client."""
+    if not client_id: return False
+    try:
+        firestore_db.collection('client_configs').document(client_id).update({
+            'api_status': status,
+            'api_last_check': get_now_br().strftime("%Y-%m-%d %H:%M:%S"),
+            'api_last_message': message
+        })
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao atualizar status API do cliente {client_id}: {e}")
+        return False
+
+def save_rsus_credentials(cred_type, username, password):
+    """Saves global RSUS credentials (general or unimed_vitoria)."""
+    try:
+        firestore_db.collection('system_settings').document('rsus_credentials').set({
+            cred_type: {
+                'username': username,
+                'password': password,
+                'updated_at': get_now_br().strftime("%Y-%m-%d %H:%M:%S")
+            }
+        }, merge=True)
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao salvar credenciais RSUS ({cred_type}): {e}")
+        return False
+
+def get_rsus_credentials(cred_type):
+    """Retrieves global RSUS credentials by type."""
+    try:
+        doc = firestore_db.collection('system_settings').document('rsus_credentials').get()
+        if doc.exists:
+            creds = doc.to_dict()
+            return creds.get(cred_type)
+    except Exception as e:
+        logger.error(f"Erro ao buscar credenciais RSUS ({cred_type}): {e}")
+    return None
 
 def get_all_xml_data():
     xml_data_list = []

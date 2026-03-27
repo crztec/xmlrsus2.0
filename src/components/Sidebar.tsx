@@ -31,6 +31,8 @@ const menuItems = [
   { label: "Clientes", icon: <Users size={20} />, href: "/clients", isAdmin: true },
   { label: "Usuários", icon: <Users size={20} />, href: "/users", isAdmin: true },
   { label: "Pendentes", icon: <UserPlus size={20} />, href: "/pending", isAdmin: true },
+  { label: "Checar APIs", icon: <Shield size={20} />, href: "/settings/api-checks", isAdmin: true },
+  { label: "Login RSUS", icon: <Key size={20} />, href: "/settings/rsus", isAdmin: true },
   { label: "Sistema", icon: <Settings size={20} />, href: "/settings", isAdmin: true },
 ];
 

@@ -58,10 +58,25 @@ export default function DashboardPage() {
     if (savedTaskId) setActiveTaskId(savedTaskId);
 
     const savedUrl = localStorage.getItem("rsusUrl");
-    const savedUser = localStorage.getItem("rsusUser");
     if (savedUrl) setRsusUrl(savedUrl);
-    if (savedUser) setRsusUser(savedUser);
   }, []);
+
+  // Novo: Busca credenciais globais quando a URL muda
+  useEffect(() => {
+    if (rsusUrl && rsusUrl.length > 10) {
+      const type = rsusUrl.toLowerCase().includes("vitoria") ? "unimed_vitoria" : "general";
+      fetch(`/api/settings/rsus-credentials?type=${type}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.username) {
+            setRsusUser(data.username);
+            setRsusPass(data.password);
+            addLog(`Credenciais '${type === 'general' ? 'Gerais' : 'Vitória'}' carregadas automaticamente.`, 'info');
+          }
+        })
+        .catch(err => console.error("Erro ao buscar credenciais automáticas:", err));
+    }
+  }, [rsusUrl]);
 
   useEffect(() => {
     let interval: any;
@@ -106,14 +121,15 @@ export default function DashboardPage() {
 
   const handleUpload = async (force = false) => {
     if (files.length === 0) return;
-    if (!rsusUrl || !rsusUser || !rsusPass) {
-      alert("Por favor, preencha as credenciais do RSUS antes de iniciar.");
+    
+    // Se não tiver preenchido mas existir global, o backend vai tentar usar
+    if (!rsusUrl) {
+      alert("Por favor, preencha a URL do RSUS.");
       return;
     }
 
     if (rememberCreds) {
       localStorage.setItem("rsusUrl", rsusUrl);
-      localStorage.setItem("rsusUser", rsusUser);
     }
 
     // Se não for "force", faz o pre-check primeiro
@@ -188,7 +204,13 @@ export default function DashboardPage() {
       {/* Upload Section */}
       <section className="rounded-3xl border border-slate-200/60 bg-white/70 p-8 shadow-sm backdrop-blur-sm">
         <div className="mb-6 flex items-center justify-between">
-          <div></div>
+          <div className="flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-emerald-600 border border-emerald-100/50">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+            </span>
+            Pre-preenchimento Automático Ativo
+          </div>
           {files.length > 0 && (
             <button 
               onClick={() => handleUpload(false)}
@@ -214,7 +236,10 @@ export default function DashboardPage() {
             />
           </div>
           <div className="space-y-2">
-            <label htmlFor="rsusUserInput" className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400 ml-1">Usuário</label>
+            <div className="flex items-center justify-between ml-1">
+              <label htmlFor="rsusUserInput" className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">Usuário</label>
+              {(rsusUser) && <span className="text-[9px] font-bold text-emerald-500 uppercase tracking-tighter bg-emerald-50 px-1.5 rounded">Salvo</span>}
+            </div>
             <input 
               id="rsusUserInput"
               type="text" 
@@ -225,7 +250,10 @@ export default function DashboardPage() {
             />
           </div>
           <div className="space-y-2">
-            <label htmlFor="rsusPassInput" className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400 ml-1">Senha</label>
+             <div className="flex items-center justify-between ml-1">
+              <label htmlFor="rsusPassInput" className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">Senha</label>
+              {(rsusPass) && <span className="text-[9px] font-bold text-emerald-500 uppercase tracking-tighter bg-emerald-50 px-1.5 rounded">Salva</span>}
+            </div>
             <input 
               id="rsusPassInput"
               type="password" 
@@ -237,15 +265,20 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="mb-6 flex items-center gap-2">
-          <input 
-            type="checkbox" 
-            id="remember" 
-            checked={rememberCreds}
-            onChange={(e) => setRememberCreds(e.target.checked)}
-            className="rounded border-slate-300 text-gax-blue focus:ring-gax-blue"
-          />
-          <label htmlFor="remember" className="text-xs text-slate-500">Lembrar credenciais (salvo no navegador)</label>
+        <div className="mb-6 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <input 
+              type="checkbox" 
+              id="remember" 
+              checked={rememberCreds}
+              onChange={(e) => setRememberCreds(e.target.checked)}
+              className="rounded border-slate-300 text-gax-blue focus:ring-gax-blue"
+            />
+            <label htmlFor="remember" className="text-xs text-slate-500">Lembrar URL (salvo no navegador)</label>
+          </div>
+          <p className="text-[10px] text-slate-400 font-medium italic">
+            * Se vazios, o sistema usará os logins configurados em "Sistema {'>'} Login RSUS".
+          </p>
         </div>
 
         {activeTaskId && (
