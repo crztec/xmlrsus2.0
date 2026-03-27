@@ -4,8 +4,17 @@ import requests
 
 try:
     from dotenv import load_dotenv
-    # Procura o arquivo .env no diretório atual ou acima (raiz do projeto)
-    load_dotenv(os.path.join(os.getcwd(), '.env'))
+    # Procura o arquivo .env no diretório atual, no diretório do script, ou na raiz do projeto
+    search_paths = [
+        os.path.join(os.getcwd(), '.env'),
+        os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env'),
+        os.path.join(os.path.dirname(__file__), '.env'),
+        '.env'
+    ]
+    for path in search_paths:
+        if os.path.exists(path):
+            load_dotenv(path)
+            break
 except ImportError:
     pass
 

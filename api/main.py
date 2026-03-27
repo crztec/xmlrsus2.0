@@ -1467,21 +1467,6 @@ async def route_save_rsus_credentials(
         return {"status": "success"}
     raise HTTPException(status_code=500, detail="Erro ao salvar credenciais")
 
-@app.post("/settings/rsus-credentials")
-async def route_save_rsus_credentials(
-    type: str = Form(...), 
-    username: str = Form(...), 
-    password: str = Form(...)
-):
-    """Salva credenciais RSUS (general ou unimed_vitoria) via Form."""
-    success = db.save_rsus_credentials(type, username, password)
-    if success:
-        return {"status": "success"}
-    raise HTTPException(status_code=500, detail="Erro ao salvar credenciais")
-    if not task.exists:
-        raise HTTPException(status_code=404, detail="Tarefa não encontrada.")
-    return task.to_dict()
-
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("api.main:app", host="0.0.0.0", port=10000, reload=True)
