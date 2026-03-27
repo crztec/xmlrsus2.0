@@ -85,31 +85,33 @@ async def run_api_check_for_client(client_id, task_id=None):
             # Aceita dialogs automaticamente para não travar
             page.on("dialog", lambda dialog: asyncio.create_task(dialog.accept()))
             
-            # INTERCEPTOR DE COOKIES (idêntico ao robô de importação)
-            # Força reinjeção de cookies de sessão para contornar restrições SameSite/Secure do Cloud Run
+            # INTERCEPTOR DE RESPOSTAS PARA INJEÇÃO CIRÚRGICA DE COOKIES (Sincronizado com main.py)
             async def handle_response(response):
                 if url_sistema.split('/')[2] in response.url:
                     try:
                         headers = await response.all_headers()
                         set_cookie = headers.get('set-cookie')
                         if set_cookie:
+                            # Divide múltiplos cookies (separados por \n no all_headers do Playwright)
                             sc_list = set_cookie.split('\n')
                             for sc in sc_list:
+                                # Parse básico do cookie string
                                 parts = [p.strip() for p in sc.split(';')]
                                 if not parts: continue
                                 name_val = parts[0].split('=', 1)
                                 if len(name_val) < 2: continue
-                                try:
-                                    await context.add_cookies([{
-                                        "name": name_val[0],
-                                        "value": name_val[1],
-                                        "domain": url_sistema.split('/')[2],
-                                        "path": "/",
-                                        "secure": True,
-                                        "sameSite": "Lax",
-                                        "httpOnly": True
-                                    }])
-                                except: pass
+
+                                # Injeção manual ignorando SameSite/Secure do navegador
+                                await context.add_cookies([{
+                                    "name": name_val[0],
+                                    "value": name_val[1],
+                                    "domain": url_sistema.split('/')[2],
+                                    "path": "/",
+                                    "secure": True,
+                                    "sameSite": "Lax",
+                                    "httpOnly": True
+                                }])
+                            log_task(f"[COOKIE FORÇADO] Tokens de sessão de {response.url[:30]}... reinjetados.")
                     except: pass
             page.on("response", handle_response)
             
@@ -162,7 +164,8 @@ async def run_api_check_for_client(client_id, task_id=None):
                 try:
                     await page.wait_for_load_state('networkidle', timeout=30000)
                 except:
-                    log_task("Timeout ao aguardar networkidle. Prosseguindo mesmo assim...", "WARNING")
+                    log_task("Timeout ao aguardar networkidle. Aguardando 5s extras de fallback...", "WARNING")
+                    await asyncio.sleep(5)
                 
                 await asyncio.sleep(2)
                 
@@ -273,12 +276,25 @@ async def run_api_check_for_client(client_id, task_id=None):
                         # Tenta o salto com timeouts reduzidos para não bloquear a navegação manual
                         for attempt in range(2):
                             try:
-                                log_task(f"Tentativa {attempt + 1} de salto para {target_url}...")
-                                # timeout de 45s conforme solicitado para clientes lentos
-                                await page.goto(target_url, wait_until="commit", timeout=45000)
-                                # espera de 30s (ajustado de 15s para dar mais fôlego à renderização da grid)
+                                base_url = url_sistema.split('/login')[0] if '/login' in url_sistema else url_sistema.rsplit('/', 1)[0]
+                                
+                                # 1º SALTO: Raiz do portal (Acorda o servidor)
+                                log_task(f"Salto 1/3: {base_url} (Raiz)...")
+                                await page.goto(base_url, wait_until="commit", timeout=45000)
+                                
+                                # 2º SALTO: Lista de Atendimentos/ABIs (Gera contexto de grid)
+                                target_list = f"{base_url.rstrip('/')}/importacao" if "cassems" in base_url else f"{base_url.rstrip('/')}/Atendimento"
+                                log_task(f"Salto 2/3: {target_list} (Lista)...")
+                                await page.goto(target_list, wait_until="commit", timeout=45000)
+                                await asyncio.sleep(2)
+                                
+                                # 3º SALTO: Destino Final
+                                log_task(f"Salto 3/3: {target_url} (Final)...")
+                                await page.goto(target_url, wait_until="networkidle", timeout=60000)
+                                
+                                # Busca exaustiva pela grid
                                 await page.wait_for_selector(".fa-bars, button.dropdown-toggle", timeout=30000)
-                                log_task("Salto bem-sucedido. Grid detectada.")
+                                log_task("Salto Triplo bem-sucedido. Grid detectada.")
                                 break
                             except Exception as e_jump:
                                 if attempt == 0:
@@ -331,6 +347,8 @@ async def run_api_check_for_client(client_id, task_id=None):
                 # CAPTURA DE SCREENSHOT FORENSE EM CASO DE ERRO (BASE64)
                 screenshot_url = None
                 try:
+                    log_task("Pausa de 2s para renderização antes do print forense...")
+                    await asyncio.sleep(2)
                     log_task("Capturando print forense da falha (Formato Base64)...")
                     img_bytes = await page.screenshot(full_page=False)
                     base64_img = f"data:image/png;base64,{base64.b64encode(img_bytes).decode('utf-8')}"
