@@ -44,63 +44,101 @@ async def run_api_check_for_client(client_id, task_id=None):
     try:
         async with async_playwright() as p:
             log_task(f"Iniciando navegador para {url_sistema}...")
-            # Headless false para debug local se necessário, mas no servidor deve ser True
-            browser = await p.chromium.launch(headless=True, args=['--no-sandbox', '--disable-setuid-sandbox'])
-            context = await browser.new_context(viewport={'width': 1280, 'height': 800})
+            
+            browser_args = [
+                "--headless=new", "--no-sandbox", "--disable-dev-shm-usage",
+                "--disable-gpu", "--window-size=1920,1080",
+                "--disable-features=SameSiteByDefaultCookies,CookiesWithoutSameSiteMustBeSecure",
+                "--disable-web-security", "--allow-running-insecure-content",
+                "--ignore-certificate-errors", "--disable-blink-features=AutomationControlled"
+            ]
+            try:
+                browser = await p.chromium.launch(headless=True, args=browser_args)
+            except Exception:
+                import subprocess, sys
+                subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], check=False)
+                browser = await p.chromium.launch(headless=True, args=browser_args)
+
+            context = await browser.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                ignore_https_errors=True,
+                timezone_id="America/Sao_Paulo",
+                locale="pt-BR"
+            )
+            await context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+
             page = await context.new_page()
             
-            # 1. Login
+            # Bloqueia assets pesados para acelerar carregamento
+            async def block_assets(route):
+                if route.request.resource_type in ["image", "font"]:
+                    await route.abort()
+                else:
+                    await route.continue_()
+            await page.route("**/*", block_assets)
+            
+            page.set_default_navigation_timeout(90000)
+            page.set_default_timeout(90000)
+            
+            # Aceita dialogs automaticamente para não travar
+            page.on("dialog", lambda dialog: asyncio.create_task(dialog.accept()))
+            
+            # 1. Login (idêntico ao robô de importação)
             try:
                 log_task("Realizando login no RSUS...")
-                await page.goto(url_sistema, wait_until="networkidle", timeout=60000)
+                # Navega direto para a URL (portal redireciona para /Account/Login com ReturnUrl)
+                await page.goto(url_sistema, wait_until="commit", timeout=60000)
                 
-                # Seletores de fallback para campos de usuário (Unimed usa 'usuario', outros usam 'email')
-                USER_SELECTORS = [
-                    'input[name="usuario"]',
-                    'input[name="email"]',
-                    'input[type="text"]:visible',
-                ]
-                PASS_SELECTORS = [
-                    'input[name="senha"]',
-                    'input[name="password"]',
-                    'input[type="password"]:visible',
-                ]
+                # Trata modal de alerta inicial se houver
+                try:
+                    alert = page.locator("#_browseralert, .browseralert").first
+                    if await alert.is_visible(timeout=2000):
+                        await page.keyboard.press("Escape")
+                except: pass
                 
-                user_field = None
-                for sel in USER_SELECTORS:
-                    try:
-                        await page.wait_for_selector(sel, timeout=8000)
-                        user_field = sel
-                        break
-                    except:
-                        pass
+                # Localiza campo de email (seletor idêntico ao robô de importação)
+                email_field = page.locator("input#email, input#Email").first
+                if await email_field.count() == 0:
+                    for frame in page.frames:
+                        f_email = frame.locator("input#email, input#Email").first
+                        if await f_email.count() > 0:
+                            email_field = f_email
+                            break
                 
-                if not user_field:
-                    log_task("Nenhum campo de usuário encontrado na página de login.", "ERROR")
-                    return "offline", "Campo de login não encontrado."
+                await email_field.wait_for(state="visible", timeout=25000)
+                log_task("Campo de login identificado. Preenchendo credenciais...")
                 
-                pass_field = None
-                for sel in PASS_SELECTORS:
-                    try:
-                        await page.wait_for_selector(sel, timeout=5000)
-                        pass_field = sel
-                        break
-                    except:
-                        pass
+                # Usa .type() com delay para compatibilidade com portais AngularJS
+                await email_field.click()
+                await email_field.type(usuario, delay=40)
+                await asyncio.sleep(0.5)
                 
-                if not pass_field:
-                    log_task("Nenhum campo de senha encontrado na página de login.", "ERROR")
-                    return "offline", "Campo de senha não encontrado."
+                pwd_field = page.locator("input#password, input#Password").first
+                await pwd_field.click()
+                await pwd_field.type(senha, delay=40)
+                await asyncio.sleep(0.5)
                 
-                await page.fill(user_field, usuario)
-                await page.fill(pass_field, senha)
-                await page.click('button[type="submit"]')
-                await page.wait_for_timeout(5000)
+                btn_login = page.locator("#logIn, button[type='submit']").first
+                await btn_login.click()
                 
-                if "login" in page.url.lower():
-                    log_task("Falha no login: permaneceu na página de login.", "ERROR")
+                # Aguarda desaparecimento do botão de login (mais robusto que sleep)
+                try:
+                    await page.wait_for_selector("#logIn, button[type='submit']", state="hidden", timeout=15000)
+                except:
+                    log_task("Botão de login ainda visível após clique. Prosseguindo...", "WARNING")
+                
+                # Verifica cookie de sessão
+                cookies = await context.cookies()
+                has_session = any(
+                    '.ASPXAUTH' in c['name'] or 'Identity' in c['name'] or 'ASP.NET_SessionId' in c['name']
+                    for c in cookies
+                )
+                
+                if not has_session and ("Account/Login" in page.url):
+                    log_task("Falha no login: sem cookie de sessão e ainda na tela de login.", "ERROR")
                     return "offline", "Falha na autenticação RSUS."
-                log_task("Login bem-sucedido.")
+                
+                log_task("Login bem-sucedido. Sessão estabelecida.")
             except Exception as e:
                 log_task(f"Erro no login: {str(e)}", "ERROR")
                 return "offline", "Erro ao acessar portal RSUS."
