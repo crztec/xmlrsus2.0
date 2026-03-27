@@ -202,19 +202,62 @@ async def run_api_check_for_client(client_id, task_id=None):
             # 2. Navegação para Atendimentos através da lista de ABIs (Hambúrguer Direito)
             try:
                 log_task("Localizando ABI e abrindo menu hambúrguer...")
-                # Espera o ícone de bars (FontAwesome fa-bars) que fica na direita da linha
-                await page.wait_for_selector('.fa-bars', timeout=30000)
                 
-                # Clica no primeiro hambúrguer da lista
-                options_menu = page.locator('.fa-bars').first
-                await options_menu.click()
-                await page.wait_for_timeout(1000)
+                # Aguarda estabilização da rede para carregar a grid
+                await page.wait_for_load_state("networkidle", timeout=30000)
+                await asyncio.sleep(2)
                 
-                log_task("Menu aberto. Navegando para 'Atendimentos'...")
-                # Procura o texto 'Atendimento' ou 'Atendimentos' no dropdown
-                await page.click('text=Atendimento')
-                await page.wait_for_load_state("networkidle")
-                await page.wait_for_timeout(3000)
+                # Função auxiliar para encontrar e clicar em elementos em qualquer frame
+                async def click_in_frames(selector, text_match=None):
+                    # Tenta no frame principal
+                    target = page.locator(selector).first
+                    if text_match:
+                        target = page.locator(f"{selector}:has-text('{text_match}')").first
+                    
+                    if await target.count() > 0 and await target.is_visible():
+                        await target.click()
+                        return True
+                    
+                    # Tenta nos IFrames
+                    for frame in page.frames:
+                        try:
+                            f_target = frame.locator(selector).first
+                            if text_match:
+                                f_target = frame.locator(f"{selector}:has-text('{text_match}')").first
+                            
+                            if await f_target.count() > 0 and await f_target.is_visible():
+                                await f_target.click()
+                                return True
+                        except: continue
+                    return False
+
+                # Tenta localizar o hambúrguer (.fa-bars)
+                found_bars = False
+                for _ in range(5): # 5 tentativas (25s total)
+                    if await click_in_frames('.fa-bars'):
+                        found_bars = True
+                        break
+                    await asyncio.sleep(5)
+                
+                if not found_bars:
+                    raise Exception("Menu de contexto (.fa-bars) não encontrado em nenhum frame.")
+                
+                await asyncio.sleep(1)
+                
+                log_task("Menu aberto. Navegando para 'Atendimento'...")
+                # Procura o texto 'Atendimento' no dropdown (que pode estar em outro frame)
+                found_atend = False
+                for _ in range(3):
+                    if await click_in_frames('a, span, li', 'Atendimento'):
+                        found_atend = True
+                        break
+                    await asyncio.sleep(2)
+                
+                if not found_atend:
+                    raise Exception("Link 'Atendimento' não encontrado após abrir menu.")
+                
+                await page.wait_for_load_state("networkidle", timeout=30000)
+                await asyncio.sleep(3)
             except Exception as e:
                 log_task(f"Erro ao navegar para Atendimentos: {str(e)}", "ERROR")
                 return "offline", "Não foi possível acessar Atendimentos."
@@ -222,14 +265,24 @@ async def run_api_check_for_client(client_id, task_id=None):
             # 3. Navegação para Beneficiário (Novo hambúrguer na tela de atendimentos)
             try:
                 log_task("Na tela de Atendimentos. Abrindo menu do beneficiário...")
-                # Clique no hambúrguer do primeiro atendimento
-                atendimento_menu = page.locator('.fa-bars').first
-                await atendimento_menu.click()
-                await page.wait_for_timeout(1000)
+                
+                found_atend_bars = False
+                for _ in range(3):
+                    if await click_in_frames('.fa-bars'):
+                        found_atend_bars = True
+                        break
+                    await asyncio.sleep(3)
+                
+                if not found_atend_bars:
+                    raise Exception("Menu de contexto do Atendimento não encontrado.")
+                
+                await asyncio.sleep(1)
                 
                 log_task("Menu aberto. Clicando em 'Beneficiário'...")
-                await page.click('text=Beneficiário')
-                await page.wait_for_timeout(3000)
+                if not await click_in_frames('a, span, li', 'Beneficiário'):
+                    raise Exception("Link 'Beneficiário' não encontrado.")
+                
+                await asyncio.sleep(3)
             except Exception as e:
                 log_task(f"Erro ao abrir Beneficiário: {str(e)}", "ERROR")
                 return "offline", "Não foi possível acessar dados do Beneficiário."
@@ -237,21 +290,37 @@ async def run_api_check_for_client(client_id, task_id=None):
             # 4. Atualizar Dados
             try:
                 log_task("Modal de Beneficiário aberta. Rolando e atualizando...")
-                # Rola até o final
-                await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                await page.wait_for_timeout(1000)
+                
+                # Identifica o frame onde está o botão Atualizar
+                update_target = page
+                found_update = False
+                
+                if await page.locator('button:has-text("Atualizar")').count() > 0:
+                    found_update = True
+                else:
+                    for frame in page.frames:
+                        if await frame.locator('button:has-text("Atualizar")').count() > 0:
+                            update_target = frame
+                            found_update = True
+                            break
+                
+                if not found_update:
+                    raise Exception("Botão 'Atualizar' não encontrado em nenhum frame.")
+
+                # Rola até o final do frame alvo
+                await update_target.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                await asyncio.sleep(1)
                 
                 # Clica no botão Atualizar
-                update_btn = page.locator('button:has-text("Atualizar")').first
-                await update_btn.click()
-                await page.wait_for_timeout(3000)
+                await update_target.locator('button:has-text("Atualizar")').first.click()
+                await asyncio.sleep(3)
                 
                 log_task("Clique em 'Atualizar' realizado com sucesso.", "SUCCESS")
                 log_task("API configurada no RSUS está ATIVA.", "SUCCESS")
-                return "online", "Integração RSUS operacional."
+                return "online", "Conexão RSUS Ativa e funcional."
             except Exception as e:
-                log_task(f"Erro ao clicar em Atualizar: {str(e)}", "ERROR")
-                return "offline", "API não retornou sucesso na atualização."
+                log_task(f"Erro ao finalizar atualização: {str(e)}", "ERROR")
+                return "offline", "Erro ao interagir com formulário de Beneficiário."
 
     except Exception as e:
         import traceback
