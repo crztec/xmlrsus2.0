@@ -29,11 +29,13 @@ async def run_api_check_for_client(client_id, task_id=None):
 
     # Determina credenciais
     cred_type = "unimed_vitoria" if "vitoria" in url_sistema.lower() else "general"
+    log_task(f"Buscando credenciais do tipo: {cred_type}...")
     creds = db.get_rsus_credentials(cred_type)
     
     if not creds or not creds.get('username'):
-        log_task(f"Credenciais '{cred_type}' não encontradas no sistema.", "ERROR")
-        return "offline", f"Credenciais '{cred_type}' não configuradas."
+        msg_erro = f"Credenciais '{cred_type}' não encontradas no sistema. Acesse Configurações > Credenciais RSUS."
+        log_task(msg_erro, "ERROR")
+        return "offline", msg_erro
 
     usuario = creds['username']
     senha = creds['password']
