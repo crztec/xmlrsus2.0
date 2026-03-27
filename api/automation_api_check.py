@@ -279,6 +279,12 @@ async def run_api_check_for_client(client_id, task_id=None):
                 if not found_bars:
                     raise Exception("Menu de contexto (.fa-bars) não encontrado após polling e Triple Jump.")
                 
+                # LOG DE MÉTODO DE NAVEGAÇÃO
+                if jump_triggered:
+                    log_task("Acesso realizado via Salto Direto (Triple Jump)")
+                else:
+                    log_task("Acesso realizado via Navegação Manual")
+                
                 # 2. Aguarda o menu aparecer
                 await asyncio.sleep(1)
                 
@@ -298,61 +304,89 @@ async def run_api_check_for_client(client_id, task_id=None):
                 
                 await asyncio.sleep(3)
             except Exception as e:
+                # CAPTURA DE SCREENSHOT EM CASO DE ERRO NA NAVEGAÇÃO
+                screenshot_url = None
+                try:
+                    shot_path = f"api_checks/{client_id}_{int(time.time())}.png"
+                    img_bytes = await page.screenshot()
+                    if db.upload_screenshot(shot_path, img_bytes):
+                        screenshot_url = f"https://firebasestorage.googleapis.com/v0/b/{db.FIREBASE_STORAGE_BUCKET}/o/{shot_path.replace('/', '%2F')}?alt=media"
+                except: pass
+
                 log_task(f"Erro de navegação (Atendimentos): {str(e)}", "ERROR")
+                db.update_client_api_status(client_id, "error", f"Erro: {str(e)[:40]}", task_id, screenshot_url)
                 return "error", f"Falha na navegação: {str(e)[:50]}"
 
             # 3. Navegação para Beneficiário (Novo hambúrguer na tela de atendimentos)
             try:
                 log_task("Na tela de Atendimentos. Abrindo menu do beneficiário...")
-                
-                found_atend_bars = False
-                for _ in range(4):
+                found_bars_benef = False
+                for _ in range(5):
                     if await click_in_frames('.fa-bars, button.dropdown-toggle'):
-                        found_atend_bars = True
+                        found_bars_benef = True
                         break
-                    await asyncio.sleep(3)
+                    await asyncio.sleep(4)
                 
-                if not found_atend_bars:
-                    raise Exception("Menu do atendimento não encontrado.")
+                if not found_bars_benef:
+                    raise Exception("Menu de contexto não encontrado na tela de Atendimentos.")
                 
-                await asyncio.sleep(1)
-                
+                await asyncio.sleep(1.5)
                 log_task("Menu aberto. Clicando em 'Beneficiário'...")
-                if not await click_in_frames('a', title_match='Beneficiário'):
-                    if not await click_in_frames('a', text_match='Beneficiário'):
-                        raise Exception("Link 'Beneficiário' não encontrado.")
+                found_benef = False
+                if await click_in_frames('a', title_match='Beneficiário'):
+                    found_benef = True
+                elif await click_in_frames('a', text_match='Beneficiário'):
+                    found_benef = True
                 
-                await asyncio.sleep(3)
+                if not found_benef:
+                    raise Exception("Link 'Beneficiário' não encontrado no menu.")
+                
+                # Aguarda modal ou nova tela
+                await asyncio.sleep(4)
             except Exception as e:
-                log_task(f"Erro de navegação (Beneficiário): {str(e)}", "ERROR")
-                return "error", f"Falha ao acessar Beneficiário: {str(e)[:50]}"
+                # CAPTURA DE SCREENSHOT EM CASO DE ERRO
+                screenshot_url = None
+                try:
+                    shot_path = f"api_checks/{client_id}_{int(time.time())}.png"
+                    img_bytes = await page.screenshot()
+                    if db.upload_screenshot(shot_path, img_bytes):
+                        screenshot_url = f"https://firebasestorage.googleapis.com/v0/b/{db.FIREBASE_STORAGE_BUCKET}/o/{shot_path.replace('/', '%2F')}?alt=media"
+                except: pass
 
-            # 4. Atualizar Dados (Modal Final)
+                log_task(f"Erro ao abrir beneficiário: {str(e)}", "ERROR")
+                db.update_client_api_status(client_id, "error", f"Erro Beneficiário: {str(e)[:40]}", task_id, screenshot_url)
+                return "error", f"Erro no Beneficiário: {str(e)[:50]}"
+
+            # 4. Ação de Atualização e Verificação Final
             try:
                 log_task("Modal de Beneficiário aberta. Rolando e atualizando...")
                 
-                update_target = page
                 found_update = False
+                update_target = page
                 
-                for _ in range(4):
-                    if await page.locator('button:has-text("Atualizar")').count() > 0:
+                for _ in range(5):
+                    # Tenta no principal e em todos os frames
+                    if await page.locator("button:has-text('Atualizar'), input[value='Atualizar']").count() > 0:
                         found_update = True
+                        update_target = page
                         break
+                    
                     for frame in page.frames:
-                        if await frame.locator('button:has-text("Atualizar")').count() > 0:
-                            update_target = frame
+                        if await frame.locator("button:has-text('Atualizar'), input[value='Atualizar']").count() > 0:
                             found_update = True
+                            update_target = frame
                             break
                     if found_update: break
                     await asyncio.sleep(2)
                 
                 if not found_update:
-                    raise Exception("Botão 'Atualizar' não encontrado.")
-
+                    raise Exception("Botão 'Atualizar' não localizado na tela de Beneficiário.")
+                
                 # Rola e clica
-                await update_target.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                target_btn = update_target.locator("button:has-text('Atualizar'), input[value='Atualizar']").first
+                await target_btn.scroll_into_view_if_needed()
                 await asyncio.sleep(1)
-                await update_target.locator('button:has-text("Atualizar")').first.click()
+                await target_btn.click()
                 
                 log_task("Clique em 'Atualizar' realizado. Aguardando resposta do portal...")
                 
@@ -421,7 +455,7 @@ async def run_batch_api_check(task_id=None):
             
             try:
                 status, message = await run_api_check_for_client(client['id'], task_id=task_id)
-                db.update_client_api_status(client['id'], status, message)
+                # O status já é atualizado dentro de run_api_check_for_client com todos os metadados
             except Exception as e:
                 logger.error(f"Erro ao checar cliente {client.get('id')}: {e}")
                 if task_id:
