@@ -254,7 +254,24 @@ async def run_api_check_for_client(client_id, task_id=None):
                         # Limpa sufixos common e força a rota de importação
                         base_url = url_sistema.split('/login')[0]
                         target_url = f"{base_url.rstrip('/')}/importacao"
-                        await page.goto(target_url, wait_until="domcontentloaded", timeout=20000)
+                        
+                        # Tenta o salto até 2 vezes se houver timeout
+                        for attempt in range(2):
+                            try:
+                                log_task(f"Tentativa {attempt + 1} de salto para {target_url}...")
+                                # wait_until='commit' dispara assim que o servidor responde
+                                await page.goto(target_url, wait_until="commit", timeout=60000)
+                                # Espera explícita pela grid após o salto
+                                await page.wait_for_selector(".fa-bars, button.dropdown-toggle", timeout=30000)
+                                log_task("Salto bem-sucedido. Grid detectada após redirecionamento.")
+                                break
+                            except Exception as e_jump:
+                                if attempt == 0:
+                                    log_task(f"Pequeno atraso no 1º salto ({str(e_jump)[:40]}). Tentando novamente...", "WARNING")
+                                    await asyncio.sleep(5)
+                                else:
+                                    log_task(f"Salto não resolveu após 2 tentativas: {str(e_jump)[:50]}", "WARNING")
+                        
                         jump_triggered = True
                         
                     await asyncio.sleep(5)
