@@ -208,53 +208,65 @@ async def run_api_check_for_client(client_id, task_id=None):
                 await asyncio.sleep(2)
                 
                 # Função auxiliar para encontrar e clicar em elementos em qualquer frame
-                async def click_in_frames(selector, text_match=None):
+                async def click_in_frames(selector, text_match=None, title_match=None):
                     # Tenta no frame principal
-                    target = page.locator(selector).first
-                    if text_match:
+                    target = None
+                    if title_match:
+                        target = page.locator(f"{selector}[title*='{title_match}']").first
+                    elif text_match:
                         target = page.locator(f"{selector}:has-text('{text_match}')").first
+                    else:
+                        target = page.locator(selector).first
                     
-                    if await target.count() > 0 and await target.is_visible():
+                    if target and await target.count() > 0 and await target.is_visible():
                         await target.click()
                         return True
                     
                     # Tenta nos IFrames
                     for frame in page.frames:
                         try:
-                            f_target = frame.locator(selector).first
-                            if text_match:
+                            f_target = None
+                            if title_match:
+                                f_target = frame.locator(f"{selector}[title*='{title_match}']").first
+                            elif text_match:
                                 f_target = frame.locator(f"{selector}:has-text('{text_match}')").first
+                            else:
+                                f_target = frame.locator(selector).first
                             
-                            if await f_target.count() > 0 and await f_target.is_visible():
+                            if f_target and await f_target.count() > 0 and await f_target.is_visible():
                                 await f_target.click()
                                 return True
                         except: continue
                     return False
 
-                # Tenta localizar o hambúrguer (.fa-bars)
+                # 1. Tenta localizar o hambúrguer (.fa-bars ou button.dropdown-toggle)
                 found_bars = False
-                for _ in range(5): # 5 tentativas (25s total)
-                    if await click_in_frames('.fa-bars'):
+                for _ in range(5):
+                    if await click_in_frames('.fa-bars, button.dropdown-toggle'):
                         found_bars = True
                         break
                     await asyncio.sleep(5)
                 
                 if not found_bars:
-                    raise Exception("Menu de contexto (.fa-bars) não encontrado em nenhum frame.")
+                    raise Exception("Menu de contexto (.fa-bars) não encontrado.")
                 
+                # 2. Aguarda o menu aparecer (pode ser ul.sandwichButton ou .dropdown-menu)
                 await asyncio.sleep(1)
                 
-                log_task("Menu aberto. Navegando para 'Atendimento'...")
-                # Procura o texto 'Atendimento' no dropdown (que pode estar em outro frame)
+                log_task("Menu aberto. Navegando para 'Atendimentos' (plural)...")
+                # Busca prioritária pelo título 'Atendimentos'
                 found_atend = False
                 for _ in range(3):
-                    if await click_in_frames('a, span, li', 'Atendimento'):
+                    if await click_in_frames('a', title_match='Atendimentos'): # Tenta Plural
+                        found_atend = True
+                        break
+                    if await click_in_frames('a', text_match='Atendimento'): # Fallback para texto parcial
                         found_atend = True
                         break
                     await asyncio.sleep(2)
                 
                 if not found_atend:
-                    raise Exception("Link 'Atendimento' não encontrado após abrir menu.")
+                    raise Exception("Link 'Atendimentos' não encontrado.")
                 
                 await page.wait_for_load_state("networkidle", timeout=30000)
                 await asyncio.sleep(3)
@@ -268,50 +280,52 @@ async def run_api_check_for_client(client_id, task_id=None):
                 
                 found_atend_bars = False
                 for _ in range(3):
-                    if await click_in_frames('.fa-bars'):
+                    if await click_in_frames('.fa-bars, button.dropdown-toggle'):
                         found_atend_bars = True
                         break
                     await asyncio.sleep(3)
                 
                 if not found_atend_bars:
-                    raise Exception("Menu de contexto do Atendimento não encontrado.")
+                    raise Exception("Menu do atendimento não encontrado.")
                 
                 await asyncio.sleep(1)
                 
                 log_task("Menu aberto. Clicando em 'Beneficiário'...")
-                if not await click_in_frames('a, span, li', 'Beneficiário'):
-                    raise Exception("Link 'Beneficiário' não encontrado.")
+                if not await click_in_frames('a', title_match='Beneficiário'):
+                    if not await click_in_frames('a', text_match='Beneficiário'):
+                        raise Exception("Link 'Beneficiário' não encontrado.")
                 
                 await asyncio.sleep(3)
             except Exception as e:
                 log_task(f"Erro ao abrir Beneficiário: {str(e)}", "ERROR")
                 return "offline", "Não foi possível acessar dados do Beneficiário."
 
-            # 4. Atualizar Dados
+            # 4. Atualizar Dados (Modal Final)
             try:
                 log_task("Modal de Beneficiário aberta. Rolando e atualizando...")
                 
-                # Identifica o frame onde está o botão Atualizar
                 update_target = page
                 found_update = False
                 
-                if await page.locator('button:has-text("Atualizar")').count() > 0:
-                    found_update = True
-                else:
+                # Busca o botão 'Atualizar' (pode estar no frame ou modal)
+                for _ in range(3):
+                    if await page.locator('button:has-text("Atualizar")').count() > 0:
+                        found_update = True
+                        break
                     for frame in page.frames:
                         if await frame.locator('button:has-text("Atualizar")').count() > 0:
                             update_target = frame
                             found_update = True
                             break
+                    if found_update: break
+                    await asyncio.sleep(2)
                 
                 if not found_update:
-                    raise Exception("Botão 'Atualizar' não encontrado em nenhum frame.")
+                    raise Exception("Botão 'Atualizar' não encontrado.")
 
-                # Rola até o final do frame alvo
+                # Rola até o final do frame alvo e clica
                 await update_target.evaluate("window.scrollTo(0, document.body.scrollHeight)")
                 await asyncio.sleep(1)
-                
-                # Clica no botão Atualizar
                 await update_target.locator('button:has-text("Atualizar")').first.click()
                 await asyncio.sleep(3)
                 
