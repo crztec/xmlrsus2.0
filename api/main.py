@@ -1469,4 +1469,4 @@ async def route_save_rsus_credentials(
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("api.main:app", host="0.0.0.0", port=10000, reload=False)
+    uvicorn.run("api.main:app", host="0.0.0.0", port=8000, reload=False)
