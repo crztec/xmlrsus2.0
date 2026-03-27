@@ -252,7 +252,7 @@ async def run_api_check_for_client(client_id, task_id=None):
                     if i >= 2 and not jump_triggered:
                         log_task("Grid não detectada. Forçando 'Triple Jump' para /importacao...")
                         # Limpa sufixos common e força a rota de importação
-                        base_url = rsus_url.split('/login')[0]
+                        base_url = url_sistema.split('/login')[0]
                         target_url = f"{base_url.rstrip('/')}/importacao"
                         await page.goto(target_url, wait_until="domcontentloaded", timeout=20000)
                         jump_triggered = True
