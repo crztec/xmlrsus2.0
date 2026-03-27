@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import time
+import base64
 from datetime import datetime
 from playwright.async_api import async_playwright
 import api.database as db
@@ -156,6 +157,13 @@ async def run_api_check_for_client(client_id, task_id=None):
                 except:
                     log_task("Botão de login ainda visível após clique. Verificando erros na tela...", "WARNING")
                 
+                # ESTABILIZAÇÃO DE SESSÃO: Aguarda rede ociosa para garantir carga de scripts/cookies
+                log_task("Aguardando estabilização da sessão (networkidle)...")
+                try:
+                    await page.wait_for_load_state('networkidle', timeout=30000)
+                except:
+                    log_task("Timeout ao aguardar networkidle. Prosseguindo mesmo assim...", "WARNING")
+                
                 await asyncio.sleep(2)
                 
                 # VERIFICAÇÃO DE SESSÃO: Logar cookies e LocalStorage (idêntico ao robô de importação)
@@ -208,24 +216,27 @@ async def run_api_check_for_client(client_id, task_id=None):
                 # REFINAMENTO FINAL: Removemos esperas globais por domcontentloaded/networkidle
                 # Iniciamos polling ativo pelos elementos da grid IMEDIATAMENTE.
                 
-                # Função auxiliar para encontrar e clicar em elementos em qualquer frame
+                # Função auxiliar para encontrar e clicar em elementos em qualquer frame (incluindo aninhados)
                 async def click_in_frames(selector, text_match=None, title_match=None):
-                    # Tenta no frame principal
-                    target = None
-                    if title_match:
-                        target = page.locator(f"{selector}[title*='{title_match}']").first
-                    elif text_match:
-                        target = page.locator(f"{selector}:has-text('{text_match}')").first
-                    else:
-                        target = page.locator(selector).first
+                    # 1. Tenta no frame principal primário
+                    try:
+                        target = None
+                        if title_match:
+                            target = page.locator(f"{selector}[title*='{title_match}']").first
+                        elif text_match:
+                            target = page.locator(f"{selector}:has-text('{text_match}')").first
+                        else:
+                            target = page.locator(selector).first
+                        
+                        if target and await target.count() > 0 and await target.is_visible():
+                            await target.click()
+                            return True
+                    except: pass
                     
-                    if target and await target.count() > 0 and await target.is_visible():
-                        await target.click()
-                        return True
-                    
-                    # Tenta nos IFrames
+                    # 2. Varredura recursiva de todos os frames (Playwright page.frames retorna todos os frames ativos)
                     for frame in page.frames:
                         try:
+                            # Ignora frames sem URL ou de trackers comuns se necessário, mas aqui buscamos em tudo
                             f_target = None
                             if title_match:
                                 f_target = frame.locator(f"{selector}[title*='{title_match}']").first
@@ -235,6 +246,8 @@ async def run_api_check_for_client(client_id, task_id=None):
                                 f_target = frame.locator(selector).first
                             
                             if f_target and await f_target.count() > 0 and await f_target.is_visible():
+                                # Garante scroll para visibilidade se estiver enterrado
+                                await f_target.scroll_into_view_if_needed()
                                 await f_target.click()
                                 return True
                         except: continue
@@ -315,14 +328,16 @@ async def run_api_check_for_client(client_id, task_id=None):
                 
                 await asyncio.sleep(3)
             except Exception as e:
-                # CAPTURA DE SCREENSHOT EM CASO DE ERRO NA NAVEGAÇÃO
+                # CAPTURA DE SCREENSHOT FORENSE EM CASO DE ERRO (BASE64)
                 screenshot_url = None
                 try:
-                    shot_path = f"api_checks/{client_id}_{int(time.time())}.png"
-                    img_bytes = await page.screenshot()
-                    if db.upload_screenshot(shot_path, img_bytes):
-                        screenshot_url = f"https://firebasestorage.googleapis.com/v0/b/{db.FIREBASE_STORAGE_BUCKET}/o/{shot_path.replace('/', '%2F')}?alt=media"
-                except: pass
+                    log_task("Capturando print forense da falha (Formato Base64)...")
+                    img_bytes = await page.screenshot(full_page=False)
+                    base64_img = f"data:image/png;base64,{base64.b64encode(img_bytes).decode('utf-8')}"
+                    log_task(f"Screenshot gerado com sucesso. Tamanho: {len(base64_img)} caracteres.")
+                    screenshot_url = base64_img
+                except Exception as e_shot:
+                    log_task(f"Erro ao capturar screenshot: {str(e_shot)}", "WARNING")
 
                 log_task(f"Erro de navegação (Atendimentos): {str(e)}", "ERROR")
                 db.update_client_api_status(client_id, "error", f"Erro: {str(e)[:40]}", task_id, screenshot_url)
