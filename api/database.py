@@ -279,29 +279,58 @@ def get_all_clients():
         n = n.replace("COOPERATIVA DE TRABALHO", "").strip()
         return n
 
-    for doc in docs:
-        data = doc.to_dict()
-        cnpj = data.get('cnpj', '').strip()
-        client_name = data.get('name') or data.get('razao_social') or doc.id
+def get_clients_paginated(page=1, limit=10, search=""):
+    """Recupera clientes com paginação e busca opcional."""
+    try:
+        query = firestore_db.collection('client_configs')
         
-        # Chave híbrida para deduplicação (Nome normalizado + CNPJ)
-        norm_name = normalize_name(client_name)
-        dedup_key = f"{norm_name}_{cnpj}"
+        # Se houver busca, o Firestore tem limitações (precisa de índices complexos para busca parcial).
+        # Por enquanto, carregaremos uma fatia maior e filtraremos para manter a simplicidade,
+        # ou usaremos prefix query se o usuário digitar o início do nome.
         
-        if dedup_key in seen_keys:
-            continue
-        seen_keys.add(dedup_key)
+        all_docs = query.get()
+        clients = []
+        seen_keys = set()
+        
+        def normalize_name(n):
+            if not n: return ""
+            return "".join(c for c in n.lower() if c.isalnum())
+
+        for doc in all_docs:
+            data = doc.to_dict()
+            name = data.get('name') or data.get('razao_social') or doc.id
+            cnpj = data.get('cnpj', '')
             
-        clients.append({
-            'id': doc.id,
-            'name': client_name,
-            'cnpj': cnpj,
-            'url_sistema': data.get('url_sistema', ''),
-            'api_status': data.get('api_status', 'unknown'),
-            'api_last_check': data.get('api_last_check', '-'),
-            'api_last_message': data.get('api_last_message', '')
-        })
-    return sorted(clients, key=lambda x: x['name'])
+            # Deduplicação agressiva em tempo de execução (enquanto a base não é limpa permanentemente)
+            norm = normalize_name(name)
+            key = f"{norm}_{cnpj}"
+            if key in seen_keys: continue
+            seen_keys.add(key)
+            
+            if search and search.lower() not in name.lower() and search not in cnpj:
+                continue
+                
+            clients.append({
+                'id': doc.id,
+                'name': name,
+                'cnpj': cnpj,
+                'url_sistema': data.get('url_sistema', ''),
+                'api_status': data.get('api_status', 'unknown'),
+                'api_last_check': data.get('api_last_check', '-'),
+                'api_last_message': data.get('api_last_message', ''),
+                'total_abis': data.get('total_abis', 0)
+            })
+            
+        clients.sort(key=lambda x: x['name'])
+        
+        total = len(clients)
+        start = (page - 1) * limit
+        end = start + limit
+        
+        return clients[start:end], total
+    except Exception as e:
+        logger.error(f"Erro na paginação de clientes: {e}")
+        return [], 0
 
 def get_client_config(client_id):
     """Returns a single client config by ID."""
@@ -454,6 +483,54 @@ def get_rsus_credentials(cred_type):
     except Exception as e:
         logger.error(f"Erro ao buscar credenciais RSUS ({cred_type}): {e}")
     return None
+
+def get_xml_data_paginated(page=1, limit=10, search=""):
+    """Recupera metadados de XML com paginação e busca, com deduplicação por ABI."""
+    try:
+        # Pega os 500 mais recentes e deduplica (para manter performance)
+        # Em um sistema com milhões de registros, precisaríamos de uma coleção 'abis' única.
+        docs = firestore_db.collection('task_files').order_by('data_processamento', direction=firestore.Query.DESCENDING).limit(1000).get()
+        
+        xml_list = []
+        seen_abis = set()
+        
+        for doc in docs:
+            d = doc.to_dict()
+            abi = d.get("numero_abi") or doc.id
+            file_name = d.get("nome_arquivo") or "-"
+            client = d.get("razao_social") or "Desconhecido"
+            
+            if abi in seen_abis: continue
+            
+            if search:
+                s = search.lower()
+                if s not in abi.lower() and s not in file_name.lower() and s not in client.lower():
+                    continue
+            
+            seen_abis.add(abi)
+            xml_list.append({
+                "id": doc.id,
+                "file_name": file_name,
+                "abi": abi,
+                "client": client,
+                "competence": d.get("competencias") or "-",
+                "value": d.get("valor_total_processo") or "0,00",
+                "quantity": d.get("quantidade_processo") or "0",
+                "process_number": d.get("numero_processo") or "-",
+                "transaction_date": d.get("data_registro_transacao") or "-",
+                "date": d.get("data_processamento") or d.get("data_registro_transacao") or "-",
+                "status": "Importado" if d.get("status_importacao") == "SUCESSO" else "Pendente" if d.get("status_importacao") == "Pendente" else "Erro",
+                "storage_path": d.get("storage_path", "")
+            })
+
+        total = len(xml_list)
+        start = (page - 1) * limit
+        end = start + limit
+        
+        return xml_list[start:end], total
+    except Exception as e:
+        logger.error(f"Erro na paginação de XML: {e}")
+        return [], 0
 
 def get_all_xml_data():
     xml_data_list = []

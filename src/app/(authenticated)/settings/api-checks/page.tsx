@@ -72,9 +72,11 @@ export default function ApiChecksPage() {
   const fetchClients = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch("/api/clients");
+      // Para esta tela de configuração, buscamos os primeiros 100 para garantir visibilidade, 
+      // ou suportamos busca se necessário.
+      const res = await fetch(`/api/clients?limit=100&search=${encodeURIComponent(searchTerm)}`);
       const data = await res.json();
-      setClients(data);
+      setClients(data.clients || []);
     } catch (error) {
       console.error("Erro ao buscar clientes:", error);
     } finally {

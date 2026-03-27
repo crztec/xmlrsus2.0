@@ -44,18 +44,21 @@ export default function XmlDataPage() {
   const [modalPage, setModalPage] = useState(1);
   const modalItemsPerPage = 10;
 
+  const [totalXmls, setTotalXmls] = useState(0);
+
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
       try {
         const [xmlRes, clientRes] = await Promise.all([
-          fetch("/api/xml-data"),
-          fetch("/api/clients")
+          fetch(`/api/xml-data?page=${currentPage}&limit=${itemsPerPage}&search=${encodeURIComponent(searchTerm)}`),
+          fetch("/api/clients?limit=100") // Limita busca de clientes para o seletor inicial
         ]);
         const xmls = await xmlRes.json();
         const cls = await clientRes.json();
-        setXmlData(xmls);
-        setClients(cls);
+        setXmlData(xmls.xml_data || []);
+        setTotalXmls(xmls.total || 0);
+        setClients(cls.clients || []);
       } catch (error) {
         console.error("Erro ao carregar dados:", error);
       } finally {
@@ -63,7 +66,7 @@ export default function XmlDataPage() {
       }
     };
     fetchData();
-  }, []);
+  }, [currentPage, searchTerm, selectedClient]);
 
   const handleExportAll = () => {
     window.open("/api/xml-data/export", "_blank");
@@ -91,23 +94,14 @@ export default function XmlDataPage() {
   };
 
   // Filter clients for the selection screen
-  const filteredClients = clients.filter(c => 
-    c.name?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredClients = clients; // Agora filtrado no servidor
 
   // Filter XML data for the selected client
-  const filteredData = xmlData.filter(item => {
-    const matchesClient = !selectedClient || item.client === selectedClient;
-    const matchesSearch = !searchTerm || (
-      item.abi?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.file_name?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-    return matchesClient && matchesSearch;
-  });
+  const filteredData = xmlData; // Agora filtrado no servidor
 
   // Pagination Logic
-  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
-  const paginatedData = filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const totalPages = Math.ceil(totalXmls / itemsPerPage);
+  const paginatedData = xmlData; // Já vem paginado do servidor
 
   const totalModalPages = Math.ceil(fileDetails.length / modalItemsPerPage);
   const paginatedDetails = fileDetails.slice((modalPage - 1) * modalItemsPerPage, modalPage * modalItemsPerPage);
@@ -148,7 +142,7 @@ export default function XmlDataPage() {
               setSearchTerm("");
             }}
             className="group relative flex flex-col items-start rounded-3xl border border-slate-200/60 bg-white/70 p-6 text-left transition-all hover:border-gax-blue/30 hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 backdrop-blur-sm"
-            style={{ animationDelay: `${idx * 50}ms`, animationFillMode: 'both' }}
+            style={{ animationDelay: `${(idx % 10) * 50}ms`, animationFillMode: 'both' }}
           >
             <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-gax-blue/10 to-gax-blue/5 text-gax-blue shadow-inner group-hover:scale-110 transition-transform duration-500">
               <Building2 size={24} />

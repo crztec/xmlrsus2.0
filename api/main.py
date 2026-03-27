@@ -164,8 +164,9 @@ async def check_single_integration(client_id: str, background_tasks: BackgroundT
     return {"status": "pending", "task_id": task_id}
 
 @app.get("/clients")
-async def get_clients():
-    return db.get_all_clients()
+async def get_clients(page: int = 1, limit: int = 10, search: str = ""):
+    clients, total = db.get_clients_paginated(page, limit, search)
+    return {"clients": clients, "total": total}
 
 @app.post("/clients/{client_id}")
 async def update_client(client_id: str, data: dict):
@@ -176,8 +177,9 @@ async def update_client(client_id: str, data: dict):
     return {"status": "success"}
 
 @app.get("/xml-data")
-async def get_xml_data():
-    return db.get_all_xml_data()
+async def get_xml_data(page: int = 1, limit: int = 10, search: str = ""):
+    xml_data, total = db.get_xml_data_paginated(page, limit, search)
+    return {"xml_data": xml_data, "total": total}
 
 @app.get("/xml-data/export")
 async def export_xml_data():

@@ -38,12 +38,18 @@ export default function ClientsPage() {
     url_sistema: ""
   });
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalClients, setTotalClients] = useState(0);
+  const itemsPerPage = 10;
+
   const fetchClients = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch("/api/clients");
+      // Debounce ou busca direta no servidor
+      const res = await fetch(`/api/clients?page=${currentPage}&limit=${itemsPerPage}&search=${encodeURIComponent(searchTerm)}`);
       const data = await res.json();
-      setClients(data);
+      setClients(data.clients || []);
+      setTotalClients(data.total || 0);
     } catch (_err) {
       console.error("Erro ao buscar clientes:", _err);
     } finally {
@@ -58,7 +64,7 @@ export default function ClientsPage() {
       return;
     }
     fetchClients();
-  }, []);
+  }, [currentPage, searchTerm]);
 
   const formatCNPJ = (value: string) => {
     const digits = value.replace(/\D/g, "").slice(0, 14);
@@ -125,10 +131,9 @@ export default function ClientsPage() {
     }
   };
 
-  const filteredClients = clients.filter(client => 
-    client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    client.cnpj?.includes(searchTerm)
-  );
+  const filteredClients = clients; // Agora filtrado no servidor
+
+  const totalPages = Math.ceil(totalClients / itemsPerPage);
 
   return (
     <div className="space-y-6">
@@ -182,8 +187,8 @@ export default function ClientsPage() {
           {filteredClients.map((client, idx) => (
             <div 
               key={client.id} 
-              className="group relative flex flex-col rounded-3xl border border-slate-200/60 bg-white/70 p-6 shadow-sm backdrop-blur-sm transition-all hover:border-gax-blue/30 hover:shadow-xl hover:shadow-slate-200/50 animate-in fade-in slide-in-from-bottom-4 duration-700"
-              style={{ animationDelay: `${idx * 50}ms`, animationFillMode: 'both' }}
+              className="group relative flex flex-col rounded-3xl border border-slate-200/60 bg-white/70 p-6 shadow-sm backdrop-blur-sm transition-all hover:border-gax-blue/30 hover:shadow-xl hover:shadow-slate-200/50 animate-in fade-in slide-in-from-bottom-4 duration-500"
+              style={{ animationDelay: `${(idx % 5) * 50}ms`, animationFillMode: 'both' }}
             >
               {/* Card Content (Manter original) */}
               <div className="mb-6 flex items-start justify-between">
@@ -260,75 +265,120 @@ export default function ClientsPage() {
           ))}
         </div>
       ) : (
-        <div className="overflow-hidden rounded-3xl border border-slate-200/60 bg-white/70 shadow-sm backdrop-blur-sm animate-in fade-in duration-500">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-slate-100 bg-slate-50/50">
-                  <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">Cliente</th>
-                  <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">CNPJ / ANS</th>
-                  <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400 hidden lg:table-cell">Endereço</th>
-                  <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">Última Atividade</th>
-                  <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400 text-right">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredClients.map((client, idx) => (
-                  <tr key={client.id} className="group hover:bg-gax-blue/[0.02] transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-gax-blue/10 to-gax-blue/5 text-gax-blue shadow-inner group-hover:scale-105 transition-transform">
-                          <Building2 size={16} />
-                        </div>
-                        <div className="flex flex-col">
-                          {client.url_sistema ? (
-                            <a 
-                              href={client.url_sistema} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-1.5 text-sm font-bold text-slate-700 hover:text-gax-blue transition-colors"
-                            >
-                              {client.name}
-                              <ExternalLink size={12} className="text-slate-300" />
-                            </a>
-                          ) : (
-                            <span className="text-sm font-bold text-slate-700">{client.name}</span>
-                          )}
-                          <span className="text-[10px] font-medium text-slate-400 uppercase tracking-tight">ID: {client.id.slice(0, 8)}</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col gap-0.5">
-                        <span className="text-[11px] font-bold text-slate-600">{client.cnpj || "-"}</span>
-                        {client.registro_ans && <span className="text-[10px] font-medium text-slate-400 italic">ANS: {client.registro_ans}</span>}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 hidden lg:table-cell">
-                      <span className="block max-w-[200px] truncate text-xs text-slate-500 font-medium" title={client.endereco}>
-                        {client.endereco || "-"}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col gap-0.5">
-                        <span className="text-xs font-bold text-slate-600">{client.ultima_importacao || "Sem registros"}</span>
-                        <span className="text-[10px] font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full w-fit border border-emerald-100/50">{client.total_abis} XMLs</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <button 
-                        onClick={() => handleEditClick(client)}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-slate-50 text-slate-400 hover:bg-gax-blue hover:text-white transition-all shadow-sm active:scale-95"
-                        title="Editar"
-                      >
-                        <Pencil size={16} />
-                      </button>
-                    </td>
+        <div className="flex flex-col gap-4">
+          <div className="overflow-hidden rounded-3xl border border-slate-200/60 bg-white/70 shadow-sm backdrop-blur-sm animate-in fade-in duration-500">
+            <div className="overflow-x-auto">
+              {/* Tabela aqui */}
+              <table className="w-full text-left border-collapse">
+                {/* ... (manter o thead original) */}
+                <thead>
+                  <tr className="border-b border-slate-100 bg-slate-50/50">
+                    <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">Cliente</th>
+                    <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">CNPJ / ANS</th>
+                    <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400 hidden lg:table-cell">Endereço</th>
+                    <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">Última Atividade</th>
+                    <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400 text-right">Ações</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredClients.map((client, idx) => (
+                    <tr key={client.id} className="group hover:bg-gax-blue/[0.02] transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-gax-blue/10 to-gax-blue/5 text-gax-blue shadow-inner group-hover:scale-105 transition-transform">
+                            <Building2 size={16} />
+                          </div>
+                          <div className="flex flex-col">
+                            {client.url_sistema ? (
+                              <a 
+                                href={client.url_sistema} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1.5 text-sm font-bold text-slate-700 hover:text-gax-blue transition-colors"
+                              >
+                                {client.name}
+                                <ExternalLink size={12} className="text-slate-300" />
+                              </a>
+                            ) : (
+                              <span className="text-sm font-bold text-slate-700">{client.name}</span>
+                            )}
+                            <span className="text-[10px] font-medium text-slate-400 uppercase tracking-tight">ID: {client.id.slice(0, 8)}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-[11px] font-bold text-slate-600">{client.cnpj || "-"}</span>
+                          {client.registro_ans && <span className="text-[10px] font-medium text-slate-400 italic">ANS: {client.registro_ans}</span>}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 hidden lg:table-cell">
+                        <span className="block max-w-[200px] truncate text-xs text-slate-500 font-medium" title={client.endereco}>
+                          {client.endereco || "-"}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-xs font-bold text-slate-600">{client.ultima_importacao || "Sem registros"}</span>
+                          <span className="text-[10px] font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full w-fit border border-emerald-100/50">{client.total_abis} XMLs</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button 
+                          onClick={() => handleEditClick(client)}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-slate-50 text-slate-400 hover:bg-gax-blue hover:text-white transition-all shadow-sm active:scale-95"
+                          title="Editar"
+                        >
+                          <Pencil size={16} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
+          
+          {/* Controles de Paginação */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500">
+              <span className="text-xs font-medium text-slate-500">
+                Mostrando {clients.length} de {totalClients} clientes
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 transition-all hover:bg-slate-50 disabled:opacity-30"
+                >
+                  Anterior
+                </button>
+                <div className="flex items-center gap-1">
+                  {[...Array(totalPages)].map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setCurrentPage(i + 1)}
+                      className={cn(
+                        "h-8 w-8 rounded-lg text-xs font-bold transition-all",
+                        currentPage === i + 1
+                          ? "bg-gax-blue text-white shadow-md shadow-gax-blue/20"
+                          : "text-slate-500 hover:bg-slate-100"
+                      )}
+                    >
+                      {i + 1}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 transition-all hover:bg-slate-50 disabled:opacity-30"
+                >
+                  Próximo
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
