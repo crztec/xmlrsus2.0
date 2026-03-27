@@ -310,14 +310,24 @@ def get_clients_paginated(page=1, limit=10, search=""):
             if search and search.lower() not in name.lower() and search not in cnpj:
                 continue
                 
+            # Formatação de data robusta para o front
+            last_check = data.get('api_last_check', '-')
+            if hasattr(last_check, 'isoformat'):
+                last_check = last_check.isoformat()
+            elif isinstance(last_check, datetime):
+                last_check = last_check.isoformat()
+                
             clients.append({
                 'id': doc.id,
                 'name': name,
                 'cnpj': cnpj,
                 'url_sistema': data.get('url_sistema', ''),
                 'api_status': data.get('api_status', 'unknown'),
-                'api_last_check': data.get('api_last_check', '-'),
+                'api_last_check': last_check,
                 'api_last_message': data.get('api_last_message', ''),
+                'api_last_screenshot_url': data.get('api_last_screenshot_url', ''),
+                'api_status_history': data.get('api_status_history', []),
+                'api_last_task_id': data.get('api_last_task_id', ''),
                 'total_abis': data.get('total_abis', 0)
             })
             

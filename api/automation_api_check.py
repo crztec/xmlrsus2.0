@@ -172,6 +172,7 @@ async def run_api_check_for_client(client_id, task_id=None):
                     # 2. Visita a lista (Index) - O segredo que funcionou no robô de importação
                     # No API Check não temos /novo, então tentamos a raiz novamente ou uma rota conhecida
                     await page.goto(url_sistema, wait_until="commit", timeout=45000)
+                    log_task("Pausa de 3s para processamento de cookies após salto de sessão...")
                     await asyncio.sleep(3)
                 
                 # Verifica erro de senha/login explícito na tela
@@ -259,10 +260,10 @@ async def run_api_check_for_client(client_id, task_id=None):
                         for attempt in range(2):
                             try:
                                 log_task(f"Tentativa {attempt + 1} de salto para {target_url}...")
-                                # timeout reduzido para 15s para fallback rápido
-                                await page.goto(target_url, wait_until="commit", timeout=15000)
-                                # espera reduzida para 10s
-                                await page.wait_for_selector(".fa-bars, button.dropdown-toggle", timeout=10000)
+                                # timeout de 45s conforme solicitado para clientes lentos
+                                await page.goto(target_url, wait_until="commit", timeout=45000)
+                                # espera de 15s
+                                await page.wait_for_selector(".fa-bars, button.dropdown-toggle", timeout=15000)
                                 log_task("Salto bem-sucedido. Grid detectada.")
                                 break
                             except Exception as e_jump:
@@ -275,6 +276,15 @@ async def run_api_check_for_client(client_id, task_id=None):
                         jump_triggered = True
                         
                     await asyncio.sleep(5)
+                
+                # FALLBACK DE RECARGA: Se após tudo ainda não achar o menu, tenta dar um refresh
+                if not found_bars:
+                    log_task("Grid ainda não encontrada. Tentando recarregar a página (Reload Fallback)...", "WARNING")
+                    await page.reload(wait_until="commit", timeout=30000)
+                    await asyncio.sleep(5)
+                    if await click_in_frames('.fa-bars, button.dropdown-toggle'):
+                        log_task("Grid encontrada após recarga da página.")
+                        found_bars = True
                 
                 if not found_bars:
                     raise Exception("Menu de contexto (.fa-bars) não encontrado após polling e Triple Jump.")
