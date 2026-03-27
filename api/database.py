@@ -650,15 +650,39 @@ def get_last_url_for_client(razao_social):
         print(f"Erro ao buscar última URL para {razao_social}: {e}")
     return ""
 
+def normalize_client_id(name):
+    """
+    Normaliza o nome do cliente para uso como ID de documento.
+    Pega apenas a parte relevante do nome (ex: Unimed Campinas) ignorando sufixos formais.
+    """
+    if not name: return ""
+    # Remove sufixos formais comuns e normaliza espaços/caps
+    n = name.upper().split(' - ')[0] # Pega antes do " - COOPERATIVA..."
+    n = n.replace(' COOPERATIVA', '').replace(' LTDA', '').replace('.', '').replace(',', '').strip()
+    
+    # Mapeamentos específicos para consistência
+    if "CAMPINAS" in n: return "Unimed Campinas"
+    if "ERECHIM" in n: return "Unimed Erechim"
+    
+    # Se não for um caso especial, retorna o original limpo (Capitalized)
+    return n.title()
+
 def save_client_config(razao_social, url_sistema):
-    if not razao_social: return
+    """Saves or updates client configuration in Firestore."""
+    if not razao_social: return False
     try:
-        firestore_db.collection('client_configs').document(razao_social).set({
+        client_id = normalize_client_id(razao_social)
+        doc_ref = firestore_db.collection('client_configs').document(client_id)
+        doc_ref.set({
+            'name': client_id,
+            'razao_social': razao_social, # Mantém o formal original para referência
             'url_sistema': url_sistema,
             'updated_at': get_now_br().strftime("%Y-%m-%d %H:%M:%S")
         }, merge=True)
+        return True
     except Exception as e:
-        logger.error(f"Erro ao salvar configuração do cliente {razao_social}: {e}")
+        logger.error(f"Erro ao salvar config do cliente {razao_social}: {e}")
+        return False
 
 # Redirecionado para a função unificada no topo
 

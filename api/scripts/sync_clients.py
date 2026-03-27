@@ -78,7 +78,8 @@ def sync():
         # No Firestore do GAX, client_configs parecem usar nomes ou IDs uuid
         # Vamos usar o nome como ID para facilitar a busca e evitar duplicados por nome comercial
 
-        doc_ref = db.firestore_db.collection('client_configs').document(name)
+        client_id = db.normalize_client_id(name)
+        doc_ref = db.firestore_db.collection('client_configs').document(client_id)
         doc = doc_ref.get()
 
         data = {
