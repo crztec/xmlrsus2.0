@@ -265,64 +265,118 @@ def get_pending_users():
     return get_all_users_by_status('pending')
 
 def get_all_clients():
-    clients = []
+    """Returns all clients from client_configs, deduplicated by normalized Name + CNPJ."""
     docs = firestore_db.collection('client_configs').stream()
+    clients = []
+    seen_keys = set()
+    
+    def normalize_name(name):
+        if not name: return ""
+        n = name.upper().strip()
+        # Remove sufixos comuns que causam duplicidade
+        n = n.split(" - ")[0] # "Unimed Erechim - COOPERATIVA" -> "UNIMED ERECHIM"
+        n = n.replace("COOPERATIVA DE TRABALHO", "").strip()
+        return n
 
-    # Cache para evitar múltiplas queries por cliente se possível,
-    # mas para stats em tempo real, vamos consultar task_files
     for doc in docs:
         data = doc.to_dict()
-        client_name = data.get('razao_social') or data.get('name') or doc.id
-
-        # Calcular Total de ABIs Únicas e Última Importação
-        total_abis = 0
-        ultima_importacao = "-"
-
-        try:
-            from google.cloud.firestore_v1.base_query import FieldFilter
-            # Busca todos os arquivos de sucesso para este cliente
-            files_docs = firestore_db.collection('task_files') \
-                .where(filter=FieldFilter("razao_social", "==", client_name)) \
-                .where(filter=FieldFilter("status_importacao", "==", "SUCESSO")) \
-                .stream()
-
-            abis = set()
-            latest_date = None
-
-            for f_doc in files_docs:
-                f_data = f_doc.to_dict()
-                abi = f_data.get("numero_abi")
-                if abi: abis.add(str(abi))
-
-                # Data de processamento
-                d_str = f_data.get("data_processamento")
-                if d_str and d_str != "-":
-                    try:
-                        d_dt = datetime.strptime(d_str, "%Y-%m-%d %H:%M:%S")
-                        if not latest_date or d_dt > latest_date:
-                            latest_date = d_dt
-                    except: pass
-
-            total_abis = len(abis)
-            if latest_date:
-                ultima_importacao = latest_date.strftime("%d/%m/%Y %H:%M")
-        except Exception as e:
-            logger.error(f"Erro ao calcular stats para cliente {client_name}: {e}")
-
+        cnpj = data.get('cnpj', '').strip()
+        client_name = data.get('name') or data.get('razao_social') or doc.id
+        
+        # Chave híbrida para deduplicação (Nome normalizado + CNPJ)
+        norm_name = normalize_name(client_name)
+        dedup_key = f"{norm_name}_{cnpj}"
+        
+        if dedup_key in seen_keys:
+            continue
+        seen_keys.add(dedup_key)
+            
         clients.append({
             'id': doc.id,
             'name': client_name,
-            'cnpj': data.get('cnpj') or "",
-            'registro_ans': data.get('registro_ans') or "",
-            'endereco': data.get('endereco') or "",
-            'url_sistema': data.get('url_sistema') or "",
-            'total_abis': total_abis,
-            'ultima_importacao': ultima_importacao,
+            'cnpj': cnpj,
+            'url_sistema': data.get('url_sistema', ''),
             'api_status': data.get('api_status', 'unknown'),
             'api_last_check': data.get('api_last_check', '-'),
             'api_last_message': data.get('api_last_message', '')
         })
-    return clients
+    return sorted(clients, key=lambda x: x['name'])
+
+def get_client_config(client_id):
+    """Returns a single client config by ID."""
+    doc = firestore_db.collection('client_configs').document(client_id).get()
+    if doc.exists:
+        data = doc.to_dict()
+        data['id'] = doc.id
+        return data
+    return None
+
+def create_task(task_type, description="", url_sistema="", usuario="", senha="", razao_social=""):
+    """
+    Cria uma nova tarefa no Firestore.
+    Suporta campos de progresso para checagem em lote.
+    """
+    task_id = f"task_{int(time.time())}_{secrets.token_hex(2)}"
+    now = get_now_br()
+    
+    task_data = {
+        'id': task_id,
+        'type': task_type,
+        'description': description,
+        'status': 'running',
+        'created_at': now.strftime("%Y-%m-%d %H:%M:%S"),
+        'updated_at': now.strftime("%Y-%m-%d %H:%M:%S"),
+        'url_sistema': url_sistema,
+        'usuario': usuario,
+        'senha': senha,
+        'razao_social': razao_social,
+        'current': 0,
+        'total': 0,
+        'current_client': '',
+        'last_log': ''
+    }
+    
+    # Compatibilidade com campos antigos do XML
+    if task_type == "xml_import":
+        task_data['total_arquivos'] = 0
+        task_data['arquivos_processados'] = 0
+        task_data['status'] = 'PENDENTE' # This will override 'running' if xml_import
+
+    firestore_db.collection('tasks').document(task_id).set(task_data)
+    return task_id
+
+def update_task(task_id, data):
+    """Updates task status/metadata."""
+    firestore_db.collection('tasks').document(task_id).set(data, merge=True)
+
+def add_log(task_id, message, level="INFO"):
+    """Adiciona um log a uma tarefa e atualiza o log resumido."""
+    try:
+        now = get_now_br()
+        timestamp = now.strftime("%H:%M:%S")
+        
+        log_entry = {
+            'timestamp': timestamp,
+            'message': message,
+            'level': level.upper()
+        }
+        
+        task_ref = firestore_db.collection('tasks').document(task_id)
+        task_ref.collection('logs').add(log_entry)
+        
+        # Atualiza o último log na tarefa (para log resumido na UI)
+        task_ref.update({
+            'last_log': message,
+            'updated_at': now.strftime("%Y-%m-%d %H:%M:%S")
+        })
+        
+        # Opcional: Atualiza status se for conclusão
+        if "finalizada" in message.lower() or "concluída" in message.lower():
+            task_ref.update({'status': 'completed'})
+            
+    except Exception as e:
+        logger.error(f"Erro ao adicionar log à tarefa {task_id}: {e}")
+        return False
 
 def update_client_config(client_id, update_data):
     """
@@ -514,24 +568,7 @@ def save_client_config(razao_social, url_sistema):
     except Exception as e:
         logger.error(f"Erro ao salvar configuração do cliente {razao_social}: {e}")
 
-def create_task(url_sistema, usuario, senha, razao_social=""):
-    now = get_now_br().strftime("%Y-%m-%d %H:%M:%S")
-    task_ref = firestore_db.collection('tasks').document()
-    task_data = {
-        'status': 'PENDENTE',
-        'created_at': now,
-        'updated_at': now,
-        'url_sistema': url_sistema,
-        'usuario': usuario,
-        'senha': senha,
-        'razao_social': razao_social,
-        'total_arquivos': 0,
-        'arquivos_processados': 0,
-        'error_message': '',
-        'logs': []
-    }
-    task_ref.set(task_data)
-    return task_ref.id
+# Redirecionado para a função unificada no topo
 
 def add_file_to_task(task_id, file_info):
     file_ref = firestore_db.collection('task_files').document()
@@ -584,20 +621,7 @@ def update_task_total_files(task_id, total):
         'updated_at': get_now_br().strftime("%Y-%m-%d %H:%M:%S")
     })
 
-def add_log(task_id, level, message):
-    data_br = get_now_br()
-    now_str = data_br.strftime("%Y-%m-%d %H:%M:%S")
-    log_data = {
-        'id': str(uuid.uuid4())[:8],
-        'timestamp': now_str,
-        'level': level,
-        'message': message,
-        'timestamp_ms': data_br.timestamp() * 1000,
-        'timestamp_ns': time.time_ns()
-    }
-    firestore_db.collection('tasks').document(task_id).update({
-        'logs': firestore.ArrayUnion([log_data])
-    })
+# Redirecionado para a função unificada no topo
 
 def get_pending_task():
     results = firestore_db.collection('tasks').where('status', '==', 'PENDENTE').limit(1).stream()
@@ -646,12 +670,10 @@ def mark_all_task_files_as_error(task_id, error_message):
 
 def get_logs_for_task(task_id, limit=2000):
     try:
-        task_doc = firestore_db.collection('tasks').document(task_id).get()
-        if not task_doc.exists: return []
-        logs = task_doc.to_dict().get('logs', [])
-        # Ordenação robusta por nanosegundos (mais recentes no topo)
-        logs.sort(key=lambda x: x.get('timestamp_ns', x.get('timestamp_ms', 0)), reverse=True)
-        return logs[:limit]
+        # Agora os logs estão em uma subcoleção
+        docs = firestore_db.collection('tasks').document(task_id).collection('logs').order_by('timestamp', direction=firestore.Query.DESCENDING).limit(limit).stream()
+        logs = [doc.to_dict() for doc in docs]
+        return logs
     except Exception as e:
         logger.error(f"Erro ao recuperar logs: {e}")
         return []
@@ -666,6 +688,10 @@ def clear_import_logs():
         batch = firestore_db.batch()
         count = 0
         for doc in tasks:
+            # Deleta a subcoleção de logs primeiro
+            log_docs = doc.reference.collection('logs').stream()
+            for log_doc in log_docs:
+                batch.delete(log_doc.reference)
             batch.delete(doc.reference) # Decidimos deletar a tarefa para um 'Limpar' real
             count += 1
             if count >= 500:
@@ -698,6 +724,11 @@ def reset_system_database():
                 batch = firestore_db.batch()
                 count = 0
                 for doc in docs:
+                    # Se for 'tasks', também deleta a subcoleção 'logs'
+                    if coll == 'tasks':
+                        log_docs = doc.reference.collection('logs').stream()
+                        for log_doc in log_docs:
+                            batch.delete(log_doc.reference)
                     batch.delete(doc.reference)
                     count += 1
                 if count == 0: break

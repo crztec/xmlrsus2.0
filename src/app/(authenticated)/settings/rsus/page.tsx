@@ -9,7 +9,7 @@ export default function SettingsRSUSPage() {
   const [vitoriaUser, setVitoriaUser] = useState("");
   const [vitoriaPass, setVitoriaPass] = useState("");
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
+  const [isSaving, setIsSaving] = useState<string | null>(null);
 
   useEffect(() => {
     const role = localStorage.getItem("gax_user_role");
@@ -32,26 +32,32 @@ export default function SettingsRSUSPage() {
   }, []);
 
   const handleSave = async (type: string) => {
-    setIsSaving(true);
-    const formData = new FormData();
-    formData.append("type", type);
-    formData.append("username", type === "general" ? generalUser : vitoriaUser);
-    formData.append("password", type === "general" ? generalPass : vitoriaPass);
+    setIsSaving(type);
+    
+    // Usando URLSearchParams para application/x-www-form-urlencoded (mais robusto que FormData para este caso)
+    const params = new URLSearchParams();
+    params.append("type", type);
+    params.append("username", type === "general" ? generalUser : vitoriaUser);
+    params.append("password", type === "general" ? generalPass : vitoriaPass);
 
     try {
       const res = await fetch("/api/settings/rsus-credentials", {
         method: "POST",
-        body: formData,
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: params,
       });
       if (res.ok) {
         alert("Credenciais salvas com sucesso!");
       } else {
-        alert("Erro ao salvar credenciais.");
+        const err = await res.json();
+        alert(`Erro ao salvar: ${err.detail || "Erro desconhecido"}`);
       }
     } catch (error) {
       alert("Erro de conexão ao salvar.");
     } finally {
-      setIsSaving(false);
+      setIsSaving(null);
     }
   };
 
@@ -115,10 +121,10 @@ export default function SettingsRSUSPage() {
 
           <button 
             onClick={() => handleSave("general")}
-            disabled={isSaving}
+            disabled={isSaving !== null}
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-gax-blue py-3 text-xs font-bold text-white shadow-lg shadow-gax-blue/20 transition-all hover:bg-gax-blue-hover disabled:opacity-50"
           >
-            {isSaving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+            {isSaving === "general" ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
             Salvar Geral
           </button>
         </section>
@@ -162,10 +168,10 @@ export default function SettingsRSUSPage() {
 
           <button 
             onClick={() => handleSave("unimed_vitoria")}
-            disabled={isSaving}
+            disabled={isSaving !== null}
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-gax-blue py-3 text-xs font-bold text-white shadow-lg shadow-gax-blue/20 transition-all hover:bg-gax-blue-hover disabled:opacity-50"
           >
-            {isSaving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+            {isSaving === "unimed_vitoria" ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
             Salvar Vitória
           </button>
         </section>

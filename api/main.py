@@ -1,11 +1,12 @@
 import asyncio
 import logging
 import os
-import random
-import requests
-import secrets
-import smtplib
+import platform
 import sys
+
+# Correção para Windows: Suporte a subprocessos (Playwright) em loops async
+if platform.system() == 'Windows':
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 import tempfile
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -19,6 +20,7 @@ from playwright.async_api import async_playwright
 import api.auth as auth
 import api.database as db
 import api.parser as parser
+from api.automation_api_check import run_batch_api_check, run_single_api_check
 
 # Configure standard logging
 logging.basicConfig(level=logging.INFO, stream=sys.stdout, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -147,10 +149,19 @@ async def save_rsus_creds(type: str = Form(...), username: str = Form(...), pass
 
 @app.post("/api/check-integrations")
 async def check_integrations(background_tasks: BackgroundTasks):
-    """Dispara a automação de checagem em background."""
+    """Dispara a automação de checagem em lote em background."""
     import api.automation_api_check as auto_check
-    background_tasks.add_task(auto_check.run_batch_api_check)
-    return {"status": "pending", "message": "Checagem de APIs iniciada em background."}
+    task_id = db.create_task("api_check_batch", "Checagem de APIs em Lote")
+    background_tasks.add_task(auto_check.run_batch_api_check, task_id)
+    return {"status": "pending", "task_id": task_id}
+
+@app.post("/api/check-integration/{client_id}")
+async def check_single_integration(client_id: str, background_tasks: BackgroundTasks):
+    """Dispara a automação de checagem para um único cliente."""
+    import api.automation_api_check as auto_check
+    task_id = db.create_task("api_check_single", f"Checagem de API: {client_id}")
+    background_tasks.add_task(auto_check.run_single_api_check, client_id, task_id)
+    return {"status": "pending", "task_id": task_id}
 
 @app.get("/clients")
 async def get_clients():
@@ -1407,3 +1418,70 @@ async def route_update_profile(
         raise HTTPException(status_code=400, detail=error_detail)
 
     raise HTTPException(status_code=500, detail="Erro desconhecido ao atualizar perfil.")
+
+# --- API MONITORING ENDPOINTS ---
+@app.post("/check-integrations")
+async def route_run_batch_api_check(background_tasks: BackgroundTasks):
+    """Dispara a checagem de API para todos os clientes."""
+    task_id = db.create_task(task_type="batch_api_check", description="Checagem geral de APIs RSUS")
+    background_tasks.add_task(run_batch_api_check, task_id)
+    return {"status": "success", "task_id": task_id}
+
+@app.post("/check-integration/{client_id}")
+async def route_run_single_api_check(client_id: str, background_tasks: BackgroundTasks):
+    """Dispara a checagem de API para um único cliente."""
+    task_id = db.create_task(
+        task_type="single_api_check", 
+        description=f"Checagem individual: {client_id}",
+        razao_social=client_id
+    )
+    background_tasks.add_task(run_single_api_check, client_id, task_id)
+    return {"status": "success", "task_id": task_id}
+
+@app.get("/task/{task_id}")
+async def route_get_task_status(task_id: str):
+    """Retorna o status e os logs de uma tarefa específica."""
+    task = db.firestore_db.collection('tasks').document(task_id).get()
+    if not task.exists:
+        raise HTTPException(status_code=404, detail="Tarefa não encontrada")
+    return task.to_dict()
+
+# --- RSUS SETTINGS ENDPOINTS ---
+@app.get("/settings/rsus-credentials")
+async def route_get_rsus_credentials(type: str = "general"):
+    """Recupera as credenciais RSUS por tipo."""
+    creds = db.get_rsus_credentials(type)
+    if not creds:
+        return {"username": "", "password": ""}
+    return creds
+
+@app.post("/settings/rsus-credentials")
+async def route_save_rsus_credentials(
+    type: str = Form(...), 
+    username: str = Form(...), 
+    password: str = Form(...)
+):
+    """Salva credenciais RSUS (general ou unimed_vitoria) via Form."""
+    success = db.save_rsus_credentials(type, username, password)
+    if success:
+        return {"status": "success"}
+    raise HTTPException(status_code=500, detail="Erro ao salvar credenciais")
+
+@app.post("/settings/rsus-credentials")
+async def route_save_rsus_credentials(
+    type: str = Form(...), 
+    username: str = Form(...), 
+    password: str = Form(...)
+):
+    """Salva credenciais RSUS (general ou unimed_vitoria) via Form."""
+    success = db.save_rsus_credentials(type, username, password)
+    if success:
+        return {"status": "success"}
+    raise HTTPException(status_code=500, detail="Erro ao salvar credenciais")
+    if not task.exists:
+        raise HTTPException(status_code=404, detail="Tarefa não encontrada.")
+    return task.to_dict()
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("api.main:app", host="0.0.0.0", port=10000, reload=True)
