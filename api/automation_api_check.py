@@ -63,15 +63,22 @@ async def run_api_check_for_client(client_id, task_id=None):
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
                 ignore_https_errors=True,
                 timezone_id="America/Sao_Paulo",
-                locale="pt-BR"
+                locale="pt-BR",
+                extra_http_headers={
+                    "Accept-Language": "pt-BR,pt;q=0.9"
+                }
             )
             await context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
 
             page = await context.new_page()
             
-            # Bloqueia assets pesados para acelerar carregamento
+            # Bloqueia assets pesados para acelerar carregamento, mas preserva scripts essenciais
             async def block_assets(route):
-                if route.request.resource_type in ["image", "font"]:
+                # Exceções explícitas de scripts (mesmo de terceiros que possam ser necessários para render)
+                url = route.request.url
+                if route.request.resource_type in ["image", "font", "media"]:
+                    await route.abort()
+                elif any(x in url for x in ["google-analytics.com", "analytics", "doubleclick", "facebook.net"]):
                     await route.abort()
                 else:
                     await route.continue_()
@@ -181,10 +188,18 @@ async def run_api_check_for_client(client_id, task_id=None):
                 log_task("Menu aberto. Navegando para 'Atendimentos'...")
                 # Procura o texto 'Atendimento' ou 'Atendimentos' no dropdown
                 await page.click('text=Atendimento')
-                await page.wait_for_load_state("networkidle")
+
+                log_task("Aguardando carregamento da grid de atendimentos...")
+                # Espera por um objeto no DOM (tabela ou lista de resultados)
+                await page.wait_for_selector('table, .fa-bars', timeout=60000)
                 await page.wait_for_timeout(3000)
             except Exception as e:
                 log_task(f"Erro ao navegar para Atendimentos: {str(e)}", "ERROR")
+                try:
+                    html_content = await page.content()
+                    log_task(f"HTML DIAGNÓSTICO (1000 chars): {html_content[:1000]}", "ERROR")
+                except:
+                    pass
                 return "offline", "Não foi possível acessar Atendimentos."
 
             # 3. Navegação para Beneficiário (Novo hambúrguer na tela de atendimentos)
