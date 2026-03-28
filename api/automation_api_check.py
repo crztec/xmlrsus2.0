@@ -65,7 +65,10 @@ async def run_api_check_for_client(client_id, task_id=None):
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
                 ignore_https_errors=True,
                 timezone_id="America/Sao_Paulo",
-                locale="pt-BR"
+                locale="pt-BR",
+                extra_http_headers={
+                    "Accept-Language": "pt-BR,pt;q=0.9"
+                }
             )
             await context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
 
