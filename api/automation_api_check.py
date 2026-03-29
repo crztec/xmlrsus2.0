@@ -74,13 +74,16 @@ async def run_api_check_for_client(client_id, task_id=None):
 
             page = await context.new_page()
             
-            # Bloqueia assets pesados para acelerar carregamento, mas preserva scripts essenciais
+            # Bloqueio agressivo de assets (Analytics, Fontes e Imagens) para evitar travamentos de rede
             async def block_assets(route):
-                # Exceções explícitas de scripts (mesmo de terceiros que possam ser necessários para render)
-                url = route.request.url
-                if route.request.resource_type in ["image", "font", "media"]:
-                    await route.abort()
-                elif any(x in url for x in ["google-analytics.com", "analytics", "doubleclick", "facebook.net"]):
+                heavy_patterns = ["image", "font", "media"]
+                block_urls = [
+                    "google-analytics", "googletagmanager", "facebook.net",
+                    "fbcdn", "hotjar", "clarity.ms", "fonts.googleapis", "fonts.gstatic"
+                ]
+
+                req_url = route.request.url.lower()
+                if route.request.resource_type in heavy_patterns or any(pattern in req_url for pattern in block_urls):
                     await route.abort()
                 else:
                     await route.continue_()
@@ -359,21 +362,37 @@ async def run_api_check_for_client(client_id, task_id=None):
                 await asyncio.sleep(1)
                 
                 log_task("Menu aberto. Navegando para 'Atendimentos'...")
-                # Procura o texto 'Atendimento' ou 'Atendimentos' no dropdown
-                await page.click('text=Atendimento')
+                found_atend = False
+                for _ in range(3):
+                    if await click_in_frames('a', title_match='Atendimentos'):
+                        found_atend = True
+                        break
+                    if await click_in_frames('a', text_match='Atendimento'):
+                        found_atend = True
+                        break
+                    await asyncio.sleep(2)
 
-                log_task("Aguardando carregamento da grid de atendimentos...")
-                # Espera por um objeto no DOM (tabela ou lista de resultados)
-                await page.wait_for_selector('table, .fa-bars', timeout=60000)
-                await page.wait_for_timeout(3000)
+                if not found_atend:
+                    raise Exception("Link 'Atendimentos' não encontrado.")
+
+                await asyncio.sleep(3)
             except Exception as e:
-                log_task(f"Erro ao navegar para Atendimentos: {str(e)}", "ERROR")
+                # CAPTURA DE SCREENSHOT FORENSE EM CASO DE ERRO (BASE64)
+                screenshot_url = None
                 try:
-                    html_content = await page.content()
-                    log_task(f"HTML DIAGNÓSTICO (1000 chars): {html_content[:1000]}", "ERROR")
-                except:
-                    pass
-                return "offline", "Não foi possível acessar Atendimentos."
+                    log_task("Pausa de 2s para renderização antes do print forense...")
+                    await asyncio.sleep(2)
+                    log_task("Capturando print forense da falha (Formato Base64)...")
+                    img_bytes = await page.screenshot(full_page=False)
+                    base64_img = f"data:image/png;base64,{base64.b64encode(img_bytes).decode('utf-8')}"
+                    log_task(f"Screenshot gerado com sucesso. Tamanho: {len(base64_img)} caracteres.")
+                    screenshot_url = base64_img
+                except Exception as e_shot:
+                    log_task(f"Erro ao capturar screenshot: {str(e_shot)}", "WARNING")
+
+                log_task(f"Erro de navegação (Atendimentos): {str(e)}", "ERROR")
+                db.update_client_api_status(client_id, "error", f"Erro: {str(e)[:40]}", task_id, screenshot_url)
+                return "error", f"Falha na navegação: {str(e)[:50]}"
 
             # 3. Navegação para Beneficiário (Novo hambúrguer na tela de atendimentos)
             try:
