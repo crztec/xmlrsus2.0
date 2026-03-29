@@ -54,5 +54,6 @@ RUN chmod +x /app/entrypoint.sh
 
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
 
 CMD ["/app/entrypoint.sh"]
