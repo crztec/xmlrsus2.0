@@ -36,6 +36,14 @@ const PAGE_METADATA: Record<string, { title: string; subtitle: string }> = {
   "/settings": {
     title: "Configurações do Sistema",
     subtitle: "Personalize a aparência e gerencie os dados do GAX"
+  },
+  "/settings/api-checks": {
+    title: "Monitoramento de APIs",
+    subtitle: "Verificação automática de conexões com os portais RSUS"
+  },
+  "/settings/rsus": {
+    title: "Configuração de Login RSUS",
+    subtitle: "Credenciais globais para automação de importação e checagem"
   }
 };
 
