@@ -17,5 +17,4 @@ sleep 2
 # Inicia o Frontend Next.js na porta principal
 # O Next.js vai agir como proxy para o backend na porta 8000
 echo "Iniciando Frontend Next.js na porta $PORT..."
-export HOSTNAME="0.0.0.0"
-exec npm start
+exec npm start -- -p $PORT
