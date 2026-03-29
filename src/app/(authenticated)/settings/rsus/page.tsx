@@ -71,6 +71,15 @@ export default function SettingsRSUSPage() {
 
   return (
     <div className="max-w-4xl space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      <div className="flex items-center gap-4 border-b border-slate-100/50 pb-6">
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-gax-blue/10 to-gax-blue/5 text-gax-blue shadow-inner">
+          <Key size={24} />
+        </div>
+        <div>
+          <h2 className="text-xl font-bold text-slate-900">Configuração de Login RSUS</h2>
+          <p className="text-sm text-slate-500">Credenciais globais para automação de importação e checagem.</p>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
         {/* General Credentials */}

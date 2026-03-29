@@ -1,61 +1,36 @@
-# GAX - Gestão de Atendimentos XML
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-O **GAX** é uma plataforma robusta de monitoramento e automação para o ecossistema do **Ressarcimento ao SUS (RSUS)**. Desenvolvido para centralizar e automatizar tarefas críticas, o GAX garante que a comunicação entre prestadores e o portal RSUS seja estável, eficiente e transparente.
+## Getting Started
 
-## 🚀 Principais Funcionalidades
+First, run the development server:
 
-### 1. Monitoramento de APIs RSUS
-- **Dashboards em Tempo Real**: Visualize o status "Online/Offline" de diversos portais de clientes (CASSEMS, FSFX, etc).
-- **Robô de Verificação (API Check)**: Automação baseada em Playwright que realiza login end-to-end e navegação profunda para validar a saúde da conexão.
-- **Resiliência Avançada**: Implementação de técnicas como "Triple Jump" (salto de navegação direta) e execução *frame-aware* para superar instabilidades nos portais governamentais.
+```bash
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
+```
 
-### 2. Automação de Importação XML
-- Processamento automático de arquivos XML para o portal RSUS.
-- Sincronização de dados ABI e Atendimentos.
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-### 3. Console Técnico
-- Logs detalhados e em tempo real exibidos diretamente no dashboard.
-- Diferenciação inteligente de status: Identifique se uma falha é de navegação (Erro) ou indisponibilidade real do portal (Offline).
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-### 4. Configuração e Segurança
-- Gestão centralizada de credenciais RSUS por cliente.
-- Integração nativa com auditoria de logs de acesso.
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-## 🛠️ Tecnologias Utilizadas
+## Learn More
 
-### Frontend
-- **Framework**: [Next.js 15+](https://nextjs.org/) (App Router)
-- **Linguagem**: [TypeScript](https://www.typescriptlang.org/)
-- **Estilização**: [Tailwind CSS](https://tailwindcss.com/)
-- **Componentes**: [Lucide React](https://lucide.dev/) para iconografia.
-- **Estado/Dados**: [Firebase SDK](https://firebase.google.com/docs/web/setup)
+To learn more about Next.js, take a look at the following resources:
 
-### Backend & Automação
-- **API**: [FastAPI](https://fastapi.tiangolo.com/) (Python)
-- **Engine de Automação**: [Playwright](https://playwright.dev/python/) (Modo Async)
-- **Banco de Dados**: [Google Cloud Firestore](https://firebase.google.com/docs/firestore) NoSQL.
-- **Infraestrutura**: [Google Cloud Run](https://cloud.google.com/run) & [Cloud Build](https://cloud.google.com/build).
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
-## 📦 Estrutura do Projeto
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-- `/api`: Servidor backend FastAPI e lógica de automação dos robôs.
-- `/src`: Frontend Next.js organizado por componentes e rotas autenticadas.
-- `/scripts`: Utilitários de diagnóstico, auditoria e limpeza de tarefas.
-- `/public`: Ativos estáticos e recursos visuais.
+## Deploy on Vercel
 
-## 🛠️ Configuração de Desenvolvimento
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
-1. **Frontend**:
-   ```bash
-   npm install
-   npm run dev
-   ```
-
-2. **Backend**:
-   ```bash
-   pip install -r api/requirements.txt
-   uvicorn api.main:app --reload
-   ```
-
----
-*GAX - Automação inteligente para o Ressarcimento ao SUS.*
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
