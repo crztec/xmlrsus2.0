@@ -310,14 +310,24 @@ def get_clients_paginated(page=1, limit=10, search=""):
             if search and search.lower() not in name.lower() and search not in cnpj:
                 continue
                 
+            # Formatação de data robusta para o front
+            last_check = data.get('api_last_check', '-')
+            if hasattr(last_check, 'isoformat'):
+                last_check = last_check.isoformat()
+            elif isinstance(last_check, datetime):
+                last_check = last_check.isoformat()
+
             clients.append({
                 'id': doc.id,
                 'name': name,
                 'cnpj': cnpj,
                 'url_sistema': data.get('url_sistema', ''),
                 'api_status': data.get('api_status', 'unknown'),
-                'api_last_check': data.get('api_last_check', '-'),
+                'api_last_check': last_check,
                 'api_last_message': data.get('api_last_message', ''),
+                'api_last_screenshot_url': data.get('api_last_screenshot_url', ''),
+                'api_status_history': data.get('api_status_history', []),
+                'api_last_task_id': data.get('api_last_task_id', ''),
                 'total_abis': data.get('total_abis', 0)
             })
             
@@ -444,18 +454,49 @@ def update_client_config(client_id, update_data):
         logger.error(f"Erro ao atualizar cliente {client_id}: {e}")
         return False
 
-def update_client_api_status(client_id, status, message):
-    """Updates the API monitoring status for a client."""
+def update_client_api_status(client_id, status, message, task_id=None, screenshot_url=None):
+    """Updates the API monitoring status for a client, maintaining history and forensics."""
     if not client_id: return False
     try:
-        firestore_db.collection('client_configs').document(client_id).update({
+        client_ref = firestore_db.collection('client_configs').document(client_id)
+        doc = client_ref.get()
+
+        # Gerenciamento de histórico (últimos 10 status)
+        client_doc = client_ref.get()
+
+        update_data = {
             'api_status': status,
-            'api_last_check': get_now_br().strftime("%Y-%m-%d %H:%M:%S"),
-            'api_last_message': message
+            'api_last_message': message,
+            'api_last_check': firestore.SERVER_TIMESTAMP
+        }
+
+        if task_id:
+            update_data['api_last_task_id'] = task_id
+        if screenshot_url:
+            update_data['api_last_screenshot_url'] = screenshot_url
+
+        # Gerenciar Histórico Simples no documento principal (para performance na lista)
+        if client_doc.exists:
+            history = client_doc.to_dict().get('api_status_history', [])
+            history.append(status)
+            if len(history) > 15: # Aumentado para 15 conforme solicitado
+                history = history[-15:]
+            update_data['api_status_history'] = history
+
+        client_ref.update(update_data)
+
+        # Gravar na sub-coleção 'history' para auditoria detalhada e gráficos
+        client_ref.collection('history').add({
+            'status': status,
+            'message': message,
+            'timestamp': firestore.SERVER_TIMESTAMP,
+            'task_id': task_id,
+            'screenshot_url': screenshot_url
         })
+
         return True
     except Exception as e:
-        logger.error(f"Erro ao atualizar status API do cliente {client_id}: {e}")
+        logger.error(f"Erro ao atualizar status do cliente {client_id}: {e}")
         return False
 
 def save_rsus_credentials(cred_type, username, password):
