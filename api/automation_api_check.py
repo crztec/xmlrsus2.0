@@ -524,7 +524,7 @@ async def run_batch_api_check(task_id=None):
         total = len(clients)
         
         if task_id:
-            db.update_task(task_id, {"total_clients": total, "total": total, "processed_count": 0, "current": 0, "status": "running"})
+            db.update_task(task_id, {"total": total, "current": 0, "status": "running"})
             db.add_log(task_id, f"Iniciando checagem em lote para {total} clientes...")
 
         for i, client in enumerate(clients):
@@ -532,7 +532,6 @@ async def run_batch_api_check(task_id=None):
             if task_id:
                 db.update_task(task_id, {
                     "current": i + 1,
-                    "processed_count": i + 1,
                     "current_client": client_name
                 })
                 db.add_log(task_id, f"Checando {i+1}/{total}: {client_name}...", "INFO")

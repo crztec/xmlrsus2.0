@@ -29,8 +29,6 @@ interface Task {
   status: 'pending' | 'running' | 'completed' | 'failed';
   current?: number;
   total?: number;
-  processed_count?: number;
-  total_clients?: number;
   current_client?: string;
   last_log?: string;
   created_at: string;
@@ -311,7 +309,7 @@ export default function ApiChecksPage() {
                 </div>
                 <div className="text-right">
                   <span className="text-2xl font-black text-slate-900">{progressPercent}%</span>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{currentCount} DE {totalCount} concluídos</p>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{activeTask.current} de {activeTask.total}</p>
                 </div>
               </div>
 
