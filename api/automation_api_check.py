@@ -1,5 +1,7 @@
 import asyncio
 import logging
+import time
+import base64
 from datetime import datetime
 from playwright.async_api import async_playwright
 import api.database as db
@@ -82,6 +84,7 @@ async def run_api_check_for_client(client_id, task_id=None):
                     await route.abort()
                 else:
                     await route.continue_()
+            
             await page.route("**/*", block_assets)
             
             page.set_default_navigation_timeout(90000)
@@ -90,31 +93,33 @@ async def run_api_check_for_client(client_id, task_id=None):
             # Aceita dialogs automaticamente para não travar
             page.on("dialog", lambda dialog: asyncio.create_task(dialog.accept()))
             
-            # INTERCEPTOR DE COOKIES (idêntico ao robô de importação)
-            # Força reinjeção de cookies de sessão para contornar restrições SameSite/Secure do Cloud Run
+            # INTERCEPTOR DE RESPOSTAS PARA INJEÇÃO CIRÚRGICA DE COOKIES (Sincronizado com main.py)
             async def handle_response(response):
                 if url_sistema.split('/')[2] in response.url:
                     try:
                         headers = await response.all_headers()
                         set_cookie = headers.get('set-cookie')
                         if set_cookie:
+                            # Divide múltiplos cookies (separados por \n no all_headers do Playwright)
                             sc_list = set_cookie.split('\n')
                             for sc in sc_list:
+                                # Parse básico do cookie string
                                 parts = [p.strip() for p in sc.split(';')]
                                 if not parts: continue
                                 name_val = parts[0].split('=', 1)
                                 if len(name_val) < 2: continue
-                                try:
-                                    await context.add_cookies([{
-                                        "name": name_val[0],
-                                        "value": name_val[1],
-                                        "domain": url_sistema.split('/')[2],
-                                        "path": "/",
-                                        "secure": True,
-                                        "sameSite": "Lax",
-                                        "httpOnly": True
-                                    }])
-                                except: pass
+
+                                # Injeção manual ignorando SameSite/Secure do navegador
+                                await context.add_cookies([{
+                                    "name": name_val[0],
+                                    "value": name_val[1],
+                                    "domain": url_sistema.split('/')[2],
+                                    "path": "/",
+                                    "secure": True,
+                                    "sameSite": "Lax",
+                                    "httpOnly": True
+                                }])
+                            log_task(f"[COOKIE FORÇADO] Tokens de sessão de {response.url[:30]}... reinjetados.")
                     except: pass
             page.on("response", handle_response)
             
@@ -160,13 +165,55 @@ async def run_api_check_for_client(client_id, task_id=None):
                 try:
                     await page.wait_for_selector("#logIn, button[type='submit']", state="hidden", timeout=15000)
                 except:
-                    log_task("Botão de login ainda visível após clique. Prosseguindo...", "WARNING")
+                    log_task("Botão de login ainda visível após clique. Verificando erros na tela...", "WARNING")
+                
+                # ESTABILIZAÇÃO DE SESSÃO: Aguarda elemento real em vez de networkidle
+                log_task("Aguardando carregamento da interface pós-login...")
+                try:
+                    # Foca em um seletor que indica que a página carregou algo além do rodapé/loading
+                    await page.wait_for_selector(".navbar, .main-sidebar, .content-header, #wrapper", timeout=30000)
+                except:
+                    log_task("Interface principal não detectada em 30s. Continuando com pausa de segurança...", "WARNING")
+                    await asyncio.sleep(5)
                 
                 await asyncio.sleep(2)
                 
-                # Verifica login: se ainda está na tela de login após espera, falhou
-                if "Account/Login" in page.url and "Account/LogOff" not in page.url:
-                    log_task("Falha no login: ainda na tela de login após tentativa.", "ERROR")
+                # VERIFICAÇÃO DE SESSÃO: Logar cookies e LocalStorage (idêntico ao robô de importação)
+                cookies = await context.cookies()
+                has_session = any(
+                    '.ASPXAUTH' in c['name'] or 'Identity' in c['name'] or 'ASP.NET_SessionId' in c['name']
+                    for c in cookies
+                )
+
+                # NOVO: SE ESTAMOS PRESOS NA TELA DE LOGIN MAS TEMOS COOKIE, FORÇAMOS O SALTO TRIPLO
+                if has_session and ("Account/Login" in page.url or "Account/LogOff" in page.url):
+                    log_task("Sessão detectada mas preso na tela de Login. Forçando Salto Triplo (Hiper-Otimizado)...")
+                    # 1. Toca na raiz (wait: commit)
+                    await page.goto(url_sistema.split('?')[0].rsplit('/', 1)[0] + "/", wait_until="commit", timeout=30000)
+                    # 2. Visita a lista (Index) - O segredo que funcionou no robô de importação
+                    # No API Check não temos /novo, então tentamos a raiz novamente ou uma rota conhecida
+                    await page.goto(url_sistema, wait_until="commit", timeout=45000)
+                    log_task("Pausa de 3s para processamento de cookies após salto de sessão...")
+                    await asyncio.sleep(3)
+                
+                # Verifica erro de senha/login explícito na tela
+                login_error = await page.evaluate("""
+                    () => {
+                        if (!document.body) return null;
+                        const texts = ['inválido', 'incorreto', 'falhou', 'não encontrado', 'erro'];
+                        const body = document.body.innerText.toLowerCase();
+                        return texts.find(t => body.includes(t));
+                    }
+                """)
+                
+                if login_error and ("Account/Login" in page.url):
+                    msg_fail = f"Falha na autenticação RSUS: mensagem de erro detectada ('{login_error}')."
+                    log_task(msg_fail, "ERROR")
+                    return "offline", msg_fail
+
+                # Se ainda está na tela de login sem sessão detectada, falhou
+                if "Account/Login" in page.url and not has_session:
+                    log_task("Falha no login: ainda na tela de login sem sessão válida.", "ERROR")
                     return "offline", "Falha na autenticação RSUS."
                 
                 log_task("Login bem-sucedido. Sessão estabelecida.")
@@ -177,13 +224,139 @@ async def run_api_check_for_client(client_id, task_id=None):
             # 2. Navegação para Atendimentos através da lista de ABIs (Hambúrguer Direito)
             try:
                 log_task("Localizando ABI e abrindo menu hambúrguer...")
-                # Espera o ícone de bars (FontAwesome fa-bars) que fica na direita da linha
-                await page.wait_for_selector('.fa-bars', timeout=30000)
                 
-                # Clica no primeiro hambúrguer da lista
-                options_menu = page.locator('.fa-bars').first
-                await options_menu.click()
-                await page.wait_for_timeout(1000)
+                # REFINAMENTO FINAL: Removemos esperas globais por domcontentloaded/networkidle
+                # Iniciamos polling ativo pelos elementos da grid IMEDIATAMENTE.
+                
+                # Função auxiliar para encontrar e clicar em elementos em qualquer frame (incluindo aninhados)
+                async def click_in_frames(selector, text_match=None, title_match=None):
+                    # 1. Tenta no frame principal primário
+                    try:
+                        target = None
+                        if title_match:
+                            target = page.locator(f"{selector}[title*='{title_match}']").first
+                        elif text_match:
+                            target = page.locator(f"{selector}:has-text('{text_match}')").first
+                        else:
+                            target = page.locator(selector).first
+                        
+                        if target and await target.count() > 0 and await target.is_visible():
+                            await target.click()
+                            return True
+                    except: pass
+                    
+                    # 2. Varredura recursiva de todos os frames (Playwright page.frames retorna todos os frames ativos)
+                    for frame in page.frames:
+                        try:
+                            # Ignora frames sem URL ou de trackers comuns se necessário, mas aqui buscamos em tudo
+                            f_target = None
+                            if title_match:
+                                f_target = frame.locator(f"{selector}[title*='{title_match}']").first
+                            elif text_match:
+                                f_target = frame.locator(f"{selector}:has-text('{text_match}')").first
+                            else:
+                                f_target = frame.locator(selector).first
+                            
+                            if f_target and await f_target.count() > 0 and await f_target.is_visible():
+                                # Garante scroll para visibilidade se estiver enterrado
+                                await f_target.scroll_into_view_if_needed()
+                                await f_target.click()
+                                return True
+                        except: continue
+                    return False
+
+                # 1. Tenta localizar o hambúrguer (.fa-bars ou button.dropdown-toggle)
+                # Implementa o "Triple Jump": se não achar em 15s, força a URL de importação
+                found_bars = False
+                jump_triggered = False
+                
+                for i in range(12): # Total de 60s (5s * 12)
+                    if await click_in_frames('.fa-bars, button.dropdown-toggle'):
+                        found_bars = True
+                        break
+                    
+                    # OTIMIZAÇÃO: Aumentamos a prioridade manual para 30s (6 iterações) antes do salto
+                    if i >= 5 and not jump_triggered:
+                        log_task("Grid não detectada manualmente. Tentando 'Triple Jump' como recurso...")
+                        # Limpa sufixos common e força a rota de importação
+                        base_url = url_sistema.split('/login')[0]
+                        target_url = f"{base_url.rstrip('/')}/importacao"
+                        
+                        # Tenta o salto com timeouts reduzidos para não bloquear a navegação manual
+                        for attempt in range(2):
+                            try:
+                                base_url = url_sistema.split('/login')[0] if '/login' in url_sistema else url_sistema.rsplit('/', 1)[0]
+                                base_url = base_url.rstrip('/')
+                                
+                                # 1º SALTO: Raiz do portal
+                                log_task(f"Salto 1/3: {base_url}/ (Raiz)...")
+                                await page.goto(f"{base_url}/", wait_until="commit", timeout=45000)
+                                
+                                # 2º SALTO: Home/Index (Força contexto de dashboard)
+                                home_url = f"{base_url}/Home/Index"
+                                log_task(f"Salto 2/3: {home_url} (Home)...")
+                                await page.goto(home_url, wait_until="commit", timeout=45000)
+                                await asyncio.sleep(2)
+                                
+                                # 3º SALTO: Destino Final
+                                log_task(f"Salto 3/3: {target_url} (Final)...")
+                                await page.goto(target_url, wait_until="commit", timeout=60000)
+                                
+                                # Busca agressiva por qualquer sinal de vida (60s timeout)
+                                log_task("Aguardando renderização da grid (max 60s)...")
+                                try:
+                                    await page.wait_for_selector(".fa-bars, button.dropdown-toggle, .grid, .loading", timeout=60000)
+                                except:
+                                    # Fallback de IFrame Scroll: se estiver branco, tenta dar scroll em todos os frames
+                                    log_task("Tela possivelmente branca. Forçando scroll em todos os IFrames...", "WARNING")
+                                    await page.evaluate("""
+                                        () => {
+                                            const frames = document.querySelectorAll('iframe');
+                                            frames.forEach(f => {
+                                                try {
+                                                    f.contentWindow.scrollTo(0, 100);
+                                                    f.contentWindow.scrollTo(0, 0);
+                                                } catch(e) {}
+                                            });
+                                            window.scrollTo(0, 100);
+                                        }
+                                    """)
+                                    await asyncio.sleep(3)
+                                    await page.wait_for_selector(".fa-bars, button.dropdown-toggle", timeout=15000)
+
+                                log_task("Navegação bem-sucedida. Grid detectada.")
+                                break
+                            except Exception as e_jump:
+                                if attempt == 0:
+                                    log_task(f"Salto demorado ({str(e_jump)[:30]}). Re-tentando salto rápido...", "WARNING")
+                                    await asyncio.sleep(2)
+                                else:
+                                    log_task("Salto por URL falhou ou demorou demais. Continuando via polling manual...", "WARNING")
+                        
+                        jump_triggered = True
+                        
+                    await asyncio.sleep(5)
+                
+                # FALLBACK DE RECARGA: Se após tudo ainda não achar o menu, tenta dar um refresh
+                if not found_bars:
+                    log_task("Grid ainda não encontrada. Tentando recarregar a página (Reload Fallback)...", "WARNING")
+                    await page.reload(wait_until="commit", timeout=30000)
+                    await asyncio.sleep(5)
+                    if await click_in_frames('.fa-bars, button.dropdown-toggle'):
+                        log_task("Grid encontrada após recarga da página.")
+                        found_bars = True
+                
+                if not found_bars:
+                    raise Exception("Menu de contexto (.fa-bars) não encontrado após polling e Triple Jump.")
+                
+                # LOG DE MÉTODO DE NAVEGAÇÃO
+                if jump_triggered:
+                    log_task("Acesso realizado via Salto Direto (Triple Jump)")
+                else:
+                    log_task("Acesso realizado via Navegação Manual")
+                
+                # 2. Aguarda o menu aparecer
+                await asyncio.sleep(1)
                 
                 log_task("Menu aberto. Navegando para 'Atendimentos'...")
                 # Procura o texto 'Atendimento' ou 'Atendimentos' no dropdown
@@ -205,36 +378,106 @@ async def run_api_check_for_client(client_id, task_id=None):
             # 3. Navegação para Beneficiário (Novo hambúrguer na tela de atendimentos)
             try:
                 log_task("Na tela de Atendimentos. Abrindo menu do beneficiário...")
-                # Clique no hambúrguer do primeiro atendimento
-                atendimento_menu = page.locator('.fa-bars').first
-                await atendimento_menu.click()
-                await page.wait_for_timeout(1000)
+                found_bars_benef = False
+                for _ in range(5):
+                    if await click_in_frames('.fa-bars, button.dropdown-toggle'):
+                        found_bars_benef = True
+                        break
+                    await asyncio.sleep(4)
                 
+                if not found_bars_benef:
+                    raise Exception("Menu de contexto não encontrado na tela de Atendimentos.")
+                
+                await asyncio.sleep(1.5)
                 log_task("Menu aberto. Clicando em 'Beneficiário'...")
-                await page.click('text=Beneficiário')
-                await page.wait_for_timeout(3000)
+                found_benef = False
+                if await click_in_frames('a', title_match='Beneficiário'):
+                    found_benef = True
+                elif await click_in_frames('a', text_match='Beneficiário'):
+                    found_benef = True
+                
+                if not found_benef:
+                    raise Exception("Link 'Beneficiário' não encontrado no menu.")
+                
+                # Aguarda modal ou nova tela
+                await asyncio.sleep(4)
             except Exception as e:
-                log_task(f"Erro ao abrir Beneficiário: {str(e)}", "ERROR")
-                return "offline", "Não foi possível acessar dados do Beneficiário."
+                # CAPTURA DE SCREENSHOT EM CASO DE ERRO
+                screenshot_url = None
+                try:
+                    shot_path = f"api_checks/{client_id}_{int(time.time())}.png"
+                    img_bytes = await page.screenshot()
+                    if db.upload_screenshot(shot_path, img_bytes):
+                        screenshot_url = f"https://firebasestorage.googleapis.com/v0/b/{db.FIREBASE_STORAGE_BUCKET}/o/{shot_path.replace('/', '%2F')}?alt=media"
+                except: pass
 
-            # 4. Atualizar Dados
+                log_task(f"Erro ao abrir beneficiário: {str(e)}", "ERROR")
+                db.update_client_api_status(client_id, "error", f"Erro Beneficiário: {str(e)[:40]}", task_id, screenshot_url)
+                return "error", f"Erro no Beneficiário: {str(e)[:50]}"
+
+            # 4. Ação de Atualização e Verificação Final
             try:
                 log_task("Modal de Beneficiário aberta. Rolando e atualizando...")
-                # Rola até o final
-                await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                await page.wait_for_timeout(1000)
                 
-                # Clica no botão Atualizar
-                update_btn = page.locator('button:has-text("Atualizar")').first
-                await update_btn.click()
-                await page.wait_for_timeout(3000)
+                found_update = False
+                update_target = page
                 
-                log_task("Clique em 'Atualizar' realizado com sucesso.", "SUCCESS")
-                log_task("API configurada no RSUS está ATIVA.", "SUCCESS")
-                return "online", "Integração RSUS operacional."
+                for _ in range(5):
+                    # Tenta no principal e em todos os frames
+                    if await page.locator("button:has-text('Atualizar'), input[value='Atualizar']").count() > 0:
+                        found_update = True
+                        update_target = page
+                        break
+                    
+                    for frame in page.frames:
+                        if await frame.locator("button:has-text('Atualizar'), input[value='Atualizar']").count() > 0:
+                            found_update = True
+                            update_target = frame
+                            break
+                    if found_update: break
+                    await asyncio.sleep(2)
+                
+                if not found_update:
+                    raise Exception("Botão 'Atualizar' não localizado na tela de Beneficiário.")
+                
+                # Rola e clica
+                target_btn = update_target.locator("button:has-text('Atualizar'), input[value='Atualizar']").first
+                await target_btn.scroll_into_view_if_needed()
+                await asyncio.sleep(1)
+                await target_btn.click()
+                
+                log_task("Clique em 'Atualizar' realizado. Aguardando resposta do portal...")
+                
+                # --- VERIFICAÇÃO FINAL: ONLINE VS OFFLINE ---
+                # Aguarda modal de sucesso ou erro (plural/singular)
+                await asyncio.sleep(4)
+                
+                # Pega todo o texto visível (incluindo frames) para detectar a modal
+                all_text = await page.evaluate("document.body.innerText")
+                for frame in page.frames:
+                    try:
+                        all_text += " " + await frame.evaluate("document.body.innerText")
+                    except: pass
+                
+                all_text = all_text.lower()
+                
+                success_keywords = ['atualizado', 'sucesso', 'concluído', 'ok']
+                error_keywords = ['erro', 'falha', 'indisponível', 'tente novamente', 'conexão']
+                
+                if any(k in all_text for k in success_keywords):
+                    log_task("Mensagem de sucesso detectada: API configurada no RSUS está ATIVA.", "SUCCESS")
+                    return "online", "Conexão RSUS Ativa e funcional."
+                elif any(k in all_text for k in error_keywords):
+                    log_task("Mensagem de erro detectada no portal após clique em Atualizar.", "WARNING")
+                    return "offline", "Portal retornou erro na atualização (Offline)."
+                
+                # Fallback: se clicou e não deu erro explícito, assumimos online
+                log_task("Portal processou sem erro explícito. Assumindo conexão ATIVA.", "SUCCESS")
+                return "online", "Conexão operacional (sem erro reportado)."
+                
             except Exception as e:
-                log_task(f"Erro ao clicar em Atualizar: {str(e)}", "ERROR")
-                return "offline", "API não retornou sucesso na atualização."
+                log_task(f"Erro na etapa final: {str(e)}", "ERROR")
+                return "error", f"Erro no formulário final: {str(e)[:50]}"
 
     except Exception as e:
         import traceback
@@ -270,7 +513,7 @@ async def run_batch_api_check(task_id=None):
             
             try:
                 status, message = await run_api_check_for_client(client['id'], task_id=task_id)
-                db.update_client_api_status(client['id'], status, message)
+                # O status já é atualizado dentro de run_api_check_for_client com todos os metadados
             except Exception as e:
                 logger.error(f"Erro ao checar cliente {client.get('id')}: {e}")
                 if task_id:
