@@ -390,6 +390,12 @@ async def run_api_check_for_client(client_id, task_id=None):
                 except Exception as e_shot:
                     log_task(f"Erro ao capturar screenshot: {str(e_shot)}", "WARNING")
 
+                try:
+                    html_content = await page.content()
+                    log_task(f"HTML DIAGNÓSTICO (1000 chars): {html_content[:1000]}", "ERROR")
+                except:
+                    pass
+
                 log_task(f"Erro de navegação (Atendimentos): {str(e)}", "ERROR")
                 db.update_client_api_status(client_id, "error", f"Erro: {str(e)[:40]}", task_id, screenshot_url)
                 return "error", f"Falha na navegação: {str(e)[:50]}"
