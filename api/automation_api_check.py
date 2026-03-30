@@ -29,23 +29,13 @@ async def run_api_check_for_client(client_id, task_id=None):
     if not url_sistema:
         return "offline", "URL não configurada."
 
-    # Determina credenciais
+    # Otimização de inicialização simultânea: Credenciais + Cold Start do Browser
     cred_type = "unimed_vitoria" if "vitoria" in url_sistema.lower() else "general"
-    log_task(f"Buscando credenciais do tipo: {cred_type}...")
-    creds = db.get_rsus_credentials(cred_type)
-    
-    if not creds or not creds.get('username'):
-        msg_erro = f"Credenciais '{cred_type}' não encontradas no sistema. Acesse Configurações > Credenciais RSUS."
-        log_task(msg_erro, "ERROR")
-        return "offline", msg_erro
-
-    usuario = creds['username']
-    senha = creds['password']
 
     browser = None
     try:
         async with async_playwright() as p:
-            log_task(f"Iniciando navegador para {url_sistema}...")
+            log_task(f"Iniciando navegador e buscando credenciais simultaneamente...")
             
             browser_args = [
                 "--headless=new", "--no-sandbox", "--disable-dev-shm-usage",
@@ -54,12 +44,29 @@ async def run_api_check_for_client(client_id, task_id=None):
                 "--disable-web-security", "--allow-running-insecure-content",
                 "--ignore-certificate-errors", "--disable-blink-features=AutomationControlled"
             ]
-            try:
-                browser = await p.chromium.launch(headless=True, args=browser_args)
-            except Exception:
-                import subprocess, sys
-                subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], check=False)
-                browser = await p.chromium.launch(headless=True, args=browser_args)
+            
+            async def launch_browser():
+                try:
+                    return await p.chromium.launch(headless=True, args=browser_args)
+                except Exception:
+                    import subprocess, sys
+                    subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], check=False)
+                    return await p.chromium.launch(headless=True, args=browser_args)
+
+            # Dispara ambas as tarefas I/O bound simultaneamente
+            creds, browser = await asyncio.gather(
+                asyncio.to_thread(db.get_rsus_credentials, cred_type),
+                launch_browser()
+            )
+            
+            if not creds or not creds.get('username'):
+                msg_erro = f"Credenciais '{cred_type}' não encontradas no sistema. Acesse Configurações > Credenciais RSUS."
+                log_task(msg_erro, "ERROR")
+                if browser: await browser.close()
+                return "offline", msg_erro
+
+            usuario = creds['username']
+            senha = creds['password']
 
             context = await browser.new_context(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
