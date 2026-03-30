@@ -73,10 +73,9 @@ async def run_api_check_for_client(client_id, task_id=None):
             
             # Bloqueio de assets suavizado (apenas imagens e mídias pesadas) para não quebrar SPAs/hidratação
             async def block_assets(route):
-                heavy_patterns = ["image", "media"]
-                
+                # Removido bloqueio de imagens pois pode gerar infinite loops em SPAs mal configurados
                 req_url = route.request.url.lower()
-                if route.request.resource_type in heavy_patterns or "google-analytics" in req_url:
+                if "google-analytics" in req_url or route.request.resource_type == "media":
                     await route.abort()
                 else:
                     await route.continue_()
@@ -286,12 +285,16 @@ async def run_api_check_for_client(client_id, task_id=None):
                                 
                                 # 1º SALTO: Raiz do portal
                                 log_task(f"Salto 1/2: {base_url}/ (Raiz)...")
-                                await page.goto(f"{base_url}/", wait_until="domcontentloaded", timeout=20000)
+                                try:
+                                    await page.goto(f"{base_url}/", wait_until="commit", timeout=15000)
+                                except Exception: pass
                                 await asyncio.sleep(1)
                                 
                                 # 2º SALTO: Destino Final com wait_until=domcontentloaded para evitar tela branca de SPA (Timeout 30s)
                                 log_task(f"Salto 2/2: {target_url} (Final)...")
-                                await page.goto(target_url, wait_until="domcontentloaded", timeout=30000)
+                                try:
+                                    await page.goto(target_url, wait_until="domcontentloaded", timeout=25000)
+                                except Exception: pass
                                 
                                 # Busca agressiva por qualquer sinal de vida (30s timeout)
                                 log_task("Aguardando renderização da grid (max 30s)...")
@@ -301,7 +304,8 @@ async def run_api_check_for_client(client_id, task_id=None):
                                     # Fallback em caso de tela branca profunda: Reload Tático e IFrame Scroll
                                     log_task("Tela possivelmente branca. Forçando Reload Tático (domcontentloaded)...", "WARNING")
                                     try:
-                                        await page.reload(wait_until="domcontentloaded", timeout=30000)
+                                        await page.reload(wait_until="commit", timeout=15000)
+                                        await page.wait_for_load_state("domcontentloaded", timeout=15000)
                                         await asyncio.sleep(2)
                                     except: pass
 
@@ -337,9 +341,10 @@ async def run_api_check_for_client(client_id, task_id=None):
                 # FALLBACK DE RECARGA: Se após tudo ainda não achar o menu, tenta dar um refresh
                 if not found_bars:
                     log_task("Grid ainda não encontrada. Tentando recarregar a página (Reload Fallback)...", "WARNING")
-                    # Usa domcontentloaded para SPAs renderizarem corretamente após o reload
+                    # Usa commit seguido de wait_for_load_state relaxado
                     try:
-                        await page.reload(wait_until="domcontentloaded", timeout=25000)
+                        await page.reload(wait_until="commit", timeout=15000)
+                        await page.wait_for_load_state("domcontentloaded", timeout=10000)
                     except: pass
                     await asyncio.sleep(3)
                     if await click_in_frames('.fa-bars, button.dropdown-toggle'):
