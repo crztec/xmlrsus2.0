@@ -235,7 +235,7 @@ async def run_api_check_for_client(client_id, task_id=None):
                             target = page.locator(selector).first
                         
                         if target and await target.count() > 0 and await target.is_visible():
-                            await target.click()
+                            await target.click(force=True)
                             return True
                     except: pass
                     
@@ -254,7 +254,7 @@ async def run_api_check_for_client(client_id, task_id=None):
                             if f_target and await f_target.count() > 0 and await f_target.is_visible():
                                 # Garante scroll para visibilidade se estiver enterrado
                                 await f_target.scroll_into_view_if_needed()
-                                await f_target.click()
+                                await f_target.click(force=True)
                                 return True
                         except: continue
                     return False
@@ -365,10 +365,10 @@ async def run_api_check_for_client(client_id, task_id=None):
                 log_task("Menu aberto. Navegando para 'Atendimentos'...")
                 found_atend = False
                 for _ in range(3):
-                    if await click_in_frames('a', title_match='Atendimentos'):
+                    if await click_in_frames('*', title_match='Atendimentos'):
                         found_atend = True
                         break
-                    if await click_in_frames('a', text_match='Atendimento'):
+                    if await click_in_frames('*', text_match='Atendimentos'):
                         found_atend = True
                         break
                     await asyncio.sleep(2)
