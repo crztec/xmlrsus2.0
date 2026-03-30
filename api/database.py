@@ -267,17 +267,44 @@ def get_pending_users():
 
 def get_all_clients():
     """Returns all clients from client_configs, deduplicated by normalized Name + CNPJ."""
-    docs = firestore_db.collection('client_configs').stream()
-    clients = []
-    seen_keys = set()
-    
-    def normalize_name(name):
-        if not name: return ""
-        n = name.upper().strip()
-        # Remove sufixos comuns que causam duplicidade
-        n = n.split(" - ")[0] # "Unimed Erechim - COOPERATIVA" -> "UNIMED ERECHIM"
-        n = n.replace("COOPERATIVA DE TRABALHO", "").strip()
-        return n
+    try:
+        docs = firestore_db.collection('client_configs').stream()
+        clients = []
+        seen_keys = set()
+        
+        def normalize_name(name):
+            if not name: return ""
+            n = name.upper().strip()
+            # Remove sufixos comuns que causam duplicidade
+            n = n.split(" - ")[0] # "Unimed Erechim - COOPERATIVA" -> "UNIMED ERECHIM"
+            n = n.replace("COOPERATIVA DE TRABALHO", "").strip()
+            return n
+
+        for doc in docs:
+            data = doc.to_dict()
+            name = data.get('name') or data.get('razao_social') or doc.id
+            cnpj = data.get('cnpj', '')
+            
+            # Deduplicação baseada no nome normalizado e CNPJ
+            norm = normalize_name(name)
+            key = f"{norm}_{cnpj}"
+            if key in seen_keys: continue
+            seen_keys.add(key)
+            
+            clients.append({
+                'id': doc.id,
+                'name': name,
+                'cnpj': cnpj,
+                'url_sistema': data.get('url_sistema', ''),
+                'api_status': data.get('api_status', 'unknown'),
+                'total_abis': data.get('total_abis', 0)
+            })
+            
+        clients.sort(key=lambda x: x['name'])
+        return clients
+    except Exception as e:
+        logger.error(f"Erro ao buscar todos os clientes: {e}")
+        return []
 
 def get_clients_paginated(page=1, limit=10, search=""):
     """Recupera clientes com paginação e busca opcional."""

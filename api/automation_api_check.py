@@ -496,11 +496,22 @@ async def run_batch_api_check(task_id=None):
     """Executa a checagem para todos os clientes ativos com atualização de progresso."""
     try:
         clients = db.get_all_clients()
+        
+        # Proteção contra retorno nulo do banco
+        if clients is None:
+            clients = []
+            
         total = len(clients)
         
         if task_id:
             db.update_task(task_id, {"total": total, "current": 0, "status": "running"})
             db.add_log(task_id, f"Iniciando checagem em lote para {total} clientes...")
+            
+        if total == 0:
+            if task_id:
+                db.add_log(task_id, "Processo abortado: Nenhum cliente retornado do banco de dados.", "WARNING")
+                db.update_task(task_id, {"status": "completed", "current_client": "Finalizado"})
+            return
 
         # OTIMIZAÇÃO BATCH: Busca credenciais apenas uma vez na inicialização do lote
         creds_general = db.get_rsus_credentials('general')
