@@ -71,19 +71,27 @@ export default function ApiChecksPage() {
     // PERSISTÊNCIA: Busca se já existe uma tarefa rodando ao montar/F5
     const checkActiveTask = async () => {
       try {
-        // Busca qualquer tarefa de checagem (lote ou única) que esteja rodando
+        // Buscamos todas as tarefas 'running' (geralmente serão poucas)
+        // Evitamos query complexa com multi-filtros para não exigir índices compostos no Firestore
         const q = query(
           collection(db, "tasks"), 
           where("status", "==", "running"),
-          where("type", "in", ["api_check_batch", "api_check_single"]),
-          orderBy("created_at", "desc"),
-          limit(1)
+          limit(20) // Pegamos uma amostra pequena
         );
         const querySnapshot = await getDocs(q);
+        
         if (!querySnapshot.empty) {
-          const taskDoc = querySnapshot.docs[0];
-          setActiveTaskId(taskDoc.id);
-          setIsExecuting(true);
+          // Filtramos e ordenamos no JS para garantir funcionamento sem índices complexos
+          const activeTasks = querySnapshot.docs
+            .map(d => ({ id: d.id, ...d.data() } as any))
+            .filter(t => t.type === "api_check_batch" || t.type === "api_check_single")
+            .sort((a, b) => b.created_at.localeCompare(a.created_at));
+
+          if (activeTasks.length > 0) {
+            const latestTask = activeTasks[0];
+            setActiveTaskId(latestTask.id);
+            setIsExecuting(true);
+          }
         }
       } catch (err) {
         console.error("Erro ao persistir tarefa:", err);
