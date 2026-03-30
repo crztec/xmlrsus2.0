@@ -84,10 +84,20 @@ export default function ApiChecksPage() {
           // Filtramos e ordenamos no JS para garantir funcionamento sem índices complexos
           // Incluímos todas as variações de tipos encontradas no backend (duplicidade de rotas)
           const validTypes = ["api_check_batch", "batch_api_check", "api_check_single", "single_api_check"];
+          const now = new Date();
+          const thresholdMs = 45 * 60 * 1000; // 45 minutos de limite para persistir
           
           const activeTasks = querySnapshot.docs
             .map(d => ({ id: d.id, ...d.data() } as any))
-            .filter(t => validTypes.includes(t.type))
+            .filter(t => {
+              const isTypeMatch = validTypes.includes(t.type);
+              if (!isTypeMatch) return false;
+              
+              // Garante que a tarefa é recente (conforto visual e técnico)
+              const createdDate = t.created_at ? new Date(t.created_at.replace(/-/g, "/")) : new Date(0);
+              const isRecent = (now.getTime() - createdDate.getTime()) < thresholdMs;
+              return isRecent;
+            })
             .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
 
           if (activeTasks.length > 0) {
