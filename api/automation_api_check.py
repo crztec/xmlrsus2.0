@@ -71,16 +71,12 @@ async def run_api_check_for_client(client_id, task_id=None):
 
             page = await context.new_page()
             
-            # Bloqueio agressivo de assets (Analytics, Fontes e Imagens) para evitar travamentos de rede
+            # Bloqueio de assets suavizado (apenas imagens e mídias pesadas) para não quebrar SPAs/hidratação
             async def block_assets(route):
-                heavy_patterns = ["image", "font", "media"]
-                block_urls = [
-                    "google-analytics", "googletagmanager", "facebook.net", 
-                    "fbcdn", "hotjar", "clarity.ms", "fonts.googleapis", "fonts.gstatic"
-                ]
+                heavy_patterns = ["image", "media"]
                 
                 req_url = route.request.url.lower()
-                if route.request.resource_type in heavy_patterns or any(pattern in req_url for pattern in block_urls):
+                if route.request.resource_type in heavy_patterns or "google-analytics" in req_url:
                     await route.abort()
                 else:
                     await route.continue_()
@@ -189,12 +185,12 @@ async def run_api_check_for_client(client_id, task_id=None):
                 if has_session and ("Account/Login" in page.url or "Account/LogOff" in page.url):
                     log_task("Sessão detectada mas preso na tela de Login. Forçando Salto Triplo (Hiper-Otimizado)...")
                     # 1. Toca na raiz (wait: commit)
-                    await page.goto(url_sistema.split('?')[0].rsplit('/', 1)[0] + "/", wait_until="commit", timeout=30000)
+                    await page.goto(url_sistema.split('?')[0].rsplit('/', 1)[0] + "/", wait_until="commit", timeout=15000)
                     # 2. Visita a lista (Index) - O segredo que funcionou no robô de importação
                     # No API Check não temos /novo, então tentamos a raiz novamente ou uma rota conhecida
-                    await page.goto(url_sistema, wait_until="commit", timeout=45000)
-                    log_task("Pausa de 3s para processamento de cookies após salto de sessão...")
-                    await asyncio.sleep(3)
+                    await page.goto(url_sistema, wait_until="commit", timeout=20000)
+                    log_task("Pausa de 2s para processamento de cookies após salto de sessão...")
+                    await asyncio.sleep(2)
                 
                 # Verifica erro de senha/login explícito na tela
                 login_error = await page.evaluate("""
@@ -289,26 +285,27 @@ async def run_api_check_for_client(client_id, task_id=None):
                                 base_url = base_url.rstrip('/')
                                 
                                 # 1º SALTO: Raiz do portal
-                                log_task(f"Salto 1/3: {base_url}/ (Raiz)...")
-                                await page.goto(f"{base_url}/", wait_until="commit", timeout=45000)
+                                log_task(f"Salto 1/2: {base_url}/ (Raiz)...")
+                                await page.goto(f"{base_url}/", wait_until="domcontentloaded", timeout=20000)
+                                await asyncio.sleep(1)
                                 
-                                # 2º SALTO: Home/Index (Força contexto de dashboard)
-                                home_url = f"{base_url}/Home/Index"
-                                log_task(f"Salto 2/3: {home_url} (Home)...")
-                                await page.goto(home_url, wait_until="commit", timeout=45000)
-                                await asyncio.sleep(2)
+                                # 2º SALTO: Destino Final com wait_until=domcontentloaded para evitar tela branca de SPA (Timeout 30s)
+                                log_task(f"Salto 2/2: {target_url} (Final)...")
+                                await page.goto(target_url, wait_until="domcontentloaded", timeout=30000)
                                 
-                                # 3º SALTO: Destino Final
-                                log_task(f"Salto 3/3: {target_url} (Final)...")
-                                await page.goto(target_url, wait_until="commit", timeout=60000)
-                                
-                                # Busca agressiva por qualquer sinal de vida (60s timeout)
-                                log_task("Aguardando renderização da grid (max 60s)...")
+                                # Busca agressiva por qualquer sinal de vida (30s timeout)
+                                log_task("Aguardando renderização da grid (max 30s)...")
                                 try:
-                                    await page.wait_for_selector(".fa-bars, button.dropdown-toggle, .grid, .loading", timeout=60000)
+                                    await page.wait_for_selector(".fa-bars, button.dropdown-toggle, .grid, .loading", timeout=30000)
                                 except:
-                                    # Fallback de IFrame Scroll: se estiver branco, tenta dar scroll em todos os frames
-                                    log_task("Tela possivelmente branca. Forçando scroll em todos os IFrames...", "WARNING")
+                                    # Fallback em caso de tela branca profunda: Reload Tático e IFrame Scroll
+                                    log_task("Tela possivelmente branca. Forçando Reload Tático (domcontentloaded)...", "WARNING")
+                                    try:
+                                        await page.reload(wait_until="domcontentloaded", timeout=30000)
+                                        await asyncio.sleep(2)
+                                    except: pass
+
+                                    log_task("Forçando scroll em todos os IFrames disponíveis...", "WARNING")
                                     await page.evaluate("""
                                         () => {
                                             const frames = document.querySelectorAll('iframe');
@@ -340,8 +337,11 @@ async def run_api_check_for_client(client_id, task_id=None):
                 # FALLBACK DE RECARGA: Se após tudo ainda não achar o menu, tenta dar um refresh
                 if not found_bars:
                     log_task("Grid ainda não encontrada. Tentando recarregar a página (Reload Fallback)...", "WARNING")
-                    await page.reload(wait_until="commit", timeout=30000)
-                    await asyncio.sleep(5)
+                    # Usa domcontentloaded para SPAs renderizarem corretamente após o reload
+                    try:
+                        await page.reload(wait_until="domcontentloaded", timeout=25000)
+                    except: pass
+                    await asyncio.sleep(3)
                     if await click_in_frames('.fa-bars, button.dropdown-toggle'):
                         log_task("Grid encontrada após recarga da página.")
                         found_bars = True
