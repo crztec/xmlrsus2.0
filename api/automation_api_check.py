@@ -523,6 +523,16 @@ async def run_batch_api_check(task_id=None):
             db.add_log(task_id, f"Iniciando checagem em lote para {total} clientes...")
 
         for i, client in enumerate(clients):
+            # NOVO: Verifica se o usuário solicitou o cancelamento via Firestore
+            if task_id:
+                try:
+                    task_doc = db.firestore_db.collection('tasks').document(task_id).get()
+                    if task_doc.exists and task_doc.to_dict().get('status') == 'cancelled':
+                        db.add_log(task_id, "Interrupção solicitada pelo usuário. Finalizando processo...", "WARNING")
+                        break
+                except Exception as e_cancel:
+                    logger.error(f"Erro ao checar cancelamento: {e_cancel}")
+
             client_name = client.get('name', 'Cliente Desconhecido')
             if task_id:
                 db.update_task(task_id, {

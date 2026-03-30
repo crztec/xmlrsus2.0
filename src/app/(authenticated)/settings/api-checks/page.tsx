@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Zap, Search, Filter, CheckCircle, XCircle, Clock, Terminal, X, Info, ChevronRight, Activity, Camera, MoreHorizontal, RotateCcw, FileText } from "lucide-react";
+import { Zap, Search, Filter, CheckCircle, XCircle, Clock, Terminal, X, Info, ChevronRight, Activity, Camera, MoreHorizontal, RotateCcw, FileText, Ban } from "lucide-react";
+import { db } from "@/lib/firebase";
+import { doc, onSnapshot, collection, query, where, orderBy, limit, getDocs, updateDoc } from "firebase/firestore";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -26,7 +28,7 @@ interface TaskLog {
 interface Task {
   id: string;
   type: string;
-  status: 'pending' | 'running' | 'completed' | 'failed';
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
   current?: number;
   total?: number;
   current_client?: string;
@@ -65,16 +67,56 @@ export default function ApiChecksPage() {
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
+
+    // PERSISTÊNCIA: Busca se já existe uma tarefa rodando ao montar/F5
+    const checkActiveTask = async () => {
+      try {
+        const q = query(
+          collection(db, "tasks"), 
+          where("type", "==", "api_check_batch"), 
+          where("status", "==", "running"),
+          orderBy("created_at", "desc"),
+          limit(1)
+        );
+        const querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+          const taskDoc = querySnapshot.docs[0];
+          setActiveTaskId(taskDoc.id);
+          setIsExecuting(true);
+        }
+      } catch (err) {
+        console.error("Erro ao persistir tarefa:", err);
+      }
+    };
+    checkActiveTask();
+
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    let unsubscribe: () => void;
+
     if (activeTaskId) {
-      interval = setInterval(fetchTaskStatus, 2000);
-      fetchTaskLogs(activeTaskId); // Initial fetch
+      // ESCUTA EM TEMPO REAL (onSnapshot) - Mais rápido e eficiente que polling
+      unsubscribe = onSnapshot(doc(db, "tasks", activeTaskId), (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data() as Task;
+          setActiveTask(data);
+          
+          if (data.status === 'completed' || data.status === 'failed' || data.status === 'cancelled') {
+            setIsExecuting(false);
+            fetchClients(); // Refresh statuses
+            setActiveTaskId(null);
+          }
+        }
+      }, (error) => {
+        console.error("Erro no onSnapshot da tarefa:", error);
+      });
     }
-    return () => clearInterval(interval);
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, [activeTaskId]);
 
   useEffect(() => {
@@ -131,6 +173,23 @@ export default function ApiChecksPage() {
       setTaskLogs(data);
     } catch (error) {
       console.error("Erro ao buscar logs:", error);
+    }
+  };
+
+  const handleStopCheck = async () => {
+    if (!activeTaskId) return;
+    if (!confirm("Deseja realmente interromper a checagem em lote?")) return;
+    
+    try {
+      await updateDoc(doc(db, "tasks", activeTaskId), {
+        status: "cancelled",
+        updated_at: new Date().toISOString()
+      });
+      setIsExecuting(false);
+      setActiveTaskId(null);
+    } catch (error) {
+      console.error("Erro ao cancelar tarefa:", error);
+      alert("Erro ao solicitar cancelamento.");
     }
   };
 
@@ -327,7 +386,14 @@ export default function ApiChecksPage() {
               </div>
             </div>
 
-            <div className="shrink-0">
+            <div className="shrink-0 flex items-center gap-3">
+               <button 
+                 onClick={handleStopCheck}
+                 className="flex items-center gap-2 px-4 py-3 bg-rose-50 text-rose-600 text-sm font-bold rounded-xl hover:bg-rose-100 transition-all border border-rose-100"
+               >
+                 <Ban className="w-4 h-4" />
+                 Parar Checagem
+               </button>
                <button 
                  onClick={() => { setViewingTaskId(null); setShowLogs(true); }}
                  className="flex items-center gap-2 px-6 py-3 bg-slate-900 text-white text-sm font-bold rounded-xl hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 group/btn"
