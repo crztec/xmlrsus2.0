@@ -114,7 +114,6 @@ async def run_api_check_for_client(client_id, task_id=None):
                                     "sameSite": "Lax",
                                     "httpOnly": True
                                 }])
-                            log_task(f"[COOKIE FORÇADO] Tokens de sessão de {response.url[:30]}... reinjetados.")
                     except: pass
             page.on("response", handle_response)
             
