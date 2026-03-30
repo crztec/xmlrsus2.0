@@ -413,31 +413,23 @@ async def run_api_check_for_client(client_id, task_id=None):
                 log_task("Modal de Beneficiário aberta. Rolando e atualizando...")
                 
                 found_update = False
-                update_target = page
-                
                 for _ in range(5):
-                    # Tenta no principal e em todos os frames
-                    if await page.locator("button:has-text('Atualizar'), input[value='Atualizar']").count() > 0:
+                    # Tenta encontrar por texto (botões, links, divs)
+                    if await click_in_frames('*', text_match='Atualizar'):
                         found_update = True
-                        update_target = page
                         break
-                    
-                    for frame in page.frames:
-                        if await frame.locator("button:has-text('Atualizar'), input[value='Atualizar']").count() > 0:
-                            found_update = True
-                            update_target = frame
-                            break
-                    if found_update: break
+                    # Tenta encontrar por input value
+                    if await click_in_frames("input[value='Atualizar'], input[value='ATUALIZAR']"):
+                        found_update = True
+                        break
+                    # Tenta encontrar com uppercase
+                    if await click_in_frames('*', text_match='ATUALIZAR'):
+                        found_update = True
+                        break
                     await asyncio.sleep(2)
                 
                 if not found_update:
                     raise Exception("Botão 'Atualizar' não localizado na tela de Beneficiário.")
-                
-                # Rola e clica
-                target_btn = update_target.locator("button:has-text('Atualizar'), input[value='Atualizar']").first
-                await target_btn.scroll_into_view_if_needed()
-                await asyncio.sleep(1)
-                await target_btn.click(force=True)
                 
                 log_task("Clique em 'Atualizar' realizado. Aguardando resposta do portal...")
                 
