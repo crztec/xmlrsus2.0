@@ -35,11 +35,11 @@ steps:
       - 'managed'
       - '--allow-unauthenticated'
       - '--min-instances=0'
-      - '--max-instances=10'
+      - '--max-instances=2'
       - '--memory=2Gi'
-      - '--cpu=1'
-      - '--concurrency=10'
-      - '--timeout=300'
+      - '--cpu=2'
+      - '--concurrency=2'
+      - '--timeout=1800'
 
 options:
   logging: CLOUD_LOGGING_ONLY
