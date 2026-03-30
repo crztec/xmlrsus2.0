@@ -83,6 +83,9 @@ async def run_api_check_for_client(client_id, task_id=None, pre_fetched_creds=No
 
             page = await context.new_page()
             
+            # Escuta de Erros Críticos do Browser (Raio-X de Erros JS do Portal)
+            page.on("console", lambda msg: log_task(f"[BROWSER JS] {msg.text}", "WARNING") if msg.type == "error" else None)
+            
             # Bloqueio de assets suavizado (apenas imagens e mídias pesadas) para não quebrar SPAs/hidratação
             async def block_assets(route):
                 if route.request.resource_type == "media" or "google-analytics" in route.request.url:
@@ -150,9 +153,9 @@ async def run_api_check_for_client(client_id, task_id=None, pre_fetched_creds=No
                 log_task("Aguardando carregamento da interface pós-login...")
                 try:
                     # Foca em um seletor que indica que a página carregou algo além do rodapé/loading
-                    await page.wait_for_selector(".navbar, .main-sidebar, .content-header, #wrapper", timeout=30000)
-                except:
-                    log_task("Interface principal não detectada em 30s. Continuando com pausa de segurança...", "WARNING")
+                    await page.wait_for_selector(".navbar, .main-sidebar, .content-header, #wrapper", timeout=60000)
+                except Exception:
+                    log_task("Interface principal não detectada em 60s. Continuando com pausa de segurança...", "WARNING")
                     await asyncio.sleep(5)
                 
                 await asyncio.sleep(2)
@@ -280,10 +283,10 @@ async def run_api_check_for_client(client_id, task_id=None, pre_fetched_creds=No
                                     await page.goto(target_url, wait_until="domcontentloaded", timeout=25000)
                                 except Exception: pass
                                 
-                                # Busca agressiva por qualquer sinal de vida (30s timeout)
-                                log_task("Aguardando renderização da grid (max 30s)...")
+                                # Busca agressiva por qualquer sinal de vida (60s timeout)
+                                log_task("Aguardando renderização da grid (max 60s)...")
                                 try:
-                                    await page.wait_for_selector(".fa-bars, button.dropdown-toggle, .grid, .loading", timeout=30000)
+                                    await page.wait_for_selector(".fa-bars, button.dropdown-toggle, .grid, .loading", timeout=60000)
                                 except:
                                     # Fallback em caso de tela branca profunda: Reload Tático e IFrame Scroll
                                     log_task("Tela possivelmente branca. Forçando Reload Tático (domcontentloaded)...", "WARNING")
