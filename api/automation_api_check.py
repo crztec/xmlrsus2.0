@@ -143,17 +143,17 @@ async def run_api_check_for_client(client_id, task_id=None):
                 log_task("Campo de login identificado. Preenchendo credenciais...")
                 
                 # Usa .type() com delay para compatibilidade com portais AngularJS
-                await email_field.click()
+                await email_field.click(force=True)
                 await email_field.type(usuario, delay=40)
                 await asyncio.sleep(0.5)
                 
                 pwd_field = page.locator("input#password, input#Password").first
-                await pwd_field.click()
+                await pwd_field.click(force=True)
                 await pwd_field.type(senha, delay=40)
                 await asyncio.sleep(0.5)
                 
                 btn_login = page.locator("#logIn, button[type='submit']").first
-                await btn_login.click()
+                await btn_login.click(force=True)
                 
                 # Aguarda desaparecimento do botão de login (mais robusto que sleep)
                 try:
@@ -411,9 +411,9 @@ async def run_api_check_for_client(client_id, task_id=None):
                 await asyncio.sleep(1.5)
                 log_task("Menu aberto. Clicando em 'Beneficiário'...")
                 found_benef = False
-                if await click_in_frames('a', title_match='Beneficiário'):
+                if await click_in_frames('*', title_match='Beneficiário'):
                     found_benef = True
-                elif await click_in_frames('a', text_match='Beneficiário'):
+                elif await click_in_frames('*', text_match='Beneficiário'):
                     found_benef = True
                 
                 if not found_benef:
@@ -464,7 +464,7 @@ async def run_api_check_for_client(client_id, task_id=None):
                 target_btn = update_target.locator("button:has-text('Atualizar'), input[value='Atualizar']").first
                 await target_btn.scroll_into_view_if_needed()
                 await asyncio.sleep(1)
-                await target_btn.click()
+                await target_btn.click(force=True)
                 
                 log_task("Clique em 'Atualizar' realizado. Aguardando resposta do portal...")
                 
