@@ -73,9 +73,7 @@ async def run_api_check_for_client(client_id, task_id=None):
             
             # Bloqueio de assets suavizado (apenas imagens e mídias pesadas) para não quebrar SPAs/hidratação
             async def block_assets(route):
-                # Liberação total de imagens e fontes para renderizar FontAwesome e interface
-                req_url = route.request.url.lower()
-                if "google-analytics" in req_url or route.request.resource_type == "media":
+                if route.request.resource_type == "media" or "google-analytics" in route.request.url:
                     await route.abort()
                 else:
                     await route.continue_()
@@ -90,9 +88,7 @@ async def run_api_check_for_client(client_id, task_id=None):
             
             # INTERCEPTOR DE RESPOSTAS PARA INJEÇÃO CIRÚRGICA DE COOKIES (Sincronizado com main.py)
             async def handle_response(response):
-                # OTIMIZAÇÃO: Ignora arquivos estáticos para não estrangular a rede
-                if response.request.resource_type not in ['document', 'xhr', 'fetch']:
-                    return
+                if response.request.resource_type not in ['document', 'xhr', 'fetch']: return
                 
                 if url_sistema.split('/')[2] in response.url:
                     try:
