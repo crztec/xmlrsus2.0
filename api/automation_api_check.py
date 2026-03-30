@@ -86,36 +86,9 @@ async def run_api_check_for_client(client_id, task_id=None):
             # Aceita dialogs automaticamente para não travar
             page.on("dialog", lambda dialog: asyncio.create_task(dialog.accept()))
             
-            # INTERCEPTOR DE RESPOSTAS PARA INJEÇÃO CIRÚRGICA DE COOKIES (Sincronizado com main.py)
-            async def handle_response(response):
-                if response.request.resource_type not in ['document', 'xhr', 'fetch']: return
-                
-                if url_sistema.split('/')[2] in response.url:
-                    try:
-                        headers = await response.all_headers()
-                        set_cookie = headers.get('set-cookie')
-                        if set_cookie:
-                            # Divide múltiplos cookies (separados por \n no all_headers do Playwright)
-                            sc_list = set_cookie.split('\n')
-                            for sc in sc_list:
-                                # Parse básico do cookie string
-                                parts = [p.strip() for p in sc.split(';')]
-                                if not parts: continue
-                                name_val = parts[0].split('=', 1)
-                                if len(name_val) < 2: continue
+            # INTERCEPTOR DE RESPOSTAS PARA INJEÇÃO DE COOKIES FOI REMOVIDO PARA DESAFOGAR O EVENT LOOP
+            # A rede agora flui 100% nativa sem gargalos de inserção I/O assíncrona
 
-                                # Injeção manual ignorando SameSite/Secure do navegador
-                                await context.add_cookies([{
-                                    "name": name_val[0],
-                                    "value": name_val[1],
-                                    "domain": url_sistema.split('/')[2],
-                                    "path": "/",
-                                    "secure": True,
-                                    "sameSite": "Lax",
-                                    "httpOnly": True
-                                }])
-                    except: pass
-            page.on("response", handle_response)
             
             # 1. Login (idêntico ao robô de importação)
             try:
