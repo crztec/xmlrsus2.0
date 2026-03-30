@@ -71,10 +71,11 @@ export default function ApiChecksPage() {
     // PERSISTÊNCIA: Busca se já existe uma tarefa rodando ao montar/F5
     const checkActiveTask = async () => {
       try {
+        // Busca qualquer tarefa de checagem (lote ou única) que esteja rodando
         const q = query(
           collection(db, "tasks"), 
-          where("type", "==", "api_check_batch"), 
           where("status", "==", "running"),
+          where("type", "in", ["api_check_batch", "api_check_single"]),
           orderBy("created_at", "desc"),
           limit(1)
         );
@@ -104,9 +105,12 @@ export default function ApiChecksPage() {
           setActiveTask(data);
           
           if (data.status === 'completed' || data.status === 'failed' || data.status === 'cancelled') {
-            setIsExecuting(false);
-            fetchClients(); // Refresh statuses
-            setActiveTaskId(null);
+            // Aguarda 2 segundos antes de limpar para o usuário ver o 100% (ou erro final)
+            setTimeout(() => {
+              setIsExecuting(false);
+              fetchClients(); // Refresh statuses
+              setActiveTaskId(null);
+            }, 2000);
           }
         }
       }, (error) => {
@@ -282,7 +286,7 @@ export default function ApiChecksPage() {
   };
 
   const progressPercent = activeTask?.total && activeTask.total > 0 
-    ? Math.round((activeTask.current || 0) / activeTask.total * 100) 
+    ? Math.min(100, Math.round((Number(activeTask.current) || 0) / Number(activeTask.total) * 100)) 
     : 0;
 
   // Mini Component: Uptime Map (15 Squares)
