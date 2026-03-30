@@ -8,7 +8,7 @@ import api.database as db
 
 logger = logging.getLogger(__name__)
 
-async def run_api_check_for_client(client_id, task_id=None):
+async def run_api_check_for_client(client_id, task_id=None, pre_fetched_creds=None):
     """
     Executa a checagem de API para um único cliente RSUS.
     Segue o fluxo: Login > Hamburguer (ABI) > Atendimentos > Hamburguer (Atendimento) > Beneficiário > Atualizar.
@@ -53,9 +53,14 @@ async def run_api_check_for_client(client_id, task_id=None):
                     subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], check=False)
                     return await p.chromium.launch(headless=True, args=browser_args)
 
+            async def fetch_creds():
+                if pre_fetched_creds:
+                    return pre_fetched_creds
+                return await asyncio.to_thread(db.get_rsus_credentials, cred_type)
+
             # Dispara ambas as tarefas I/O bound simultaneamente
             creds, browser = await asyncio.gather(
-                asyncio.to_thread(db.get_rsus_credentials, cred_type),
+                fetch_creds(),
                 launch_browser()
             )
             
@@ -494,6 +499,12 @@ async def run_batch_api_check(task_id=None):
             db.update_task(task_id, {"total": total, "current": 0, "status": "running"})
             db.add_log(task_id, f"Iniciando checagem em lote para {total} clientes...")
 
+        # OTIMIZAÇÃO BATCH: Busca credenciais apenas uma vez na inicialização do lote
+        creds_general = db.get_rsus_credentials('general')
+        creds_vitoria = db.get_rsus_credentials('unimed_vitoria')
+        if task_id:
+            db.add_log(task_id, "Credenciais globais carregadas no cache para a execução em lote.", "DEBUG")
+
         for i, client in enumerate(clients):
             # NOVO: Verifica se o usuário solicitou o cancelamento via Firestore
             if task_id:
@@ -514,7 +525,9 @@ async def run_batch_api_check(task_id=None):
                 db.add_log(task_id, f"Checando {i+1}/{total}: {client_name}...", "INFO")
             
             try:
-                status, message = await run_api_check_for_client(client['id'], task_id=task_id)
+                # Injeta a credencial pertinente via cache local em memória
+                target_creds = creds_vitoria if "vitoria" in client.get('url_sistema', '').lower() else creds_general
+                status, message = await run_api_check_for_client(client['id'], task_id=task_id, pre_fetched_creds=target_creds)
                 # O status já é atualizado dentro de run_api_check_for_client, mas aqui garantimos o vínculo final
                 db.update_client_api_status(client['id'], status, message, task_id=task_id)
             except Exception as e:
