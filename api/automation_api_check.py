@@ -543,7 +543,8 @@ async def run_batch_api_check(task_id=None):
             
             try:
                 status, message = await run_api_check_for_client(client['id'], task_id=task_id)
-                # O status já é atualizado dentro de run_api_check_for_client com todos os metadados
+                # O status já é atualizado dentro de run_api_check_for_client, mas aqui garantimos o vínculo final
+                db.update_client_api_status(client['id'], status, message, task_id=task_id)
             except Exception as e:
                 logger.error(f"Erro ao checar cliente {client.get('id')}: {e}")
                 if task_id:
@@ -577,7 +578,7 @@ async def run_single_api_check(client_id, task_id=None):
             db.add_log(task_id, f"Iniciando checagem individual: {client_name}", "INFO")
         
         status, message = await run_api_check_for_client(client_id, task_id=task_id)
-        db.update_client_api_status(client_id, status, message)
+        db.update_client_api_status(client_id, status, message, task_id=task_id)
         
         if task_id:
             db.update_task(task_id, {
