@@ -34,6 +34,7 @@ interface Task {
   current_client?: string;
   last_log?: string;
   created_at: string;
+  updated_at: string;
   completed_at?: string;
 }
 
@@ -68,24 +69,20 @@ export default function ApiChecksPage() {
     };
     document.addEventListener("mousedown", handleClickOutside);
 
-    // PERSISTÊNCIA: Busca se já existe uma tarefa rodando ao montar/F5
     const checkActiveTask = async () => {
       try {
-        // Buscamos todas as tarefas 'running' (geralmente serão poucas)
-        // Evitamos query complexa com multi-filtros para não exigir índices compostos no Firestore
+        // Buscamos todas as tarefas 'running'
         const q = query(
           collection(db, "tasks"), 
           where("status", "==", "running"),
-          limit(20) // Pegamos uma amostra pequena
+          limit(10)
         );
         const querySnapshot = await getDocs(q);
         
         if (!querySnapshot.empty) {
-          // Filtramos e ordenamos no JS para garantir funcionamento sem índices complexos
-          // Incluímos todas as variações de tipos encontradas no backend (duplicidade de rotas)
           const validTypes = ["api_check_batch", "batch_api_check", "api_check_single", "single_api_check"];
           const now = new Date();
-          const thresholdMs = 45 * 60 * 1000; // 45 minutos de limite para persistir
+          const hardLimitMs = 4 * 60 * 60 * 1000; // 4 horas de limite máximo para nem exibir no F5
           
           const activeTasks = querySnapshot.docs
             .map(d => ({ id: d.id, ...d.data() } as any))
@@ -93,10 +90,9 @@ export default function ApiChecksPage() {
               const isTypeMatch = validTypes.includes(t.type);
               if (!isTypeMatch) return false;
               
-              // Garante que a tarefa é recente (conforto visual e técnico)
               const createdDate = t.created_at ? new Date(t.created_at.replace(/-/g, "/")) : new Date(0);
-              const isRecent = (now.getTime() - createdDate.getTime()) < thresholdMs;
-              return isRecent;
+              const isWithinHardLimit = (now.getTime() - createdDate.getTime()) < hardLimitMs;
+              return isWithinHardLimit;
             })
             .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
 
@@ -310,6 +306,13 @@ export default function ApiChecksPage() {
     ? Math.min(100, Math.round((Number(activeTask.current) || 0) / Number(activeTask.total) * 100)) 
     : 0;
 
+  const isStale = (() => {
+    if (!activeTask || !activeTask.updated_at) return false;
+    const updatedAt = new Date(activeTask.updated_at.replace(/-/g, "/"));
+    const now = new Date();
+    return (now.getTime() - updatedAt.getTime()) > 10 * 60 * 1000; // 10 minutos sem update
+  })();
+
   // Mini Component: Uptime Map (15 Squares)
   const UptimeChart = ({ history }: { history?: string[] }) => {
     // We want 15 squares. Fill with 'empty' if fewer.
@@ -368,44 +371,51 @@ export default function ApiChecksPage() {
 
       {/* Progress Section */}
       {isExecuting && activeTask && (
-        <div className="bg-white p-6 rounded-2xl shadow-lg border border-blue-100 overflow-hidden relative group">
-          <div className="absolute top-0 left-0 w-1 h-full bg-blue-500" />
+        <div className={`bg-white p-6 rounded-2xl shadow-lg border-2 overflow-hidden relative group transition-all ${isStale ? 'border-rose-400 animate-[shake_0.5s_ease-in-out_infinite]' : 'border-blue-100'}`}>
+          <div className={`absolute top-0 left-0 w-1 h-full ${isStale ? 'bg-rose-500' : 'bg-blue-500'}`} />
           
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex-1 w-full space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-blue-50 text-blue-600 rounded-lg group-hover:bg-blue-600 group-hover:text-white transition-colors duration-300">
-                    <Activity className="w-5 h-5" />
+                  <div className={`p-2 rounded-lg transition-colors duration-300 ${isStale ? 'bg-rose-100 text-rose-600' : 'bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white'}`}>
+                    <Activity className={`w-5 h-5 ${isExecuting && !isStale ? 'animate-pulse' : ''}`} />
                   </div>
                   <div>
                     <h4 className="font-bold text-slate-900 flex items-center gap-2">
                        {activeTask.total && activeTask.total > 1 ? 'Processando Lote...' : 'Processando Cliente...'}
-                       <span className="text-xs font-normal text-slate-400 bg-slate-100 px-2 py-0.5 rounded">ID: {activeTaskId?.substring(0,8)}</span>
+                       <span className="text-xs font-normal text-slate-400 bg-slate-100 px-2 py-0.5 rounded uppercase">ID: {activeTaskId?.substring(0,8)}</span>
                     </h4>
                     <p className="text-sm text-slate-500 flex items-center gap-1.5 mt-0.5 font-medium">
-                      Atual: <span className="text-blue-600 font-bold">{activeTask.current_client || 'Iniciando...'}</span>
+                      Atual: <span className={`${isStale ? 'text-rose-600' : 'text-blue-600'} font-bold`}>{activeTask.current_client || 'Iniciando...'}</span>
                     </p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <span className="text-2xl font-black text-slate-900">{progressPercent}%</span>
+                  <span className={`text-2xl font-black ${isStale ? 'text-rose-600' : 'text-slate-900'}`}>{progressPercent}%</span>
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{activeTask.current} de {activeTask.total}</p>
                 </div>
               </div>
 
+              {isStale && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-rose-50 border border-rose-100 rounded-lg text-rose-700 text-xs font-bold animate-pulse">
+                  <Ban className="w-4 h-4" />
+                  ESTA TAREFA PARECE TRAVADA (MAIS DE 10 MIN SEM ATUALIZAR)
+                </div>
+              )}
+
               <div className="relative h-3 w-full bg-slate-100 rounded-full overflow-hidden shadow-inner">
                 <div 
-                  className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-500 via-blue-600 to-blue-500 transition-all duration-700"
+                  className={`absolute top-0 left-0 h-full transition-all duration-700 ${isStale ? 'bg-rose-500' : 'bg-gradient-to-r from-blue-500 via-blue-600 to-blue-500'}`}
                   style={{ width: `${progressPercent}%` }}
                 >
                    <div className="absolute inset-0 bg-[linear-gradient(45deg,rgba(255,255,255,0.2)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.2)_50%,rgba(255,255,255,0.2)_75%,transparent_75%,transparent)] bg-[length:20px_20px] animate-[progress_1s_linear_infinite]" />
                 </div>
               </div>
 
-              <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 flex items-center gap-3">
-                 <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-                 <span className="text-[13px] text-slate-600 font-medium truncate italic h-5">
+              <div className={`${isStale ? 'bg-rose-50 border-rose-100' : 'bg-slate-50 border-slate-100'} border rounded-xl p-3 flex items-center gap-3`}>
+                 <div className={`w-2 h-2 rounded-full ${isStale ? 'bg-rose-500' : 'bg-emerald-500 animate-pulse'} shrink-0`} />
+                 <span className={`text-[13px] ${isStale ? 'text-rose-600' : 'text-slate-600'} font-medium truncate italic h-5`}>
                     {activeTask.last_log || "Sincronizando com o robô..."}
                  </span>
               </div>
@@ -414,7 +424,7 @@ export default function ApiChecksPage() {
             <div className="shrink-0 flex items-center gap-3">
                <button 
                  onClick={handleStopCheck}
-                 className="flex items-center gap-2 px-4 py-3 bg-rose-50 text-rose-600 text-sm font-bold rounded-xl hover:bg-rose-100 transition-all border border-rose-100"
+                 className="flex items-center gap-2 px-4 py-3 bg-rose-50 text-rose-600 text-sm font-bold rounded-xl hover:bg-rose-100 transition-all border border-rose-100 shadow-sm"
                >
                  <Ban className="w-4 h-4" />
                  Parar Checagem
