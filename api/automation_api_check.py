@@ -21,15 +21,15 @@ async def run_api_check_for_client(client_id, task_id=None, pre_fetched_creds=No
         if not is_batch_run:
             status_emoji = "✅" if status == 'online' else "❌"
             msg = f"{status_emoji} *GAX RSUS - Checagem de API Individual*\n\nOperadora: {client_name}\nStatus: {status.upper()}\n\nDetalhes: {message}"
-            # Usa to_thread para no bloquear o event loop e passa o task_id para logs no console
-            asyncio.create_task(asyncio.to_thread(send_whatsapp_alert, msg, task_id))
+            # Envio em background (fire-and-forget) para não segurar o retorno da checagem
+            asyncio.create_task(send_whatsapp_alert(msg, task_id=task_id))
             
         return status, message, snap_url
     except Exception as e:
         status, message = "error", f"Erro inesperado: {str(e)}"
         if not is_batch_run:
             msg = f"❌ *GAX RSUS - Erro na Checagem*\n\nOperadora: {client_name}\nErro: {str(e)[:100]}"
-            asyncio.create_task(asyncio.to_thread(send_whatsapp_alert, msg, task_id))
+            asyncio.create_task(send_whatsapp_alert(msg, task_id=task_id))
         return status, message, None
 
 async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
@@ -615,8 +615,8 @@ async def run_batch_api_check(task_id=None, client_ids=None):
         falhas = total_lote - sucessos
 
         mensagem = f"🤖 *GAX RSUS - Relatório de Checagem em Lote*\n\nChecagem finalizada!\n✅ Online: {sucessos}\n❌ Falhas: {falhas}\n\nAcesse o painel para ver os detalhes."
-        # Usa to_thread e passa task_id para logs no console
-        asyncio.create_task(asyncio.to_thread(send_whatsapp_alert, mensagem, task_id))
+        # Envio em background do resumo final
+        asyncio.create_task(send_whatsapp_alert(mensagem, task_id=task_id))
             
     except Exception as e:
         import traceback
