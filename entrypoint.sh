@@ -14,7 +14,7 @@ uvicorn api.main:app --host 0.0.0.0 --port 8000 &
 # Aguarda um momento para o backend subir
 sleep 2
 
-# Inicia o Frontend Next.js na porta principal
-# O Next.js vai agir como proxy para o backend na porta 8000
-echo "Iniciando Frontend Next.js na porta $PORT..."
-exec npm start -- -p $PORT
+# Inicia o Frontend Next.js na porta principal (Standalone Mode)
+echo "Iniciando Frontend Next.js Standalone na porta $PORT..."
+export HOSTNAME="0.0.0.0"
+exec node server.js
