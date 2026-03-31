@@ -21,17 +21,20 @@ async def send_whatsapp_alert(text_message: str, task_id: str = None, target_num
 
     # Função bloqueante isolada para rodar em thread
     def _post_request(payload):
-        return requests.post(url, headers=headers, json=payload, timeout=30)
+        return requests.post(url, headers=headers, json=payload, timeout=60)
 
     for numero in target_numbers:
         payload = {"number": numero, "text": text_message}
         try:
+            start_time = asyncio.get_event_loop().time()
             # Executa o request síncrono em uma thread separada para não bloquear o loop do Playwright
             response = await asyncio.to_thread(_post_request, payload)
+            duration = asyncio.get_event_loop().time() - start_time
             
             if response.status_code in [200, 201]:
-                logger.info(f"WhatsApp enviado -> {numero}")
-                if task_id: db.add_log(task_id, f"Alerta WhatsApp enviado -> {numero}", "SUCCESS")
+                msg_ok = f"WhatsApp enviado -> {numero} (Tempo: {duration:.2f}s)"
+                logger.info(msg_ok)
+                if task_id: db.add_log(task_id, msg_ok, "SUCCESS")
             else:
                 logger.error(f"Falha WhatsApp {numero}: {response.text[:100]}")
                 if task_id: db.add_log(task_id, f"Falha WhatsApp {numero}: {response.status_code}", "WARNING")
