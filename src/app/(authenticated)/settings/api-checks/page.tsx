@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Zap, Search, Filter, CheckCircle, XCircle, Clock, Terminal, X, Info, ChevronRight, Activity, Camera, MoreHorizontal, RotateCcw, FileText, Ban } from "lucide-react";
+import { Zap, Search, Filter, CheckCircle, XCircle, Clock, Terminal, X, Info, ChevronLeft, ChevronRight, Activity, Camera, MoreHorizontal, RotateCcw, FileText, Ban } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { doc, onSnapshot, collection, query, where, orderBy, limit, getDocs, updateDoc } from "firebase/firestore";
 import { formatDistanceToNow } from "date-fns";
@@ -43,6 +43,11 @@ export default function ApiChecksPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Pagination States
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+  
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [taskLogs, setTaskLogs] = useState<TaskLog[]>([]);
@@ -324,6 +329,19 @@ export default function ApiChecksPage() {
     return matchesSearch && matchesFilter;
   });
 
+  const totalFiltered = filteredClients.length;
+  const totalPages = Math.ceil(totalFiltered / itemsPerPage);
+
+  const paginatedClients = filteredClients.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  // Reset to page 1 on search or filter change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterStatus]);
+
   const stats = {
     online: clients.filter(c => c.api_status === 'online').length,
     offline: clients.filter(c => c.api_status === 'offline').length,
@@ -558,9 +576,9 @@ export default function ApiChecksPage() {
             <tbody className="divide-y divide-slate-100">
               {isLoading ? (
                 <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-400 italic">Carregando painel de monitoramento...</td></tr>
-              ) : filteredClients.length === 0 ? (
+              ) : paginatedClients.length === 0 ? (
                 <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-400">Nenhum registro para o filtro selecionado.</td></tr>
-              ) : filteredClients.map((client) => (
+              ) : paginatedClients.map((client) => (
                 <tr key={client.id} className="hover:bg-blue-50/30 transition-colors group">
                   <td className="px-6 py-4">
                     <div className="flex flex-col">
@@ -637,6 +655,50 @@ export default function ApiChecksPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Controles de Paginação (Logs Reference Style) */}
+        {!isLoading && totalPages > 1 && (
+          <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/30 px-6 py-4">
+            <span className="text-xs font-medium text-slate-500">
+              Mostrando {(currentPage - 1) * itemsPerPage + 1} a {Math.min(currentPage * itemsPerPage, totalFiltered)} de {totalFiltered} clientes
+            </span>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => setCurrentPage(1)}
+                disabled={currentPage === 1}
+                className="px-4 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all font-sans focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
+              >
+                Primeira
+              </button>
+              <button 
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
+                aria-label="Anterior"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <span className="text-xs font-bold text-slate-700 px-2">
+                {currentPage} / {totalPages || 1}
+              </span>
+              <button 
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages || totalFiltered === 0}
+                className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
+                aria-label="Próxima"
+              >
+                <ChevronRight size={16} />
+              </button>
+              <button 
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={currentPage === totalPages || totalPages === 0}
+                className="px-4 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all font-sans focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
+              >
+                Última
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* DETAILED LOG MODAL */}

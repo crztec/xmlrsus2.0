@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Users, Shield, Mail, Trash2, Edit2, Loader2, CheckCircle, XCircle } from "lucide-react";
+import { Users, Shield, Mail, Trash2, Edit2, Loader2, CheckCircle, XCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface User {
@@ -19,6 +19,10 @@ export default function UsersPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
+  
+  // Pagination States
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 8;
 
   const fetchUsers = async () => {
     setIsLoading(true);
@@ -41,6 +45,14 @@ export default function UsersPage() {
     }
     fetchUsers();
   }, []);
+
+  const totalUsers = users.length;
+  const totalPages = Math.ceil(totalUsers / itemsPerPage);
+  const paginatedUsers = users.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [users.length]);
 
   const handleApprove = async (email: string) => {
     if (confirm(`Aprovar o usuário ${email}?`)) {
@@ -103,7 +115,7 @@ export default function UsersPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100/50">
-            {users.map((user) => (
+            {paginatedUsers.map((user) => (
               <tr key={user.email} className="hover:bg-white transition-colors group">
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-3">
@@ -161,6 +173,50 @@ export default function UsersPage() {
             ))}
           </tbody>
         </table>
+
+        {/* Controles de Paginação (Logs Reference Style) */}
+        {!isLoading && totalPages > 1 && (
+          <div className="flex items-center justify-between border-t border-slate-100 bg-white/50 px-6 py-4">
+            <span className="text-xs font-medium text-slate-500">
+              Mostrando {(currentPage - 1) * itemsPerPage + 1} a {Math.min(currentPage * itemsPerPage, totalUsers)} de {totalUsers} usuários
+            </span>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => setCurrentPage(1)}
+                disabled={currentPage === 1}
+                className="px-4 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all font-sans focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
+              >
+                Primeira
+              </button>
+              <button 
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
+                aria-label="Anterior"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <span className="text-xs font-bold text-slate-700 px-2">
+                {currentPage} / {totalPages || 1}
+              </span>
+              <button 
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages || totalUsers === 0}
+                className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
+                aria-label="Próxima"
+              >
+                <ChevronRight size={16} />
+              </button>
+              <button 
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={currentPage === totalPages || totalPages === 0}
+                className="px-4 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all font-sans focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
+              >
+                Última
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Modal de Edição */}

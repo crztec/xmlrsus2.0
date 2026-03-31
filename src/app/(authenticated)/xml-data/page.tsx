@@ -296,9 +296,9 @@ export default function XmlDataPage() {
               </table>
 
               {totalPages > 1 && (
-                <div className="flex items-center justify-between border-t border-slate-50 bg-slate-50/30 px-6 py-4">
-                  <span className="text-xs text-slate-500 font-medium" aria-live="polite">
-                    Mostrando {paginatedData.length} de {filteredData.length} registros (ABI/Arquivo)
+                <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/30 px-6 py-4">
+                  <span className="text-xs font-medium text-slate-500">
+                    Mostrando {(currentPage - 1) * itemsPerPage + 1} a {Math.min(currentPage * itemsPerPage, totalXmls)} de {totalXmls} registros
                   </span>
                   <div className="flex items-center gap-2">
                     <button 
@@ -312,7 +312,7 @@ export default function XmlDataPage() {
                       onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                       disabled={currentPage === 1}
                       className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
-                      aria-label="Página anterior"
+                      aria-label="Anterior"
                     >
                       <ChevronLeft size={16} />
                     </button>
@@ -321,9 +321,9 @@ export default function XmlDataPage() {
                     </span>
                     <button 
                       onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                      disabled={currentPage === totalPages || filteredData.length === 0}
+                      disabled={currentPage === totalPages || totalXmls === 0}
                       className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
-                      aria-label="Próxima página"
+                      aria-label="Próxima"
                     >
                       <ChevronRight size={16} />
                     </button>
@@ -413,16 +413,15 @@ export default function XmlDataPage() {
                   </div>
 
                   {totalModalPages > 1 && (
-                    <div className="flex items-center justify-between border-t border-slate-50 bg-slate-50/20 px-4 py-3">
-                      <span className="text-[10px] text-slate-500 font-medium">
-                        Pagina {modalPage} de {totalModalPages} ({fileDetails.length} itens)
+                    <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/20 px-4 py-3">
+                      <span className="text-[10px] font-medium text-slate-500">
+                        Mostrando {(modalPage - 1) * modalItemsPerPage + 1} a {Math.min(modalPage * modalItemsPerPage, fileDetails.length)} de {fileDetails.length} itens
                       </span>
                       <div className="flex items-center gap-2">
                         <button 
                           onClick={() => setModalPage(1)}
                           disabled={modalPage === 1}
-                          className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-[10px] font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
-                          title="Primeira página"
+                          className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-[10px] font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all font-sans focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
                         >
                           Primeira
                         </button>
@@ -434,7 +433,7 @@ export default function XmlDataPage() {
                         >
                           <ChevronLeft size={14} />
                         </button>
-                        <span className="text-[10px] font-bold text-slate-700 px-2 leading-none">
+                        <span className="text-[10px] font-bold text-slate-700 px-2">
                           {modalPage} / {totalModalPages || 1}
                         </span>
                         <button 
@@ -448,8 +447,7 @@ export default function XmlDataPage() {
                         <button 
                           onClick={() => setModalPage(totalModalPages)}
                           disabled={modalPage === totalModalPages || totalModalPages === 0}
-                          className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-[10px] font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
-                          title="Última página"
+                          className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-[10px] font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all font-sans focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
                         >
                           Última
                         </button>
