@@ -10,9 +10,9 @@ async def send_whatsapp_alert(text_message: str, task_id: str = None, target_num
     url = "https://evolution-api-gax-472418735916.us-central1.run.app/message/sendText/GaxBot"
     api_key = "92367wC!"
     
-    # Se nenhum número for passado, usa o padrão do admin (SEM o 9º dígito para DDD 27)
+    # Se nenhum número for passado, usa o padrão do admin (COM o 9º dígito para DDD 27)
     if not target_numbers:
-        target_numbers = ["552797629236"]
+        target_numbers = ["5527997629236"]
         
     headers = {"apikey": api_key, "Content-Type": "application/json"}
     
@@ -36,8 +36,9 @@ async def send_whatsapp_alert(text_message: str, task_id: str = None, target_num
                 logger.info(msg_ok)
                 if task_id: db.add_log(task_id, msg_ok, "SUCCESS")
             else:
-                logger.error(f"Falha WhatsApp {numero}: {response.text[:100]}")
-                if task_id: db.add_log(task_id, f"Falha WhatsApp {numero}: {response.status_code}", "WARNING")
+                msg_bad = f"Erro {response.status_code} Evolution: {response.text}"
+                logger.error(msg_bad)
+                if task_id: db.add_log(task_id, msg_bad, "WARNING")
         except Exception as e:
             logger.error(f"Erro WhatsApp para {numero}: {str(e)}")
             if task_id: db.add_log(task_id, f"Erro WhatsApp {numero}: {str(e)}", "ERROR")
