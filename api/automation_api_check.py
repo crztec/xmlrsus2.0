@@ -253,7 +253,7 @@ async def run_api_check_for_client(client_id, task_id=None, pre_fetched_creds=No
                 jump_triggered = False
                 
                 for i in range(12): # Total de 60s (5s * 12)
-                    if await click_in_frames('.fa-bars, button.dropdown-toggle'):
+                    if await click_in_frames("tr:has-text('Importado') .fa-bars, tr:has-text('Importado') button.dropdown-toggle"):
                         found_bars = True
                         break
                     
@@ -334,7 +334,7 @@ async def run_api_check_for_client(client_id, task_id=None, pre_fetched_creds=No
                         await page.wait_for_load_state("domcontentloaded", timeout=10000)
                     except: pass
                     await asyncio.sleep(3)
-                    if await click_in_frames('.fa-bars, button.dropdown-toggle'):
+                    if await click_in_frames("tr:has-text('Importado') .fa-bars, tr:has-text('Importado') button.dropdown-toggle"):
                         log_task("Grid encontrada após recarga da página.")
                         found_bars = True
                 
