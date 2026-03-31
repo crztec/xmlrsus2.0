@@ -20,12 +20,23 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+interface Client {
+  id: string;
+  name: string;
+  cnpj: string;
+  registro_ans?: string;
+  endereco?: string;
+  url_sistema?: string;
+  total_abis?: number;
+  ultima_importacao?: string;
+}
+
 export default function ClientsPage() {
   const [searchTerm, setSearchTerm] = useState("");
-  const [clients, setClients] = useState<any[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editingClient, setEditingClient] = useState<any | null>(null);
+  const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -132,7 +143,7 @@ export default function ClientsPage() {
   };
 
   // Filtro local instantâneo
-  const filteredClients = clients.filter((client: any) => 
+  const filteredClients = clients.filter((client: Client) => 
     (client.name && client.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
     (client.cnpj && client.cnpj.includes(searchTerm))
   );
@@ -200,7 +211,7 @@ export default function ClientsPage() {
         </div>
       ) : viewMode === "grid" ? (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
-          {paginatedClients.map((client, idx) => (
+          {paginatedClients.map((client: Client, idx: number) => (
             <div 
               key={client.id} 
               className="group relative flex flex-col rounded-3xl border border-slate-200/60 bg-white/70 p-6 shadow-sm backdrop-blur-sm transition-all hover:border-gax-blue/30 hover:shadow-xl hover:shadow-slate-200/50 animate-in fade-in slide-in-from-bottom-4 duration-500"
@@ -296,7 +307,7 @@ export default function ClientsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {paginatedClients.map((client, idx) => (
+                {paginatedClients.map((client: Client, idx: number) => (
                   <tr key={client.id} className="group hover:bg-gax-blue/[0.02] transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
@@ -440,7 +451,7 @@ export default function ClientsPage() {
                   id="client-name"
                   type="text" 
                   value={formData.name}
-                  onChange={(e) => setFormData({...formData, name: e.target.value})}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({...formData, name: e.target.value})}
                   className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-xs outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all font-sans text-slate-700 font-bold"
                   placeholder="Nome da Operadora"
                   required
@@ -453,7 +464,7 @@ export default function ClientsPage() {
                   id="client-cnpj"
                   type="text" 
                   value={formData.cnpj}
-                  onChange={(e) => setFormData({...formData, cnpj: formatCNPJ(e.target.value)})}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({...formData, cnpj: formatCNPJ(e.target.value)})}
                   className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-xs outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all font-sans text-slate-700 font-medium"
                   placeholder="00.000.000/0000-00"
                 />
@@ -465,7 +476,7 @@ export default function ClientsPage() {
                   id="client-ans"
                   type="text" 
                   value={formData.registro_ans}
-                  onChange={(e) => setFormData({...formData, registro_ans: formatANS(e.target.value)})}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({...formData, registro_ans: formatANS(e.target.value)})}
                   className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-xs outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all font-sans text-slate-700 font-medium"
                   placeholder="Ex: 123456 (Somente números)"
                 />
@@ -476,7 +487,7 @@ export default function ClientsPage() {
                 <textarea 
                   id="client-endereco"
                   value={formData.endereco}
-                  onChange={(e) => setFormData({...formData, endereco: e.target.value})}
+                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setFormData({...formData, endereco: e.target.value})}
                   className="w-full min-h-[80px] rounded-xl border border-slate-200 px-4 py-2.5 text-xs outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all font-sans text-slate-700 font-medium"
                   placeholder="Rua, Número, Bairro, Cidade - UF"
                 />
@@ -488,7 +499,7 @@ export default function ClientsPage() {
                   id="client-url"
                   type="url" 
                   value={formData.url_sistema}
-                  onChange={(e) => setFormData({...formData, url_sistema: e.target.value})}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({...formData, url_sistema: e.target.value})}
                   className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-xs outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all font-sans text-slate-700 font-medium italic text-gax-blue"
                   placeholder="https://exemplo.cubeti.com.br"
                 />
