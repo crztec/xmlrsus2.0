@@ -46,6 +46,10 @@ export default function XmlDataPage() {
 
   const [totalXmls, setTotalXmls] = useState(0);
 
+  // Pagination State for Client Selection
+  const [clientPage, setClientPage] = useState(1);
+  const clientsPerPage = 9;
+
   useEffect(() => {
     const fetchData = async () => {
       // 1. TELA INICIAL (Sem cliente): Busca a lista de clientes apenas UMA VEZ e para por aqui.
@@ -115,6 +119,13 @@ export default function XmlDataPage() {
     (c.cnpj && c.cnpj.includes(searchTerm))
   );
 
+  const totalClientsPages = Math.ceil(filteredClients.length / clientsPerPage);
+  const paginatedClients = filteredClients.slice((clientPage - 1) * clientsPerPage, clientPage * clientsPerPage);
+
+  useEffect(() => {
+    setClientPage(1);
+  }, [searchTerm]);
+
   // Filter XML data for the selected client
   const filteredData = xmlData; // Agora filtrado no servidor
 
@@ -153,7 +164,7 @@ export default function XmlDataPage() {
         </div>
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 animate-in fade-in slide-in-from-bottom-4 duration-700">
-        {filteredClients.map((client, idx) => (
+        {paginatedClients.map((client, idx) => (
           <button
             key={client.id}
             onClick={() => {
@@ -179,6 +190,49 @@ export default function XmlDataPage() {
           </button>
         ))}
       </div>
+
+      {totalClientsPages > 1 && (
+        <div className="flex items-center justify-between border-t border-slate-100 bg-white/50 px-6 py-4 rounded-3xl shadow-sm">
+          <span className="text-xs font-medium text-slate-500">
+            Mostrando {(clientPage - 1) * clientsPerPage + 1} a {Math.min(clientPage * clientsPerPage, filteredClients.length)} de {filteredClients.length} clientes
+          </span>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setClientPage(1)}
+              disabled={clientPage === 1}
+              className="px-4 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all font-sans focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
+            >
+              Primeira
+            </button>
+            <button 
+              onClick={() => setClientPage(prev => Math.max(prev - 1, 1))}
+              disabled={clientPage === 1}
+              className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
+              aria-label="Anterior"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <span className="text-xs font-bold text-slate-700 px-2">
+              {clientPage} / {totalClientsPages || 1}
+            </span>
+            <button 
+              onClick={() => setClientPage(prev => Math.min(prev + 1, totalClientsPages))}
+              disabled={clientPage === totalClientsPages || filteredClients.length === 0}
+              className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
+              aria-label="Próxima"
+            >
+              <ChevronRight size={16} />
+            </button>
+            <button 
+              onClick={() => setClientPage(totalClientsPages)}
+              disabled={clientPage === totalClientsPages || totalClientsPages === 0}
+              className="px-4 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all font-sans focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
+            >
+              Última
+            </button>
+          </div>
+        </div>
+      )}
       </div>
     );
   }
