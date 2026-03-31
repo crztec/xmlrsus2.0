@@ -490,10 +490,16 @@ async def run_api_check_for_client(client_id, task_id=None, pre_fetched_creds=No
                 await browser.close()
             except: pass
 
-async def run_batch_api_check(task_id=None):
-    """Executa a checagem para todos os clientes ativos com atualização de progresso."""
+async def run_batch_api_check(task_id=None, client_ids=None):
+    """Executa a checagem para todos ou alguns clientes ativos com atualização de progresso."""
     try:
-        clients = db.get_all_clients()
+        if client_ids:
+            # Busca apenas os clientes selecionados
+            clients = [db.get_client_config(cid) for cid in client_ids]
+            # Filtra eventuais nulos caso um ID não exista
+            clients = [c for c in clients if c]
+        else:
+            clients = db.get_all_clients()
         
         # Proteção contra retorno nulo do banco
         if clients is None:

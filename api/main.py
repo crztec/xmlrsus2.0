@@ -1446,11 +1446,17 @@ async def route_update_profile(
     raise HTTPException(status_code=500, detail="Erro desconhecido ao atualizar perfil.")
 
 # --- API MONITORING ENDPOINTS ---
+from pydantic import BaseModel
+
+class BatchCheckRequest(BaseModel):
+    client_ids: Optional[List[str]] = None
+
 @app.post("/check-integrations")
-async def route_run_batch_api_check(background_tasks: BackgroundTasks):
-    """Dispara a checagem de API para todos os clientes."""
-    task_id = db.create_task(task_type="batch_api_check", description="Checagem geral de APIs RSUS")
-    background_tasks.add_task(run_batch_api_check, task_id)
+async def route_run_batch_api_check(request: BatchCheckRequest, background_tasks: BackgroundTasks):
+    """Dispara a checagem de API para todos ou alguns clientes específicos."""
+    desc = "Checagem geral de APIs RSUS" if not request.client_ids else f"Checagem parcial ({len(request.client_ids)} clientes)"
+    task_id = db.create_task(task_type="batch_api_check", description=desc)
+    background_tasks.add_task(run_batch_api_check, task_id, request.client_ids)
     return {"status": "success", "task_id": task_id}
 
 @app.post("/check-integration/{client_id}")
