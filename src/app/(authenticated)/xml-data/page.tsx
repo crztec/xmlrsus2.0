@@ -48,17 +48,24 @@ export default function XmlDataPage() {
 
   useEffect(() => {
     const fetchData = async () => {
-      setIsLoading(true);
+      // Seta loading total apenas na primeira carga ou quando troca de cliente
+      const isInitialOrClientChange = !selectedClient || (selectedClient && xmlData.length === 0);
+      if (isInitialOrClientChange) setIsLoading(true);
+
       try {
         const [xmlRes, clientRes] = await Promise.all([
           fetch(`/api/xml-data?page=${currentPage}&limit=${itemsPerPage}&search=${encodeURIComponent(searchTerm)}`),
-          fetch("/api/clients?limit=100") // Limita busca de clientes para o seletor inicial
+          fetch("/api/clients?limit=100") // Carrega clientes básicos uma vez
         ]);
         const xmls = await xmlRes.json();
         const cls = await clientRes.json();
         setXmlData(xmls.xml_data || []);
         setTotalXmls(xmls.total || 0);
-        setClients(cls.clients || []);
+        
+        // Só atualiza a lista de clientes se ela estiver vazia (evita flicker na busca local)
+        if (clients.length === 0) {
+          setClients(cls.clients || []);
+        }
       } catch (error) {
         console.error("Erro ao carregar dados:", error);
       } finally {
@@ -93,8 +100,11 @@ export default function XmlDataPage() {
     }
   };
 
-  // Filter clients for the selection screen
-  const filteredClients = clients; // Agora filtrado no servidor
+  // Filter clients locally for better UX (no flicker)
+  const filteredClients = clients.filter((c: any) => 
+    c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    (c.cnpj && c.cnpj.includes(searchTerm))
+  );
 
   // Filter XML data for the selected client
   const filteredData = xmlData; // Agora filtrado no servidor
