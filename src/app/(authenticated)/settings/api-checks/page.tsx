@@ -584,7 +584,7 @@ export default function ApiChecksPage() {
                                  <FileText className="w-4 h-4" /> Visualizar Log
                               </button>
                             )}
-                           {client.api_last_screenshot_url && (
+                           {(client.api_status === 'error' || client.api_status === 'offline') && client.api_last_screenshot_url && (
                              <button 
                                onClick={() => { setSelectedScreenshot(client.api_last_screenshot_url!); setOpenMenuId(null); }}
                                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-blue-600 hover:text-white transition-colors border-t border-slate-50"
