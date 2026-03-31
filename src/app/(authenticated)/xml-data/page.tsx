@@ -48,30 +48,39 @@ export default function XmlDataPage() {
 
   useEffect(() => {
     const fetchData = async () => {
-      // Seta loading total apenas na primeira carga ou quando troca de cliente
-      const isInitialOrClientChange = !selectedClient || (selectedClient && xmlData.length === 0);
-      if (isInitialOrClientChange) setIsLoading(true);
+      // 1. TELA INICIAL (Sem cliente): Busca a lista de clientes apenas UMA VEZ e para por aqui.
+      // Isso impede que o searchTerm dispare fetches e loading global a cada letra digitada.
+      if (!selectedClient) {
+        if (clients.length === 0) {
+          setIsLoading(true);
+          try {
+            const clientRes = await fetch("/api/clients?limit=100");
+            const cls = await clientRes.json();
+            setClients(cls.clients || []);
+          } catch (error) {
+            console.error("Erro ao carregar clientes:", error);
+          } finally {
+            setIsLoading(false);
+          }
+        }
+        return; // Interrompe a execução para não buscar XMLs
+      }
 
+      // 2. TELA INTERNA (Com cliente selecionado): Busca os XMLs apenas desse cliente
+      setIsLoading(true);
       try {
-        const [xmlRes, clientRes] = await Promise.all([
-          fetch(`/api/xml-data?page=${currentPage}&limit=${itemsPerPage}&search=${encodeURIComponent(searchTerm)}`),
-          fetch("/api/clients?limit=100") // Carrega clientes básicos uma vez
-        ]);
+        // Adicionando o parâmetro client na URL para garantir que o backend filtre corretamente
+        const xmlRes = await fetch(`/api/xml-data?page=${currentPage}&limit=${itemsPerPage}&search=${encodeURIComponent(searchTerm)}&client=${encodeURIComponent(selectedClient)}`);
         const xmls = await xmlRes.json();
-        const cls = await clientRes.json();
         setXmlData(xmls.xml_data || []);
         setTotalXmls(xmls.total || 0);
-        
-        // Só atualiza a lista de clientes se ela estiver vazia (evita flicker na busca local)
-        if (clients.length === 0) {
-          setClients(cls.clients || []);
-        }
       } catch (error) {
-        console.error("Erro ao carregar dados:", error);
+        console.error("Erro ao carregar dados XML:", error);
       } finally {
         setIsLoading(false);
       }
     };
+
     fetchData();
   }, [currentPage, searchTerm, selectedClient]);
 
