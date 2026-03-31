@@ -826,20 +826,33 @@ def get_pending_task():
         return task_data
     return None
 
-def get_tasks_for_dashboard(limit=50, task_type=None):
+def get_tasks_for_dashboard(limit=50, task_type=None, exclude_api_checks=False):
     query = firestore_db.collection('tasks').order_by('created_at', direction=firestore.Query.DESCENDING)
     
     if task_type:
         query = query.where('type', '==', task_type)
         
-    docs = query.limit(limit).stream()
+    api_check_types = ['batch_api_check', 'single_api_check', 'api_check_batch', 'api_check_single']
+    
+    docs = query.stream()
     tasks = []
+    
     for doc in docs:
-        task_data = {**doc.to_dict(), 'id': doc.id}
+        task_dict = doc.to_dict()
+        
+        # Filtra tipos de checagem de API no backend para não prejudicar o limit(50)
+        if exclude_api_checks and task_dict.get('type') in api_check_types:
+            continue
+            
+        task_data = {**task_dict, 'id': doc.id}
         # Buscar arquivos desta tarefa para ver status individuais
         files = firestore_db.collection('task_files').where('task_id', '==', doc.id).stream()
         task_data['file_results'] = [{'abi': f.to_dict().get('numero_abi'), 'status': f.to_dict().get('status_importacao')} for f in files]
         tasks.append(task_data)
+        
+        if len(tasks) >= limit:
+            break
+            
     return tasks
 
 def get_files_for_task(task_id):

@@ -26,7 +26,7 @@ export default function LogsPage() {
   const fetchTasks = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/tasks?t=${Date.now()}`, { 
+      const res = await fetch(`/api/tasks?t=${Date.now()}&exclude_api=true`, { 
         cache: 'no-store', 
         headers: { 'Cache-Control': 'no-cache' } 
       });
