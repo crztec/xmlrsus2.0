@@ -101,10 +101,21 @@ async def run_api_check_for_client(client_id, task_id=None, pre_fetched_creds=No
             # Aceita dialogs automaticamente para não travar
             page.on("dialog", lambda dialog: asyncio.create_task(dialog.accept()))
             
-            # INTERCEPTOR DE RESPOSTAS PARA INJEÇÃO DE COOKIES FOI REMOVIDO PARA DESAFOGAR O EVENT LOOP
-            # A rede agora flui 100% nativa sem gargalos de inserção I/O assíncrona
-
+            async def is_cancelled():
+                if not task_id: return False
+                try:
+                    # Checagem leve de status para permitir interrupção via UI
+                    doc = db.firestore_db.collection('tasks').document(task_id).get()
+                    if doc.exists and doc.to_dict().get('status') == 'cancelled':
+                        log_task("Interrupção solicitada pelo usuário. Abortando serviço...", "WARNING")
+                        return True
+                except: pass
+                return False
             
+            if await is_cancelled():
+                if browser: await browser.close()
+                return "offline", "Tarefa cancelada pelo usuário.", None
+
             # 1. Login (idêntico ao robô de importação)
             try:
                 log_task("Realizando login no RSUS...")
@@ -199,6 +210,9 @@ async def run_api_check_for_client(client_id, task_id=None, pre_fetched_creds=No
                     return "offline", "Falha na autenticação RSUS.", None
                 
                 log_task("Login bem-sucedido. Sessão estabelecida.")
+                if await is_cancelled(): 
+                    if browser: await browser.close()
+                    return "offline", "Tarefa cancelada pelo usuário.", None
             except Exception as e:
                 log_task(f"Erro no login: {str(e)}", "ERROR")
                 return "offline", "Erro ao acessar portal RSUS.", None
@@ -206,6 +220,9 @@ async def run_api_check_for_client(client_id, task_id=None, pre_fetched_creds=No
             # 2. Navegação para Atendimentos através da lista de ABIs (Hambúrguer Direito)
             try:
                 log_task("Localizando ABI e abrindo menu hambúrguer...")
+                if await is_cancelled(): 
+                    if browser: await browser.close()
+                    return "offline", "Tarefa cancelada pelo usuário.", None
                 
                 # REFINAMENTO FINAL: Removemos esperas globais por domcontentloaded/networkidle
                 # Iniciamos polling ativo pelos elementos da grid IMEDIATAMENTE.
@@ -385,6 +402,9 @@ async def run_api_check_for_client(client_id, task_id=None, pre_fetched_creds=No
             # 3. Navegação para Beneficiário (Novo hambúrguer na tela de atendimentos)
             try:
                 log_task("Na tela de Atendimentos. Abrindo menu do beneficiário...")
+                if await is_cancelled(): 
+                    if browser: await browser.close()
+                    return "offline", "Tarefa cancelada pelo usuário.", None
                 found_bars_benef = False
                 for _ in range(5):
                     if await click_in_frames('.fa-bars, button.dropdown-toggle'):
@@ -424,6 +444,9 @@ async def run_api_check_for_client(client_id, task_id=None, pre_fetched_creds=No
             # 4. Ação de Atualização e Verificação Final
             try:
                 log_task("Modal de Beneficiário aberta. Rolando e atualizando...")
+                if await is_cancelled(): 
+                    if browser: await browser.close()
+                    return "offline", "Tarefa cancelada pelo usuário.", None
                 
                 found_update = False
                 for _ in range(5):
