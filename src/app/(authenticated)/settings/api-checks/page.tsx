@@ -294,22 +294,27 @@ export default function ApiChecksPage() {
 
   const handleViewGlobalLog = async () => {
     try {
+      // Busca os últimos 30 registros sem filtro de tipo para evitar erro de índice composto no Firebase
       const q = query(
         collection(db, "tasks"), 
-        where("type", "in", ["batch_api_check", "api_check_batch"]),
         orderBy("created_at", "desc"),
-        limit(1)
+        limit(30)
       );
+      
       const querySnapshot = await getDocs(q);
-      if (querySnapshot.empty) {
-        alert("Nenhum log de execução em lote encontrado.");
-        return;
+      const tasks = querySnapshot.docs.map((d: any) => ({ id: d.id, ...d.data() } as any));
+      
+      // Filtra no frontend o último lote (batch) de qualquer variação de nome
+      const lastBatch = tasks.find((t: any) => t.type === "batch_api_check" || t.type === "api_check_batch");
+      
+      if (lastBatch) {
+        openPastLogs(lastBatch.id, "Log Completo do Sistema"); // Abre sem filtro por cliente
+      } else {
+        alert("Nenhum histórico de lote encontrado recentemente (nas últimas 30 tarefas).");
       }
-      const latestTask = querySnapshot.docs[0];
-      openPastLogs(latestTask.id, "Log Geral do Sistema", undefined);
     } catch (error) {
       console.error("Erro ao buscar último log:", error);
-      alert("Erro ao buscar histórico global.");
+      alert("Erro ao buscar histórico.");
     }
   };
 
