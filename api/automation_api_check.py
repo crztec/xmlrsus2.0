@@ -15,7 +15,7 @@ async def run_api_check_for_client(client_id, task_id=None, pre_fetched_creds=No
     """
     client = db.get_client_config(client_id)
     if not client:
-        return "error", "Cliente não encontrado."
+        return "error", "Cliente não encontrado.", None
         
     url_sistema = client.get('url_sistema')
     client_name = client.get('name', client_id)
@@ -27,7 +27,7 @@ async def run_api_check_for_client(client_id, task_id=None, pre_fetched_creds=No
         logger.info(full_msg)
 
     if not url_sistema:
-        return "offline", "URL não configurada."
+        return "offline", "URL não configurada.", None
 
     # Otimização de inicialização simultânea: Credenciais + Cold Start do Browser
     cred_type = "unimed_vitoria" if "vitoria" in url_sistema.lower() else "general"
@@ -68,7 +68,7 @@ async def run_api_check_for_client(client_id, task_id=None, pre_fetched_creds=No
                 msg_erro = f"Credenciais '{cred_type}' não encontradas no sistema. Acesse Configurações > Credenciais RSUS."
                 log_task(msg_erro, "ERROR")
                 if browser: await browser.close()
-                return "offline", msg_erro
+                return "offline", msg_erro, None
 
             usuario = creds['username']
             senha = creds['password']
@@ -191,17 +191,17 @@ async def run_api_check_for_client(client_id, task_id=None, pre_fetched_creds=No
                 if login_error and ("Account/Login" in page.url):
                     msg_fail = f"Falha na autenticação RSUS: mensagem de erro detectada ('{login_error}')."
                     log_task(msg_fail, "ERROR")
-                    return "offline", msg_fail
+                    return "offline", msg_fail, None
 
                 # Se ainda está na tela de login sem sessão detectada, falhou
                 if "Account/Login" in page.url and not has_session:
                     log_task("Falha no login: ainda na tela de login sem sessão válida.", "ERROR")
-                    return "offline", "Falha na autenticação RSUS."
+                    return "offline", "Falha na autenticação RSUS.", None
                 
                 log_task("Login bem-sucedido. Sessão estabelecida.")
             except Exception as e:
                 log_task(f"Erro no login: {str(e)}", "ERROR")
-                return "offline", "Erro ao acessar portal RSUS."
+                return "offline", "Erro ao acessar portal RSUS.", None
 
             # 2. Navegação para Atendimentos através da lista de ABIs (Hambúrguer Direito)
             try:
@@ -380,8 +380,7 @@ async def run_api_check_for_client(client_id, task_id=None, pre_fetched_creds=No
                     log_task(f"Erro ao capturar screenshot: {str(e_shot)}", "WARNING")
 
                 log_task(f"Erro de navegação (Atendimentos): {str(e)}", "ERROR")
-                db.update_client_api_status(client_id, "error", f"Erro: {str(e)[:40]}", task_id, screenshot_url)
-                return "error", f"Falha na navegação: {str(e)[:50]}"
+                return "error", f"Falha na navegação: {str(e)[:50]}", screenshot_url
 
             # 3. Navegação para Beneficiário (Novo hambúrguer na tela de atendimentos)
             try:
@@ -420,8 +419,7 @@ async def run_api_check_for_client(client_id, task_id=None, pre_fetched_creds=No
                 except: pass
 
                 log_task(f"Erro ao abrir beneficiário: {str(e)}", "ERROR")
-                db.update_client_api_status(client_id, "error", f"Erro Beneficiário: {str(e)[:40]}", task_id, screenshot_url)
-                return "error", f"Erro no Beneficiário: {str(e)[:50]}"
+                return "error", f"Erro no Beneficiário: {str(e)[:50]}", screenshot_url
 
             # 4. Ação de Atualização e Verificação Final
             try:
@@ -466,18 +464,18 @@ async def run_api_check_for_client(client_id, task_id=None, pre_fetched_creds=No
                 
                 if any(k in all_text for k in success_keywords):
                     log_task("Mensagem de sucesso detectada: API configurada no RSUS está ATIVA.", "SUCCESS")
-                    return "online", "Conexão RSUS Ativa e funcional."
+                    return "online", "Conexão RSUS Ativa e funcional.", None
                 elif any(k in all_text for k in error_keywords):
                     log_task("Mensagem de erro detectada no portal após clique em Atualizar.", "WARNING")
-                    return "offline", "Portal retornou erro na atualização (Offline)."
+                    return "offline", "Portal retornou erro na atualização (Offline).", None
                 
                 # Fallback: se clicou e não deu erro explícito, assumimos online
                 log_task("Portal processou sem erro explícito. Assumindo conexão ATIVA.", "SUCCESS")
-                return "online", "Conexão operacional (sem erro reportado)."
+                return "online", "Conexão operacional (sem erro reportado).", None
                 
             except Exception as e:
                 log_task(f"Erro na etapa final: {str(e)}", "ERROR")
-                return "error", f"Erro no formulário final: {str(e)[:50]}"
+                return "error", f"Erro no formulário final: {str(e)[:50]}", None
 
     except Exception as e:
         import traceback
@@ -485,7 +483,7 @@ async def run_api_check_for_client(client_id, task_id=None, pre_fetched_creds=No
         log_task(f"Erro inesperado: {str(e)}", "ERROR")
         if task_id:
             db.add_log(task_id, f"TRACEBACK: {error_detail}", "ERROR")
-        return "error", f"Erro técnico: {str(e)}"
+        return "error", f"Erro técnico: {str(e)}", None
     finally:
         if browser:
             try:
@@ -541,9 +539,9 @@ async def run_batch_api_check(task_id=None):
             try:
                 # Injeta a credencial pertinente via cache local em memória
                 target_creds = creds_vitoria if "vitoria" in client.get('url_sistema', '').lower() else creds_general
-                status, message = await run_api_check_for_client(client['id'], task_id=task_id, pre_fetched_creds=target_creds)
+                status, message, snap_url = await run_api_check_for_client(client['id'], task_id=task_id, pre_fetched_creds=target_creds)
                 # O status já é atualizado dentro de run_api_check_for_client, mas aqui garantimos o vínculo final
-                db.update_client_api_status(client['id'], status, message, task_id=task_id)
+                db.update_client_api_status(client['id'], status, message, task_id=task_id, screenshot_url=snap_url)
             except Exception as e:
                 logger.error(f"Erro ao checar cliente {client.get('id')}: {e}")
                 if task_id:
@@ -576,8 +574,8 @@ async def run_single_api_check(client_id, task_id=None):
             })
             db.add_log(task_id, f"Iniciando checagem individual: {client_name}", "INFO")
         
-        status, message = await run_api_check_for_client(client_id, task_id=task_id)
-        db.update_client_api_status(client_id, status, message, task_id=task_id)
+        status, message, snap_url = await run_api_check_for_client(client_id, task_id=task_id)
+        db.update_client_api_status(client_id, status, message, task_id=task_id, screenshot_url=snap_url)
         
         if task_id:
             db.update_task(task_id, {
