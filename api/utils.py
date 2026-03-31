@@ -21,7 +21,7 @@ async def send_whatsapp_alert(text_message: str, task_id: str = None, target_num
 
     # Função bloqueante isolada para rodar em thread
     def _post_request(payload):
-        return requests.post(url, headers=headers, json=payload, timeout=12)
+        return requests.post(url, headers=headers, json=payload, timeout=30)
 
     for numero in target_numbers:
         payload = {"number": numero, "text": text_message}
@@ -37,4 +37,4 @@ async def send_whatsapp_alert(text_message: str, task_id: str = None, target_num
                 if task_id: db.add_log(task_id, f"Falha WhatsApp {numero}: {response.status_code}", "WARNING")
         except Exception as e:
             logger.error(f"Erro WhatsApp para {numero}: {str(e)}")
-            if task_id: db.add_log(task_id, f"Erro WhatsApp {numero}: Timeout ou Falha Crítica", "ERROR")
+            if task_id: db.add_log(task_id, f"Erro WhatsApp {numero}: {str(e)}", "ERROR")
