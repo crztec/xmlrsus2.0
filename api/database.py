@@ -375,6 +375,9 @@ def get_client_config(client_id):
     if doc.exists:
         data = doc.to_dict()
         data['id'] = doc.id
+        # Garante campo 'name' consistente para logs e UI
+        if 'name' not in data:
+            data['name'] = data.get('razao_social') or doc.id
         return data
     return None
 
