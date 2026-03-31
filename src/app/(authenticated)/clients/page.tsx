@@ -45,11 +45,9 @@ export default function ClientsPage() {
   const fetchClients = async () => {
     setIsLoading(true);
     try {
-      // Debounce ou busca direta no servidor
-      const res = await fetch(`/api/clients?page=${currentPage}&limit=${itemsPerPage}&search=${encodeURIComponent(searchTerm)}`);
+      const res = await fetch(`/api/clients?limit=1000`); // Busca todos de uma vez
       const data = await res.json();
       setClients(data.clients || []);
-      setTotalClients(data.total || 0);
     } catch (_err) {
       console.error("Erro ao buscar clientes:", _err);
     } finally {
@@ -64,7 +62,7 @@ export default function ClientsPage() {
       return;
     }
     fetchClients();
-  }, [currentPage, searchTerm]);
+  }, []); // Array vazio: carrega apenas na montagem
 
   const formatCNPJ = (value: string) => {
     const digits = value.replace(/\D/g, "").slice(0, 14);
@@ -131,9 +129,25 @@ export default function ClientsPage() {
     }
   };
 
-  const filteredClients = clients; // Agora filtrado no servidor
+  // Filtro local instantâneo
+  const filteredClients = clients.filter((client: any) => 
+    (client.name && client.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (client.cnpj && client.cnpj.includes(searchTerm))
+  );
 
-  const totalPages = Math.ceil(totalClients / itemsPerPage);
+  const totalFiltered = filteredClients.length;
+  const totalPages = Math.ceil(totalFiltered / itemsPerPage);
+
+  // Efeito para resetar para a página 1 ao buscar
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
+  // Paginação local
+  const paginatedClients = filteredClients.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   return (
     <div className="space-y-6">
@@ -184,7 +198,7 @@ export default function ClientsPage() {
         </div>
       ) : viewMode === "grid" ? (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
-          {filteredClients.map((client, idx) => (
+          {paginatedClients.map((client, idx) => (
             <div 
               key={client.id} 
               className="group relative flex flex-col rounded-3xl border border-slate-200/60 bg-white/70 p-6 shadow-sm backdrop-blur-sm transition-all hover:border-gax-blue/30 hover:shadow-xl hover:shadow-slate-200/50 animate-in fade-in slide-in-from-bottom-4 duration-500"
@@ -281,7 +295,7 @@ export default function ClientsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredClients.map((client, idx) => (
+                  {paginatedClients.map((client, idx) => (
                     <tr key={client.id} className="group hover:bg-gax-blue/[0.02] transition-colors">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
@@ -343,7 +357,7 @@ export default function ClientsPage() {
           {totalPages > 1 && (
             <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500">
               <span className="text-xs font-medium text-slate-500">
-                Mostrando {clients.length} de {totalClients} clientes
+                Mostrando {paginatedClients.length} de {totalFiltered} clientes
               </span>
               <div className="flex items-center gap-2">
                 <button
