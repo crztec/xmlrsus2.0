@@ -12,7 +12,7 @@ async def send_whatsapp_alert(text_message: str, task_id: str = None, target_num
     
     # Se nenhum número for passado, usa o padrão do admin (SEM o 9º dígito para DDD 27)
     if not target_numbers:
-        target_numbers = ["5527997629236"]
+        target_numbers = ["552797629236"]
         
     headers = {"apikey": api_key, "Content-Type": "application/json"}
     
