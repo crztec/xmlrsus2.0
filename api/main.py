@@ -1195,10 +1195,14 @@ async def pre_check_duplicates(
     try:
         extracted = parser.extrair_dados_xml(arquivos_upload_data)
         if extracted.empty:
-            return {"duplicates": []}
+            return {"duplicates": [], "client_exists": False, "razao_social": ""}
 
         # Assume que todos os arquivos são da mesma Razão Social (pelo fluxo do sistema)
         razao_social = parser.extract_razao_social(arquivos_upload_data[0][1])
+        
+        # Verifica se o cliente já possui URL cadastrada
+        url_sistema = db.get_last_url_for_client(razao_social)
+        client_exists = bool(url_sistema)
 
         duplicates = []
         for _, row in extracted.iterrows():
@@ -1206,18 +1210,23 @@ async def pre_check_duplicates(
             if db.check_abi_already_imported(razao_social.strip(), abi):
                 duplicates.append(abi)
 
-        return {"duplicates": duplicates, "razao_social": razao_social}
+        return {
+            "duplicates": duplicates, 
+            "razao_social": razao_social,
+            "client_exists": client_exists,
+            "url_sistema": url_sistema
+        }
     except Exception as e:
         logger.error(f"Erro no pre-check: {e}")
-        return {"duplicates": [], "error": str(e)}
+        return {"duplicates": [], "error": str(e), "client_exists": False}
 
 @app.post("/upload")
 async def upload_xmls(
     background_tasks: BackgroundTasks,
     files: List[UploadFile] = File(...),
-    url_sistema: str = Form(...),
-    usuario: str = Form(...),
-    senha: str = Form(...),
+    url_sistema: Optional[str] = Form(None),
+    usuario: Optional[str] = Form(None),
+    senha: Optional[str] = Form(None),
     gax_user_email: str = Form("Admin/Sistema"),
     force: bool = Form(False)
 ):
@@ -1231,7 +1240,18 @@ async def upload_xmls(
             return {"error": f"Arquivo {file.filename} excede o limite de 5MB."}
         arquivos_upload_data.append((file.filename, content))
 
-    # Tenta obter credenciais automáticas se não fornecidas
+    # Identifica a Razão Social do primeiro arquivo
+    razao_social = parser.extract_razao_social(arquivos_upload_data[0][1])
+    if not razao_social:
+        return {"error": "Não foi possível identificar a Razão Social no XML."}
+
+    # Se a URL não foi enviada, tenta buscar a cadastrada
+    if not url_sistema:
+        url_sistema = db.get_last_url_for_client(razao_social)
+        if not url_sistema:
+            return {"error": "URL do sistema não informada e não encontrada no cadastro."}
+
+    # Se usuário/senha não foram enviados, busca as credenciais globais
     if not usuario or not senha:
         cred_type = "unimed_vitoria" if "vitoria" in url_sistema.lower() else "general"
         stored = db.get_rsus_credentials(cred_type)
@@ -1239,14 +1259,17 @@ async def upload_xmls(
             usuario = stored.get('username', usuario)
             senha = stored.get('password', senha)
 
-    if not razao_social:
-        # Tenta identificar a Razão Social do primeiro arquivo para a tarefa
-        razao_social = parser.extract_razao_social(arquivos_upload_data[0][1])
+    if not usuario or not senha:
+        return {"error": "Credenciais RSUS não encontradas para este sistema."}
+
+    # Se for um cliente novo (sem URL salva), salva a configuração agora
+    if not db.get_last_url_for_client(razao_social):
+        db.save_client_config(razao_social, url_sistema)
 
     # NOVO: Prevenção de duplicidade (Idempotência) - Respeita o parâmetro 'force'
     if not force:
         recent_docs = db.firestore_db.collection('tasks') \
-            .order_by('created_at', direction='DESCENDING') \
+            .order_by('created_at', direction=firestore.Query.DESCENDING) \
             .limit(5).get()
 
         for doc in recent_docs:

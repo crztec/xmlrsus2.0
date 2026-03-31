@@ -50,34 +50,18 @@ export default function DashboardPage() {
   const [rsusUrl, setRsusUrl] = useState("");
   const [rsusUser, setRsusUser] = useState("");
   const [rsusPass, setRsusPass] = useState("");
-  const [rememberCreds, setRememberCreds] = useState(true);
+  const [razaoSocial, setRazaoSocial] = useState("");
+  const [clientExists, setClientExists] = useState(false);
+  const [showNewClientModal, setShowNewClientModal] = useState(false);
+  const [credentialChoice, setCredentialChoice] = useState<'general' | 'unimed_vitoria' | 'manual'>('general');
 
   // Carregar dados persistidos ao montar
   useEffect(() => {
     const savedTaskId = localStorage.getItem("activeTaskId");
     if (savedTaskId) setActiveTaskId(savedTaskId);
-
-    const savedUrl = localStorage.getItem("rsusUrl");
-    if (savedUrl) setRsusUrl(savedUrl);
   }, []);
 
-  // Novo: Busca credenciais globais quando a URL muda
-  useEffect(() => {
-    if (rsusUrl && rsusUrl.length > 10) {
-      const type = rsusUrl.toLowerCase().includes("vitoria") ? "unimed_vitoria" : "general";
-      fetch(`/api/settings/rsus-credentials?type=${type}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.username) {
-            setRsusUser(data.username);
-            setRsusPass(data.password);
-            addLog(`Credenciais '${type === 'general' ? 'Gerais' : 'Vitória'}' carregadas automaticamente.`, 'info');
-          }
-        })
-        .catch(err => console.error("Erro ao buscar credenciais automáticas:", err));
-    }
-  }, [rsusUrl]);
-
+  // Sincroniza progresso e logs via polling
   useEffect(() => {
     let interval: any;
     if (activeTaskId) {
@@ -96,7 +80,6 @@ export default function DashboardPage() {
           setProgress(data.progress);
           
           if (data.logs && data.logs.length > 0) {
-            // Limpa logs locais e sincroniza com os do servidor para evitar duplicados ou sumiço
             setLogs(data.logs.map((l: any) => ({
               status: l.level.toLowerCase() as any,
               message: l.message,
@@ -105,10 +88,11 @@ export default function DashboardPage() {
           }
 
           if (data.status === 'CONCLUIDO' || data.status === 'ERRO') {
-            // Pequeno delay para garantir que o último set de logs (com a mensagem final) foi processado
             setTimeout(() => {
               localStorage.removeItem("activeTaskId");
               setActiveTaskId(null);
+              setFiles([]);
+              setRazaoSocial("");
             }, 2000);
           }
         } catch (e) {
@@ -119,56 +103,69 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, [activeTaskId]);
 
-  const handleUpload = async (force = false) => {
+  const handlePreCheck = async () => {
     if (files.length === 0) return;
-    
-    // Se não tiver preenchido mas existir global, o backend vai tentar usar
-    if (!rsusUrl) {
-      alert("Por favor, preencha a URL do RSUS.");
-      return;
-    }
-
-    if (rememberCreds) {
-      localStorage.setItem("rsusUrl", rsusUrl);
-    }
-
-    // Se não for "force", faz o pre-check primeiro
-    if (!force) {
-      setIsChecking(true);
-      try {
-        const formDataCheck = new FormData();
-        files.forEach(f => formDataCheck.append("files", f));
+    setIsChecking(true);
+    try {
+      const formData = new FormData();
+      files.forEach(f => formData.append("files", f));
+      
+      const res = await fetch("/api/pre-check", {
+        method: "POST",
+        body: formData
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        setRazaoSocial(data.razao_social);
+        setClientExists(data.client_exists);
+        setRsusUrl(data.url_sistema || "");
+        setDuplicates(data.duplicates || []);
         
-        const resCheck = await fetch("/api/pre-check", {
-          method: "POST",
-          body: formDataCheck
-        });
-        
-        if (resCheck.ok) {
-          const dataCheck = await resCheck.json();
-          if (dataCheck.duplicates && dataCheck.duplicates.length > 0) {
-            setDuplicates(dataCheck.duplicates);
+        if (!data.client_exists) {
+          addLog(`Empresa '${data.razao_social}' não identificada. Necessário configurar.`, 'info');
+          setShowNewClientModal(true);
+        } else {
+          addLog(`Empresa '${data.razao_social}' identificada via cadastro.`, 'success');
+          if (data.duplicates?.length > 0) {
             setShowConfirmModal(true);
-            setIsChecking(false);
-            return;
           }
         }
-      } catch (e) {
-        console.error("Erro no pre-check", e);
-      } finally {
-        setIsChecking(false);
+      } else {
+        const error = await res.text();
+        addLog(`Erro na validação: ${error.substring(0, 50)}`, 'error');
       }
+    } catch (e) {
+      console.error("Erro no pre-check", e);
+      addLog("Erro de conexão durante a validação.", "error");
+    } finally {
+      setIsChecking(false);
     }
+  };
 
+  // Dispara validação automática ao selecionar arquivos
+  useEffect(() => {
+    if (files.length > 0 && !activeTaskId && !isChecking && !razaoSocial) {
+      handlePreCheck();
+    }
+  }, [files]);
+
+  const handleUpload = async (force = false) => {
     setShowConfirmModal(false);
+    setShowNewClientModal(false);
     setIsUploading(true);
-    addLog(`Iniciando upload de ${files.length} arquivos...`, 'info');
+    addLog(`Iniciando upload de ${files.length} arquivos para '${razaoSocial}'...`, 'info');
 
     const formData = new FormData();
     files.forEach(f => formData.append("files", f));
+    
+    // Se for manual, envia o que foi digitado. Se for Geral/Vitória, envia vazio para o backend buscar no BD.
+    if (credentialChoice === 'manual') {
+      formData.append("usuario", rsusUser);
+      formData.append("senha", rsusPass);
+    }
+    
     formData.append("url_sistema", rsusUrl);
-    formData.append("usuario", rsusUser);
-    formData.append("senha", rsusPass);
     formData.append("gax_user_email", localStorage.getItem("gax_user_email") || "Admin/Sistema");
     if (force) formData.append("force", "true");
 
@@ -183,17 +180,16 @@ export default function DashboardPage() {
         if (data.error) {
           addLog(data.error, "error");
         } else {
-          addLog(`Upload concluído: ${data.razao_social}`, "success");
-          addLog("Tarefa enviada para a fila do robô.", "info");
-          setFiles([]);
+          addLog(`Upload concluído com sucesso.`, "success");
+          addLog("Tarefa em processamento na fila do robô.", "info");
           setActiveTaskId(data.task_id);
         }
       } else {
         const errorText = await response.text();
-        addLog(`Erro no servidor (${response.status}): ${errorText.substring(0, 50)}...`, "error");
+        addLog(`Erro no processamento (${response.status}): ${errorText.substring(0, 50)}...`, "error");
       }
     } catch (error: any) {
-      addLog(`Erro de conexão: ${error.message || "Verifique se o backend está rodando."}`, "error");
+      addLog(`Erro de conexão: ${error.message || "Verifique o servidor."}`, "error");
     } finally {
       setIsUploading(false);
     }
@@ -204,82 +200,47 @@ export default function DashboardPage() {
       {/* Upload Section */}
       <section className="rounded-3xl border border-slate-200/60 bg-white/70 p-8 shadow-sm backdrop-blur-sm">
         <div className="mb-6 flex items-center justify-between">
-          <div className="flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-emerald-600 border border-emerald-100/50">
+          <div className={cn(
+            "flex items-center gap-2 rounded-full px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider border",
+            razaoSocial ? (clientExists ? "bg-emerald-50 text-emerald-600 border-emerald-100/50" : "bg-amber-50 text-amber-600 border-amber-100/50") : "bg-slate-50 text-slate-500 border-slate-100"
+          )}>
             <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+              <span className={cn("absolute inline-flex h-full w-full animate-ping rounded-full opacity-75", razaoSocial ? (clientExists ? "bg-emerald-400" : "bg-amber-400") : "bg-slate-400")}></span>
+              <span className={cn("relative inline-flex h-2 w-2 rounded-full", razaoSocial ? (clientExists ? "bg-emerald-500" : "bg-amber-500") : "bg-slate-500")}></span>
             </span>
-            Pre-preenchimento Automático Ativo
+            {razaoSocial ? (clientExists ? "Empresa Identificada" : "Nova Empresa Detectada") : "Aguardando Arquivos"}
           </div>
-          {files.length > 0 && (
+          {files.length > 0 && razaoSocial && (
             <button 
-              onClick={() => handleUpload(false)}
+              onClick={() => clientExists ? handleUpload(false) : setShowNewClientModal(true)}
               disabled={isUploading || isChecking}
-              className="flex items-center gap-2 rounded-xl bg-gax-blue px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-gax-blue/20 transition-all hover:bg-gax-blue-hover active:scale-95 disabled:opacity-50"
+              className={cn(
+                "flex items-center gap-2 rounded-xl px-6 py-2.5 text-sm font-bold text-white shadow-lg transition-all active:scale-95 disabled:opacity-50",
+                clientExists ? "bg-gax-blue shadow-gax-blue/20 hover:bg-gax-blue-hover" : "bg-amber-600 shadow-amber-600/20 hover:bg-amber-700"
+              )}
             >
-              {isUploading || isChecking ? <Loader2 size={18} className="animate-spin" /> : <Rocket size={18} />}
-              {isChecking ? "Validando..." : isUploading ? "Enviando..." : "Iniciar Processamento"}
+              {isUploading || isChecking ? <Loader2 size={18} className="animate-spin" /> : (clientExists ? <Rocket size={18} /> : <AlertCircle size={18} />)}
+              {isChecking ? "Validando..." : isUploading ? "Enviando..." : (clientExists ? "Iniciar Processamento" : "Configurar e Iniciar")}
             </button>
           )}
         </div>
 
-        <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-3">
-          <div className="space-y-2">
-            <label htmlFor="rsusUrlInput" className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400 ml-1">URL do Sistema RSUS</label>
-            <input 
-              id="rsusUrlInput"
-              type="text" 
-              placeholder="https://..." 
-              value={rsusUrl}
-              onChange={(e) => setRsusUrl(e.target.value)}
-              className="w-full rounded-2xl border border-slate-200 bg-white/50 px-4 py-3 text-xs outline-none focus:border-gax-blue focus:bg-white focus:ring-4 focus:ring-gax-blue/10 text-slate-700 font-medium transition-all placeholder:text-slate-300"
-            />
-          </div>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between ml-1">
-              <label htmlFor="rsusUserInput" className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">Usuário</label>
-              {(rsusUser) && <span className="text-[9px] font-bold text-emerald-500 uppercase tracking-tighter bg-emerald-50 px-1.5 rounded">Salvo</span>}
+        {razaoSocial && (
+          <div className="mb-8 p-6 rounded-2xl bg-white border border-slate-100 shadow-sm animate-in slide-in-from-top-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Empresa no XML</p>
+                <h3 className="text-xl font-bold text-slate-800">{razaoSocial}</h3>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Portal RSUS</p>
+                <p className="text-sm font-medium text-gax-blue truncate max-w-xs transition-all">
+                  {rsusUrl || "URL não cadastrada"}
+                </p>
+              </div>
             </div>
-            <input 
-              id="rsusUserInput"
-              type="text" 
-              placeholder="Digite seu login" 
-              value={rsusUser}
-              onChange={(e) => setRsusUser(e.target.value)}
-              className="w-full rounded-2xl border border-slate-200 bg-white/50 px-4 py-3 text-xs outline-none focus:border-gax-blue focus:bg-white focus:ring-4 focus:ring-gax-blue/10 text-slate-700 font-medium transition-all placeholder:text-slate-300"
-            />
           </div>
-          <div className="space-y-2">
-             <div className="flex items-center justify-between ml-1">
-              <label htmlFor="rsusPassInput" className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">Senha</label>
-              {(rsusPass) && <span className="text-[9px] font-bold text-emerald-500 uppercase tracking-tighter bg-emerald-50 px-1.5 rounded">Salva</span>}
-            </div>
-            <input 
-              id="rsusPassInput"
-              type="password" 
-              placeholder="••••••••" 
-              value={rsusPass}
-              onChange={(e) => setRsusPass(e.target.value)}
-              className="w-full rounded-2xl border border-slate-200 bg-white/50 px-4 py-3 text-xs outline-none focus:border-gax-blue focus:bg-white focus:ring-4 focus:ring-gax-blue/10 text-slate-700 font-medium transition-all placeholder:text-slate-300"
-            />
-          </div>
-        </div>
-
-        <div className="mb-6 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <input 
-              type="checkbox" 
-              id="remember" 
-              checked={rememberCreds}
-              onChange={(e) => setRememberCreds(e.target.checked)}
-              className="rounded border-slate-300 text-gax-blue focus:ring-gax-blue"
-            />
-            <label htmlFor="remember" className="text-xs text-slate-500">Lembrar URL (salvo no navegador)</label>
-          </div>
-          <p className="text-[10px] text-slate-400 font-medium italic">
-            * Se vazios, o sistema usará os logins configurados em "Sistema {'>'} Login RSUS".
-          </p>
-        </div>
+        )}
 
         {activeTaskId && (
           <div className="mb-8 rounded-2xl bg-gax-blue-light/30 p-4 border border-gax-blue/10">
@@ -427,7 +388,103 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
-      {/* Modal de Confirmação de Duplicatas */}
+
+      {/* New Client Modal */}
+      {showNewClientModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="w-full max-w-xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl animate-in zoom-in-95">
+            <div className="border-b border-slate-100 bg-slate-50/50 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xl font-bold text-slate-800">Nova Empresa Detectada</h4>
+                  <p className="text-sm text-slate-500 font-medium">Empresa: {razaoSocial}</p>
+                </div>
+                <button onClick={() => setShowNewClientModal(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
+                  <X size={24} />
+                </button>
+              </div>
+            </div>
+            
+            <div className="p-8 space-y-6">
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">URL do Sistema RSUS</label>
+                <input 
+                  type="text" 
+                  placeholder="https://..." 
+                  value={rsusUrl}
+                  onChange={(e) => setRsusUrl(e.target.value)}
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-5 py-3 text-sm outline-none focus:border-gax-blue focus:bg-white focus:ring-4 focus:ring-gax-blue/10 transition-all font-medium"
+                />
+              </div>
+
+              <div className="space-y-3">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Credenciais de Acesso</label>
+                <div className="grid grid-cols-1 gap-3">
+                  {[
+                    { id: 'general', label: 'Usar Credenciais Gerais', desc: 'Configuradas em /settings/rsus' },
+                    { id: 'unimed_vitoria', label: 'Usar Unimed Vitória', desc: 'Configuradas em /settings/rsus' },
+                    { id: 'manual', label: 'Informar Manualmente', desc: 'Apenas para este processamento' }
+                  ].map((opt) => (
+                    <button
+                      key={opt.id}
+                      onClick={() => setCredentialChoice(opt.id as any)}
+                      className={cn(
+                        "flex items-center justify-between p-4 rounded-2xl border-2 transition-all text-left",
+                        credentialChoice === opt.id ? "border-gax-blue bg-gax-blue/5" : "border-slate-100 bg-white hover:border-slate-200"
+                      )}
+                    >
+                      <div>
+                        <p className="text-sm font-bold text-slate-800">{opt.label}</p>
+                        <p className="text-[10px] text-slate-500">{opt.desc}</p>
+                      </div>
+                      <div className={cn(
+                        "h-5 w-5 rounded-full border-2 flex items-center justify-center",
+                        credentialChoice === opt.id ? "border-gax-blue bg-gax-blue" : "border-slate-200"
+                      )}>
+                        {credentialChoice === opt.id && <div className="h-2 w-2 rounded-full bg-white" />}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {credentialChoice === 'manual' && (
+                <div className="grid grid-cols-2 gap-4 animate-in slide-in-from-top-2">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Usuário</label>
+                    <input 
+                      type="text" 
+                      value={rsusUser}
+                      onChange={(e) => setRsusUser(e.target.value)}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Senha</label>
+                    <input 
+                      type="password" 
+                      value={rsusPass}
+                      onChange={(e) => setRsusPass(e.target.value)}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <button 
+                onClick={() => handleUpload(false)}
+                disabled={!rsusUrl || isUploading}
+                className="w-full py-4 rounded-2xl bg-gax-blue text-white font-bold shadow-xl shadow-gax-blue/20 hover:bg-gax-blue-hover transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isUploading ? <Loader2 className="animate-spin" size={20} /> : <Rocket size={20} />}
+                Salvar Empresa e Iniciar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal */}
       {showConfirmModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
@@ -439,7 +496,7 @@ export default function DashboardPage() {
             </div>
             <div className="p-6">
               <p className="mb-4 text-sm text-slate-600">
-                Identificamos que os seguintes ABIs já foram enviados com sucesso anteriormente:
+                Identificamos que os seguintes ABIs já foram enviados anteriormente para <strong>{razaoSocial}</strong>:
               </p>
               <div className="mb-6 flex flex-wrap gap-2">
                 {duplicates.map(abi => (

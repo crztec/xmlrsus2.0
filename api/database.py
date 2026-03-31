@@ -705,9 +705,11 @@ def save_branding(system_name, logo_base64=None):
 def get_last_url_for_client(razao_social):
     if not razao_social: return ""
     try:
-        doc = firestore_db.collection('client_configs').document(razao_social).get()
+        client_id = normalize_client_id(razao_social)
+        doc = firestore_db.collection('client_configs').document(client_id).get()
         if doc.exists: return doc.to_dict().get('url_sistema', '')
-        from firebase_admin import firestore
+        
+        # Fallback para busca por campo se o ID falhar
         from google.cloud.firestore_v1.base_query import FieldFilter
         docs = firestore_db.collection('tasks') \
             .where(filter=FieldFilter("razao_social", "==", razao_social)) \
