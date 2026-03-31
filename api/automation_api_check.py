@@ -118,11 +118,11 @@ async def run_api_check_for_client(client_id, task_id=None, pre_fetched_creds=No
                         await page.keyboard.press("Escape")
                 except: pass
                 
-                # Localiza campo de email (seletor idêntico ao robô de importação)
-                email_field = page.locator("input#email, input#Email").first
+                # Localiza campo de login (resiliente para múltiplos portais)
+                email_field = page.locator("input#email, input#Email, input#username, #username, input[name='username']").first
                 if await email_field.count() == 0:
                     for frame in page.frames:
-                        f_email = frame.locator("input#email, input#Email").first
+                        f_email = frame.locator("input#email, input#Email, input#username, #username, input[name='username']").first
                         if await f_email.count() > 0:
                             email_field = f_email
                             break
@@ -135,7 +135,7 @@ async def run_api_check_for_client(client_id, task_id=None, pre_fetched_creds=No
                 await email_field.type(usuario, delay=40)
                 await asyncio.sleep(0.5)
                 
-                pwd_field = page.locator("input#password, input#Password").first
+                pwd_field = page.locator("input#password, input#Password, #password, input[type='password']").first
                 await pwd_field.click(force=True)
                 await pwd_field.type(senha, delay=40)
                 await asyncio.sleep(0.5)
