@@ -5,13 +5,35 @@ import base64
 from datetime import datetime
 from playwright.async_api import async_playwright
 import api.database as db
+from api.utils import send_whatsapp_alert
 
 logger = logging.getLogger(__name__)
 
-async def run_api_check_for_client(client_id, task_id=None, pre_fetched_creds=None):
+async def run_api_check_for_client(client_id, task_id=None, pre_fetched_creds=None, is_batch_run=False):
+    """Wrapper para a checagem que injeta a lógica de alertas de WhatsApp."""
+    client = db.get_client_config(client_id)
+    client_name = client.get('name', client_id) if client else client_id
+    
+    try:
+        status, message, snap_url = await _run_api_check_logic(client_id, task_id, pre_fetched_creds)
+        
+        # Alerta individual se não for lote
+        if not is_batch_run:
+            status_emoji = "✅" if status == 'online' else "❌"
+            msg = f"{status_emoji} *GAX RSUS - Checagem de API Individual*\n\nOperadora: {client_name}\nStatus: {status.upper()}\n\nDetalhes: {message}"
+            send_whatsapp_alert(msg)
+            
+        return status, message, snap_url
+    except Exception as e:
+        status, message = "error", f"Erro inesperado: {str(e)}"
+        if not is_batch_run:
+            msg = f"❌ *GAX RSUS - Erro na Checagem*\n\nOperadora: {client_name}\nErro: {str(e)[:100]}"
+            send_whatsapp_alert(msg)
+        return status, message, None
+
+async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
     """
-    Executa a checagem de API para um único cliente RSUS.
-    Segue o fluxo: Login > Hamburguer (ABI) > Atendimentos > Hamburguer (Atendimento) > Beneficiário > Atualizar.
+    Lógica interna da checagem de API para um único cliente RSUS.
     """
     client = db.get_client_config(client_id)
     if not client:
@@ -568,7 +590,7 @@ async def run_batch_api_check(task_id=None, client_ids=None):
             try:
                 # Injeta a credencial pertinente via cache local em memória
                 target_creds = creds_vitoria if "vitoria" in client.get('url_sistema', '').lower() else creds_general
-                status, message, snap_url = await run_api_check_for_client(client['id'], task_id=task_id, pre_fetched_creds=target_creds)
+                status, message, snap_url = await run_api_check_for_client(client['id'], task_id=task_id, pre_fetched_creds=target_creds, is_batch_run=True)
                 # O status já é atualizado dentro de run_api_check_for_client, mas aqui garantimos o vínculo final
                 db.update_client_api_status(client['id'], status, message, task_id=task_id, screenshot_url=snap_url)
             except Exception as e:
@@ -579,6 +601,20 @@ async def run_batch_api_check(task_id=None, client_ids=None):
         if task_id:
             db.update_task(task_id, {"status": "completed", "current_client": "Finalizado"})
             db.add_log(task_id, "Checagem em lote finalizada.")
+            
+        # Alerta de Resumo de WhatsApp (Padrão sugerido)
+        # Recalcula do banco os status do lote atual
+        total_lote = len(clients)
+        sucessos = 0
+        for c in clients:
+            c_data = db.get_client_config(c['id'])
+            if c_data.get('api_status') == 'online':
+                sucessos += 1
+        
+        falhas = total_lote - sucessos
+
+        mensagem = f"🤖 *GAX RSUS - Relatório de Checagem em Lote*\n\nChecagem finalizada!\n✅ Online: {sucessos}\n❌ Falhas: {falhas}\n\nAcesse o painel para ver os detalhes."
+        send_whatsapp_alert(mensagem)
             
     except Exception as e:
         import traceback
