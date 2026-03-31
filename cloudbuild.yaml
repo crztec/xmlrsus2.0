@@ -1,38 +1,21 @@
 steps:
-  # 1. Pull imagem anterior para cache
-  - name: 'gcr.io/cloud-builders/docker'
-    entrypoint: 'bash'
-    args: ['-c', 'docker pull gcr.io/$PROJECT_ID/xmlrsus2:latest || exit 0']
+  # 1. Build Inteligente com Kaniko (Substitui pull, build e push do Docker)
+  - name: 'gcr.io/kaniko-project/executor:latest'
+    args:
+      - '--destination=gcr.io/$PROJECT_ID/xmlrsus2:latest'
+      - '--cache=true'
+      - '--cache-ttl=168h' # Guarda o cache das dependências por 7 dias!
 
-  # 2. Build da imagem Docker com cache e BuildKit habilitado
-  - name: 'gcr.io/cloud-builders/docker'
-    env:
-      - 'DOCKER_BUILDKIT=1'
-    args: [
-      'build', 
-      '--build-arg', 'BUILDKIT_INLINE_CACHE=1',
-      '--cache-from', 'gcr.io/$PROJECT_ID/xmlrsus2:latest',
-      '-t', 'gcr.io/$PROJECT_ID/xmlrsus2:latest', 
-      '.'
-    ]
-
-  # 3. Push para Google Container Registry
-  - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/$PROJECT_ID/xmlrsus2:latest']
-
-  # 4. Deploy para Cloud Run (Exemplo)
+  # 2. Deploy para Cloud Run (Blindado com as otimizações de performance)
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args:
       - 'run'
       - 'deploy'
       - 'xmlrsus2'
-      - '--image'
-      - 'gcr.io/$PROJECT_ID/xmlrsus2:latest'
-      - '--region'
-      - 'us-central1'
-      - '--platform'
-      - 'managed'
+      - '--image=gcr.io/$PROJECT_ID/xmlrsus2:latest'
+      - '--region=us-central1'
+      - '--platform=managed'
       - '--allow-unauthenticated'
       - '--min-instances=0'
       - '--max-instances=2'
@@ -40,9 +23,9 @@ steps:
       - '--cpu=2'
       - '--concurrency=2'
       - '--timeout=1800'
+      # -- AS DUAS LINHAS ABAIXO SALVAM A PERFORMANCE DO ROBÔ --
+      - '--execution-environment=gen2'
+      - '--no-cpu-throttling'
 
 options:
   logging: CLOUD_LOGGING_ONLY
-
-images:
-  - 'gcr.io/$PROJECT_ID/xmlrsus2:latest'

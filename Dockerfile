@@ -31,10 +31,10 @@ RUN apt-get update && apt-get install -y ca-certificates curl gnupg && \
     rm -rf /var/lib/apt/lists/*
 
 # Copia Frontend Build da etapa anterior
-COPY --from=frontend-builder /app/frontend/.next /app/.next
+# Copia apenas os arquivos otimizados do standalone e estáticos
 COPY --from=frontend-builder /app/frontend/public /app/public
-COPY --from=frontend-builder /app/frontend/package*.json /app/
-COPY --from=frontend-builder /app/frontend/node_modules /app/node_modules
+COPY --from=frontend-builder /app/frontend/.next/standalone /app/
+COPY --from=frontend-builder /app/frontend/.next/static /app/.next/static
 
 # Instala Dependências do Backend
 COPY api/requirements.txt ./api/
