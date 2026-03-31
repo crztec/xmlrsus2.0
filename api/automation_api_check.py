@@ -22,14 +22,14 @@ async def run_api_check_for_client(client_id, task_id=None, pre_fetched_creds=No
             status_emoji = "✅" if status == 'online' else "❌"
             msg = f"{status_emoji} *GAX RSUS - Checagem de API Individual*\n\nOperadora: {client_name}\nStatus: {status.upper()}\n\nDetalhes: {message}"
             # Envio aguardado (await) para evitar que a tarefa seja descartada pelo event loop
-            await send_whatsapp_alert(msg, task_id=task_id, target_numbers=["552797629236"])
+            await send_whatsapp_alert(msg, task_id=task_id, target_numbers=["5527997629236"])
             
         return status, message, snap_url
     except Exception as e:
         status, message = "error", f"Erro inesperado: {str(e)}"
         if not is_batch_run:
             msg = f"❌ *GAX RSUS - Erro na Checagem*\n\nOperadora: {client_name}\nErro: {str(e)[:100]}"
-            await send_whatsapp_alert(msg, task_id=task_id, target_numbers=["552797629236"])
+            await send_whatsapp_alert(msg, task_id=task_id, target_numbers=["5527997629236"])
         return status, message, None
 
 async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
@@ -616,7 +616,7 @@ async def run_batch_api_check(task_id=None, client_ids=None):
 
         mensagem = f"🤖 *GAX RSUS - Relatório de Checagem em Lote*\n\nChecagem finalizada!\n✅ Online: {sucessos}\n❌ Falhas: {falhas}\n\nAcesse o painel para ver os detalhes."
         # Envio aguardado (await) do resumo final
-        await send_whatsapp_alert(mensagem, task_id=task_id, target_numbers=["552797629236"])
+        await send_whatsapp_alert(mensagem, task_id=task_id, target_numbers=["5527997629236"])
             
     except Exception as e:
         import traceback
