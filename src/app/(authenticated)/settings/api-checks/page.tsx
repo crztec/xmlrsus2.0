@@ -54,6 +54,7 @@ export default function ApiChecksPage() {
   const [selectedScreenshot, setSelectedScreenshot] = useState<string | null>(null);
   const [viewingTaskId, setViewingTaskId] = useState<string | null>(null);
   const [selectedClientMessage, setSelectedClientMessage] = useState<string | null>(null);
+  const [logFilterClient, setLogFilterClient] = useState<string | null>(null);
   
   const logEndRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -281,13 +282,35 @@ export default function ApiChecksPage() {
     }
   };
 
-  const openPastLogs = (taskId: string, message?: string) => {
+  const openPastLogs = (taskId: string, message?: string, clientName?: string) => {
     setViewingTaskId(taskId);
     setSelectedClientMessage(message || null);
+    setLogFilterClient(clientName || null);
     setTaskLogs([]);
     setShowLogs(true);
     setOpenMenuId(null);
     fetchTaskLogs(taskId);
+  };
+
+  const handleViewGlobalLog = async () => {
+    try {
+      const q = query(
+        collection(db, "tasks"), 
+        where("type", "in", ["batch_api_check", "api_check_batch"]),
+        orderBy("created_at", "desc"),
+        limit(1)
+      );
+      const querySnapshot = await getDocs(q);
+      if (querySnapshot.empty) {
+        alert("Nenhum log de execução em lote encontrado.");
+        return;
+      }
+      const latestTask = querySnapshot.docs[0];
+      openPastLogs(latestTask.id, "Log Geral do Sistema", undefined);
+    } catch (error) {
+      console.error("Erro ao buscar último log:", error);
+      alert("Erro ao buscar histórico global.");
+    }
   };
 
   const filteredClients = clients.filter(c => {
@@ -349,6 +372,14 @@ export default function ApiChecksPage() {
             className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-all shadow-sm flex items-center gap-2"
           >
             Atualizar
+          </button>
+          <button 
+            onClick={handleViewGlobalLog}
+            className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-all shadow-sm flex items-center gap-2"
+            title="Ver último histórico completo do sistema"
+          >
+            <Terminal className="w-4 h-4" />
+            Último Log Geral
           </button>
           <button 
             onClick={handleRunFailedChecks}
@@ -578,7 +609,7 @@ export default function ApiChecksPage() {
                            </button>
                             {client.api_last_task_id && (
                               <button 
-                                onClick={() => openPastLogs(client.api_last_task_id!, client.api_last_message)}
+                                onClick={() => openPastLogs(client.api_last_task_id!, client.api_last_message, client.name)}
                                 className="w-full flex items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-blue-600 hover:text-white transition-colors border-t border-slate-50"
                               >
                                  <FileText className="w-4 h-4" /> Visualizar Log
@@ -625,43 +656,45 @@ export default function ApiChecksPage() {
                   </div>
                 </div>
               </div>
-              <button onClick={() => { setShowLogs(false); setViewingTaskId(null); setSelectedClientMessage(null); }} className="p-2 hover:bg-white rounded-lg transition-colors text-slate-400">
+              <button onClick={() => { setShowLogs(false); setViewingTaskId(null); setSelectedClientMessage(null); setLogFilterClient(null); }} className="p-2 hover:bg-white rounded-lg transition-colors text-slate-400">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 space-y-3 bg-slate-50/30 scrollbar-thin scrollbar-thumb-blue-200">
               {taskLogs.length > 0 ? (
-                taskLogs.map((log, idx) => (
-                  <div key={idx} className="flex gap-4 group">
-                    <div className="flex flex-col items-center">
-                      <div className={`w-2.5 h-2.5 rounded-full mt-1.5 shrink-0 ${
-                        log.level === 'ERROR' ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.4)]' :
-                        log.level === 'SUCCESS' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]' :
-                        log.level === 'WARNING' ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]' :
-                        'bg-blue-400'
-                      }`} />
-                      {idx < taskLogs.length - 1 && <div className="w-px flex-1 bg-slate-200 my-1" />}
-                    </div>
-                    <div className="flex-1 pb-2">
-                       <span className={`text-[9px] font-black mr-2 uppercase tracking-tighter px-1.5 py-0.5 rounded ${
-                         log.level === 'ERROR' ? 'bg-rose-100 text-rose-700' : 
-                         log.level === 'SUCCESS' ? 'bg-emerald-100 text-emerald-700' :
-                         'bg-blue-50 text-blue-700'
-                       }`}>
-                           {log.level || 'INFO'}
-                       </span>
-                      <div className="flex items-baseline justify-between gap-2 mt-1">
-                        <span className={`text-[13.5px] font-medium leading-relaxed ${
-                          log.level === 'ERROR' ? 'text-rose-700' : 'text-slate-700'
-                        }`}>
-                          {log.message}
-                        </span>
-                        <span className="text-[10px] text-slate-400 font-mono italic">{log.timestamp}</span>
+                taskLogs
+                  .filter(log => !logFilterClient || log.message.includes(`[${logFilterClient}]`))
+                  .map((log, idx) => (
+                    <div key={idx} className="flex gap-4 group">
+                      <div className="flex flex-col items-center">
+                        <div className={`w-2.5 h-2.5 rounded-full mt-1.5 shrink-0 ${
+                          log.level === 'ERROR' ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.4)]' :
+                          log.level === 'SUCCESS' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]' :
+                          log.level === 'WARNING' ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]' :
+                          'bg-blue-400'
+                        }`} />
+                        {idx < taskLogs.length - 1 && <div className="w-px flex-1 bg-slate-200 my-1" />}
+                      </div>
+                      <div className="flex-1 pb-2">
+                         <span className={`text-[9px] font-black mr-2 uppercase tracking-tighter px-1.5 py-0.5 rounded ${
+                           log.level === 'ERROR' ? 'bg-rose-100 text-rose-700' : 
+                           log.level === 'SUCCESS' ? 'bg-emerald-100 text-emerald-700' :
+                           'bg-blue-50 text-blue-700'
+                         }`}>
+                             {log.level || 'INFO'}
+                         </span>
+                        <div className="flex items-baseline justify-between gap-2 mt-1">
+                          <span className={`text-[13.5px] font-medium leading-relaxed ${
+                            log.level === 'ERROR' ? 'text-rose-700' : 'text-slate-700'
+                          }`}>
+                            {log.message}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono italic">{log.timestamp}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))
+                  ))
               ) : (
                 <div className="h-40 flex flex-col items-center justify-center text-slate-400 gap-3">
                   <div className="w-8 h-8 border-2 border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>
@@ -673,7 +706,7 @@ export default function ApiChecksPage() {
 
             <div className="px-6 py-4 border-t border-slate-100 flex justify-end bg-slate-50 gap-3">
               <button 
-                onClick={() => { setShowLogs(false); setViewingTaskId(null); setSelectedClientMessage(null); }}
+                onClick={() => { setShowLogs(false); setViewingTaskId(null); setSelectedClientMessage(null); setLogFilterClient(null); }}
                 className="px-6 py-2.5 text-sm font-bold text-slate-600 hover:bg-white border border-transparent hover:border-slate-200 rounded-xl transition-all"
               >
                 Fechar Console
