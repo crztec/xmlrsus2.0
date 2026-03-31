@@ -26,11 +26,14 @@ export default function LogsPage() {
   const fetchTasks = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch("/api/tasks");
+      const res = await fetch(`/api/tasks?t=${Date.now()}`, { 
+        cache: 'no-store', 
+        headers: { 'Cache-Control': 'no-cache' } 
+      });
       const allData = await res.json();
       
       // Exclude API check task types — show imports and legacy tasks with no type
-      const API_CHECK_TYPES = ['batch_api_check', 'single_api_check'];
+      const API_CHECK_TYPES = ['batch_api_check', 'single_api_check', 'api_check_batch', 'api_check_single'];
       const data = allData.filter((t: Task) => !API_CHECK_TYPES.includes((t as any).type));
       
       setTasks(data);
