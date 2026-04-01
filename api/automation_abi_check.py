@@ -205,7 +205,7 @@ async def run_batch_abi_check(task_id):
         total = len(clients)
         
         db.update_task(task_id, {"total": total, "current": 0, "status": "running"})
-        db.add_log(task_id, f"Iniciando checagem de ABI em lote para {total} clientes...")
+        db.add_log(task_id, f"🚀 Iniciando checagem de ABI em LOTE para {total} operadoras...")
 
         # Cache de credenciais
         creds_general = db.get_rsus_credentials('general')
@@ -215,7 +215,7 @@ async def run_batch_abi_check(task_id):
             # Check cancelamento
             task_doc = db.firestore_db.collection('tasks').document(task_id).get()
             if task_doc.exists and task_doc.to_dict().get('status') == 'cancelled':
-                db.add_log(task_id, "Cancelado pelo usuário.", "WARNING")
+                db.add_log(task_id, "⏹️ Processamento interrompido pelo usuário.", "WARNING")
                 break
 
             client_name = client.get('name', 'Desconhecido')
@@ -242,6 +242,7 @@ async def run_single_abi_check(client_id, task_id):
     try:
         client = db.get_client_config(client_id)
         db.update_task(task_id, {"total": 1, "current": 0, "status": "running", "current_client": client.get('name')})
+        db.add_log(task_id, f"🔍 Iniciando checagem INDIVIDUAL para: {client.get('name')}...")
         
         await run_abi_check_for_client(client_id, task_id=task_id)
         

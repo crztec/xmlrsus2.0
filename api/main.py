@@ -147,6 +147,16 @@ async def save_rsus_creds(type: str = Form(...), username: str = Form(...), pass
         return {"status": "success"}
     raise HTTPException(status_code=500, detail="Erro ao salvar credenciais.")
 
+class ABICheckRequest(BaseModel):
+    client_id: Optional[str] = None
+
+@app.post("/cancel-task/{task_id}")
+async def cancel_task(task_id: str):
+    """Cancela uma tarefa em andamento."""
+    db.update_task_status(task_id, "cancelled")
+    db.add_log(task_id, "Interrompendo processamento (solicitação do usuário)...", "WARNING")
+    return {"status": "success"}
+
 @app.post("/check-integrations")
 async def check_integrations(background_tasks: BackgroundTasks):
     """Dispara a automação de checagem em lote em background."""
@@ -183,12 +193,16 @@ async def get_abi_dashboard_stats():
     return db.get_abi_dashboard_stats()
 
 @app.post("/start-abi-check")
-async def start_abi_check(background_tasks: BackgroundTasks, client_id: Optional[str] = None):
+async def start_abi_check(request: ABICheckRequest, background_tasks: BackgroundTasks):
     """Inicia a checagem de ABIs (lote ou individual)."""
     import api.automation_abi_check as abi_auto
     
     active_abi = db.get_active_abi()
-    abi_label = (active_abi.get('ABI', 'Desconhecido') if active_abi else 'Desconhecido') or 'Desconhecido'
+    if not active_abi:
+        raise HTTPException(status_code=400, detail="Nenhuma ABI ativa identificada. Faça upload do cronograma (.xlsx) antes de checar.")
+    
+    abi_label = active_abi.get('ABI', 'Desconhecido') or 'Desconhecido'
+    client_id = request.client_id
     
     if client_id:
         task_id = db.create_task("abi_check_single", f"Checagem ABI {abi_label}: {client_id}")

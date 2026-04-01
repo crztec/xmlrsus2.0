@@ -211,8 +211,15 @@ export default function CheckImportsPage() {
       const res = await fetch("/api/start-abi-check", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(clientId ? { client_id: clientId } : {}),
+        body: JSON.stringify({ client_id: clientId || null }),
       });
+      
+      if (!res.ok) {
+        const error = await res.json();
+        alert(error.detail || "Erro ao iniciar checagem.");
+        return;
+      }
+
       const data = await res.json();
       if (data.task_id) {
         setActiveTaskId(data.task_id);
@@ -220,6 +227,18 @@ export default function CheckImportsPage() {
       }
     } catch (err) {
       console.error(err);
+      alert("Erro de conexão com o servidor.");
+    }
+  };
+
+  const handleCancel = async () => {
+    if (!activeTaskId) return;
+    if (!confirm("Deseja realmente parar o processamento atual?")) return;
+
+    try {
+      await fetch(`/api/cancel-task/${activeTaskId}`, { method: "POST" });
+    } catch (err) {
+      console.error("Erro ao cancelar:", err);
     }
   };
 
@@ -260,6 +279,13 @@ export default function CheckImportsPage() {
                 title="Abrir Console Completo"
               >
                 <Terminal size={14} />
+              </button>
+              <button 
+                onClick={handleCancel}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-red-50 text-red-600 border border-red-100 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-red-100 transition-all"
+              >
+                <X size={12} />
+                Parar
               </button>
             </div>
           ) : (
