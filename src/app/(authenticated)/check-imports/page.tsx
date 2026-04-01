@@ -642,10 +642,16 @@ export default function CheckImportsPage() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 space-y-3 bg-slate-50/30 scrollbar-thin scrollbar-thumb-slate-200">
-              {detailedLogs.length > 0 ? (
-                detailedLogs
-                  .filter(log => !logFilterClient || log.message.includes(`[${logFilterClient}]`))
-                  .map((log, idx) => (
+              {(() => {
+                // Se estamos vendo a tarefa ativa, usamos os logs do polling em tempo real
+                const displayLogs = (viewingTaskId === activeTaskId && realtimeLogs.length > 0) 
+                  ? [...realtimeLogs].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+                  : detailedLogs.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+                return displayLogs.length > 0 ? (
+                  displayLogs
+                    .filter(log => !logFilterClient || log.message.includes(`[${logFilterClient}]`))
+                    .map((log, idx) => (
                     <div key={idx} className="flex gap-4 group">
                       <div className="flex flex-col items-center">
                         <div className={cn(
@@ -670,12 +676,13 @@ export default function CheckImportsPage() {
                       </div>
                     </div>
                   ))
-              ) : (
-                <div className="h-40 flex flex-col items-center justify-center text-slate-400 gap-3">
-                  <Loader2 className="w-8 h-8 animate-spin text-gax-blue" />
-                  <p className="text-sm italic">Carregando histórico do servidor...</p>
-                </div>
-              )}
+                ) : (
+                  <div className="h-40 flex flex-col items-center justify-center text-slate-400 gap-3">
+                    <Loader2 className="w-8 h-8 animate-spin text-gax-blue" />
+                    <p className="text-sm italic">Carregando histórico do servidor...</p>
+                  </div>
+                );
+              })()}
               <div ref={logEndRef} />
             </div>
 
