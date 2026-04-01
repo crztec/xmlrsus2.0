@@ -77,6 +77,8 @@ export default function CheckImportsPage() {
   const [currentTaskStatus, setCurrentTaskStatus] = React.useState<any>(null);
   const [realtimeLogs, setRealtimeLogs] = React.useState<TaskLog[]>([]);
   
+  const [isLoadingLogs, setIsLoadingLogs] = React.useState(false);
+
   // Modal de Log Detalhado
   const [showLogsModal, setShowLogsModal] = React.useState(false);
   const [viewingTaskId, setViewingTaskId] = React.useState<string | null>(null);
@@ -176,7 +178,8 @@ export default function CheckImportsPage() {
     setModalTitle(title);
     setLogFilterClient(clientName || null);
     setDetailedLogs([]);
-    setShowLogsModal(true);
+    setShowLogsModal(true); // Abre o modal imediatamente
+    setIsLoadingLogs(true); // Mostra spinner
     
     try {
       const res = await fetch(`/api/task/${taskId}/logs`);
@@ -184,6 +187,8 @@ export default function CheckImportsPage() {
       setDetailedLogs(data);
     } catch (err) {
       console.error("Erro ao carregar logs detalhados:", err);
+    } finally {
+      setIsLoadingLogs(false);
     }
   };
 

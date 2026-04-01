@@ -297,7 +297,12 @@ def get_all_clients():
                 'cnpj': cnpj,
                 'url_sistema': data.get('url_sistema', ''),
                 'api_status': data.get('api_status', 'unknown'),
-                'total_abis': data.get('total_abis', 0)
+                'total_abis': data.get('total_abis', 0),
+                # Campos ABI
+                'abi_status': data.get('abi_status', ''),
+                'abi_current': data.get('abi_current', ''),
+                'abi_last_message': data.get('abi_last_message', ''),
+                'abi_last_task_id': data.get('abi_last_task_id', ''),
             })
             
         clients.sort(key=lambda x: x['name'])
@@ -344,6 +349,15 @@ def get_clients_paginated(page=1, limit=10, search=""):
             elif isinstance(last_check, datetime):
                 last_check = last_check.isoformat()
                 
+            # Formatação de data robusta para abi_last_check
+            abi_last_check = data.get('abi_last_check')
+            if hasattr(abi_last_check, 'isoformat'):
+                abi_last_check = abi_last_check.isoformat()
+            elif isinstance(abi_last_check, datetime):
+                abi_last_check = abi_last_check.isoformat()
+            else:
+                abi_last_check = None
+
             clients.append({
                 'id': doc.id,
                 'name': name,
@@ -355,7 +369,13 @@ def get_clients_paginated(page=1, limit=10, search=""):
                 'api_last_screenshot_url': data.get('api_last_screenshot_url', ''),
                 'api_status_history': data.get('api_status_history', []),
                 'api_last_task_id': data.get('api_last_task_id', ''),
-                'total_abis': data.get('total_abis', 0)
+                'total_abis': data.get('total_abis', 0),
+                # Campos ABI
+                'abi_status': data.get('abi_status', ''),
+                'abi_current': data.get('abi_current', ''),
+                'abi_last_check': abi_last_check,
+                'abi_last_message': data.get('abi_last_message', ''),
+                'abi_last_task_id': data.get('abi_last_task_id', ''),
             })
             
         clients.sort(key=lambda x: x['name'])
