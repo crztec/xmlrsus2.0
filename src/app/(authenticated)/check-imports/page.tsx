@@ -193,22 +193,34 @@ export default function CheckImportsPage() {
   };
 
   const handleViewGlobalLog = async () => {
+    // Abre o modal IMEDIATAMENTE com loading
+    setModalTitle("Histórico Recente de ABIs");
+    setLogFilterClient(null);
+    setDetailedLogs([]);
+    setViewingTaskId(null);
+    setShowLogsModal(true);
+    setIsLoadingLogs(true);
+
     try {
-      // Busca as últimas 10 tarefas de ABI (lote ou individual)
-      const res = await fetch("/api/tasks?limit=20");
+      const res = await fetch("/api/tasks?limit=50");
       const allTasks = await res.json();
-      
-      const abiTasks = allTasks.filter((t: any) => 
+      const abiTasks = allTasks.filter((t: any) =>
         t.type === "abi_check_batch" || t.type === "abi_check_single"
       );
 
       if (abiTasks && abiTasks.length > 0) {
-        openDetailedLogs(abiTasks[0].id, "Histórico Recente de ABIs");
+        const taskId = abiTasks[0].id;
+        setViewingTaskId(taskId);
+        const logsRes = await fetch(`/api/task/${taskId}/logs`);
+        const logsData = await logsRes.json();
+        setDetailedLogs(logsData);
       } else {
-        alert("Nenhum histórico de checagem encontrado.");
+        setDetailedLogs([{ timestamp: "", message: "Nenhum histórico de checagem encontrado.", level: "INFO" }]);
       }
     } catch (err) {
       console.error("Erro histórico geral:", err);
+    } finally {
+      setIsLoadingLogs(false);
     }
   };
 
