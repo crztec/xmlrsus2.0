@@ -4,8 +4,8 @@ import os
 import platform
 import sys
 
-# if platform.system() == 'Windows':
-#     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+if platform.system() == 'Windows':
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 import tempfile
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText

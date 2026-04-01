@@ -18,7 +18,8 @@ import {
   Terminal,
   FileText,
   X,
-  History
+  History,
+  MoreHorizontal
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
@@ -54,6 +55,7 @@ interface ClientABI {
   abi_last_check?: any;
   abi_last_message?: string;
   abi_last_task_id?: string;
+  url_sistema: string;
 }
 
 interface TaskLog {
@@ -81,8 +83,21 @@ export default function CheckImportsPage() {
   const [detailedLogs, setDetailedLogs] = React.useState<TaskLog[]>([]);
   const [modalTitle, setModalTitle] = React.useState("Console Técnico");
   const [logFilterClient, setLogFilterClient] = React.useState<string | null>(null);
+  const [openMenuId, setOpenMenuId] = React.useState<string | null>(null);
 
   const logEndRef = React.useRef<HTMLDivElement>(null);
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
+
+  // Click outside dropdown handler
+  React.useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setOpenMenuId(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const fetchStats = async () => {
     try {
@@ -174,12 +189,18 @@ export default function CheckImportsPage() {
 
   const handleViewGlobalLog = async () => {
     try {
-      const res = await fetch("/api/tasks?type=abi_check_batch");
-      const tasks = await res.json();
-      if (tasks && tasks.length > 0) {
-        openDetailedLogs(tasks[0].id, "Último Log Geral (Lote)");
+      // Busca as últimas 10 tarefas de ABI (lote ou individual)
+      const res = await fetch("/api/tasks?limit=20");
+      const allTasks = await res.json();
+      
+      const abiTasks = allTasks.filter((t: any) => 
+        t.type === "abi_check_batch" || t.type === "abi_check_single"
+      );
+
+      if (abiTasks && abiTasks.length > 0) {
+        openDetailedLogs(abiTasks[0].id, "Histórico Recente de ABIs");
       } else {
-        alert("Nenhum histórico de lote encontrado.");
+        alert("Nenhum histórico de checagem encontrado.");
       }
     } catch (err) {
       console.error("Erro histórico geral:", err);
@@ -409,24 +430,41 @@ export default function CheckImportsPage() {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <div className="flex justify-end gap-1">
-                          {client.abi_last_task_id && (
-                              <button 
-                                onClick={() => openDetailedLogs(client.abi_last_task_id!, `Log da ABI: ${client.name}`, client.name)}
-                                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 transition-all"
-                                title="Ver Histórico de Logs"
-                              >
-                                <FileText size={14} />
-                              </button>
-                          )}
+                        <div className="relative inline-block text-left" ref={openMenuId === client.id ? dropdownRef : null}>
                           <button 
-                            onClick={() => startCheck(client.id)}
-                            disabled={!!activeTaskId}
-                            className="p-1.5 rounded-lg hover:bg-gax-blue-light hover:text-gax-blue text-slate-400 transition-all disabled:opacity-30"
-                            title="Checar Agora"
+                            onClick={() => setOpenMenuId(openMenuId === client.id ? null : client.id)}
+                            className="p-2 text-slate-300 hover:text-gax-blue hover:bg-gax-blue/10 rounded-xl transition-all"
                           >
-                            <Play size={14} />
+                            <MoreHorizontal size={16} />
                           </button>
+
+                          {openMenuId === client.id && (
+                            <div className="absolute right-0 mt-1.5 w-48 bg-white rounded-2xl shadow-2xl shadow-slate-200/80 border border-slate-100 z-50 overflow-hidden animate-in zoom-in-95 duration-150 origin-top-right">
+                              <button 
+                                onClick={() => { startCheck(client.id); setOpenMenuId(null); }}
+                                disabled={!!activeTaskId}
+                                className="w-full flex items-center gap-2.5 px-4 py-3 text-[11px] font-bold text-slate-700 hover:bg-gax-blue hover:text-white transition-colors disabled:opacity-40"
+                              >
+                                <Play size={14} /> Iniciar Checagem
+                              </button>
+                              
+                              {client.abi_last_task_id ? (
+                                <button 
+                                  onClick={() => { openDetailedLogs(client.abi_last_task_id!, `Log da ABI: ${client.name}`, client.name); setOpenMenuId(null); }}
+                                  className="w-full flex items-center gap-2.5 px-4 py-3 text-[11px] font-bold text-slate-700 hover:bg-gax-blue hover:text-white transition-colors border-t border-slate-50"
+                                >
+                                  <FileText size={14} /> Ver Log Individual
+                                </button>
+                              ) : (
+                                <button 
+                                  onClick={handleViewGlobalLog}
+                                  className="w-full flex items-center gap-2.5 px-4 py-3 text-[11px] font-bold text-slate-400 hover:bg-slate-50 transition-colors border-t border-slate-50"
+                                >
+                                  <History size={14} /> Sem Log Individual
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </td>
                     </tr>

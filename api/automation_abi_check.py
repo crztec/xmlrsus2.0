@@ -13,24 +13,27 @@ async def run_abi_check_for_client(client_id, task_id=None, pre_fetched_creds=No
     """Wrapper para a checagem de ABI para um único cliente."""
     client = db.get_client_config(client_id)
     client_name = client.get('name', client_id) if client else client_id
-    
+
     active_abi_doc = db.get_active_abi()
     active_abi = active_abi_doc.get('ABI', 'Desconhecido') if active_abi_doc else 'Desconhecido'
 
     try:
         status, message, snap_url = await _run_abi_check_logic(client_id, active_abi, task_id, pre_fetched_creds)
-        
-        # Atualiza status no banco
         db.update_client_abi_status(client_id, active_abi, status, message, task_id)
-        
         return status, message, snap_url
     except Exception as e:
-        status, message = "Falha", f"Erro crítico: {str(e)}"
-        db.update_client_abi_status(client_id, active_abi, status, message, task_id)
-        return status, message, None
+        import traceback
+        err = f"{type(e).__name__}: {str(e)}"
+        logger.error(f"run_abi_check_for_client error: {traceback.format_exc()}")
+        db.update_client_abi_status(client_id, active_abi, "Falha", err, task_id)
+        if task_id:
+            db.add_log(task_id, f"[{client_name}] Erro crítico: {err}", "ERROR")
+        return "Falha", err, None
 
 async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_creds=None):
-    """Lógica interna da checagem de ABI no RSUS."""
+    """
+    Lógica interna da checagem de ABI no RSUS (Refatorada com técnicas do API Check).
+    """
     client = db.get_client_config(client_id)
     if not client:
         return "Falha", "Cliente não encontrado.", None
@@ -38,11 +41,17 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
     url_sistema = client.get('url_sistema')
     client_name = client.get('name', client_id)
     
+    import re
+    abi_clean = re.sub(r'\D', '', str(active_abi))
+    
     def log_task(msg, level="INFO"):
         full_msg = f"[{client_name}] {msg}"
         if task_id:
-            db.add_log(task_id, full_msg)
-        logger.info(full_msg)
+            db.add_log(task_id, full_msg, level)
+        if level == "ERROR": logger.error(full_msg)
+        elif level == "WARNING": logger.warning(full_msg)
+        elif level == "SUCCESS": logger.info(f"✅ {full_msg}")
+        else: logger.info(full_msg)
 
     if not url_sistema:
         return "Falha", "URL não configurada.", None
@@ -61,26 +70,21 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                 "--disable-web-security", "--allow-running-insecure-content",
                 "--ignore-certificate-errors", "--disable-blink-features=AutomationControlled"
             ]
-            
-            # Launch browser
-            try:
-                browser = await p.chromium.launch(headless=True, args=browser_args)
-            except Exception:
-                import subprocess, sys
-                subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], check=False)
-                browser = await p.chromium.launch(headless=True, args=browser_args)
 
-            # Fetch creds
+            # Busca credenciais
             if pre_fetched_creds:
                 creds = pre_fetched_creds
             else:
                 creds = await asyncio.to_thread(db.get_rsus_credentials, cred_type)
-            
+
             if not creds or not creds.get('username'):
                 msg_erro = f"Credenciais '{cred_type}' não encontradas."
                 log_task(msg_erro, "ERROR")
-                await browser.close()
                 return "Falha", msg_erro, None
+
+            log_task("Credenciais obtidas. Abrindo navegador...")
+            browser = await p.chromium.launch(headless=True, args=browser_args)
+            log_task("Navegador aberto com sucesso.")
 
             usuario = creds['username']
             senha = creds['password']
@@ -91,95 +95,170 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                 timezone_id="America/Sao_Paulo",
                 locale="pt-BR"
             )
-            page = await context.new_page()
-            page.set_default_navigation_timeout(60000)
-            page.set_default_timeout(60000)
-            
-            # Login
-            log_task("Realizando login no RSUS...")
-            await page.goto(url_sistema, wait_until="commit")
-            
-            email_field = page.locator("input#email, input#Email").first
-            await email_field.wait_for(state="visible", timeout=20000)
-            await email_field.type(usuario, delay=30)
-            
-            pwd_field = page.locator("input#password, input#Password").first
-            await pwd_field.type(senha, delay=30)
-            
-            await page.click("#logIn, button[type='submit']")
-            
-            # Aguarda dashboard
-            try:
-                await page.wait_for_selector(".navbar, .main-sidebar", timeout=30000)
-            except:
-                # Tenta forçar salto se estiver preso
-                await page.goto(url_sistema.replace("/Account/Login", "/"), wait_until="commit")
-                await asyncio.sleep(2)
+            await context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
 
+            page = await context.new_page()
+            
+            # Bloqueio de assets suavizado
+            async def block_assets(route):
+                if route.request.resource_type == "media" or "google-analytics" in route.request.url:
+                    await route.abort()
+                else:
+                    await route.continue_()
+            
+            await page.route("**/*", block_assets)
+            
+            page.set_default_navigation_timeout(90000)
+            page.set_default_timeout(90000)
+            
+            # Aceita dialogs automaticamente
+            page.on("dialog", lambda dialog: asyncio.create_task(dialog.accept()))
+            
+            async def is_cancelled():
+                if not task_id: return False
+                try:
+                    doc = db.firestore_db.collection('tasks').document(task_id).get()
+                    if doc.exists and doc.to_dict().get('status') == 'cancelled':
+                        log_task("Interrupção solicitada pelo usuário.", "WARNING")
+                        return True
+                except: pass
+                return False
+
+            if await is_cancelled():
+                if browser: await browser.close()
+                return "Falha", "Tarefa cancelada pelo usuário.", None
+
+            # 1. Login
+            try:
+                log_task("Realizando login no RSUS...")
+                await page.goto(url_sistema, wait_until="commit", timeout=60000)
+                
+                # Trata modal de alerta inicial
+                try:
+                    alert = page.locator("#_browseralert, .browseralert").first
+                    if await alert.is_visible(timeout=2000):
+                        await page.keyboard.press("Escape")
+                except: pass
+                
+                # Localiza campo de login
+                email_field = page.locator("input#email, input#Email, input#username, #username, input[name='username']").first
+                if await email_field.count() == 0:
+                    for frame in page.frames:
+                        f_email = frame.locator("input#email, input#Email, input#username, #username, input[name='username']").first
+                        if await f_email.count() > 0:
+                            email_field = f_email
+                            break
+                
+                await email_field.wait_for(state="visible", timeout=25000)
+                log_task("Preenchendo credenciais...")
+                
+                await email_field.click(force=True)
+                await email_field.type(usuario, delay=40)
+                await asyncio.sleep(0.5)
+                
+                pwd_field = page.locator("input#password, input#Password, #password, input[type='password']").first
+                await pwd_field.click(force=True)
+                await pwd_field.type(senha, delay=40)
+                await asyncio.sleep(0.5)
+                
+                btn_login = page.locator("#logIn, button[type='submit']").first
+                await btn_login.click(force=True)
+                
+                # Aguarda desaparecer botão login
+                try:
+                    await page.wait_for_selector("#logIn, button[type='submit']", state="hidden", timeout=15000)
+                except: pass
+                
+                # Estabilização pós-login
+                log_task("Aguardando carregamento da interface...")
+                try:
+                    await page.wait_for_selector(".navbar, .main-sidebar, .content-header, #wrapper", timeout=60000)
+                except:
+                    # Tenta forçar salto se estiver preso
+                    await page.goto(url_sistema.split('/Account')[0] if '/Account' in url_sistema else url_sistema, wait_until="commit", timeout=30000)
+                    await asyncio.sleep(2)
+                
+                # Verificação de cookies de sessão
+                cookies = await context.cookies()
+                has_session = any('.ASPXAUTH' in c['name'] or 'Identity' in c['name'] or 'ASP.NET_SessionId' in c['name'] for c in cookies)
+                if not has_session:
+                    log_task("Sessão não detectada nos cookies. Continuando com cautela...", "WARNING")
+
+            except Exception as e:
+                log_task(f"Erro no login: {str(e)}", "ERROR")
+                if browser: await browser.close()
+                return "Falha", f"Falha no login: {str(e)[:100]}", None
+
+            # 2. Navegação para Importações
             log_task("Navegando para 'Importações'...")
-            # Força URL de importação para ser mais rápido
             base_url = url_sistema.split('/Account')[0] if '/Account' in url_sistema else url_sistema.rsplit('/', 1)[0]
             import_url = f"{base_url.rstrip('/')}/importacao"
-            await page.goto(import_url, wait_until="domcontentloaded")
+            await page.goto(import_url, wait_until="domcontentloaded", timeout=45000)
             
             log_task(f"Buscando ABI {active_abi} na grid...")
-            # Aguarda a grid carregar
-            await page.wait_for_selector("table", timeout=20000)
+            # Aguarda a table carregar e o texto do ABI aparecer em qualquer célula (ajuda no loading assíncrono)
+            try:
+                # O abi_clean já foi definido no início da função
+                await page.wait_for_selector(f"table td:has-text('{active_abi}'), table td:has-text('{abi_clean}')", timeout=35000)
+            except:
+                log_task(f"Aviso: Texto do ABI {active_abi} não detectado via seletor após 35s. Varrendo linhas...", "WARNING")
             
-            # Localizar a linha do ABI
-            # O ABI pode estar como '105º' ou '105'
-            abi_clean = active_abi.replace('º', '').strip()
+            # Varredura manual de linhas para garantir detecção correta na primeira coluna
+            rows = page.locator("table tbody tr")
+            count = await rows.count()
+            target_row = None
             
-            # XPath para achar a linha que contém o ABI
-            target_row = page.locator(f"tr:has-text('{active_abi}'), tr:has-text('{abi_clean}º')").first
+            log_task(f"Analisando {count} linhas da grid...")
+            for i in range(count):
+                row = rows.nth(i)
+                first_cell = row.locator("td").first
+                if await first_cell.count() > 0:
+                    cell_text = (await first_cell.inner_text()).strip()
+                    log_task(f"Linha {i+1}: Texto lido = '{cell_text}'")
+                    
+                    # Comparações flexíveis
+                    cell_clean = cell_text.replace('º', '').strip()
+                    
+                    # Se falhar a comparação direta, tentamos extrair apenas números
+                    import re
+                    cell_numbers = "".join(re.findall(r'\d+', cell_text))
+                    abi_numbers = "".join(re.findall(r'\d+', active_abi))
+                    
+                    if active_abi == cell_text or abi_clean == cell_clean or active_abi in cell_text or (abi_numbers and cell_numbers == abi_numbers):
+                        target_row = row
+                        log_task(f"SUCESSO: ABI {active_abi} localizado na linha {i+1}!")
+                        break
             
-            if await target_row.count() == 0:
-                log_task(f"ABI {active_abi} não encontrado na grid de importações.", "WARNING")
-                await browser.close()
+            if not target_row:
+                log_task(f"ERRO: ABI {active_abi} não localizado na primeira coluna das {count} linhas da grid.", "ERROR")
+                if browser: await browser.close()
                 return "Nao Importado", f"ABI {active_abi} não localizado.", None
 
-            # Ler Status Arquivo (geralmente uma coluna com texto fixo)
-            # Vamos buscar o texto da linha e verificar se contém 'Importado'
             row_text = await target_row.inner_text()
-            
             if "Importado" not in row_text:
-                log_task(f"ABI {active_abi} encontrado, mas status não é 'Importado'.", "INFO")
+                log_task(f"ABI {active_abi} encontrado com status: {row_text.split()[-1] if row_text else 'Indefinido'}", "INFO")
                 await browser.close()
                 return "Pendente", f"Status: {row_text.split()[-1] if row_text else 'Indefinido'}", None
 
-            # Se chegamos aqui, está Importado. Agora ver logs de análise.
+            # 3. Ver Logs de Análise
             log_task("ABI Importado. Abrindo logs de análise...")
-            
-            # Clicar no hambúrguer da linha (última célula)
             hamburger = target_row.locator("td").last().locator("button, a, .fa-bars").first
-            await hamburger.click()
+            await hamburger.click(force=True)
             await asyncio.sleep(1.5)
             
-            # Clicar em "Logs Análise"
-            logs_btn = page.locator(".dropdown-menu a:has-text('Logs Análise')").first
-            if await logs_btn.count() == 0:
-                logs_btn = page.locator("a:has-text('Logs Análise')").first
+            logs_btn = page.locator(".dropdown-menu a:has-text('Logs Análise'), a:has-text('Logs Análise')").first
+            await logs_btn.click(force=True)
             
-            await logs_btn.click()
-            
-            # Aguarda a tela de logs
-            log_task("Aguardando carregamento da tela de análises...")
-            await page.wait_for_selector("table", timeout=20000)
+            await page.wait_for_selector("table", timeout=45000)
             await asyncio.sleep(2)
             
-            # Ler a coluna 'Resultado' na primeira linha
-            # O cabeçalho 'Resultado' ajuda a localizar a célula certa se houver várias
-            # Mas por padrão pegamos a primeira linha de dados
             first_log_row = page.locator("table tbody tr").first
-            
             if await first_log_row.count() == 0:
                 log_task("Nenhum log de análise encontrado.", "INFO")
                 await browser.close()
-                return "Importado, falta analisar", "Arquivo importado, mas sem logs de análise.", None
+                return "Importado, falta analisar", "Arquivo importado, sem logs de análise.", None
             
-            # Busca pelo texto 'Sucesso' ou 'Falha' em toda a linha de log
             log_result_text = await first_log_row.inner_text()
-            
             if "Sucesso" in log_result_text:
                 log_task("RSUS: Análise concluída com Sucesso!", "SUCCESS")
                 await browser.close()
@@ -187,16 +266,23 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
             elif "Falha" in log_result_text or "Erro" in log_result_text:
                 log_task("RSUS: Falha detectada na análise.", "ERROR")
                 await browser.close()
-                return "Falha", f"Erro: {log_result_text[:50]}", None
+                return "Falha na Análise", f"Erro: {log_result_text[:50]}", None
             else:
                 log_task(f"RSUS: Resultado inconclusivo: {log_result_text[:30]}", "WARNING")
                 await browser.close()
                 return "Importado, falta analisar", f"Resultado parcial: {log_result_text[:50]}", None
 
     except Exception as e:
-        log_task(f"Erro na execução para o cliente: {str(e)}", "ERROR")
-        if browser: await browser.close()
-        return "Falha", f"Erro técnico: {str(e)[:100]}", None
+        import traceback
+        err_trace = traceback.format_exc()
+        err_msg = f"{type(e).__name__}: {str(e)}" if str(e) else type(e).__name__
+        log_task(f"Erro técnico: {err_msg}", "ERROR")
+        log_task(f"Traceback: {err_trace[-400:]}", "ERROR")
+        logger.error(f"ABI CHECK TRACEBACK:\n{err_trace}")
+        if browser:
+            try: await browser.close()
+            except: pass
+        return "Falha", f"Erro: {err_msg}", None
 
 async def run_batch_abi_check(task_id):
     """Executa a checagem de ABI para todos os clientes ativos."""
