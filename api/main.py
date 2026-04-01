@@ -14,6 +14,7 @@ from urllib.parse import urlparse
 
 from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from playwright.async_api import async_playwright
 
 import api.auth as auth
@@ -172,17 +173,64 @@ async def upload_abi_schedule(file: UploadFile = File(...)):
     import io
     try:
         contents = await file.read()
-        df = pd.read_excel(io.BytesIO(contents))
-        # Limpeza básica: remove linhas vazias e garante nomes de colunas
+        # Carregamos sem header primeiro para localizar a linha correta
+        df_raw = pd.read_excel(io.BytesIO(contents), header=None)
+        
+        # Localiza a linha do cabeçalho
+        header_idx = 0
+        for i, row in df_raw.head(15).iterrows():
+            row_str = " ".join([str(val).lower() for val in row.values])
+            if 'abi' in row_str or 'trimestre' in row_str or 'competência' in row_str:
+                header_idx = i
+                break
+        
+        # Recarrega com o header correto
+        df = pd.read_excel(io.BytesIO(contents), header=header_idx)
         df = df.dropna(how='all').fillna('')
+        
+        # Mapeamento de sinonimos para o que o Front espera
+        columns_map = {}
+        for col in df.columns:
+            c_low = str(col).lower()
+            if 'abi' in c_low and 'unnamed' not in c_low:
+                columns_map[col] = 'ABI'
+            elif ('competência' in c_low or 'trimestre' in c_low) and 'unnamed' not in c_low:
+                columns_map[col] = 'Competência'
+            elif ('ciência' in c_low or 'fim' in c_low) and 'unnamed' not in c_low:
+                columns_map[col] = 'Data fim de Ciência'
+        
+        # Ajuste específico para o formato "Unnamed" se os nomes falharem
+        if 'ABI' not in columns_map.values() and len(df.columns) > 2:
+            # Fallback baseado na estrutura observada no log
+            df.columns = [str(c) for c in df.columns]
+            for col in df.columns:
+                if 'Unnamed: 0' in col: pass
+                elif 'Unnamed: 1' in col: pass
+                elif 'Unnamed: 2' in col: columns_map[col] = 'ABI'
+                elif 'Unnamed: 3' in col: columns_map[col] = 'Competência'
+                elif 'Unnamed: 7' in col: columns_map[col] = 'Data fim de Ciência'
+
+        df = df.rename(columns=columns_map)
+        
+        # Garante que as colunas essenciais existem
+        if 'ABI' not in df.columns:
+            return {"status": "error", "message": "Não foi possível localizar a coluna 'ABI' no arquivo."}
+
+        # Formata datas para string DD/MM/YYYY
+        for col in df.columns:
+            if 'data' in str(col).lower() or 'ciência' in str(col).lower():
+                try:
+                    df[col] = pd.to_datetime(df[col], errors='coerce').dt.strftime('%d/%m/%Y').fillna('')
+                except: pass
+
         data_list = df.to_dict(orient='records')
         
         if db.save_abi_schedule(data_list):
-            return {"status": "success", "message": f"{len(data_list)} registros de ABI salvos."}
+            return {"status": "success", "message": f"{len(data_list)} registros de ABI processados com sucesso."}
         raise HTTPException(status_code=500, detail="Erro ao salvar cronograma no banco.")
     except Exception as e:
         logger.error(f"Erro ao processar Excel de ABI: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=f"Erro no arquivo: {str(e)}")
 
 @app.get("/abi-schedule")
 async def get_abi_schedule():
