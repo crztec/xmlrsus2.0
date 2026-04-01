@@ -53,6 +53,12 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
         elif level == "SUCCESS": logger.info(f"✅ {full_msg}")
         else: logger.info(full_msg)
 
+    def update_progress(percent):
+        if task_id:
+            try:
+                db.update_task(task_id, {"progress_percent": percent})
+            except: pass
+
     if not url_sistema:
         return "Falha", "URL não configurada.", None
 
@@ -61,6 +67,7 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
     browser = None
     try:
         async with async_playwright() as p:
+            update_progress(5)
             log_task(f"Iniciando navegador para checar ABI {active_abi}...")
             
             browser_args = [
@@ -84,6 +91,7 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
 
             log_task("Credenciais obtidas. Abrindo navegador...")
             browser = await p.chromium.launch(headless=True, args=browser_args)
+            update_progress(15)
             log_task("Navegador aberto com sucesso.")
 
             usuario = creds['username']
@@ -130,6 +138,7 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
 
             # 1. Login
             try:
+                update_progress(25)
                 log_task("Realizando login no RSUS...")
                 await page.goto(url_sistema, wait_until="commit", timeout=60000)
                 
@@ -170,6 +179,7 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                 except: pass
                 
                 # Estabilização pós-login
+                update_progress(45)
                 log_task("Aguardando carregamento da interface...")
                 try:
                     await page.wait_for_selector(".navbar, .main-sidebar, .content-header, #wrapper", timeout=60000)
@@ -190,6 +200,7 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                 return "Falha", f"Falha no login: {str(e)[:100]}", None
 
             # 2. Navegação para Importações
+            update_progress(60)
             log_task("Navegando para 'Importações'...")
             base_url = url_sistema.split('/Account')[0] if '/Account' in url_sistema else url_sistema.rsplit('/', 1)[0]
             import_url = f"{base_url.rstrip('/')}/importacao"
@@ -241,6 +252,7 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                 return "Pendente", f"Status: {row_text.split()[-1] if row_text else 'Indefinido'}", None
 
             # 3. Ver Logs de Análise
+            update_progress(85)
             log_task("ABI Importado. Abrindo menu de ações...")
             hamburger = target_row.locator("td").last.locator("button, a, .fa-bars").first
             await hamburger.click(force=True)
@@ -264,6 +276,7 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
             log_task(f"Verificando Resultado = {log_result_text.strip()[:30]}...")
             
             if "Sucesso" in log_result_text:
+                update_progress(100)
                 log_task("RSUS: Resultado = Sucesso da Análise!", "SUCCESS")
                 await browser.close()
                 return "Importado e Analisado", "Análise concluída com sucesso.", None

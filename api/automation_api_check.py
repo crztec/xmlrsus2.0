@@ -49,6 +49,12 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
             db.add_log(task_id, full_msg)
         logger.info(full_msg)
 
+    def update_progress(percent):
+        if task_id:
+            try:
+                db.update_task(task_id, {"progress_percent": percent})
+            except: pass
+
     if not url_sistema:
         return "offline", "URL não configurada.", None
 
@@ -58,6 +64,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
     browser = None
     try:
         async with async_playwright() as p:
+            update_progress(5)
             log_task(f"Iniciando navegador e buscando credenciais simultaneamente...")
             
             browser_args = [
@@ -86,6 +93,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                 fetch_creds(),
                 launch_browser()
             )
+            update_progress(15)
             
             if not creds or not creds.get('username'):
                 msg_erro = f"Credenciais '{cred_type}' não encontradas no sistema. Acesse Configurações > Credenciais RSUS."
@@ -141,6 +149,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
 
             # 1. Login (idêntico ao robô de importação)
             try:
+                update_progress(30)
                 log_task("Realizando login no RSUS...")
                 # Navega direto para a URL (portal redireciona para /Account/Login com ReturnUrl)
                 await page.goto(url_sistema, wait_until="commit", timeout=60000)
@@ -184,6 +193,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                     log_task("Botão de login ainda visível após clique. Verificando erros na tela...", "WARNING")
                 
                 # ESTABILIZAÇÃO DE SESSÃO: Aguarda elemento real em vez de networkidle
+                update_progress(55)
                 log_task("Aguardando carregamento da interface pós-login...")
                 try:
                     # Foca em um seletor que indica que a página carregou algo além do rodapé/loading
@@ -233,6 +243,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                     return "offline", "Falha na autenticação RSUS.", None
                 
                 log_task("Login bem-sucedido. Sessão estabelecida.")
+                update_progress(75)
                 if await is_cancelled(): 
                     if browser: await browser.close()
                     return "offline", "Tarefa cancelada pelo usuário.", None
@@ -242,6 +253,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
 
             # 2. Navegação para Atendimentos através da lista de ABIs (Hambúrguer Direito)
             try:
+                update_progress(85)
                 log_task("Localizando ABI e abrindo menu hambúrguer...")
                 if await is_cancelled(): 
                     if browser: await browser.close()

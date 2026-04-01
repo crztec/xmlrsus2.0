@@ -37,6 +37,7 @@ interface Task {
   current?: number;
   total?: number;
   current_client?: string;
+  progress_percent?: number;
   last_log?: string;
   created_at: string;
   updated_at: string;
@@ -275,8 +276,10 @@ export default function ApiChecksPage() {
     total: clients.length
   };
 
-  const progressPercent = activeTask?.total && activeTask.total > 0
-    ? Math.min(100, Math.round((Number(activeTask.current) || 0) / Number(activeTask.total) * 100))
+  const progressPercent = activeTask 
+    ? (activeTask.total && activeTask.total > 1
+        ? Math.min(100, Math.round(((Number(activeTask.current || 1) - 1) / Number(activeTask.total) * 100) + ((activeTask.progress_percent || 0) / Number(activeTask.total))))
+        : (activeTask.progress_percent || 0))
     : 0;
 
   const isStale = (() => {

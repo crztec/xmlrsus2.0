@@ -315,28 +315,40 @@ export default function CheckImportsPage() {
       <div className="flex items-center justify-between bg-white border border-slate-200 p-3 rounded-2xl shadow-sm -mt-2">
         <div className="flex items-center gap-2 pl-2">
           {activeTaskId ? (
-            <div className="flex items-center gap-3 animate-in fade-in duration-300">
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-gax-blue/5 rounded-full border border-gax-blue/10">
-                <Loader2 size={14} className="text-gax-blue animate-spin" />
-                <span className="text-xs font-bold text-gax-blue uppercase tracking-wider">Executando:</span>
+            <div className="flex flex-col gap-1 min-w-[300px] max-w-md animate-in fade-in slide-in-from-left duration-500">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 px-3 py-1 bg-gax-blue/5 rounded-full border border-gax-blue/10 shrink-0">
+                  <Loader2 size={12} className="text-gax-blue animate-spin" />
+                  <span className="text-[10px] font-bold text-gax-blue uppercase tracking-wider">
+                    {currentTaskStatus?.progress_percent || 0}% Executando:
+                  </span>
+                </div>
+                <span className="text-xs font-medium text-slate-600 truncate flex-1">
+                  {currentTaskStatus?.last_log || "Iniciando processamento..."}
+                </span>
+                <div className="flex gap-1 shrink-0">
+                  <button 
+                    onClick={() => openDetailedLogs(activeTaskId!, "Console Técnico Detalhado")}
+                    className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 transition-colors"
+                    title="Abrir Console Completo"
+                  >
+                    <Terminal size={14} />
+                  </button>
+                  <button 
+                    onClick={handleCancel}
+                    className="p-1.5 hover:bg-red-50 text-red-500 rounded-lg transition-colors"
+                    title="Parar Execução"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
               </div>
-              <span className="text-sm font-medium text-slate-600">
-                {realtimeLogs.length > 0 ? realtimeLogs[realtimeLogs.length - 1].message : "Iniciando processamento..."}
-              </span>
-              <button 
-                onClick={() => openDetailedLogs(activeTaskId, "Console Técnico Detalhado")}
-                className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 transition-colors"
-                title="Abrir Console Completo"
-              >
-                <Terminal size={14} />
-              </button>
-              <button 
-                onClick={handleCancel}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-red-50 text-red-600 border border-red-100 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-red-100 transition-all"
-              >
-                <X size={12} />
-                Parar
-              </button>
+              <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden shadow-inner">
+                <div 
+                  className="h-full bg-gax-blue transition-all duration-700 ease-out shadow-[0_0_8px_rgba(2,130,230,0.4)]"
+                  style={{ width: `${currentTaskStatus?.progress_percent || 0}%` }}
+                />
+              </div>
             </div>
           ) : (
             <div className="flex items-center gap-2 text-slate-400 italic text-sm">
@@ -503,45 +515,6 @@ export default function CheckImportsPage() {
         <div className="flex flex-col gap-6">
           
           {/* Active Status & Progress */}
-          {activeTaskId && currentTaskStatus && (
-            <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden animate-in slide-in-from-right duration-500">
-               <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-                  <h2 className="text-xs font-bold text-slate-800 flex items-center gap-2 uppercase tracking-widest">
-                    <Activity size={14} className="text-gax-blue animate-pulse" />
-                    Progresso Atual
-                  </h2>
-                  <span className="text-[10px] font-bold text-gax-blue bg-gax-blue/5 px-2 py-0.5 rounded-full">
-                    {currentTaskStatus.current} / {currentTaskStatus.total}
-                  </span>
-               </div>
-               <div className="p-5 flex flex-col gap-4">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex-1">
-                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Operadora Atual</p>
-                       <p className="text-sm font-bold text-slate-700 truncate">{currentTaskStatus.current_client || 'Iniciando...'}</p>
-                    </div>
-                    <div className="text-right">
-                       <p className="text-2xl font-bold font-display text-gax-blue">
-                         {currentTaskStatus.total > 0 ? Math.round((currentTaskStatus.current / currentTaskStatus.total) * 100) : 0}%
-                       </p>
-                    </div>
-                  </div>
-                  <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                    <div 
-                        className="h-full bg-gax-blue transition-all duration-1000 ease-in-out shadow-[0_0_12px_rgba(2,130,230,0.4)]" 
-                        style={{ width: `${currentTaskStatus.total > 0 ? (currentTaskStatus.current / currentTaskStatus.total) * 100 : 0}%` }}
-                    />
-                  </div>
-                  <button 
-                    onClick={() => openDetailedLogs(activeTaskId, "Console Técnico Detalhado")}
-                    className="flex items-center justify-center gap-2 w-full py-2 bg-slate-50 border border-slate-200 rounded-xl text-[10px] font-bold text-slate-500 uppercase tracking-widest hover:bg-white hover:text-gax-blue transition-all group"
-                  >
-                    <Terminal size={12} className="group-hover:scale-110 transition-transform" /> 
-                    Ver Logs Completos
-                  </button>
-               </div>
-            </div>
-          )}
 
           {/* Schedule Summary */}
           <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">
