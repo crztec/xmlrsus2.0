@@ -158,15 +158,15 @@ export default function CheckImportsPage() {
           setRealtimeLogs(data.logs || []);
           
           if (data.status === "completed" || data.status === "error" || data.status === "CONCLUIDO" || data.status === "CONCLUIDO_COM_RESSALVAS") {
-            setTimeout(() => {
-              setActiveTaskId(null);
-              fetchData(); 
-            }, 3000);
+            clearInterval(interval);
+            // Busca dados atualizados primeiro, depois limpa o activeTask
+            await fetchData();
+            setTimeout(() => setActiveTaskId(null), 2000);
           }
         } catch (err) {
           console.error("Erro polling status:", err);
         }
-      }, 3000);
+      }, 2000);
     }
     return () => clearInterval(interval);
   }, [activeTaskId]);
@@ -250,6 +250,13 @@ export default function CheckImportsPage() {
       if (data.task_id) {
         setActiveTaskId(data.task_id);
         setRealtimeLogs([]);
+        // Atualiza o abi_last_task_id localmente para que o menu 'Ver Log Individual' funcione
+        // mesmo antes do fetchData() ser chamado ao final da task
+        if (clientId) {
+          setClients(prev => prev.map(c => 
+            c.id === clientId ? { ...c, abi_last_task_id: data.task_id } : c
+          ));
+        }
       }
     } catch (err) {
       console.error(err);

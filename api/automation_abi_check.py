@@ -242,7 +242,7 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
 
             # 3. Ver Logs de Análise
             log_task("ABI Importado. Abrindo logs de análise...")
-            hamburger = target_row.locator("td").last().locator("button, a, .fa-bars").first
+            hamburger = target_row.locator("td").last.locator("button, a, .fa-bars").first
             await hamburger.click(force=True)
             await asyncio.sleep(1.5)
             
