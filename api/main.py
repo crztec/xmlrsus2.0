@@ -514,31 +514,43 @@ async def get_tasks(type: Optional[str] = None, exclude_api: bool = False):
 
 @app.get("/task/{task_id}")
 async def get_task_status(task_id: str):
-    task_ref = db.firestore_db.collection('tasks').document(task_id)
-    task_doc = task_ref.get()
-
-    if not task_doc.exists:
+    """Retorna o status completo, progresso e logs de uma tarefa."""
+    task = db.firestore_db.collection('tasks').document(task_id).get()
+    if not task.exists:
         raise HTTPException(status_code=404, detail="Tarefa não encontrada")
-
-    task_data = task_doc.to_dict()
+    
+    task_data = task.to_dict()
+    
+    # Cálculos de compatibilidade
     total = task_data.get('total_arquivos', 0)
     processed = task_data.get('arquivos_processados', 0)
-
-    progress = 0
-    if total > 0:
-        progress = int((processed / total) * 100)
-
-    # Busca os logs (limite aumentado para 2000 para evitar desaparecimento de logs em tarefas longas)
-    logs = db.get_logs_for_task(task_id, limit=2000)
-
-    return {
-        "id": task_id,
-        "status": task_data.get('status'),
+    
+    # Se progress_percent (granular) existir, usamos ele. 
+    # Caso contrário, recalculamos pelo total de arquivos (lote).
+    progress = task_data.get('progress_percent')
+    if progress is None:
+        if total > 0:
+            progress = int((processed / total) * 100)
+        else:
+            progress = 0
+            
+    # Recupera logs (agora sempre em ordem ASCENDING por timestamp_precise via database.py)
+    logs = db.get_task_logs(task_id)
+    
+    # Atualiza o dicionário de retorno para garantir que a UI tenha todos os campos
+    response = {
+        **task_data,
         "progress": progress,
-        "processed": processed,
-        "total": total,
+        "progress_percent": progress,
         "logs": logs
     }
+    
+    return response
+
+@app.get("/task/{task_id}/logs")
+async def route_get_task_logs(task_id: str):
+    """Retorna a lista de logs de uma tarefa específica."""
+    return db.get_task_logs(task_id)
 
 async def background_worker_task(task_id: str, url_sistema: str, force: bool = False):
     """
@@ -1605,19 +1617,7 @@ async def route_run_single_api_check(client_id: str, background_tasks: Backgroun
     background_tasks.add_task(run_single_api_check, client_id, task_id)
     return {"status": "success", "task_id": task_id}
 
-@app.get("/task/{task_id}")
-async def route_get_task_status(task_id: str):
-    """Retorna o status e os logs de uma tarefa específica."""
-    task = db.firestore_db.collection('tasks').document(task_id).get()
-    if not task.exists:
-        raise HTTPException(status_code=404, detail="Tarefa não encontrada")
-    return task.to_dict()
-
-@app.get("/task/{task_id}/logs")
-async def route_get_task_logs(task_id: str):
-    """Retorna a lista de logs de uma tarefa específica."""
-    logs = db.get_task_logs(task_id)
-    return logs
+# Endpoints consolidados no início do arquivo
 
 # --- RSUS SETTINGS ENDPOINTS ---
 @app.get("/settings/rsus-credentials")

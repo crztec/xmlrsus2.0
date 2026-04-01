@@ -60,8 +60,9 @@ interface ClientABI {
 
 interface TaskLog {
   timestamp: string;
+  timestamp_precise?: number;
   message: string;
-  level?: string;
+  level: 'INFO' | 'SUCCESS' | 'ERROR' | 'WARNING' | 'DEBUG';
 }
 
 export default function CheckImportsPage() {
@@ -79,12 +80,20 @@ export default function CheckImportsPage() {
   
   const [isLoadingLogs, setIsLoadingLogs] = React.useState(false);
 
-  // Modal de Log Detalhado
+  // Modal de Logs
   const [showLogsModal, setShowLogsModal] = React.useState(false);
   const [viewingTaskId, setViewingTaskId] = React.useState<string | null>(null);
   const [detailedLogs, setDetailedLogs] = React.useState<TaskLog[]>([]);
   const [modalTitle, setModalTitle] = React.useState("Console Técnico");
   const [logFilterClient, setLogFilterClient] = React.useState<string | null>(null);
+  const scrollRef = React.useRef<HTMLDivElement>(null);
+
+  // Auto-scroll para o final dos logs
+  React.useEffect(() => {
+    if (showLogsModal && scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [realtimeLogs, detailedLogs, showLogsModal]);
   const [openMenuId, setOpenMenuId] = React.useState<string | null>(null);
 
   const logEndRef = React.useRef<HTMLDivElement>(null);
@@ -614,12 +623,18 @@ export default function CheckImportsPage() {
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 space-y-3 bg-slate-50/30 scrollbar-thin scrollbar-thumb-slate-200">
+            <div 
+              ref={scrollRef}
+              className="flex-1 overflow-y-auto p-6 space-y-3 bg-slate-50/30 scrollbar-thin scrollbar-thumb-slate-200"
+            >
               {(() => {
                 // Se estamos vendo a tarefa ativa, usamos os logs do polling em tempo real
                 const displayLogs = (viewingTaskId === activeTaskId && realtimeLogs.length > 0) 
-                  ? [...realtimeLogs].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
-                  : detailedLogs.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+                  ? [...realtimeLogs]
+                  : [...detailedLogs];
+
+                // Ordenação estável por timestamp_precise (preferencial) ou mantém a ordem do backend
+                displayLogs.sort((a, b) => (a.timestamp_precise || 0) - (b.timestamp_precise || 0));
 
                 return displayLogs.length > 0 ? (
                   displayLogs

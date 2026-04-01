@@ -447,6 +447,7 @@ def add_log(task_id, message, level="INFO"):
         
         log_entry = {
             'timestamp': timestamp,
+            'timestamp_precise': time.time(),
             'message': message,
             'level': level.upper()
         }
@@ -476,7 +477,8 @@ def get_task_logs(task_id):
         # Como o Firestore não garante ordem de inserção em subcoleções sem um campo de ordenação robusto,
         # e aqui estamos usando um timestamp de string (HH:MM:SS), 
         # para uma checagem rápida isso deve bastar, mas em lote pode precisar de mais precisão.
-        docs = logs_ref.order_by('timestamp').get()
+        # Ordenação por timestamp_precise garante a ordem exata de inserção
+        docs = logs_ref.order_by('timestamp_precise', direction=firestore.Query.ASCENDING).get()
         return [doc.to_dict() for doc in docs]
     except Exception as e:
         logger.error(f"Erro ao recuperar logs da tarefa {task_id}: {e}")
@@ -898,7 +900,7 @@ def mark_all_task_files_as_error(task_id, error_message):
 def get_logs_for_task(task_id, limit=2000):
     try:
         # Agora os logs estão em uma subcoleção
-        docs = firestore_db.collection('tasks').document(task_id).collection('logs').order_by('timestamp', direction=firestore.Query.DESCENDING).limit(limit).stream()
+        docs = firestore_db.collection('tasks').document(task_id).collection('logs').order_by('timestamp_precise', direction=firestore.Query.ASCENDING).limit(limit).stream()
         logs = [doc.to_dict() for doc in docs]
         return logs
     except Exception as e:
