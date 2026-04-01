@@ -1,11 +1,16 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Zap, Search, Filter, CheckCircle, XCircle, Clock, Terminal, X, Info, ChevronLeft, ChevronRight, Activity, Camera, MoreHorizontal, RotateCcw, FileText, Ban } from "lucide-react";
+import {
+  Zap, Search, CheckCircle2, XCircle, Clock, Terminal, X,
+  ChevronLeft, ChevronRight, Activity, Camera, MoreHorizontal,
+  RotateCcw, FileText, Ban, RefreshCw, Loader2, ShieldCheck
+} from "lucide-react";
 import { db } from "@/lib/firebase";
 import { doc, onSnapshot, collection, query, where, orderBy, limit, getDocs, updateDoc } from "firebase/firestore";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 
 interface ClientConfig {
   id: string;
@@ -43,31 +48,28 @@ export default function ApiChecksPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [isLoading, setIsLoading] = useState(true);
-  
-  // Pagination States
+
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
-  
+
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [taskLogs, setTaskLogs] = useState<TaskLog[]>([]);
   const [showLogs, setShowLogs] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
-  
-  // Advanced States
+
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [selectedScreenshot, setSelectedScreenshot] = useState<string | null>(null);
   const [viewingTaskId, setViewingTaskId] = useState<string | null>(null);
   const [selectedClientMessage, setSelectedClientMessage] = useState<string | null>(null);
   const [logFilterClient, setLogFilterClient] = useState<string | null>(null);
-  
+
   const logEndRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchClients();
-    
-    // Auto-close dropdown on click outside
+
     const handleClickOutside = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setOpenMenuId(null);
@@ -77,34 +79,22 @@ export default function ApiChecksPage() {
 
     const checkActiveTask = async () => {
       try {
-        // Buscamos todas as tarefas 'running'
-        const q = query(
-          collection(db, "tasks"), 
-          where("status", "==", "running"),
-          limit(10)
-        );
+        const q = query(collection(db, "tasks"), where("status", "==", "running"), limit(10));
         const querySnapshot = await getDocs(q);
-        
         if (!querySnapshot.empty) {
           const validTypes = ["api_check_batch", "batch_api_check", "api_check_single", "single_api_check"];
           const now = new Date();
-          const hardLimitMs = 4 * 60 * 60 * 1000; // 4 horas de limite máximo para nem exibir no F5
-          
+          const hardLimitMs = 4 * 60 * 60 * 1000;
           const activeTasks = querySnapshot.docs
             .map(d => ({ id: d.id, ...d.data() } as any))
             .filter(t => {
-              const isTypeMatch = validTypes.includes(t.type);
-              if (!isTypeMatch) return false;
-              
+              if (!validTypes.includes(t.type)) return false;
               const createdDate = t.created_at ? new Date(t.created_at.replace(/-/g, "/")) : new Date(0);
-              const isWithinHardLimit = (now.getTime() - createdDate.getTime()) < hardLimitMs;
-              return isWithinHardLimit;
+              return (now.getTime() - createdDate.getTime()) < hardLimitMs;
             })
             .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
-
           if (activeTasks.length > 0) {
-            const latestTask = activeTasks[0];
-            setActiveTaskId(latestTask.id);
+            setActiveTaskId(activeTasks[0].id);
             setIsExecuting(true);
           }
         }
@@ -119,31 +109,22 @@ export default function ApiChecksPage() {
 
   useEffect(() => {
     let unsubscribe: () => void;
-
     if (activeTaskId) {
-      // ESCUTA EM TEMPO REAL (onSnapshot) - Mais rápido e eficiente que polling
       unsubscribe = onSnapshot(doc(db, "tasks", activeTaskId), (docSnap) => {
         if (docSnap.exists()) {
           const data = docSnap.data() as Task;
           setActiveTask(data);
-          
           if (data.status === 'completed' || data.status === 'failed' || data.status === 'cancelled') {
-            // Aguarda 2 segundos antes de limpar para o usuário ver o 100% (ou erro final)
             setTimeout(() => {
               setIsExecuting(false);
-              fetchClients(); // Refresh statuses
+              fetchClients();
               setActiveTaskId(null);
             }, 2000);
           }
         }
-      }, (error) => {
-        console.error("Erro no onSnapshot da tarefa:", error);
       });
     }
-
-    return () => {
-      if (unsubscribe) unsubscribe();
-    };
+    return () => { if (unsubscribe) unsubscribe(); };
   }, [activeTaskId]);
 
   useEffect(() => {
@@ -156,10 +137,10 @@ export default function ApiChecksPage() {
   }, [showLogs, activeTaskId, viewingTaskId]);
 
   useEffect(() => {
-    if (logEndRef.current) {
-      logEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }
+    if (logEndRef.current) logEndRef.current.scrollIntoView({ behavior: "smooth" });
   }, [taskLogs, showLogs]);
+
+  useEffect(() => { setCurrentPage(1); }, [searchTerm, filterStatus]);
 
   const fetchClients = async () => {
     setIsLoading(true);
@@ -171,24 +152,6 @@ export default function ApiChecksPage() {
       console.error("Erro ao buscar clientes:", error);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const fetchTaskStatus = async () => {
-    if (!activeTaskId) return;
-    try {
-      const res = await fetch(`/api/task/${activeTaskId}`);
-      const data = await res.json();
-      setActiveTask(data);
-      
-      if (data.status === 'completed' || data.status === 'failed') {
-        setActiveTaskId(null);
-        setIsExecuting(false);
-        fetchClients(); // Refresh statuses
-        fetchTaskLogs(activeTaskId); 
-      }
-    } catch (error) {
-      console.error("Erro ao buscar status da tarefa:", error);
     }
   };
 
@@ -205,8 +168,7 @@ export default function ApiChecksPage() {
 
   const handleStopCheck = async () => {
     if (!activeTaskId) return;
-    if (!confirm("Deseja realmente interromper a checagem em lote?")) return;
-    
+    if (!confirm("Deseja realmente interromper a checagem?")) return;
     try {
       await updateDoc(doc(db, "tasks", activeTaskId), {
         status: "cancelled",
@@ -215,7 +177,6 @@ export default function ApiChecksPage() {
       setIsExecuting(false);
       setActiveTaskId(null);
     } catch (error) {
-      console.error("Erro ao cancelar tarefa:", error);
       alert("Erro ao solicitar cancelamento.");
     }
   };
@@ -225,14 +186,11 @@ export default function ApiChecksPage() {
     setIsExecuting(true);
     setActiveTask(null);
     setTaskLogs([]);
-    
     try {
       const res = await fetch("/api/check-integrations", { method: "POST" });
       const data = await res.json();
-      if (data.task_id) {
-        setActiveTaskId(data.task_id);
-      }
-    } catch (error) {
+      if (data.task_id) setActiveTaskId(data.task_id);
+    } catch {
       alert("Erro ao disparar checagem geral.");
       setIsExecuting(false);
     }
@@ -241,28 +199,19 @@ export default function ApiChecksPage() {
   const handleRunFailedChecks = async () => {
     if (isExecuting) return;
     const failedOnes = clients.filter(c => c.api_status !== 'online').map(c => c.id);
-    if (failedOnes.length === 0) {
-      alert("Não há clientes com falha ou offline no momento.");
-      return;
-    }
-    
+    if (failedOnes.length === 0) { alert("Não há clientes com falha."); return; }
     setIsExecuting(true);
     setActiveTask(null);
     setTaskLogs([]);
-    
     try {
-      // Disparamos um lote específico (ou o robot detecta se passarmos os IDs)
-      // Por simplicidade aqui, dispararemos a checagem geral mas a lógica do botão foca nos falhos.
-      const res = await fetch("/api/check-integrations", { 
+      const res = await fetch("/api/check-integrations", {
         method: "POST",
         body: JSON.stringify({ client_ids: failedOnes }),
         headers: { 'Content-Type': 'application/json' }
       });
       const data = await res.json();
-      if (data.task_id) {
-        setActiveTaskId(data.task_id);
-      }
-    } catch (error) {
+      if (data.task_id) setActiveTaskId(data.task_id);
+    } catch {
       alert("Erro ao disparar checagem de falhas.");
       setIsExecuting(false);
     }
@@ -274,14 +223,11 @@ export default function ApiChecksPage() {
     setActiveTask(null);
     setTaskLogs([]);
     setOpenMenuId(null);
-    
     try {
       const res = await fetch(`/api/check-integration/${clientId}`, { method: "POST" });
       const data = await res.json();
-      if (data.task_id) {
-        setActiveTaskId(data.task_id);
-      }
-    } catch (error) {
+      if (data.task_id) setActiveTaskId(data.task_id);
+    } catch {
       alert("Erro ao disparar checagem individual.");
       setIsExecuting(false);
     }
@@ -299,26 +245,16 @@ export default function ApiChecksPage() {
 
   const handleViewGlobalLog = async () => {
     try {
-      // Busca os últimos 30 registros sem filtro de tipo para evitar erro de índice composto no Firebase
-      const q = query(
-        collection(db, "tasks"), 
-        orderBy("created_at", "desc"),
-        limit(30)
-      );
-      
+      const q = query(collection(db, "tasks"), orderBy("created_at", "desc"), limit(30));
       const querySnapshot = await getDocs(q);
       const tasks = querySnapshot.docs.map((d: any) => ({ id: d.id, ...d.data() } as any));
-      
-      // Filtra no frontend o último lote (batch) de qualquer variação de nome
       const lastBatch = tasks.find((t: any) => t.type === "batch_api_check" || t.type === "api_check_batch");
-      
       if (lastBatch) {
-        openPastLogs(lastBatch.id, "Log Completo do Sistema"); // Abre sem filtro por cliente
+        openPastLogs(lastBatch.id, "Log Completo do Sistema");
       } else {
-        alert("Nenhum histórico de lote encontrado recentemente (nas últimas 30 tarefas).");
+        alert("Nenhum histórico de lote encontrado.");
       }
     } catch (error) {
-      console.error("Erro ao buscar último log:", error);
       alert("Erro ao buscar histórico.");
     }
   };
@@ -331,54 +267,42 @@ export default function ApiChecksPage() {
 
   const totalFiltered = filteredClients.length;
   const totalPages = Math.ceil(totalFiltered / itemsPerPage);
-
-  const paginatedClients = filteredClients.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
-
-  // Reset to page 1 on search or filter change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, filterStatus]);
+  const paginatedClients = filteredClients.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const stats = {
     online: clients.filter(c => c.api_status === 'online').length,
-    offline: clients.filter(c => c.api_status === 'offline').length,
+    offline: clients.filter(c => c.api_status !== 'online' && c.api_status).length,
     total: clients.length
   };
 
-  const progressPercent = activeTask?.total && activeTask.total > 0 
-    ? Math.min(100, Math.round((Number(activeTask.current) || 0) / Number(activeTask.total) * 100)) 
+  const progressPercent = activeTask?.total && activeTask.total > 0
+    ? Math.min(100, Math.round((Number(activeTask.current) || 0) / Number(activeTask.total) * 100))
     : 0;
 
   const isStale = (() => {
     if (!activeTask || !activeTask.updated_at) return false;
     const updatedAt = new Date(activeTask.updated_at.replace(/-/g, "/"));
-    const now = new Date();
-    return (now.getTime() - updatedAt.getTime()) > 10 * 60 * 1000; // 10 minutos sem update
+    return (new Date().getTime() - updatedAt.getTime()) > 10 * 60 * 1000;
   })();
 
-  // Mini Component: Uptime Map (15 Squares)
   const UptimeChart = ({ history }: { history?: string[] }) => {
-    // We want 15 squares. Fill with 'empty' if fewer.
     const displayHistory = Array(15).fill('empty');
     if (history) {
       history.slice(-15).forEach((status, i) => {
         displayHistory[15 - history.slice(-15).length + i] = status;
       });
     }
-
     return (
       <div className="flex gap-[2px]">
         {displayHistory.map((status, idx) => (
-          <div 
-            key={idx} 
-            className={`w-1.5 h-4 rounded-[1px] transition-colors duration-300 ${
-              status === 'online' ? 'bg-emerald-400' : 
-              status === 'offline' || status === 'error' ? 'bg-rose-400' : 
-              'bg-slate-200'
-            }`}
+          <div
+            key={idx}
+            className={cn(
+              "w-1.5 h-4 rounded-[2px] transition-colors duration-300",
+              status === 'online' ? 'bg-emerald-400' :
+                status === 'offline' || status === 'error' ? 'bg-rose-400' :
+                  'bg-slate-200'
+            )}
             title={status === 'empty' ? 'Sem dados' : status.toUpperCase()}
           />
         ))}
@@ -387,265 +311,305 @@ export default function ApiChecksPage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-end gap-4">
-        <div className="flex gap-3">
-          <button 
-            onClick={fetchClients}
-            className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-all shadow-sm flex items-center gap-2"
-          >
-            Atualizar
-          </button>
-          <button 
-            onClick={handleViewGlobalLog}
-            className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-all shadow-sm flex items-center gap-2"
-            title="Ver último histórico completo do sistema"
-          >
-            <Terminal className="w-4 h-4" />
-            Último Log Geral
-          </button>
-          <button 
-            onClick={handleRunFailedChecks}
-            disabled={isExecuting}
-            className="px-4 py-2 bg-white border border-rose-200 text-rose-600 rounded-lg hover:bg-rose-50 transition-all shadow-sm flex items-center gap-2 font-medium"
-          >
-            <RotateCcw className="w-4 h-4" />
-            Re-testar Falhas
-          </button>
-          <button 
-            onClick={handleRunBatchCheck}
-            disabled={isExecuting}
-            className={`px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all shadow-md flex items-center gap-2 font-medium ${isExecuting ? 'opacity-50 cursor-not-allowed' : ''}`}
-          >
-            <Zap className={`w-4 h-4 ${isExecuting ? 'animate-pulse' : ''}`} />
-            Executar Lote Completo
-          </button>
-        </div>
-      </div>
+    <div className="space-y-6 animate-in fade-in duration-500">
 
-      {/* Progress Section */}
-      {isExecuting && activeTask && (
-        <div className={`bg-white p-6 rounded-2xl shadow-lg border-2 overflow-hidden relative group transition-all ${isStale ? 'border-rose-400 animate-[shake_0.5s_ease-in-out_infinite]' : 'border-blue-100'}`}>
-          <div className={`absolute top-0 left-0 w-1 h-full ${isStale ? 'bg-rose-500' : 'bg-blue-500'}`} />
-          
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="flex-1 w-full space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className={`p-2 rounded-lg transition-colors duration-300 ${isStale ? 'bg-rose-100 text-rose-600' : 'bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white'}`}>
-                    <Activity className={`w-5 h-5 ${isExecuting && !isStale ? 'animate-pulse' : ''}`} />
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-slate-900 flex items-center gap-2">
-                       {activeTask.total && activeTask.total > 1 ? 'Processando Lote...' : 'Processando Cliente...'}
-                       <span className="text-xs font-normal text-slate-400 bg-slate-100 px-2 py-0.5 rounded uppercase">ID: {activeTaskId?.substring(0,8)}</span>
-                    </h4>
-                    <p className="text-sm text-slate-500 flex items-center gap-1.5 mt-0.5 font-medium">
-                      Atual: <span className={`${isStale ? 'text-rose-600' : 'text-blue-600'} font-bold`}>{activeTask.current_client || 'Iniciando...'}</span>
-                    </p>
-                  </div>
+      {/* ── REAL-TIME STATUS BAR ── */}
+      <div className={cn(
+        "rounded-2xl border bg-white px-5 py-3 flex items-center justify-between gap-4 shadow-sm transition-all",
+        isExecuting ? "border-gax-blue/30 bg-gax-blue/[0.02]" : "border-slate-200"
+      )}>
+        {isExecuting && activeTask ? (
+          <>
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <div className="relative flex h-2.5 w-2.5 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-gax-blue opacity-60" />
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-gax-blue" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-gax-blue">
+                    {activeTask.total && activeTask.total > 1 ? "Lote em execução" : "Verificando cliente"}
+                  </span>
+                  {activeTask.current_client && (
+                    <span className="text-[10px] text-slate-400 truncate">— {activeTask.current_client}</span>
+                  )}
                 </div>
-                <div className="text-right">
-                  <span className={`text-2xl font-black ${isStale ? 'text-rose-600' : 'text-slate-900'}`}>{progressPercent}%</span>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{activeTask.current} de {activeTask.total}</p>
+                <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gax-blue transition-all duration-700 ease-in-out shadow-[0_0_10px_rgba(14,165,233,0.4)]"
+                    style={{ width: `${progressPercent}%` }}
+                  />
                 </div>
               </div>
-
-              {isStale && (
-                <div className="flex items-center gap-2 px-3 py-2 bg-rose-50 border border-rose-100 rounded-lg text-rose-700 text-xs font-bold animate-pulse">
-                  <Ban className="w-4 h-4" />
-                  ESTA TAREFA PARECE TRAVADA (MAIS DE 10 MIN SEM ATUALIZAR)
-                </div>
-              )}
-
-              <div className="relative h-3 w-full bg-slate-100 rounded-full overflow-hidden shadow-inner">
-                <div 
-                  className={`absolute top-0 left-0 h-full transition-all duration-700 ${isStale ? 'bg-rose-500' : 'bg-gradient-to-r from-blue-500 via-blue-600 to-blue-500'}`}
-                  style={{ width: `${progressPercent}%` }}
-                >
-                   <div className="absolute inset-0 bg-[linear-gradient(45deg,rgba(255,255,255,0.2)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.2)_50%,rgba(255,255,255,0.2)_75%,transparent_75%,transparent)] bg-[length:20px_20px] animate-[progress_1s_linear_infinite]" />
-                </div>
-              </div>
-
-              <div className={`${isStale ? 'bg-rose-50 border-rose-100' : 'bg-slate-50 border-slate-100'} border rounded-xl p-3 flex items-center gap-3`}>
-                 <div className={`w-2 h-2 rounded-full ${isStale ? 'bg-rose-500' : 'bg-emerald-500 animate-pulse'} shrink-0`} />
-                 <span className={`text-[13px] ${isStale ? 'text-rose-600' : 'text-slate-600'} font-medium truncate italic h-5`}>
-                    {activeTask.last_log || "Sincronizando com o robô..."}
-                 </span>
-              </div>
+              <span className="text-xs font-bold text-gax-blue shrink-0">{progressPercent}%</span>
             </div>
 
-            <div className="shrink-0 flex items-center gap-3">
-               <button 
-                 onClick={handleStopCheck}
-                 className="flex items-center gap-2 px-4 py-3 bg-rose-50 text-rose-600 text-sm font-bold rounded-xl hover:bg-rose-100 transition-all border border-rose-100 shadow-sm"
-               >
-                 <Ban className="w-4 h-4" />
-                 Parar Checagem
-               </button>
-               <button 
-                 onClick={() => { setViewingTaskId(null); setShowLogs(true); }}
-                 className="flex items-center gap-2 px-6 py-3 bg-slate-900 text-white text-sm font-bold rounded-xl hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 group/btn"
-               >
-                 <Terminal className="w-4 h-4 group-hover/btn:rotate-12 transition-transform" />
-                 Console Técnico
-                 <ChevronRight className="w-4 h-4 opacity-50 group-hover/btn:translate-x-1 transition-transform" />
-               </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => { setViewingTaskId(null); setShowLogs(true); }}
+                className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 transition-colors"
+                title="Abrir Console"
+              >
+                <Terminal size={14} />
+              </button>
+              <button
+                onClick={handleStopCheck}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-red-50 text-red-600 border border-red-100 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-red-100 transition-all"
+              >
+                <X size={12} />
+                Parar
+              </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4">
-          <div className="p-3 bg-blue-100 rounded-lg text-blue-600">
-            <Filter className="w-6 h-6" />
-          </div>
-          <div>
-            <p className="text-sm text-slate-500 font-medium">Total de Clientes</p>
-            <p className="text-2xl font-bold text-slate-900">{stats.total}</p>
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4 relative overflow-hidden group">
-          <div className="p-3 bg-emerald-100 rounded-lg text-emerald-600 relative z-10">
-            <CheckCircle className="w-6 h-6" />
-          </div>
-          <div className="relative z-10">
-            <p className="text-sm text-slate-500 font-medium font-bold">Conexões Ativas</p>
-            <p className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-               {stats.online}
-               <span className="flex h-3 w-3 relative">
-                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                 <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-               </span>
-            </p>
-          </div>
-          <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-50 rounded-full -mr-12 -mt-12 group-hover:scale-110 transition-transform duration-500" />
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4">
-          <div className="p-3 bg-rose-100 rounded-lg text-rose-600">
-            <XCircle className="w-6 h-6" />
-          </div>
-          <div>
-            <p className="text-sm text-slate-500 font-medium">Falhas Detectadas</p>
-            <p className="text-2xl font-bold text-slate-900">{stats.offline + (clients.filter(c => c.api_status === 'error').length)}</p>
-          </div>
-        </div>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center gap-2 text-slate-400 italic text-sm">
+              <ShieldCheck size={14} className="text-emerald-500" />
+              <span className="text-xs font-medium text-slate-500">Sistema pronto para nova checagem</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={fetchClients}
+                className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 transition-colors"
+                title="Atualizar"
+              >
+                <RefreshCw size={14} />
+              </button>
+              <button
+                onClick={handleViewGlobalLog}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-white transition-all"
+              >
+                <Terminal size={12} />
+                Histórico
+              </button>
+              <button
+                onClick={handleRunFailedChecks}
+                disabled={isExecuting}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 border border-rose-100 text-rose-600 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-rose-100 transition-all disabled:opacity-40"
+              >
+                <RotateCcw size={12} />
+                Re-testar Falhas
+              </button>
+              <button
+                onClick={handleRunBatchCheck}
+                disabled={isExecuting}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-gax-blue text-white rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-gax-blue-hover transition-all shadow-md shadow-gax-blue/20 disabled:opacity-40"
+              >
+                <Zap size={12} className={isExecuting ? 'animate-pulse' : ''} />
+                Executar Lote
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
-      {/* Filters & Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row gap-4 justify-between bg-slate-50/50">
-          <div className="relative group max-w-md w-full">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-gax-blue transition-colors" size={18} />
-            <input 
-              type="text" 
-              placeholder="Filtro rápido (Nome ou CNPJ)..." 
+      {/* ── STATS CARDS ── */}
+      <div className="grid grid-cols-3 gap-4">
+        {[
+          {
+            label: "Total de Clientes",
+            value: stats.total,
+            icon: <Activity size={18} />,
+            color: "text-gax-blue bg-gax-blue/10"
+          },
+          {
+            label: "Conexões Ativas",
+            value: stats.online,
+            icon: <CheckCircle2 size={18} />,
+            color: "text-emerald-600 bg-emerald-50",
+            pulse: true
+          },
+          {
+            label: "Falhas Detectadas",
+            value: stats.offline,
+            icon: <XCircle size={18} />,
+            color: "text-rose-600 bg-rose-50"
+          }
+        ].map((card, i) => (
+          <div
+            key={i}
+            className="rounded-2xl bg-white border border-slate-200 p-5 flex items-center gap-4 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500"
+            style={{ animationDelay: `${i * 60}ms`, animationFillMode: 'both' }}
+          >
+            <div className={cn("flex h-10 w-10 items-center justify-center rounded-xl shrink-0", card.color)}>
+              {card.icon}
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{card.label}</p>
+              <p className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                {card.value}
+                {card.pulse && card.value > 0 && (
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+                  </span>
+                )}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── CLIENT TABLE ── */}
+      <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500" style={{ animationDelay: '180ms', animationFillMode: 'both' }}>
+        {/* Table Toolbar */}
+        <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row gap-3 justify-between items-center bg-slate-50/40">
+          <div className="relative group w-full max-w-sm">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-gax-blue transition-colors" size={15} />
+            <input
+              type="text"
+              placeholder="Filtrar por nome..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full rounded-2xl border border-slate-200/60 bg-white px-12 py-3.5 text-xs text-slate-700 outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all font-medium placeholder:text-slate-300"
+              className="w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 py-2.5 text-xs font-medium text-slate-700 outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all placeholder:text-slate-300"
             />
           </div>
-          <div className="flex gap-2">
-            <select 
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white text-sm font-bold text-slate-700"
-            >
-              <option value="all">Filtro: Todos os Status</option>
-              <option value="online">Online</option>
-              <option value="offline">Offline</option>
-              <option value="error">Erro</option>
-              <option value="pending">Pendente</option>
-            </select>
+          <div className="flex items-center gap-2">
+            {["all", "online", "offline", "error", "pending"].map(s => (
+              <button
+                key={s}
+                onClick={() => setFilterStatus(s)}
+                className={cn(
+                  "px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all",
+                  filterStatus === s
+                    ? "bg-gax-blue text-white shadow-sm"
+                    : "bg-white border border-slate-200 text-slate-500 hover:border-gax-blue/30 hover:text-gax-blue"
+                )}
+              >
+                {s === 'all' ? 'Todos' : s}
+              </button>
+            ))}
           </div>
         </div>
 
-        <div className="overflow-x-auto overflow-visible">
+        <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50/50 text-slate-500 text-[10px] uppercase tracking-wider font-extrabold">
-                <th className="px-6 py-4 border-b border-slate-100">Cliente</th>
-                <th className="px-6 py-4 border-b border-slate-100">Status</th>
-                <th className="px-6 py-4 border-b border-slate-100">Uptime (24h)</th>
-                <th className="px-6 py-4 border-b border-slate-100">Última Verificação</th>
-                <th className="px-6 py-4 border-b border-slate-100 text-right">Ações</th>
+              <tr className="bg-slate-50/50">
+                {["Cliente", "Status", "Uptime (24h)", "Última Verificação", "Ações"].map((h, i) => (
+                  <th
+                    key={h}
+                    className={cn(
+                      "px-5 py-3.5 text-[10px] font-bold uppercase tracking-widest text-slate-400 border-b border-slate-100",
+                      i === 4 ? "text-right" : ""
+                    )}
+                  >
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100/80">
               {isLoading ? (
-                <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-400 italic">Carregando painel de monitoramento...</td></tr>
-              ) : paginatedClients.length === 0 ? (
-                <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-400">Nenhum registro para o filtro selecionado.</td></tr>
-              ) : paginatedClients.map((client) => (
-                <tr key={client.id} className="hover:bg-blue-50/30 transition-colors group">
-                  <td className="px-6 py-4">
-                    <div className="flex flex-col">
-                      <span className="font-bold text-slate-800 text-sm">{client.name}</span>
-                      <span className="text-[10px] text-slate-400 font-mono italic">{client.url_sistema}</span>
+                <tr>
+                  <td colSpan={5} className="py-16 text-center">
+                    <div className="flex flex-col items-center gap-3">
+                      <Loader2 size={28} className="animate-spin text-gax-blue" />
+                      <p className="text-xs text-slate-400 font-medium">Carregando clientes...</p>
                     </div>
                   </td>
-                  <td className="px-6 py-4">
-                    {client.api_status === 'online' ? (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-black ring-1 ring-inset ring-emerald-600/20 uppercase">
-                        <span className="relative flex h-2 w-2">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </tr>
+              ) : paginatedClients.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-16 text-center">
+                    <p className="text-xs text-slate-400">Nenhum registro para o filtro selecionado.</p>
+                  </td>
+                </tr>
+              ) : paginatedClients.map((client, idx) => (
+                <tr
+                  key={client.id}
+                  className="group hover:bg-gax-blue/[0.02] transition-colors animate-in fade-in duration-300"
+                  style={{ animationDelay: `${(idx % 10) * 30}ms` }}
+                >
+                  {/* Cliente */}
+                  <td className="px-5 py-3.5">
+                    <div className="flex flex-col">
+                      <span className="font-bold text-slate-800 text-sm">{client.name}</span>
+                      <span className="text-[10px] text-slate-400 font-medium truncate max-w-[240px]">{client.url_sistema}</span>
+                    </div>
+                  </td>
+
+                  {/* Status */}
+                  <td className="px-5 py-3.5">
+                    <div className="flex items-center gap-2">
+                      {client.api_status === 'online' ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-100 uppercase">
+                          <span className="relative flex h-1.5 w-1.5">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
+                          </span>
+                          Online
                         </span>
-                        Online
-                      </span>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black ring-1 ring-inset uppercase ${
-                          client.api_status === 'error' || client.api_status === 'offline' ? 'bg-rose-50 text-rose-700 ring-rose-600/20' : 'bg-slate-100 text-slate-500 ring-slate-400/20'
-                        }`}>
+                      ) : (
+                        <span className={cn(
+                          "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold border uppercase",
+                          client.api_status === 'error' || client.api_status === 'offline'
+                            ? "bg-rose-50 text-rose-700 border-rose-100"
+                            : "bg-slate-100 text-slate-500 border-slate-200"
+                        )}>
                           {client.api_status || 'Pendente'}
                         </span>
-                        {(client.api_status === 'error' || client.api_status === 'offline') && client.api_last_screenshot_url && (
-                          <button onClick={() => setSelectedScreenshot(client.api_last_screenshot_url || null)} className="p-1 hover:bg-rose-100 rounded text-rose-500 transition-colors animate-pulse" title="Ver Screenshot da Falha">
-                            <Camera className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-                    )}
+                      )}
+                      {(client.api_status === 'error' || client.api_status === 'offline') && client.api_last_screenshot_url && (
+                        <button
+                          onClick={() => setSelectedScreenshot(client.api_last_screenshot_url || null)}
+                          className="p-1 hover:bg-rose-100 rounded text-rose-400 transition-colors"
+                          title="Ver Screenshot da Falha"
+                        >
+                          <Camera size={13} />
+                        </button>
+                      )}
+                    </div>
                   </td>
-                  <td className="px-6 py-4">
-                     <UptimeChart history={client.api_status_history} />
+
+                  {/* Uptime */}
+                  <td className="px-5 py-3.5">
+                    <UptimeChart history={client.api_status_history} />
                   </td>
-                  <td className="px-6 py-4 text-xs font-semibold text-slate-600">
-                    {client.api_last_check && client.api_last_check !== '-' ? formatDistanceToNow(new Date(client.api_last_check), { addSuffix: true, locale: ptBR }) : "Nunca checado"}
+
+                  {/* Última Verificação */}
+                  <td className="px-5 py-3.5">
+                    <span className="text-xs font-semibold text-slate-500">
+                      {client.api_last_check && client.api_last_check !== '-'
+                        ? formatDistanceToNow(new Date(client.api_last_check), { addSuffix: true, locale: ptBR })
+                        : "Nunca checado"}
+                    </span>
                   </td>
-                  <td className="px-6 py-4 text-right">
+
+                  {/* Ações */}
+                  <td className="px-5 py-3.5 text-right">
                     <div className="relative inline-block text-left" ref={openMenuId === client.id ? dropdownRef : null}>
-                      <button onClick={() => setOpenMenuId(openMenuId === client.id ? null : client.id)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all">
-                        <MoreHorizontal className="w-5 h-5" />
+                      <button
+                        onClick={() => setOpenMenuId(openMenuId === client.id ? null : client.id)}
+                        className="p-2 text-slate-300 hover:text-gax-blue hover:bg-gax-blue/10 rounded-xl transition-all"
+                      >
+                        <MoreHorizontal size={16} />
                       </button>
-                      
+
                       {openMenuId === client.id && (
-                        <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-2xl border border-blue-50 z-50 overflow-hidden animate-in zoom-in-95 duration-100 origin-top-right">
-                           <button 
-                             onClick={() => handleRunSingleCheck(client.id)}
-                             className="w-full flex items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-blue-600 hover:text-white transition-colors"
-                           >
-                              <Zap className="w-4 h-4" /> Testar API Agora
-                           </button>
-                            {client.api_last_task_id && (
-                              <button 
-                                onClick={() => openPastLogs(client.api_last_task_id!, client.api_last_message, client.name)}
-                                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-blue-600 hover:text-white transition-colors border-t border-slate-50"
-                              >
-                                 <FileText className="w-4 h-4" /> Visualizar Log
-                              </button>
-                            )}
-                           {(client.api_status === 'error' || client.api_status === 'offline') && client.api_last_screenshot_url && (
-                             <button 
-                               onClick={() => { setSelectedScreenshot(client.api_last_screenshot_url!); setOpenMenuId(null); }}
-                               className="w-full flex items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-blue-600 hover:text-white transition-colors border-t border-slate-50"
-                             >
-                                <Camera className="w-4 h-4" /> Ver Screenshot
-                             </button>
-                           )}
+                        <div className="absolute right-0 mt-1.5 w-44 bg-white rounded-2xl shadow-2xl shadow-slate-200/80 border border-slate-100 z-50 overflow-hidden animate-in zoom-in-95 duration-150 origin-top-right">
+                          <button
+                            onClick={() => handleRunSingleCheck(client.id)}
+                            className="w-full flex items-center gap-2.5 px-4 py-3 text-xs font-semibold text-slate-700 hover:bg-gax-blue hover:text-white transition-colors"
+                          >
+                            <Zap size={14} /> Testar Agora
+                          </button>
+                          {client.api_last_task_id && (
+                            <button
+                              onClick={() => openPastLogs(client.api_last_task_id!, client.api_last_message, client.name)}
+                              className="w-full flex items-center gap-2.5 px-4 py-3 text-xs font-semibold text-slate-700 hover:bg-gax-blue hover:text-white transition-colors border-t border-slate-50"
+                            >
+                              <FileText size={14} /> Ver Log
+                            </button>
+                          )}
+                          {(client.api_status === 'error' || client.api_status === 'offline') && client.api_last_screenshot_url && (
+                            <button
+                              onClick={() => { setSelectedScreenshot(client.api_last_screenshot_url!); setOpenMenuId(null); }}
+                              className="w-full flex items-center gap-2.5 px-4 py-3 text-xs font-semibold text-slate-700 hover:bg-gax-blue hover:text-white transition-colors border-t border-slate-50"
+                            >
+                              <Camera size={14} /> Screenshot
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -656,43 +620,39 @@ export default function ApiChecksPage() {
           </table>
         </div>
 
-        {/* Controles de Paginação (Logs Reference Style) */}
+        {/* Pagination */}
         {!isLoading && totalPages > 1 && (
-          <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/30 px-6 py-4">
-            <span className="text-xs font-medium text-slate-500">
-              Mostrando {(currentPage - 1) * itemsPerPage + 1} a {Math.min(currentPage * itemsPerPage, totalFiltered)} de {totalFiltered} clientes
+          <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/30 px-5 py-3.5">
+            <span className="text-[10px] font-medium text-slate-400">
+              {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalFiltered)} de {totalFiltered} clientes
             </span>
-            <div className="flex items-center gap-2">
-              <button 
+            <div className="flex items-center gap-1.5">
+              <button
                 onClick={() => setCurrentPage(1)}
                 disabled={currentPage === 1}
-                className="px-4 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all font-sans focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
+                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-[10px] font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all outline-none"
               >
                 Primeira
               </button>
-              <button 
+              <button
                 onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                 disabled={currentPage === 1}
-                className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
-                aria-label="Anterior"
+                className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all outline-none"
               >
-                <ChevronLeft size={16} />
+                <ChevronLeft size={14} />
               </button>
-              <span className="text-xs font-bold text-slate-700 px-2">
-                {currentPage} / {totalPages || 1}
-              </span>
-              <button 
+              <span className="text-[10px] font-bold text-slate-600 px-2">{currentPage} / {totalPages || 1}</span>
+              <button
                 onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                 disabled={currentPage === totalPages || totalFiltered === 0}
-                className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
-                aria-label="Próxima"
+                className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all outline-none"
               >
-                <ChevronRight size={16} />
+                <ChevronRight size={14} />
               </button>
-              <button 
+              <button
                 onClick={() => setCurrentPage(totalPages)}
                 disabled={currentPage === totalPages || totalPages === 0}
-                className="px-4 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all font-sans focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
+                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-[10px] font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all outline-none"
               >
                 Última
               </button>
@@ -701,80 +661,71 @@ export default function ApiChecksPage() {
         )}
       </div>
 
-      {/* DETAILED LOG MODAL */}
+      {/* ── LOG MODAL ── */}
       {showLogs && (
-        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-300">
-          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-blue-100 flex flex-col max-h-[85vh] overflow-hidden zoom-in-95 duration-200">
-            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-blue-50/50">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-100 flex flex-col max-h-[85vh] overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-600 text-white rounded-lg shadow-lg">
-                  <Terminal className="w-5 h-5" />
+                <div className="p-2 bg-gax-blue text-white rounded-xl shadow-lg shadow-gax-blue/20">
+                  <Terminal size={16} />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900">Console Técnico</h3>
-                  <div className="flex items-center gap-2">
-                    <p className="text-[10px] text-blue-600 font-bold uppercase tracking-widest">{viewingTaskId ? 'Visualizando Histórico' : 'Monitoramento em Tempo Real'}</p>
-                    {selectedClientMessage && (
-                      <>
-                        <span className="text-slate-300">|</span>
-                        <p className="text-[10px] text-rose-500 font-bold uppercase truncate max-w-[300px]" title={selectedClientMessage}>{selectedClientMessage}</p>
-                      </>
-                    )}
-                  </div>
+                  <h3 className="text-sm font-bold text-slate-900">Console Técnico</h3>
+                  <p className="text-[10px] text-gax-blue font-bold uppercase tracking-widest">
+                    {viewingTaskId ? 'Visualizando Histórico' : 'Monitoramento em Tempo Real'}
+                  </p>
                 </div>
               </div>
-              <button onClick={() => { setShowLogs(false); setViewingTaskId(null); setSelectedClientMessage(null); setLogFilterClient(null); }} className="p-2 hover:bg-white rounded-lg transition-colors text-slate-400">
-                <X className="w-5 h-5" />
+              <button
+                onClick={() => { setShowLogs(false); setViewingTaskId(null); setSelectedClientMessage(null); setLogFilterClient(null); }}
+                className="p-2 hover:bg-slate-100 rounded-xl transition-colors text-slate-400"
+              >
+                <X size={16} />
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 space-y-3 bg-slate-50/30 scrollbar-thin scrollbar-thumb-blue-200">
+            <div className="flex-1 overflow-y-auto p-5 space-y-3 bg-slate-50/20">
               {taskLogs.length > 0 ? (
                 taskLogs
                   .filter(log => !logFilterClient || log.message.includes(`[${logFilterClient}]`))
                   .map((log, idx) => (
-                    <div key={idx} className="flex gap-4 group">
-                      <div className="flex flex-col items-center">
-                        <div className={`w-2.5 h-2.5 rounded-full mt-1.5 shrink-0 ${
-                          log.level === 'ERROR' ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.4)]' :
-                          log.level === 'SUCCESS' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]' :
-                          log.level === 'WARNING' ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]' :
-                          'bg-blue-400'
-                        }`} />
-                        {idx < taskLogs.length - 1 && <div className="w-px flex-1 bg-slate-200 my-1" />}
-                      </div>
-                      <div className="flex-1 pb-2">
-                         <span className={`text-[9px] font-black mr-2 uppercase tracking-tighter px-1.5 py-0.5 rounded ${
-                           log.level === 'ERROR' ? 'bg-rose-100 text-rose-700' : 
-                           log.level === 'SUCCESS' ? 'bg-emerald-100 text-emerald-700' :
-                           'bg-blue-50 text-blue-700'
-                         }`}>
-                             {log.level || 'INFO'}
-                         </span>
-                        <div className="flex items-baseline justify-between gap-2 mt-1">
-                          <span className={`text-[13.5px] font-medium leading-relaxed ${
-                            log.level === 'ERROR' ? 'text-rose-700' : 'text-slate-700'
-                          }`}>
+                    <div key={idx} className="flex gap-3.5">
+                      <div className={cn(
+                        "w-1.5 h-1.5 rounded-full mt-1.5 shrink-0",
+                        log.level === 'ERROR' ? 'bg-rose-500' :
+                          log.level === 'SUCCESS' ? 'bg-emerald-500' :
+                            log.level === 'WARNING' ? 'bg-amber-500' :
+                              'bg-gax-blue'
+                      )} />
+                      <div className="flex-1">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className={cn(
+                            "text-[12.5px] font-medium leading-relaxed",
+                            log.level === 'ERROR' ? 'text-rose-700' :
+                              log.level === 'WARNING' ? 'text-amber-700' :
+                                'text-slate-700'
+                          )}>
                             {log.message}
                           </span>
-                          <span className="text-[10px] text-slate-400 font-mono italic">{log.timestamp}</span>
+                          <span className="text-[9px] text-slate-300 font-mono italic shrink-0">{log.timestamp}</span>
                         </div>
                       </div>
                     </div>
                   ))
               ) : (
-                <div className="h-40 flex flex-col items-center justify-center text-slate-400 gap-3">
-                  <div className="w-8 h-8 border-2 border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>
-                  <p className="text-sm italic">Carregando logs do armazenamento...</p>
+                <div className="h-40 flex flex-col items-center justify-center gap-3">
+                  <Loader2 size={24} className="animate-spin text-gax-blue" />
+                  <p className="text-xs text-slate-400 italic">Carregando logs...</p>
                 </div>
               )}
               <div ref={logEndRef} />
             </div>
 
-            <div className="px-6 py-4 border-t border-slate-100 flex justify-end bg-slate-50 gap-3">
-              <button 
+            <div className="px-6 py-3.5 border-t border-slate-100 flex justify-end bg-slate-50/60">
+              <button
                 onClick={() => { setShowLogs(false); setViewingTaskId(null); setSelectedClientMessage(null); setLogFilterClient(null); }}
-                className="px-6 py-2.5 text-sm font-bold text-slate-600 hover:bg-white border border-transparent hover:border-slate-200 rounded-xl transition-all"
+                className="px-5 py-2 text-xs font-bold text-slate-600 hover:bg-white border border-transparent hover:border-slate-200 rounded-xl transition-all"
               >
                 Fechar Console
               </button>
@@ -783,42 +734,32 @@ export default function ApiChecksPage() {
         </div>
       )}
 
-      {/* SCREENSHOT MODAL */}
+      {/* ── SCREENSHOT MODAL ── */}
       {selectedScreenshot && (
-        <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-in fade-in duration-300">
-          <div className="relative max-w-5xl w-full bg-slate-900 rounded-2xl overflow-hidden shadow-2xl border border-slate-800 zoom-in-95 duration-200">
-             <div className="absolute top-4 right-4 z-10 flex gap-2">
-                <button 
-                  onClick={() => setSelectedScreenshot(null)}
-                  className="p-2 bg-white/20 hover:bg-white/40 text-white rounded-full backdrop-blur-md transition-all"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-             </div>
-             <div className="p-1">
-               <img 
-                 src={selectedScreenshot} 
-                 alt="Screenshot de Falha" 
-                 className="w-full h-auto rounded-xl object-contain max-h-[85vh]"
-               />
-               <div className="p-4 bg-slate-900/80 backdrop-blur text-white">
-                  <div className="flex items-center gap-2 text-rose-400 font-bold uppercase text-xs">
-                     <Camera className="w-4 h-4" /> Forense: Captura de Falha Detectada
-                  </div>
-                  <p className="text-sm text-slate-400 mt-1">Esta imagem mostra o que o robô visualizou no portal RSUS no momento em que a falha foi detectada.</p>
-               </div>
-             </div>
+        <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="relative max-w-5xl w-full bg-slate-900 rounded-2xl overflow-hidden shadow-2xl border border-slate-800 animate-in zoom-in-95 duration-200">
+            <button
+              onClick={() => setSelectedScreenshot(null)}
+              className="absolute top-4 right-4 z-10 p-2 bg-white/20 hover:bg-white/40 text-white rounded-full transition-all"
+            >
+              <X size={18} />
+            </button>
+            <div className="p-1">
+              <img
+                src={selectedScreenshot}
+                alt="Screenshot de Falha"
+                className="w-full h-auto rounded-xl object-contain max-h-[85vh]"
+              />
+              <div className="p-4 bg-slate-900/80 text-white">
+                <div className="flex items-center gap-2 text-rose-400 font-bold uppercase text-[10px] tracking-wider">
+                  <Camera size={14} /> Captura de Falha Detectada
+                </div>
+                <p className="text-xs text-slate-400 mt-1">Imagem capturada pelo robô no momento em que a falha foi detectada.</p>
+              </div>
+            </div>
           </div>
         </div>
       )}
-
-      {/* Global CSS for progress and pulses */}
-      <style jsx global>{`
-        @keyframes progress {
-          0% { background-position: 0 0; }
-          100% { background-position: 40px 0; }
-        }
-      `}</style>
     </div>
   );
 }
