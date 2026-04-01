@@ -192,21 +192,26 @@ async def upload_abi_schedule(file: UploadFile = File(...)):
         df = df.dropna(how='all')
 
         # 4. Mapeamento inteligente de colunas para os 7 campos relevantes
+        import unicodedata
+        def strip_accents(s):
+           return ''.join(c for c in unicodedata.normalize('NFD', s)
+                          if unicodedata.category(c) != 'Mn').lower().strip()
+
         COLUMN_MAP = {
-            'Ano Lançamento':          ['ano', 'lançamento', 'ano lançamento', 'año'],
+            'Ano Lançamento':          ['ano', 'lancamento', 'year'],
             'ABI':                     ['abi'],
-            'Competência':             ['competência', 'competencia', 'trimestre', 'referência', 'período'],
-            'Data fim competência':    ['data fim competência', 'fim competência', 'fim competencia', 'data fim comp'],
-            'Data de Lançamento':      ['data de lançamento', 'data lançamento', 'lançamento', 'data início'],
-            'Data fim de Ciência':     ['data fim de ciência', 'fim ciência', 'prazo ciência', 'fim de ciência', 'data fim ciência'],
-            'Data fim de Impugnação':  ['data fim de impugnação', 'fim impugnação', 'prazo impugnação', 'impugnação'],
+            'Competência':             ['competencia', 'trimestre', 'referencia', 'periodo'],
+            'Data fim competência':    ['data fim competencia', 'fim competencia', 'data fim comp'],
+            'Data de Lançamento':      ['data de lancamento', 'data lancamento', 'inicio'],
+            'Data fim de Ciência':     ['data fim de ciencia', 'fim ciencia', 'prazo ciencia', 'data fim ciencia'],
+            'Data fim de Impugnação':  ['data fim de impugnacao', 'fim impugnacao', 'prazo impugnacao', 'impugnacao'],
         }
 
         columns_map = {}
         for col in df.columns:
-            c_low = str(col).lower().strip()
+            c_norm = strip_accents(str(col))
             for standard_name, synonyms in COLUMN_MAP.items():
-                if any(syn in c_low for syn in synonyms) and standard_name not in columns_map.values():
+                if any(syn in c_norm for syn in synonyms) and standard_name not in columns_map.values():
                     columns_map[col] = standard_name
                     break
 
@@ -219,13 +224,17 @@ async def upload_abi_schedule(file: UploadFile = File(...)):
         # 6. Remove linhas sem ABI
         df = df[df['ABI'].notna() & (df['ABI'].astype(str).str.strip() != '')]
 
-        # 7. Filtra apenas o ano atual ou futuro
+        # 7. Preenche anos (importante quando o ano só aparece na primeira linha do grupo)
         if 'Ano Lançamento' in df.columns:
+            # Preenche o ano para baixo (forward fill) para lidar com grupos no Excel
+            df['Ano Lançamento'] = df['Ano Lançamento'].ffill()
+            
             def is_valid_year(val):
                 try:
                     if hasattr(val, 'year'):
                         return val.year >= current_year
-                    return int(str(val).strip()[:4]) >= current_year
+                    # Tenta converter para int se for float/string (ex: 2026.0 -> 2026)
+                    return int(float(str(val).strip())) >= current_year
                 except:
                     return False
             df = df[df['Ano Lançamento'].apply(is_valid_year)]
