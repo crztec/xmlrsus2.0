@@ -913,26 +913,34 @@ def get_logs_for_task(task_id, limit=2000):
 def get_aggregated_history_logs(task_category="abi", limit_tasks=5):
     """
     Recupera logs agregados das últimas N tarefas de uma categoria (abi ou api).
-    Adiciona o contexto do cliente a cada log se necessário.
+    Usa filtragem em memória para evitar a necessidade de índices compostos no Firestore.
     """
     try:
-        if task_category == "abi":
-            types = ["abi_check_batch", "abi_check_single"]
-        else:
-            types = ["api_check_batch", "api_check_single", "batch_api_check", "single_api_check"]
-
-        # 1. Busca as últimas N tarefas desse tipo
+        # Busca as últimas 200 tarefas para filtrar em memória (mais resiliente)
         tasks_query = firestore_db.collection('tasks') \
-            .where('type', 'in', types) \
             .order_by('created_at', direction=firestore.Query.DESCENDING) \
-            .limit(limit_tasks)
+            .limit(200)
         
         task_docs = tasks_query.get()
+        
+        if task_category == "abi":
+            target_types = ["abi_check_batch", "abi_check_single"]
+        else:
+            target_types = ["api_check_batch", "api_check_single", "batch_api_check", "single_api_check"]
+
+        filtered_tasks = []
+        for doc in task_docs:
+            data = doc.to_dict()
+            if data.get('type') in target_types:
+                data['id'] = doc.id
+                filtered_tasks.append(data)
+            if len(filtered_tasks) >= limit_tasks:
+                break
+
         all_aggregated_logs = []
 
-        for t_doc in task_docs:
-            t_data = t_doc.to_dict()
-            t_id = t_doc.id
+        for t_data in filtered_tasks:
+            t_id = t_data['id']
             client_name = t_data.get('razao_social') or t_data.get('current_client') or "Sistema"
             
             # 2. Busca logs para cada tarefa
