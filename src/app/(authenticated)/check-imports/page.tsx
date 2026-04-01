@@ -538,7 +538,10 @@ export default function CheckImportsPage() {
                 </tbody>
               </table>
             </div>
-                {/* Sidebar: Schedule Summary - REDESIGNED */}
+          </div>
+        </div>
+
+        {/* Sidebar: Schedule Summary - REDESIGNED */}
         <div className="flex flex-col gap-6">
           <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden animate-in fade-in slide-in-from-right-4 duration-500" style={{ animationDelay: '300ms', animationFillMode: 'both' }}>
             <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/40">
@@ -602,7 +605,7 @@ export default function CheckImportsPage() {
               <div>
                 <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
                   <Clock size={12} />
-                  Próximas Etapas
+                  Próximos ABIs
                 </h4>
                 <div className="space-y-3 relative before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[1.5px] before:bg-slate-100">
                   {schedule && schedule.length > 0 ? (
@@ -624,7 +627,7 @@ export default function CheckImportsPage() {
                         </div>
                       ))
                   ) : (
-                    <p className="text-[10px] text-slate-300 italic py-4">Fim do cronograma vigente</p>
+                    <p className="text-[10px] text-slate-300 italic py-4">Nenhum outro ABI no cronograma vigente</p>
                   )}
                 </div>
               </div>
@@ -644,9 +647,6 @@ export default function CheckImportsPage() {
             </p>
           </div>
         </div>
-        </div>
-        </div>
-
       </div>
 
       {/* LOG MODAL (Aligned with API Check) */}

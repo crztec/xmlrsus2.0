@@ -219,16 +219,16 @@ async def upload_abi_schedule(file: UploadFile = File(...)):
         # 6. Remove linhas sem ABI
         df = df[df['ABI'].notna() & (df['ABI'].astype(str).str.strip() != '')]
 
-        # 7. Filtra apenas o ano atual
+        # 7. Filtra apenas o ano atual ou futuro
         if 'Ano Lançamento' in df.columns:
-            def is_current_year(val):
+            def is_valid_year(val):
                 try:
                     if hasattr(val, 'year'):
-                        return val.year == current_year
-                    return int(str(val).strip()[:4]) == current_year
+                        return val.year >= current_year
+                    return int(str(val).strip()[:4]) >= current_year
                 except:
                     return False
-            df = df[df['Ano Lançamento'].apply(is_current_year)]
+            df = df[df['Ano Lançamento'].apply(is_valid_year)]
 
         if df.empty:
             return {"status": "error", "message": f"Nenhum registro encontrado para o ano {current_year}. Verifique se o arquivo contém a coluna 'Ano Lançamento'."}
