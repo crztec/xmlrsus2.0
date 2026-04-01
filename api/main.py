@@ -155,6 +155,50 @@ async def check_integrations(background_tasks: BackgroundTasks):
     background_tasks.add_task(auto_check.run_batch_api_check, task_id)
     return {"status": "pending", "task_id": task_id}
 
+# --- ABI CHECK ENDPOINTS ---
+@app.post("/api/upload-abi-schedule")
+async def upload_abi_schedule(file: UploadFile = File(...)):
+    import pandas as pd
+    import io
+    try:
+        contents = await file.read()
+        df = pd.read_excel(io.BytesIO(contents))
+        # Limpeza básica: remove linhas vazias e garante nomes de colunas
+        df = df.dropna(how='all').fillna('')
+        data_list = df.to_dict(orient='records')
+        
+        if db.save_abi_schedule(data_list):
+            return {"status": "success", "message": f"{len(data_list)} registros de ABI salvos."}
+        raise HTTPException(status_code=500, detail="Erro ao salvar cronograma no banco.")
+    except Exception as e:
+        logger.error(f"Erro ao processar Excel de ABI: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/api/abi-schedule")
+async def get_abi_schedule():
+    return db.get_abi_schedule()
+
+@app.get("/api/abi-dashboard-stats")
+async def get_abi_dashboard_stats():
+    return db.get_abi_dashboard_stats()
+
+@app.post("/api/start-abi-check")
+async def start_abi_check(background_tasks: BackgroundTasks, client_id: Optional[str] = None):
+    """Inicia a checagem de ABIs (lote ou individual)."""
+    import api.automation_abi_check as abi_auto
+    
+    active_abi = db.get_active_abi()
+    abi_label = (active_abi.get('ABI', 'Desconhecido') if active_abi else 'Desconhecido') or 'Desconhecido'
+    
+    if client_id:
+        task_id = db.create_task("abi_check_single", f"Checagem ABI {abi_label}: {client_id}")
+        background_tasks.add_task(abi_auto.run_single_abi_check, client_id, task_id)
+    else:
+        task_id = db.create_task("abi_check_batch", f"Checagem ABI {abi_label} em Lote")
+        background_tasks.add_task(abi_auto.run_batch_abi_check, task_id)
+        
+    return {"status": "pending", "task_id": task_id}
+
 @app.post("/api/check-integration/{client_id}")
 async def check_single_integration(client_id: str, background_tasks: BackgroundTasks):
     """Dispara a automação de checagem para um único cliente."""

@@ -1020,3 +1020,145 @@ def auto_delete_old_audit_logs():
             logger.info(f"[AUDIT] {count} logs antigos (>30 dias) deletados automaticamente.")
     except Exception as e:
         logger.error(f"Erro na limpeza automática de auditoria: {e}")
+
+# --- ABI SCHEDULE & CHECKS ---
+def save_abi_schedule(data_list):
+    """Saves ABI schedule to Firestore."""
+    try:
+        # Limpa o cronograma anterior para manter apenas o novo upload
+        docs = firestore_db.collection('cronograma_abis').stream()
+        batch = firestore_db.batch()
+        count = 0
+        for doc in docs:
+            batch.delete(doc.reference)
+            count += 1
+            if count >= 500:
+                batch.commit()
+                batch = firestore_db.batch()
+                count = 0
+        if count > 0: batch.commit()
+
+        # Salva novos dados
+        batch = firestore_db.batch()
+        for item in data_list:
+            doc_ref = firestore_db.collection('cronograma_abis').document()
+            batch.set(doc_ref, item)
+        batch.commit()
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao salvar cronograma ABI: {e}")
+        return False
+
+def get_abi_schedule():
+    """Returns the complete ABI schedule."""
+    try:
+        docs = firestore_db.collection('cronograma_abis').stream()
+        schedule = [doc.to_dict() for doc in docs]
+        # Ordenação básica por ABI
+        def extract_num(s):
+            import re
+            m = re.search(r'(\d+)', str(s))
+            return int(m.group(1)) if m else 0
+        schedule.sort(key=lambda x: extract_num(x.get('ABI', '0')))
+        return schedule
+    except Exception as e:
+        logger.error(f"Erro ao buscar cronograma ABI: {e}")
+        return []
+
+def get_active_abi():
+    """Identifies the active ABI based on 'Data fim de Ciência'."""
+    try:
+        schedule = get_abi_schedule()
+        if not schedule: return None
+        
+        now = get_now_br()
+        
+        # O ABI ativo é o primeiro cuja data_fim_ciencia >= hoje
+        active = None
+        for item in schedule:
+            dt_str = item.get('Data fim de Ciência', '')
+            if not dt_str: continue
+            try:
+                dt_obj = datetime.strptime(dt_str, "%d/%m/%Y").replace(tzinfo=timezone(timedelta(hours=-3)))
+                if dt_obj >= now:
+                    active = item
+                    break
+            except: continue
+            
+        if not active and schedule:
+            active = schedule[-1]
+            
+        return active
+    except Exception as e:
+        logger.error(f"Erro ao identificar ABI ativo: {e}")
+        return None
+
+def update_client_abi_status(client_id, abi, status, message, task_id=None):
+    """Updates ABI check status for a client."""
+    if not client_id: return False
+    try:
+        client_ref = firestore_db.collection('client_configs').document(client_id)
+        
+        update_data = {
+            'abi_status': status,
+            'abi_last_message': message,
+            'abi_current': abi,
+            'abi_last_check': firestore.SERVER_TIMESTAMP
+        }
+        
+        if task_id:
+            update_data['abi_last_task_id'] = task_id
+            
+        client_ref.update(update_data)
+        
+        # Histórico de ABIs
+        client_ref.collection('abi_history').add({
+            'abi': abi,
+            'status': status,
+            'message': message,
+            'timestamp': firestore.SERVER_TIMESTAMP,
+            'task_id': task_id
+        })
+        
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao atualizar status de ABI do cliente {client_id}: {e}")
+        return False
+
+def get_abi_dashboard_stats():
+    """Calculates stats for the ABI dashboard."""
+    try:
+        # A função get_all_clients já retorna as configs atualizadas do doc doc.id
+        # mas precisamos garantir que os campos abi_status existem.
+        clients = get_all_clients()
+        stats = {
+            'total_clients': len(clients),
+            'imported': 0,
+            'imported_analyzed': 0,
+            'imported_not_analyzed': 0,
+            'failure': 0,
+            'pending': 0,
+            'not_imported': 0
+        }
+        
+        for c in clients:
+            status = c.get('abi_status', 'Pendente')
+            if status == 'Importado':
+                stats['imported'] += 1
+            elif status == 'Importado e Analisado':
+                stats['imported'] += 1
+                stats['imported_analyzed'] += 1
+            elif status == 'Importado, falta analisar':
+                stats['imported'] += 1
+                stats['imported_not_analyzed'] += 1
+            elif status == 'Falha':
+                stats['failure'] += 1
+            elif status == 'Nao Importado':
+                stats['not_imported'] += 1
+            else:
+                stats['pending'] += 1
+                
+        return stats
+    except Exception as e:
+        logger.error(f"Erro ao calcular estatísticas ABI: {e}")
+        return {}

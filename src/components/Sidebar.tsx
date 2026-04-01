@@ -26,6 +26,7 @@ const menuItems = [
   { label: "Importação", isTitle: true },
   { label: "Enviar ABIs", icon: <CloudUpload size={20} />, href: "/dashboard" },
   { label: "Dados ABIs", icon: <FileText size={20} />, href: "/xml-data" },
+  { label: "Checar Importações", icon: <Shield size={20} />, href: "/check-imports" },
   { label: "Importações", icon: <ClipboardList size={20} />, href: "/logs" },
   { label: "Configurações", isTitle: true, isAdmin: true },
   { label: "Clientes", icon: <Users size={20} />, href: "/clients", isAdmin: true },
