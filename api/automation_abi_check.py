@@ -241,30 +241,34 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                 return "Pendente", f"Status: {row_text.split()[-1] if row_text else 'Indefinido'}", None
 
             # 3. Ver Logs de Análise
-            log_task("ABI Importado. Abrindo logs de análise...")
+            log_task("ABI Importado. Abrindo menu de ações...")
             hamburger = target_row.locator("td").last.locator("button, a, .fa-bars").first
             await hamburger.click(force=True)
             await asyncio.sleep(1.5)
             
+            log_task("Clicando em 'Logs Análise'...")
             logs_btn = page.locator(".dropdown-menu a:has-text('Logs Análise'), a:has-text('Logs Análise')").first
             await logs_btn.click(force=True)
             
+            log_task("Aguardando carregamento da tabela de logs...")
             await page.wait_for_selector("table", timeout=45000)
             await asyncio.sleep(2)
             
             first_log_row = page.locator("table tbody tr").first
             if await first_log_row.count() == 0:
-                log_task("Nenhum log de análise encontrado.", "INFO")
+                log_task("Nenhum log de análise encontrado na tabela.", "WARNING")
                 await browser.close()
                 return "Importado, falta analisar", "Arquivo importado, sem logs de análise.", None
             
             log_result_text = await first_log_row.inner_text()
+            log_task(f"Verificando Resultado = {log_result_text.strip()[:30]}...")
+            
             if "Sucesso" in log_result_text:
-                log_task("RSUS: Análise concluída com Sucesso!", "SUCCESS")
+                log_task("RSUS: Resultado = Sucesso da Análise!", "SUCCESS")
                 await browser.close()
                 return "Importado e Analisado", "Análise concluída com sucesso.", None
             elif "Falha" in log_result_text or "Erro" in log_result_text:
-                log_task("RSUS: Falha detectada na análise.", "ERROR")
+                log_task(f"RSUS: Resultado = Falha detectada ({log_result_text[:30]})", "ERROR")
                 await browser.close()
                 return "Falha na Análise", f"Erro: {log_result_text[:50]}", None
             else:
