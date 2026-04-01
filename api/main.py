@@ -171,62 +171,91 @@ async def check_integrations(background_tasks: BackgroundTasks):
 async def upload_abi_schedule(file: UploadFile = File(...)):
     import pandas as pd
     import io
+    from datetime import datetime as dt
     try:
         contents = await file.read()
-        # Carregamos sem header primeiro para localizar a linha correta
+        current_year = dt.now().year
+
+        # 1. Carrega sem header para encontrar a linha correta
         df_raw = pd.read_excel(io.BytesIO(contents), header=None)
-        
-        # Localiza a linha do cabeçalho
+
+        # 2. Localiza a linha do cabeçalho buscando por palavras-chave
         header_idx = 0
-        for i, row in df_raw.head(15).iterrows():
+        for i, row in df_raw.head(20).iterrows():
             row_str = " ".join([str(val).lower() for val in row.values])
-            if 'abi' in row_str or 'trimestre' in row_str or 'competência' in row_str:
+            if 'abi' in row_str or 'competência' in row_str or 'trimestre' in row_str or 'lançamento' in row_str:
                 header_idx = i
                 break
-        
-        # Recarrega com o header correto
+
+        # 3. Recarrega com o header correto
         df = pd.read_excel(io.BytesIO(contents), header=header_idx)
-        df = df.dropna(how='all').fillna('')
-        
-        # Mapeamento de sinonimos para o que o Front espera
+        df = df.dropna(how='all')
+
+        # 4. Mapeamento inteligente de colunas para os 7 campos relevantes
+        COLUMN_MAP = {
+            'Ano Lançamento':          ['ano', 'lançamento', 'ano lançamento', 'año'],
+            'ABI':                     ['abi'],
+            'Competência':             ['competência', 'competencia', 'trimestre', 'referência', 'período'],
+            'Data fim competência':    ['data fim competência', 'fim competência', 'fim competencia', 'data fim comp'],
+            'Data de Lançamento':      ['data de lançamento', 'data lançamento', 'lançamento', 'data início'],
+            'Data fim de Ciência':     ['data fim de ciência', 'fim ciência', 'prazo ciência', 'fim de ciência', 'data fim ciência'],
+            'Data fim de Impugnação':  ['data fim de impugnação', 'fim impugnação', 'prazo impugnação', 'impugnação'],
+        }
+
         columns_map = {}
         for col in df.columns:
-            c_low = str(col).lower()
-            if 'abi' in c_low and 'unnamed' not in c_low:
-                columns_map[col] = 'ABI'
-            elif ('competência' in c_low or 'trimestre' in c_low) and 'unnamed' not in c_low:
-                columns_map[col] = 'Competência'
-            elif ('ciência' in c_low or 'fim' in c_low) and 'unnamed' not in c_low:
-                columns_map[col] = 'Data fim de Ciência'
-        
-        # Ajuste específico para o formato "Unnamed" se os nomes falharem
-        if 'ABI' not in columns_map.values() and len(df.columns) > 2:
-            # Fallback baseado na estrutura observada no log
-            df.columns = [str(c) for c in df.columns]
-            for col in df.columns:
-                if 'Unnamed: 0' in col: pass
-                elif 'Unnamed: 1' in col: pass
-                elif 'Unnamed: 2' in col: columns_map[col] = 'ABI'
-                elif 'Unnamed: 3' in col: columns_map[col] = 'Competência'
-                elif 'Unnamed: 7' in col: columns_map[col] = 'Data fim de Ciência'
+            c_low = str(col).lower().strip()
+            for standard_name, synonyms in COLUMN_MAP.items():
+                if any(syn in c_low for syn in synonyms) and standard_name not in columns_map.values():
+                    columns_map[col] = standard_name
+                    break
 
         df = df.rename(columns=columns_map)
-        
-        # Garante que as colunas essenciais existem
-        if 'ABI' not in df.columns:
-            return {"status": "error", "message": "Não foi possível localizar a coluna 'ABI' no arquivo."}
 
-        # Formata datas para string DD/MM/YYYY
-        for col in df.columns:
-            if 'data' in str(col).lower() or 'ciência' in str(col).lower():
+        # 5. Garante que a coluna ABI existe
+        if 'ABI' not in df.columns:
+            return {"status": "error", "message": "Não foi possível localizar a coluna 'ABI' no arquivo. Verifique o formato do Excel."}
+
+        # 6. Remove linhas sem ABI
+        df = df[df['ABI'].notna() & (df['ABI'].astype(str).str.strip() != '')]
+
+        # 7. Filtra apenas o ano atual
+        if 'Ano Lançamento' in df.columns:
+            def is_current_year(val):
                 try:
-                    df[col] = pd.to_datetime(df[col], errors='coerce').dt.strftime('%d/%m/%Y').fillna('')
-                except: pass
+                    if hasattr(val, 'year'):
+                        return val.year == current_year
+                    return int(str(val).strip()[:4]) == current_year
+                except:
+                    return False
+            df = df[df['Ano Lançamento'].apply(is_current_year)]
+
+        if df.empty:
+            return {"status": "error", "message": f"Nenhum registro encontrado para o ano {current_year}. Verifique se o arquivo contém a coluna 'Ano Lançamento'."}
+
+        # 8. Converte TODAS as datas para string DD/MM/YYYY
+        date_columns = ['Data fim competência', 'Data de Lançamento', 'Data fim de Ciência', 'Data fim de Impugnação']
+        for col in date_columns:
+            if col in df.columns:
+                df[col] = pd.to_datetime(df[col], errors='coerce').dt.strftime('%d/%m/%Y')
+                df[col] = df[col].fillna('')
+
+        # 9. Converte Ano Lançamento para inteiro simples
+        if 'Ano Lançamento' in df.columns:
+            df['Ano Lançamento'] = df['Ano Lançamento'].apply(
+                lambda x: x.year if hasattr(x, 'year') else (int(str(x)[:4]) if str(x).strip() else '')
+            )
+
+        # 10. Normaliza ABI — garante sufixo º
+        df['ABI'] = df['ABI'].astype(str).str.strip()
+
+        # 11. Preenche campos restantes com string vazia
+        df = df.fillna('')
 
         data_list = df.to_dict(orient='records')
-        
+
         if db.save_abi_schedule(data_list):
-            return {"status": "success", "message": f"{len(data_list)} registros de ABI processados com sucesso."}
+            return {"status": "success", "message": f"{len(data_list)} registros de {current_year} processados com sucesso."}
         raise HTTPException(status_code=500, detail="Erro ao salvar cronograma no banco.")
     except Exception as e:
         logger.error(f"Erro ao processar Excel de ABI: {e}")

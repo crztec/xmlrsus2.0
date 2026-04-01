@@ -36,8 +36,13 @@ interface ABIStats {
 
 interface ABISchedule {
   ABI: string;
-  "Data fim de Ciência": string;
-  Competência: string;
+  "Ano Lançamento"?: string | number;
+  "Competência"?: string;
+  "Data fim competência"?: string;
+  "Data de Lançamento"?: string;
+  "Data fim de Ciência"?: string;
+  "Data fim de Impugnação"?: string;
+  [key: string]: any;
 }
 
 interface ClientABI {
@@ -481,23 +486,68 @@ export default function CheckImportsPage() {
             <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
               <h2 className="text-xs font-bold text-slate-800 flex items-center gap-2 uppercase tracking-widest">
                 <RefreshCw size={14} className="text-gax-blue" />
-                Cronograma ABIs
+                Cronograma ABIs {new Date().getFullYear()}
               </h2>
               <span className="text-[10px] bg-gax-blue-light text-gax-blue px-2 py-0.5 rounded-full font-bold">ATIVA</span>
             </div>
-            <div className="p-4 flex flex-col gap-3">
-              {schedule?.slice(0, 5).map((item, i) => (
-                <div key={i} className="flex items-center justify-between text-xs border-b border-slate-50 pb-2 last:border-0 last:pb-0">
-                  <div>
-                    <p className="font-bold text-slate-700">{item.ABI}</p>
-                    <p className="text-[10px] text-slate-400">{item.Competência}</p>
+            <div className="p-3 flex flex-col gap-2">
+              {schedule && schedule.length > 0 ? schedule.map((item, i) => {
+                const fmtDate = (val: any) => {
+                  if (!val) return '-';
+                  const s = String(val);
+                  // Já está no formato DD/MM/YYYY
+                  if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) return s;
+                  // ISO ou Timestamp
+                  try {
+                    const d = new Date(s);
+                    if (!isNaN(d.getTime())) return d.toLocaleDateString('pt-BR');
+                  } catch {}
+                  return s;
+                };
+
+                return (
+                  <div key={i} className="rounded-xl bg-slate-50/80 border border-slate-100 p-3 text-xs">
+                    {/* Linha 1: ABI + Competência */}
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-bold text-slate-800 text-sm">{item.ABI}</span>
+                      <span className="text-[10px] bg-gax-blue/10 text-gax-blue px-2 py-0.5 rounded-full font-bold">{item.Competência || '-'}</span>
+                    </div>
+                    {/* Grid de datas */}
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {item['Data de Lançamento'] && (
+                        <div>
+                          <p className="text-[9px] text-slate-400 uppercase tracking-wider">Lançamento</p>
+                          <p className="font-semibold text-slate-600">{fmtDate(item['Data de Lançamento'])}</p>
+                        </div>
+                      )}
+                      {item['Data fim competência'] && (
+                        <div>
+                          <p className="text-[9px] text-slate-400 uppercase tracking-wider">Fim Competência</p>
+                          <p className="font-semibold text-slate-600">{fmtDate(item['Data fim competência'])}</p>
+                        </div>
+                      )}
+                      {item['Data fim de Ciência'] && (
+                        <div>
+                          <p className="text-[9px] text-orange-500 uppercase tracking-wider font-bold">Fim Ciência ⚑</p>
+                          <p className="font-bold text-orange-600">{fmtDate(item['Data fim de Ciência'])}</p>
+                        </div>
+                      )}
+                      {item['Data fim de Impugnação'] && (
+                        <div>
+                          <p className="text-[9px] text-slate-400 uppercase tracking-wider">Fim Impugnação</p>
+                          <p className="font-semibold text-slate-600">{fmtDate(item['Data fim de Impugnação'])}</p>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-medium text-slate-500">{item["Data fim de Ciência"]}</p>
-                    <p className="text-[9px] text-slate-400 capitalize">Fim Ciência</p>
-                  </div>
+                );
+              }) : (
+                <div className="flex flex-col items-center gap-2 py-6 text-center">
+                  <FileSpreadsheet size={28} className="text-slate-300" />
+                  <p className="text-xs text-slate-400">Nenhum cronograma carregado</p>
+                  <p className="text-[10px] text-slate-300">Faça o upload do Excel da ANS</p>
                 </div>
-              ))}
+              )}
             </div>
           </div>
 
