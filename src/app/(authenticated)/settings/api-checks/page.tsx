@@ -245,18 +245,22 @@ export default function ApiChecksPage() {
   };
 
   const handleViewGlobalLog = async () => {
+    setShowLogs(true);
+    setViewingTaskId("history");
+    setLogFilterClient(null);
+    setSelectedClientMessage("Log Completo do Sistema (Últimos 5)");
+    setTaskLogs([]);
+    
     try {
-      const q = query(collection(db, "tasks"), orderBy("created_at", "desc"), limit(30));
-      const querySnapshot = await getDocs(q);
-      const tasks = querySnapshot.docs.map((d: any) => ({ id: d.id, ...d.data() } as any));
-      const lastBatch = tasks.find((t: any) => t.type === "batch_api_check" || t.type === "api_check_batch");
-      if (lastBatch) {
-        openPastLogs(lastBatch.id, "Log Completo do Sistema");
+      const res = await fetch("/api/tasks/history-logs?type=api&limit=5");
+      const logsData = await res.json();
+      if (logsData && logsData.length > 0) {
+        setTaskLogs(logsData);
       } else {
-        alert("Nenhum histórico de lote encontrado.");
+        setTaskLogs([{ timestamp: "", message: "Nenhum histórico de lote encontrado.", level: "INFO" }]);
       }
     } catch (error) {
-      alert("Erro ao buscar histórico.");
+      console.error("Erro histórico geral:", error);
     }
   };
 
@@ -349,7 +353,7 @@ export default function ApiChecksPage() {
 
             <div className="flex items-center gap-2 shrink-0">
               <button
-                onClick={() => { setViewingTaskId(null); setShowLogs(true); }}
+                onClick={() => { setViewingTaskId(activeTaskId); setShowLogs(true); }}
                 className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 transition-colors"
                 title="Abrir Console"
               >
@@ -676,7 +680,7 @@ export default function ApiChecksPage() {
                 <div>
                   <h3 className="text-sm font-bold text-slate-900">Console Técnico</h3>
                   <p className="text-[10px] text-gax-blue font-bold uppercase tracking-widest">
-                    {viewingTaskId ? 'Visualizando Histórico' : 'Monitoramento em Tempo Real'}
+                    {(viewingTaskId && viewingTaskId !== activeTaskId) ? 'Visualizando Histórico' : 'Monitoramento em Tempo Real'}
                   </p>
                 </div>
               </div>

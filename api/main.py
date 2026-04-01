@@ -552,6 +552,11 @@ async def route_get_task_logs(task_id: str):
     """Retorna a lista de logs de uma tarefa específica."""
     return db.get_task_logs(task_id)
 
+@app.get("/api/tasks/history-logs")
+async def get_history_logs(type: str = "abi", limit: int = 5):
+    """Retorna logs agregados das últimas N tarefas de uma categoria."""
+    return db.get_aggregated_history_logs(task_category=type, limit_tasks=limit)
+
 async def background_worker_task(task_id: str, url_sistema: str, force: bool = False):
     """
     Realize a automação real do preenchimento no portal RSUS usando Playwright.

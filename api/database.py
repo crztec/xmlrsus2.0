@@ -910,6 +910,49 @@ def get_logs_for_task(task_id, limit=2000):
         logger.error(f"Erro ao recuperar logs: {e}")
         return []
 
+def get_aggregated_history_logs(task_category="abi", limit_tasks=5):
+    """
+    Recupera logs agregados das últimas N tarefas de uma categoria (abi ou api).
+    Adiciona o contexto do cliente a cada log se necessário.
+    """
+    try:
+        if task_category == "abi":
+            types = ["abi_check_batch", "abi_check_single"]
+        else:
+            types = ["api_check_batch", "api_check_single", "batch_api_check", "single_api_check"]
+
+        # 1. Busca as últimas N tarefas desse tipo
+        tasks_query = firestore_db.collection('tasks') \
+            .where('type', 'in', types) \
+            .order_by('created_at', direction=firestore.Query.DESCENDING) \
+            .limit(limit_tasks)
+        
+        task_docs = tasks_query.get()
+        all_aggregated_logs = []
+
+        for t_doc in task_docs:
+            t_data = t_doc.to_dict()
+            t_id = t_doc.id
+            client_name = t_data.get('razao_social') or t_data.get('current_client') or "Sistema"
+            
+            # 2. Busca logs para cada tarefa
+            t_logs = get_task_logs(t_id)
+            
+            # 3. Adiciona prefixo do cliente se não houver (para clareza no histórico)
+            for log in t_logs:
+                msg = log.get('message', '')
+                if client_name != "Sistema" and f"[{client_name}]" not in msg:
+                    log['message'] = f"[{client_name}] {msg}"
+                all_aggregated_logs.append(log)
+
+        # 4. Ordenação final por timestamp_precise (absoluta)
+        all_aggregated_logs.sort(key=lambda x: x.get('timestamp_precise', 0))
+        
+        return all_aggregated_logs
+    except Exception as e:
+        logger.error(f"Erro ao agregar histórico de logs: {e}")
+        return []
+
 def clear_import_logs():
     """
     Clears all logs from tasks AND resets/deletes task records to keep history clean as requested.

@@ -206,22 +206,16 @@ export default function CheckImportsPage() {
     setModalTitle("Histórico Recente de ABIs");
     setLogFilterClient(null);
     setDetailedLogs([]);
-    setViewingTaskId(null);
+    setViewingTaskId("history"); // Use um marcador para histórico agregado
     setShowLogsModal(true);
     setIsLoadingLogs(true);
 
     try {
-      const res = await fetch("/api/tasks?limit=50");
-      const allTasks = await res.json();
-      const abiTasks = allTasks.filter((t: any) =>
-        t.type === "abi_check_batch" || t.type === "abi_check_single"
-      );
-
-      if (abiTasks && abiTasks.length > 0) {
-        const taskId = abiTasks[0].id;
-        setViewingTaskId(taskId);
-        const logsRes = await fetch(`/api/task/${taskId}/logs`);
-        const logsData = await logsRes.json();
+      // Usa o novo endpoint de histórico agregado (últimos 5 clientes/tasks)
+      const res = await fetch("/api/tasks/history-logs?type=abi&limit=5");
+      const logsData = await res.json();
+      
+      if (logsData && logsData.length > 0) {
         setDetailedLogs(logsData);
       } else {
         setDetailedLogs([{ timestamp: "", message: "Nenhum histórico de checagem encontrado.", level: "INFO" }]);
@@ -353,7 +347,7 @@ export default function CheckImportsPage() {
 
             <div className="flex items-center gap-2 shrink-0">
               <button 
-                onClick={() => { setViewingTaskId(null); setShowLogsModal(true); }}
+                onClick={() => { setViewingTaskId(activeTaskId); setShowLogsModal(true); }}
                 className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 transition-colors"
                 title="Abrir Console"
               >
@@ -603,7 +597,7 @@ export default function CheckImportsPage() {
                 <div>
                   <h3 className="text-sm font-bold text-slate-900">{modalTitle}</h3>
                   <p className="text-[10px] text-gax-blue font-bold uppercase tracking-widest">
-                    {viewingTaskId ? 'Visualizando Histórico' : 'Monitoramento em Tempo Real'}
+                    {(viewingTaskId && viewingTaskId !== activeTaskId) ? 'Visualizando Histórico' : 'Monitoramento em Tempo Real'}
                   </p>
                 </div>
               </div>
@@ -620,7 +614,7 @@ export default function CheckImportsPage() {
               className="flex-1 overflow-y-auto p-5 space-y-3 bg-slate-50/20"
             >
               {(() => {
-                const displayLogs = (viewingTaskId === activeTaskId && realtimeLogs.length > 0) 
+                const displayLogs = (viewingTaskId === activeTaskId) 
                   ? [...realtimeLogs]
                   : [...detailedLogs];
 
