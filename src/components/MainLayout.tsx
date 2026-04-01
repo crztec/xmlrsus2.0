@@ -44,6 +44,10 @@ const PAGE_METADATA: Record<string, { title: string; subtitle: string }> = {
   "/settings/rsus": {
     title: "Configuração de Login RSUS",
     subtitle: "Credenciais globais para automação de importação e checagem"
+  },
+  "/check-imports": {
+    title: "Checar Importações",
+    subtitle: "Monitoramento em tempo real do processamento de ABIs no RSUS"
   }
 };
 

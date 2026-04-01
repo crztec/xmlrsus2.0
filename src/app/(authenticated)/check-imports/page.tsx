@@ -97,11 +97,16 @@ export default function CheckImportsPage() {
         fetch("/api/clients?limit=100") 
       ]);
       
-      const schedData = await schedRes.json();
-      const clientsData = await clientsRes.json();
+      if (schedRes.ok) {
+        const schedData = await schedRes.json();
+        if (Array.isArray(schedData)) setSchedule(schedData);
+      }
+
+      if (clientsRes.ok) {
+        const clientsData = await clientsRes.json();
+        setClients(clientsData.clients || []);
+      }
       
-      setSchedule(schedData);
-      setClients(clientsData.clients || []);
       await fetchStats();
     } catch (err) {
       console.error("Erro ao carregar dados:", err);
@@ -237,35 +242,56 @@ export default function CheckImportsPage() {
   return (
     <div className="flex flex-col gap-6 p-8 max-w-7xl mx-auto animate-in fade-in duration-500">
       
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-display font-bold text-slate-800">Checar Importações de ABIs</h1>
-          <p className="text-slate-500 text-sm">Monitore o status de processamento do RSUS em tempo real</p>
+      {/* Actions Toolbar */}
+      <div className="flex items-center justify-between bg-white border border-slate-200 p-3 rounded-2xl shadow-sm -mt-2">
+        <div className="flex items-center gap-2 pl-2">
+          {activeTaskId ? (
+            <div className="flex items-center gap-3 animate-in fade-in duration-300">
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-gax-blue/5 rounded-full border border-gax-blue/10">
+                <Loader2 size={14} className="text-gax-blue animate-spin" />
+                <span className="text-xs font-bold text-gax-blue uppercase tracking-wider">Executando:</span>
+              </div>
+              <span className="text-sm font-medium text-slate-600">
+                {realtimeLogs.length > 0 ? realtimeLogs[realtimeLogs.length - 1].message : "Iniciando processamento..."}
+              </span>
+              <button 
+                onClick={() => openDetailedLogs(activeTaskId, "Console Técnico Detalhado")}
+                className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 transition-colors"
+                title="Abrir Console Completo"
+              >
+                <Terminal size={14} />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-slate-400 italic text-sm">
+              <ShieldCheck size={16} />
+              Sistema pronto para nova checagem
+            </div>
+          )}
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-2">
           <button 
              onClick={handleViewGlobalLog}
-             className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 transition-all shadow-sm flex items-center gap-2 text-sm font-medium"
+             className="px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-600 rounded-xl hover:bg-white transition-all shadow-sm flex items-center gap-2 text-xs font-bold uppercase tracking-wider"
           >
-            <History size={18} />
-            Último Log Geral
+            <History size={16} />
+            Histórico
           </button>
           <label className={cn(
-            "flex items-center gap-2 cursor-pointer rounded-xl bg-white border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-all hover:bg-slate-50",
+            "flex items-center gap-2 cursor-pointer rounded-xl bg-slate-50 border border-slate-200 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-slate-600 shadow-sm transition-all hover:bg-white",
             isUploading && "opacity-50 pointer-events-none"
           )}>
-            <CloudUpload size={18} />
-            {isUploading ? "Enviando..." : "Subir Cronograma"}
+            <CloudUpload size={16} />
+            {isUploading ? "Enviando..." : "Cronograma"}
             <input type="file" className="hidden" accept=".xlsx,.xls" onChange={handleUpload} />
           </label>
           <button 
             onClick={() => startCheck()}
             disabled={!!activeTaskId}
-            className="flex items-center gap-2 rounded-xl bg-gax-blue px-4 py-2 text-sm font-bold text-white shadow-lg shadow-gax-blue/20 transition-all hover:bg-gax-blue-hover disabled:opacity-50"
+            className="flex items-center gap-2 rounded-xl bg-gax-blue px-4 py-1.5 text-xs font-bold text-white shadow-lg shadow-gax-blue/20 transition-all hover:bg-gax-blue-hover disabled:opacity-50 uppercase tracking-widest"
           >
-            <Play size={18} />
-            Checar Todos (Lote)
+            <Play size={16} />
+            Checar Lote
           </button>
         </div>
       </div>
@@ -383,75 +409,46 @@ export default function CheckImportsPage() {
         {/* Sidebar: Schedule & Logs */}
         <div className="flex flex-col gap-6">
           
-          {/* Active Logs (Resumido) */}
-          <div className="rounded-2xl bg-slate-900 border border-slate-800 shadow-xl overflow-hidden min-h-[300px] flex flex-col">
-            <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-black/20">
-              <h2 className="text-xs font-bold text-slate-400 flex items-center gap-2 uppercase tracking-widest">
-                <Terminal size={14} className="text-green-500" />
-                Status em Tempo Real
-              </h2>
-              {activeTaskId && <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse ring-4 ring-green-500/20" />}
-            </div>
-
-            {/* Progresso se houver batch */}
-            {activeTaskId && currentTaskStatus && (
-                <div className="px-4 py-3 bg-slate-800/50 border-b border-slate-800">
-                    <div className="flex justify-between text-[10px] text-slate-400 mb-1.5 font-bold uppercase">
-                        <span className="truncate max-w-[150px]">{currentTaskStatus.current_client || 'Iniciando...'}</span>
-                        <span>{currentTaskStatus.current} / {currentTaskStatus.total}</span>
+          {/* Active Status & Progress */}
+          {activeTaskId && currentTaskStatus && (
+            <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden animate-in slide-in-from-right duration-500">
+               <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                  <h2 className="text-xs font-bold text-slate-800 flex items-center gap-2 uppercase tracking-widest">
+                    <Activity size={14} className="text-gax-blue animate-pulse" />
+                    Progresso Atual
+                  </h2>
+                  <span className="text-[10px] font-bold text-gax-blue bg-gax-blue/5 px-2 py-0.5 rounded-full">
+                    {currentTaskStatus.current} / {currentTaskStatus.total}
+                  </span>
+               </div>
+               <div className="p-5 flex flex-col gap-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex-1">
+                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Operadora Atual</p>
+                       <p className="text-sm font-bold text-slate-700 truncate">{currentTaskStatus.current_client || 'Iniciando...'}</p>
                     </div>
-                    <div className="h-1.5 w-full bg-slate-700 rounded-full overflow-hidden">
-                        <div 
-                            className="h-full bg-gax-blue transition-all duration-500" 
-                            style={{ width: `${(currentTaskStatus.current / currentTaskStatus.total) * 100}%` }}
-                        />
+                    <div className="text-right">
+                       <p className="text-2xl font-bold font-display text-gax-blue">
+                         {currentTaskStatus.total > 0 ? Math.round((currentTaskStatus.current / currentTaskStatus.total) * 100) : 0}%
+                       </p>
                     </div>
-                </div>
-            )}
-
-            <div className="flex-1 p-4 font-mono text-[11px] overflow-y-auto max-h-[300px] scrollbar-thin scrollbar-thumb-slate-700">
-              {realtimeLogs.length === 0 ? (
-                <p className="text-slate-600 italic">Pronto para iniciar...</p>
-              ) : (
-                <div className="flex flex-col gap-1.5">
-                  {/* Somente exibe INFO/SUCCESS/ERROR relevantes (resumido) */}
-                  {realtimeLogs.slice().reverse()
-                    .filter(log => log.level !== "DEBUG")
-                    .slice(0, 15) // Mantém apenas os 15 mais recentes
-                    .map((log, i) => (
-                    <div key={i} className="flex gap-2">
-                      <span className="text-slate-600 shrink-0">[{log.timestamp}]</span>
-                      <span className={cn(
-                        log.level === "ERROR" ? "text-red-400" : 
-                        log.level === "SUCCESS" ? "text-green-400" : 
-                        "text-slate-300"
-                      )}>
-                        {log.message}
-                      </span>
-                    </div>
-                  ))}
-                  {realtimeLogs.length > 15 && (
-                      <button 
-                        onClick={() => openDetailedLogs(activeTaskId!, "Console Completo (Em Tempo Real)")}
-                        className="text-gax-blue hover:underline text-[10px] font-bold text-left mt-2"
-                      >
-                        Ver todos os logs no console detalhado...
-                      </button>
-                  )}
-                </div>
-              )}
+                  </div>
+                  <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                    <div 
+                        className="h-full bg-gax-blue transition-all duration-1000 ease-in-out shadow-[0_0_12px_rgba(2,130,230,0.4)]" 
+                        style={{ width: `${currentTaskStatus.total > 0 ? (currentTaskStatus.current / currentTaskStatus.total) * 100 : 0}%` }}
+                    />
+                  </div>
+                  <button 
+                    onClick={() => openDetailedLogs(activeTaskId, "Console Técnico Detalhado")}
+                    className="flex items-center justify-center gap-2 w-full py-2 bg-slate-50 border border-slate-200 rounded-xl text-[10px] font-bold text-slate-500 uppercase tracking-widest hover:bg-white hover:text-gax-blue transition-all group"
+                  >
+                    <Terminal size={12} className="group-hover:scale-110 transition-transform" /> 
+                    Ver Logs Completos
+                  </button>
+               </div>
             </div>
-            
-            <div className="p-3 border-t border-slate-800 bg-black/20 flex justify-center">
-                 <button 
-                    onClick={() => activeTaskId && openDetailedLogs(activeTaskId, "Console Técnico Detalhado")}
-                    disabled={!activeTaskId}
-                    className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-[10px] font-bold uppercase tracking-wider disabled:opacity-30"
-                 >
-                    <Terminal size={14} /> Abrir Console Detalhado
-                 </button>
-            </div>
-          </div>
+          )}
 
           {/* Schedule Summary */}
           <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">
@@ -463,7 +460,7 @@ export default function CheckImportsPage() {
               <span className="text-[10px] bg-gax-blue-light text-gax-blue px-2 py-0.5 rounded-full font-bold">ATIVA</span>
             </div>
             <div className="p-4 flex flex-col gap-3">
-              {schedule.slice(0, 5).map((item, i) => (
+              {schedule?.slice(0, 5).map((item, i) => (
                 <div key={i} className="flex items-center justify-between text-xs border-b border-slate-50 pb-2 last:border-0 last:pb-0">
                   <div>
                     <p className="font-bold text-slate-700">{item.ABI}</p>

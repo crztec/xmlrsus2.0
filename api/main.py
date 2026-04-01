@@ -141,13 +141,13 @@ async def get_rsus_creds(type: str):
     # Em um cenário real, verificaríamos se o usuário logado é Admin aqui
     return creds
 
-@app.post("/api/settings/rsus-credentials")
+@app.post("/settings/rsus-credentials")
 async def save_rsus_creds(type: str = Form(...), username: str = Form(...), password: str = Form(...)):
     if db.save_rsus_credentials(type, username, password):
         return {"status": "success"}
     raise HTTPException(status_code=500, detail="Erro ao salvar credenciais.")
 
-@app.post("/api/check-integrations")
+@app.post("/check-integrations")
 async def check_integrations(background_tasks: BackgroundTasks):
     """Dispara a automação de checagem em lote em background."""
     import api.automation_api_check as auto_check
@@ -156,7 +156,7 @@ async def check_integrations(background_tasks: BackgroundTasks):
     return {"status": "pending", "task_id": task_id}
 
 # --- ABI CHECK ENDPOINTS ---
-@app.post("/api/upload-abi-schedule")
+@app.post("/upload-abi-schedule")
 async def upload_abi_schedule(file: UploadFile = File(...)):
     import pandas as pd
     import io
@@ -174,15 +174,15 @@ async def upload_abi_schedule(file: UploadFile = File(...)):
         logger.error(f"Erro ao processar Excel de ABI: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
-@app.get("/api/abi-schedule")
+@app.get("/abi-schedule")
 async def get_abi_schedule():
     return db.get_abi_schedule()
 
-@app.get("/api/abi-dashboard-stats")
+@app.get("/abi-dashboard-stats")
 async def get_abi_dashboard_stats():
     return db.get_abi_dashboard_stats()
 
-@app.post("/api/start-abi-check")
+@app.post("/start-abi-check")
 async def start_abi_check(background_tasks: BackgroundTasks, client_id: Optional[str] = None):
     """Inicia a checagem de ABIs (lote ou individual)."""
     import api.automation_abi_check as abi_auto
@@ -199,7 +199,7 @@ async def start_abi_check(background_tasks: BackgroundTasks, client_id: Optional
         
     return {"status": "pending", "task_id": task_id}
 
-@app.post("/api/check-integration/{client_id}")
+@app.post("/check-integration/{client_id}")
 async def check_single_integration(client_id: str, background_tasks: BackgroundTasks):
     """Dispara a automação de checagem para um único cliente."""
     import api.automation_api_check as auto_check
