@@ -1,0 +1,16 @@
+{
+  "atDirectives": [
+    {
+      "name": "@theme",
+      "description": "Tailwind 4 theme block"
+    },
+    {
+      "name": "@layer",
+      "description": "Tailwind layer directive"
+    },
+    {
+      "name": "@import",
+      "description": "Tailwind import directive"
+    }
+  ]
+}
