@@ -19,7 +19,9 @@ import {
   FileText,
   X,
   History,
-  MoreHorizontal
+  MoreHorizontal,
+  Calendar,
+  Clock
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
@@ -68,6 +70,7 @@ interface TaskLog {
 export default function CheckImportsPage() {
   const [stats, setStats] = React.useState<ABIStats | null>(null);
   const [schedule, setSchedule] = React.useState<ABISchedule[]>([]);
+  const [activeAbi, setActiveAbi] = React.useState<ABISchedule | null>(null);
   const [clients, setClients] = React.useState<ClientABI[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isUploading, setIsUploading] = React.useState(false);
@@ -130,7 +133,9 @@ export default function CheckImportsPage() {
       
       if (schedRes.ok) {
         const schedData = await schedRes.json();
-        if (Array.isArray(schedData)) setSchedule(schedData);
+        // Novo formato: { active: ..., all: [...] }
+        if (schedData.all) setSchedule(schedData.all);
+        if (schedData.active) setActiveAbi(schedData.active);
       }
 
       if (clientsRes.ok) {
@@ -533,54 +538,113 @@ export default function CheckImportsPage() {
                 </tbody>
               </table>
             </div>
-          </div>
-        </div>
-
-        {/* Sidebar: Schedule Summary */}
+                {/* Sidebar: Schedule Summary - REDESIGNED */}
         <div className="flex flex-col gap-6">
           <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden animate-in fade-in slide-in-from-right-4 duration-500" style={{ animationDelay: '300ms', animationFillMode: 'both' }}>
             <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/40">
               <h2 className="text-xs font-bold text-slate-800 flex items-center gap-2 uppercase tracking-widest">
-                <RefreshCw size={14} className="text-gax-blue" />
-                Cronograma ABIs {new Date().getFullYear()}
+                <Calendar size={14} className="text-gax-blue" />
+                Cronograma {new Date().getFullYear()}
               </h2>
-              <span className="text-[10px] bg-gax-blue-light text-gax-blue px-2.5 py-1 rounded-full font-bold uppercase tracking-wider">Ativa</span>
+              <div className="flex items-center gap-2">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Live</span>
+              </div>
             </div>
-            <div className="p-3 flex flex-col gap-2">
-              {schedule && schedule.length > 0 ? (
-                schedule.slice(0, 5).map((item, i) => { // Mostra as 5 mais recentes
-                  const fmtDate = (val: any) => {
-                    if (!val) return '-';
-                    return String(val);
-                  };
 
-                  return (
-                    <div key={i} className="rounded-xl bg-slate-50/60 border border-slate-100 p-4 text-xs group hover:bg-white hover:border-gax-blue/20 transition-all">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="font-bold text-slate-800 text-sm font-display">{item.ABI}</span>
-                        <span className="text-[10px] bg-gax-blue/10 text-gax-blue px-2.5 py-1 rounded-full font-bold uppercase tracking-wider">{item.Competência || '-'}</span>
+            <div className="p-4 flex flex-col gap-5">
+              {/* Hero Card: Active ABI */}
+              {activeAbi ? (
+                <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-gax-blue to-blue-700 p-5 text-white shadow-lg shadow-gax-blue/20 animate-in zoom-in-95 duration-500">
+                  {/* Background decoration */}
+                  <div className="absolute top-0 right-0 -mr-4 -mt-4 h-24 w-24 rounded-full bg-white/10 blur-2xl"></div>
+                  <div className="absolute bottom-0 left-0 -ml-4 -mb-4 h-16 w-16 rounded-full bg-white/5 blur-xl"></div>
+                  
+                  <div className="relative z-10">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/70">ABI Atual</span>
+                        <h3 className="text-2xl font-black font-display leading-tight">{activeAbi.ABI}</h3>
                       </div>
-                      <div className="grid grid-cols-2 gap-2 mt-3">
-                        <div>
-                          <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-0.5">Fim Ciência</p>
-                          <p className="font-bold text-orange-600">{fmtDate(item['Data fim de Ciência'])}</p>
-                        </div>
-                        <div>
-                          <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-0.5">Prazo Impug.</p>
-                          <p className="font-bold text-slate-600">{fmtDate(item['Data fim de Impugnação'])}</p>
-                        </div>
+                      <div className="h-10 w-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/20">
+                        <Activity size={20} className="text-white" />
                       </div>
                     </div>
-                  );
-                })
+                    
+                    <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 border border-white/10 mb-4">
+                      <p className="text-[9px] font-bold uppercase tracking-widest text-white/60 mb-1">Competência</p>
+                      <p className="font-bold text-sm">{activeAbi.Competência || '-'}</p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-[9px] font-bold uppercase tracking-widest text-white/50 mb-1">Fim Ciência</p>
+                        <p className="font-black text-sm text-amber-300">{activeAbi['Data fim de Ciência'] || '-'}</p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-bold uppercase tracking-widest text-white/50 mb-1">Limite Impugn.</p>
+                        <p className="font-black text-sm">{activeAbi['Data fim de Impugnação'] || '-'}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               ) : (
-                <div className="flex flex-col items-center gap-3 py-10 text-center">
-                  <FileSpreadsheet size={32} className="text-slate-200" />
-                  <p className="text-xs text-slate-400 font-medium font-display">Nenhum cronograma carregado</p>
+                <div className="rounded-2xl bg-slate-50 border-2 border-dashed border-slate-200 p-8 text-center">
+                  <Activity size={24} className="mx-auto text-slate-300 mb-2" />
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Nenhuma ABI Ativa</p>
                 </div>
               )}
+
+              {/* Upcoming Timeline */}
+              <div>
+                <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                  <Clock size={12} />
+                  Próximas Etapas
+                </h4>
+                <div className="space-y-3 relative before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[1.5px] before:bg-slate-100">
+                  {schedule && schedule.length > 0 ? (
+                    schedule
+                      .filter(item => item.ABI !== activeAbi?.ABI)
+                      .slice(0, 3) // Mostra os próximas 3
+                      .map((item, i) => (
+                        <div key={i} className="relative pl-7 group cursor-default">
+                          <div className="absolute left-0 top-1 h-6 w-6 rounded-lg bg-white border border-slate-200 shadow-sm flex items-center justify-center z-10 group-hover:border-gax-blue transition-colors">
+                            <div className="h-1.5 w-1.5 rounded-full bg-slate-300 group-hover:bg-gax-blue transition-colors"></div>
+                          </div>
+                          <div>
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-slate-700 text-xs">{item.ABI}</span>
+                              <span className="text-[9px] font-bold text-slate-400 px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 uppercase">{item.Competência}</span>
+                            </div>
+                            <p className="text-[10px] text-slate-500 mt-1">Limite: <span className="font-medium text-slate-600">{item['Data fim de Ciência']}</span></p>
+                          </div>
+                        </div>
+                      ))
+                  ) : (
+                    <p className="text-[10px] text-slate-300 italic py-4">Fim do cronograma vigente</p>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
+
+          {/* Quick Info Card */}
+          <div className="rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 p-5 text-white shadow-xl animate-in fade-in slide-in-from-bottom-4 duration-500" style={{ animationDelay: '400ms', animationFillMode: 'both' }}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-white/10 rounded-xl text-amber-400">
+                <AlertCircle size={18} />
+              </div>
+              <p className="text-xs font-bold leading-tight uppercase tracking-wider">Atenção aos<br/>Prazos ABI</p>
+            </div>
+            <p className="text-[11px] text-slate-400 leading-relaxed font-medium">
+              A análise deve ser concluída antes da data de <span className="text-white">Fim de Ciência</span> para garantir o direito de impugnação automática.
+            </p>
+          </div>
+        </div>
+        </div>
         </div>
 
       </div>

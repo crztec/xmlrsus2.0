@@ -263,7 +263,10 @@ async def upload_abi_schedule(file: UploadFile = File(...)):
 
 @app.get("/abi-schedule")
 async def get_abi_schedule():
-    return db.get_abi_schedule()
+    return {
+        "active": db.get_active_abi(),
+        "all": db.get_abi_schedule()
+    }
 
 @app.get("/abi-dashboard-stats")
 async def get_abi_dashboard_stats():
