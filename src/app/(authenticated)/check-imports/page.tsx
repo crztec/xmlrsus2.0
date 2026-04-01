@@ -320,77 +320,91 @@ export default function CheckImportsPage() {
   return (
     <div className="flex flex-col gap-6 p-8 max-w-7xl mx-auto animate-in fade-in duration-500">
       
-      {/* Actions Toolbar */}
-      <div className="flex items-center justify-between bg-white border border-slate-200 p-3 rounded-2xl shadow-sm -mt-2">
-        <div className="flex items-center gap-2 pl-2">
-          {activeTaskId ? (
-            <div className="flex flex-col gap-1 min-w-[300px] max-w-md animate-in fade-in slide-in-from-left duration-500">
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2 px-3 py-1 bg-gax-blue/5 rounded-full border border-gax-blue/10 shrink-0">
-                  <Loader2 size={12} className="text-gax-blue animate-spin" />
-                  <span className="text-[10px] font-bold text-gax-blue uppercase tracking-wider">
-                    {currentTaskStatus?.progress_percent || 0}% Executando:
+      {/* Actions Toolbar (Real-time Status Bar) */}
+      <div className={cn(
+        "rounded-2xl border bg-white px-5 py-3 flex items-center justify-between gap-4 shadow-sm transition-all",
+        activeTaskId ? "border-gax-blue/30 bg-gax-blue/[0.02]" : "border-slate-200"
+      )}>
+        {activeTaskId ? (
+          <>
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <div className="relative flex h-2.5 w-2.5 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-gax-blue opacity-60" />
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-gax-blue" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-gax-blue">
+                    {currentTaskStatus?.total && currentTaskStatus.total > 1 ? "Lote em execução" : "Verificando ABI"}
                   </span>
+                  {currentTaskStatus?.current_client && (
+                    <span className="text-[10px] text-slate-400 truncate">— {currentTaskStatus.current_client}</span>
+                  )}
                 </div>
-                <span className="text-xs font-medium text-slate-600 truncate flex-1">
-                  {currentTaskStatus?.last_log || "Iniciando processamento..."}
-                </span>
-                <div className="flex gap-1 shrink-0">
-                  <button 
-                    onClick={() => openDetailedLogs(activeTaskId!, "Console Técnico Detalhado")}
-                    className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 transition-colors"
-                    title="Abrir Console Completo"
-                  >
-                    <Terminal size={14} />
-                  </button>
-                  <button 
-                    onClick={handleCancel}
-                    className="p-1.5 hover:bg-red-50 text-red-500 rounded-lg transition-colors"
-                    title="Parar Execução"
-                  >
-                    <X size={14} />
-                  </button>
+                <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-gax-blue transition-all duration-700 ease-in-out shadow-[0_0_10px_rgba(14,165,233,0.4)]"
+                    style={{ width: `${currentTaskStatus?.progress_percent || 0}%` }}
+                  />
                 </div>
               </div>
-              <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden shadow-inner">
-                <div 
-                  className="h-full bg-gax-blue transition-all duration-700 ease-out shadow-[0_0_8px_rgba(2,130,230,0.4)]"
-                  style={{ width: `${currentTaskStatus?.progress_percent || 0}%` }}
-                />
-              </div>
+              <span className="text-xs font-bold text-gax-blue shrink-0">{currentTaskStatus?.progress_percent || 0}%</span>
             </div>
-          ) : (
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button 
+                onClick={() => { setViewingTaskId(null); setShowLogsModal(true); }}
+                className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 transition-colors"
+                title="Abrir Console"
+              >
+                <Terminal size={14} />
+              </button>
+              <button 
+                onClick={handleCancel}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-red-50 text-red-600 border border-red-100 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-red-100 transition-all font-display"
+              >
+                <X size={12} />
+                Parar
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
             <div className="flex items-center gap-2 text-slate-400 italic text-sm">
-              <ShieldCheck size={16} />
-              Sistema pronto para nova checagem
+              <ShieldCheck size={14} className="text-emerald-500" />
+              <span className="text-xs font-medium text-slate-500">Sistema pronto para nova checagem</span>
             </div>
-          )}
-        </div>
-        <div className="flex gap-2">
-          <button 
-             onClick={handleViewGlobalLog}
-             className="px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-600 rounded-xl hover:bg-white transition-all shadow-sm flex items-center gap-2 text-xs font-bold uppercase tracking-wider"
-          >
-            <History size={16} />
-            Histórico
-          </button>
-          <label className={cn(
-            "flex items-center gap-2 cursor-pointer rounded-xl bg-slate-50 border border-slate-200 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-slate-600 shadow-sm transition-all hover:bg-white",
-            isUploading && "opacity-50 pointer-events-none"
-          )}>
-            <CloudUpload size={16} />
-            {isUploading ? "Enviando..." : "Cronograma"}
-            <input type="file" className="hidden" accept=".xlsx,.xls" onChange={handleUpload} />
-          </label>
-          <button 
-            onClick={() => startCheck()}
-            disabled={!!activeTaskId}
-            className="flex items-center gap-2 rounded-xl bg-gax-blue px-4 py-1.5 text-xs font-bold text-white shadow-lg shadow-gax-blue/20 transition-all hover:bg-gax-blue-hover disabled:opacity-50 uppercase tracking-widest"
-          >
-            <Play size={16} />
-            Checar Lote
-          </button>
-        </div>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={fetchData}
+                className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 transition-colors"
+                title="Atualizar"
+              >
+                <RefreshCw size={14} />
+              </button>
+              <button 
+                onClick={handleViewGlobalLog}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-white transition-all font-display"
+              >
+                <Terminal size={12} />
+                Histórico
+              </button>
+              <label className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-white transition-all cursor-pointer font-display">
+                <CloudUpload size={12} />
+                {isUploading ? "..." : "Cronograma"}
+                <input type="file" className="hidden" accept=".xlsx,.xls" onChange={handleUpload} />
+              </label>
+              <button 
+                onClick={() => startCheck()}
+                disabled={!!activeTaskId}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-gax-blue text-white rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-gax-blue-hover transition-all shadow-md shadow-gax-blue/20 disabled:opacity-40 font-display"
+              >
+                <Play size={12} className={activeTaskId ? 'animate-pulse' : ''} />
+                Executar Lote
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Stats Grid */}
@@ -401,12 +415,14 @@ export default function CheckImportsPage() {
           { label: "Falta Analisar", value: stats?.imported_not_analyzed || 0, color: "bg-amber-50", text: "text-amber-700", icon: <AlertCircle className="text-amber-500" /> },
           { label: "Falhas na Análise", value: stats?.failure || 0, color: "bg-red-50", text: "text-red-700", icon: <XCircle className="text-red-500" /> },
         ].map((stat, i) => (
-          <div key={i} className={cn("rounded-2xl p-4 border border-slate-100 shadow-sm flex items-center justify-between", stat.color)}>
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">{stat.label}</p>
-              <p className={cn("text-2xl font-bold font-display", stat.text)}>{stat.value}</p>
+          <div key={i} className="rounded-2xl bg-white border border-slate-200 p-5 flex items-center gap-4 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500" style={{ animationDelay: `${i * 60}ms`, animationFillMode: 'both' }}>
+            <div className={cn("flex h-10 w-10 items-center justify-center rounded-xl shrink-0", stat.color)}>
+              {stat.icon}
             </div>
-            <div className="p-3 rounded-xl bg-white shadow-sm">{stat.icon}</div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{stat.label}</p>
+              <p className={cn("text-2xl font-bold text-slate-800", stat.text)}>{stat.value}</p>
+            </div>
           </div>
         ))}
       </div>
@@ -416,18 +432,18 @@ export default function CheckImportsPage() {
         
         {/* Client List */}
         <div className="lg:col-span-2 flex flex-col gap-4">
-          <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">
-            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-              <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+          <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500" style={{ animationDelay: '240ms', animationFillMode: 'both' }}>
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/40">
+              <h2 className="text-xs font-bold text-slate-800 flex items-center gap-2 uppercase tracking-widest">
                 <Activity size={18} className="text-gax-blue" />
                 Status por Cliente
               </h2>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+              <div className="relative group w-full max-w-[240px]">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-gax-blue transition-colors" size={14} />
                 <input 
                   type="text" 
-                  placeholder="Buscar cliente..." 
-                  className="pl-9 pr-4 py-1.5 rounded-lg border border-slate-200 text-xs focus:ring-2 focus:ring-gax-blue/20 outline-none w-48"
+                  placeholder="Filtrar por nome..." 
+                  className="w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 py-2 text-xs font-medium text-slate-700 outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all placeholder:text-slate-300"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
@@ -435,46 +451,52 @@ export default function CheckImportsPage() {
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider border-b border-slate-100">
+                <thead className="bg-slate-50/50 text-slate-400 font-bold uppercase tracking-widest text-[10px] border-b border-slate-100">
                   <tr>
-                    <th className="px-4 py-3">Cliente</th>
-                    <th className="px-4 py-3 text-center">ABI Atual</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3 text-right">Ação</th>
+                    <th className="px-5 py-3.5">Operadora</th>
+                    <th className="px-5 py-3.5 text-center">ABI Atual</th>
+                    <th className="px-5 py-3.5">Status</th>
+                    <th className="px-5 py-3.5 text-right">Ação</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-50">
+                <tbody className="divide-y divide-slate-100/80">
                   {isLoading ? (
                     <tr>
-                      <td colSpan={4} className="px-4 py-10 text-center text-slate-400">
-                        <Loader2 className="animate-spin inline-block mr-2" size={16} />
-                        Carregando operadoras...
+                      <td colSpan={4} className="px-4 py-16 text-center">
+                        <div className="flex flex-col items-center gap-3">
+                          <Loader2 className="animate-spin text-gax-blue" size={24} />
+                          <p className="text-xs text-slate-400 font-medium font-display">Carregando operadoras...</p>
+                        </div>
                       </td>
                     </tr>
-                  ) : filteredClients.map((client) => (
-                    <tr key={client.id} className="hover:bg-slate-50/50 transition-colors group">
-                      <td className="px-4 py-3">
-                        <p className="font-bold text-slate-700">{client.name}</p>
-                        <p className="text-[10px] text-slate-400">
-                            {client.abi_last_check ? `Último check: ${formatDistanceToNow(new Date(client.abi_last_check), { addSuffix: true, locale: ptBR })}` : client.cnpj}
-                        </p>
+                  ) : filteredClients.map((client, idx) => (
+                    <tr key={client.id} className="group hover:bg-gax-blue/[0.02] transition-colors animate-in fade-in duration-300" style={{ animationDelay: `${(idx % 10) * 30}ms` }}>
+                      <td className="px-5 py-3.5">
+                        <div className="flex flex-col">
+                          <span className="font-bold text-slate-800 text-sm font-display">{client.name}</span>
+                          <span className="text-[10px] text-slate-400 font-medium truncate max-w-[240px]">
+                              {client.abi_last_check ? `Última checagem: ${formatDistanceToNow(new Date(client.abi_last_check), { addSuffix: true, locale: ptBR })}` : client.cnpj}
+                          </span>
+                        </div>
                       </td>
-                      <td className="px-4 py-3 text-center font-medium text-slate-500">
+                      <td className="px-5 py-3.5 text-center font-bold text-slate-500">
                         {client.abi_current || "-"}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-5 py-3.5">
                         <div className="flex items-center gap-2">
                           {getStatusIcon(client.abi_status)}
                           <span className={cn(
-                            "font-medium",
-                            client.abi_status === "Falha" ? "text-red-500" : 
-                            client.abi_status === "Importado e Analisado" ? "text-green-600" : "text-slate-600"
+                            "font-bold text-[10px] uppercase border px-2.5 py-1 rounded-full",
+                            client.abi_status === "Importado e Analisado" ? "bg-emerald-50 text-emerald-700 border-emerald-100" : 
+                            client.abi_status === "Importado, falta analisar" ? "bg-blue-50 text-blue-700 border-blue-100" :
+                            client.abi_status === "Falha" ? "bg-rose-50 text-rose-700 border-rose-100" :
+                            "bg-slate-100 text-slate-500 border-slate-200"
                           )}>
                             {client.abi_status || "Não Checado"}
                           </span>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-5 py-3.5 text-right">
                         <div className="relative inline-block text-left" ref={openMenuId === client.id ? dropdownRef : null}>
                           <button 
                             onClick={() => setOpenMenuId(openMenuId === client.id ? null : client.id)}
@@ -520,164 +542,129 @@ export default function CheckImportsPage() {
           </div>
         </div>
 
-        {/* Sidebar: Schedule & Logs */}
+        {/* Sidebar: Schedule Summary */}
         <div className="flex flex-col gap-6">
-          
-          {/* Active Status & Progress */}
-
-          {/* Schedule Summary */}
-          <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">
-            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+          <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden animate-in fade-in slide-in-from-right-4 duration-500" style={{ animationDelay: '300ms', animationFillMode: 'both' }}>
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/40">
               <h2 className="text-xs font-bold text-slate-800 flex items-center gap-2 uppercase tracking-widest">
                 <RefreshCw size={14} className="text-gax-blue" />
                 Cronograma ABIs {new Date().getFullYear()}
               </h2>
-              <span className="text-[10px] bg-gax-blue-light text-gax-blue px-2 py-0.5 rounded-full font-bold">ATIVA</span>
+              <span className="text-[10px] bg-gax-blue-light text-gax-blue px-2.5 py-1 rounded-full font-bold uppercase tracking-wider">Ativa</span>
             </div>
             <div className="p-3 flex flex-col gap-2">
-              {schedule && schedule.length > 0 ? schedule.map((item, i) => {
-                const fmtDate = (val: any) => {
-                  if (!val) return '-';
-                  const s = String(val);
-                  // Já está no formato DD/MM/YYYY
-                  if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) return s;
-                  // ISO ou Timestamp
-                  try {
-                    const d = new Date(s);
-                    if (!isNaN(d.getTime())) return d.toLocaleDateString('pt-BR');
-                  } catch {}
-                  return s;
-                };
+              {schedule && schedule.length > 0 ? (
+                schedule.slice(0, 5).map((item, i) => { // Mostra as 5 mais recentes
+                  const fmtDate = (val: any) => {
+                    if (!val) return '-';
+                    return String(val);
+                  };
 
-                return (
-                  <div key={i} className="rounded-xl bg-slate-50/80 border border-slate-100 p-3 text-xs">
-                    {/* Linha 1: ABI + Competência */}
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-bold text-slate-800 text-sm">{item.ABI}</span>
-                      <span className="text-[10px] bg-gax-blue/10 text-gax-blue px-2 py-0.5 rounded-full font-bold">{item.Competência || '-'}</span>
-                    </div>
-                    {/* Grid de datas */}
-                    <div className="grid grid-cols-2 gap-1.5">
-                      {item['Data de Lançamento'] && (
+                  return (
+                    <div key={i} className="rounded-xl bg-slate-50/60 border border-slate-100 p-4 text-xs group hover:bg-white hover:border-gax-blue/20 transition-all">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-bold text-slate-800 text-sm font-display">{item.ABI}</span>
+                        <span className="text-[10px] bg-gax-blue/10 text-gax-blue px-2.5 py-1 rounded-full font-bold uppercase tracking-wider">{item.Competência || '-'}</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 mt-3">
                         <div>
-                          <p className="text-[9px] text-slate-400 uppercase tracking-wider">Lançamento</p>
-                          <p className="font-semibold text-slate-600">{fmtDate(item['Data de Lançamento'])}</p>
-                        </div>
-                      )}
-                      {item['Data fim competência'] && (
-                        <div>
-                          <p className="text-[9px] text-slate-400 uppercase tracking-wider">Fim Competência</p>
-                          <p className="font-semibold text-slate-600">{fmtDate(item['Data fim competência'])}</p>
-                        </div>
-                      )}
-                      {item['Data fim de Ciência'] && (
-                        <div>
-                          <p className="text-[9px] text-orange-500 uppercase tracking-wider font-bold">Fim Ciência ⚑</p>
+                          <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-0.5">Fim Ciência</p>
                           <p className="font-bold text-orange-600">{fmtDate(item['Data fim de Ciência'])}</p>
                         </div>
-                      )}
-                      {item['Data fim de Impugnação'] && (
                         <div>
-                          <p className="text-[9px] text-slate-400 uppercase tracking-wider">Fim Impugnação</p>
-                          <p className="font-semibold text-slate-600">{fmtDate(item['Data fim de Impugnação'])}</p>
+                          <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-0.5">Prazo Impug.</p>
+                          <p className="font-bold text-slate-600">{fmtDate(item['Data fim de Impugnação'])}</p>
                         </div>
-                      )}
+                      </div>
                     </div>
-                  </div>
-                );
-              }) : (
-                <div className="flex flex-col items-center gap-2 py-6 text-center">
-                  <FileSpreadsheet size={28} className="text-slate-300" />
-                  <p className="text-xs text-slate-400">Nenhum cronograma carregado</p>
-                  <p className="text-[10px] text-slate-300">Faça o upload do Excel da ANS</p>
+                  );
+                })
+              ) : (
+                <div className="flex flex-col items-center gap-3 py-10 text-center">
+                  <FileSpreadsheet size={32} className="text-slate-200" />
+                  <p className="text-xs text-slate-400 font-medium font-display">Nenhum cronograma carregado</p>
                 </div>
               )}
             </div>
           </div>
-
         </div>
 
       </div>
 
-      {/* DETAILED LOG MODAL */}
+      {/* LOG MODAL (Aligned with API Check) */}
       {showLogsModal && (
-        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-300">
-          <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl border border-slate-200 flex flex-col max-h-[85vh] overflow-hidden zoom-in-95 duration-200">
-            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-blue-50/50">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-100 flex flex-col max-h-[85vh] overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-slate-900 text-white rounded-lg shadow-lg">
-                  <Terminal className="w-5 h-5" />
+                <div className="p-2 bg-gax-blue text-white rounded-xl shadow-lg shadow-gax-blue/20">
+                  <Terminal size={16} />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900">{modalTitle}</h3>
-                  <p className="text-[10px] text-blue-600 font-bold uppercase tracking-widest">
-                    Histórico Técnico - ID: {viewingTaskId?.substring(0, 12)}
+                  <h3 className="text-sm font-bold text-slate-900">{modalTitle}</h3>
+                  <p className="text-[10px] text-gax-blue font-bold uppercase tracking-widest">
+                    {viewingTaskId ? 'Visualizando Histórico' : 'Monitoramento em Tempo Real'}
                   </p>
                 </div>
               </div>
               <button 
                 onClick={() => { setShowLogsModal(false); setViewingTaskId(null); setLogFilterClient(null); }} 
-                className="p-2 hover:bg-white rounded-lg transition-colors text-slate-400"
+                className="p-2 hover:bg-slate-100 rounded-xl transition-colors text-slate-400"
               >
-                <X className="w-5 h-5" />
+                <X size={16} />
               </button>
             </div>
 
             <div 
               ref={scrollRef}
-              className="flex-1 overflow-y-auto p-6 space-y-3 bg-slate-50/30 scrollbar-thin scrollbar-thumb-slate-200"
+              className="flex-1 overflow-y-auto p-5 space-y-3 bg-slate-50/20"
             >
               {(() => {
-                // Se estamos vendo a tarefa ativa, usamos os logs do polling em tempo real
                 const displayLogs = (viewingTaskId === activeTaskId && realtimeLogs.length > 0) 
                   ? [...realtimeLogs]
                   : [...detailedLogs];
-
-                // Ordenação estável por timestamp_precise (preferencial) ou mantém a ordem do backend
-                displayLogs.sort((a, b) => (a.timestamp_precise || 0) - (b.timestamp_precise || 0));
 
                 return displayLogs.length > 0 ? (
                   displayLogs
                     .filter(log => !logFilterClient || log.message.includes(`[${logFilterClient}]`))
                     .map((log, idx) => (
-                    <div key={idx} className="flex gap-4 group">
-                      <div className="flex flex-col items-center">
-                        <div className={cn(
-                          "w-2.5 h-2.5 rounded-full mt-1.5 shrink-0",
-                          log.level === 'ERROR' ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.4)]' :
-                          log.level === 'SUCCESS' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]' :
-                          log.level === 'WARNING' ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]' :
-                          'bg-gax-blue shadow-[0_0_8px_rgba(2,130,230,0.3)]'
-                        )} />
-                        {idx < detailedLogs.length - 1 && <div className="w-px flex-1 bg-slate-200 my-1" />}
-                      </div>
-                      <div className="flex-1 pb-2">
+                    <div key={idx} className="flex gap-3.5">
+                      <div className={cn(
+                        "w-1.5 h-1.5 rounded-full mt-1.5 shrink-0",
+                        log.level === 'ERROR' ? 'bg-rose-500' :
+                        log.level === 'SUCCESS' ? 'bg-emerald-500' :
+                        log.level === 'WARNING' ? 'bg-amber-500' :
+                        'bg-gax-blue'
+                      )} />
+                      <div className="flex-1">
                         <div className="flex items-baseline justify-between gap-2">
                           <span className={cn(
-                            "text-[13px] font-medium leading-relaxed",
-                            log.level === 'ERROR' ? 'text-red-700' : 'text-slate-700'
+                            "text-[12.5px] font-medium leading-relaxed",
+                            log.level === 'ERROR' ? 'text-rose-700' : 
+                            log.level === 'WARNING' ? 'text-amber-700' :
+                            'text-slate-700'
                           )}>
                             {log.message}
                           </span>
-                          <span className="text-[10px] text-slate-400 font-mono italic shrink-0">{log.timestamp}</span>
+                          <span className="text-[9px] text-slate-300 font-mono italic shrink-0">{log.timestamp}</span>
                         </div>
                       </div>
                     </div>
                   ))
                 ) : (
-                  <div className="h-40 flex flex-col items-center justify-center text-slate-400 gap-3">
-                    <Loader2 className="w-8 h-8 animate-spin text-gax-blue" />
-                    <p className="text-sm italic">Carregando histórico do servidor...</p>
+                  <div className="h-40 flex flex-col items-center justify-center gap-3">
+                    <Loader2 size={24} className="animate-spin text-gax-blue" />
+                    <p className="text-xs text-slate-400 italic font-display">Carregando logs...</p>
                   </div>
                 );
               })()}
               <div ref={logEndRef} />
             </div>
 
-            <div className="px-6 py-4 border-t border-slate-100 flex justify-end bg-slate-50">
+            <div className="px-6 py-3.5 border-t border-slate-100 flex justify-end bg-slate-50/60">
               <button 
                 onClick={() => { setShowLogsModal(false); setViewingTaskId(null); setLogFilterClient(null); }}
-                className="px-6 py-2.5 text-sm font-bold text-slate-600 hover:bg-white border border-slate-200 rounded-xl transition-all shadow-sm"
+                className="px-5 py-2 text-xs font-bold text-slate-600 hover:bg-white border border-transparent hover:border-slate-200 rounded-xl transition-all font-display"
               >
                 Fechar Console
               </button>

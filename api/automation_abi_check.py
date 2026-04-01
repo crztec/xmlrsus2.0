@@ -263,31 +263,46 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
             await logs_btn.click(force=True)
             
             log_task("Aguardando carregamento da tabela de logs...")
-            await page.wait_for_selector("table", timeout=45000)
-            await asyncio.sleep(2)
+            try:
+                # Aguarda a tabela ter pelo menos uma linha
+                await page.wait_for_selector("table tbody tr", timeout=45000)
+                
+                # Aguarda o conteúdo estabilizar (evita 'Carregando...' ou grid vazia momentânea)
+                for _ in range(15):
+                    first_row = page.locator("table tbody tr").first
+                    first_text = (await first_row.inner_text()).strip()
+                    if first_text and "carregando" not in first_text.lower():
+                        break
+                    await asyncio.sleep(1)
+            except:
+                log_task("Aviso: Tempo esgotado aguardando linhas na tabela de logs.", "WARNING")
             
-            first_log_row = page.locator("table tbody tr").first
-            if await first_log_row.count() == 0:
-                log_task("Nenhum log de análise encontrado na tabela.", "WARNING")
-                await browser.close()
-                return "Importado, falta analisar", "Arquivo importado, sem logs de análise.", None
+            # Analisa as primeiras linhas para encontrar Sucesso ou Falha
+            log_rows = page.locator("table tbody tr")
+            rows_to_check = await log_rows.count()
+            rows_to_check = min(rows_to_check, 3) # Verifica as 3 primeiras para segurança
             
-            log_result_text = await first_log_row.inner_text()
-            log_task(f"Verificando Resultado = {log_result_text.strip()[:30]}...")
+            found_result = False
+            for r_idx in range(rows_to_check):
+                row = log_rows.nth(r_idx)
+                log_text = (await row.inner_text()).strip()
+                log_task(f"Analisando log linha {r_idx+1}: {log_text[:50]}...")
+                
+                if "Sucesso" in log_text:
+                    update_progress(100)
+                    log_task(f"RSUS: Sucesso detectado na linha {r_idx+1}!", "SUCCESS")
+                    await browser.close()
+                    return "Importado e Analisado", "Análise concluída com sucesso.", None
+                
+                if "Falha" in log_text or "Erro" in log_text:
+                    log_task(f"RSUS: Falha detectada na linha {r_idx+1}: {log_text[:50]}", "ERROR")
+                    await browser.close()
+                    return "Falha na Análise", f"Erro: {log_text[:50]}", None
             
-            if "Sucesso" in log_result_text:
-                update_progress(100)
-                log_task("RSUS: Resultado = Sucesso da Análise!", "SUCCESS")
-                await browser.close()
-                return "Importado e Analisado", "Análise concluída com sucesso.", None
-            elif "Falha" in log_result_text or "Erro" in log_result_text:
-                log_task(f"RSUS: Resultado = Falha detectada ({log_result_text[:30]})", "ERROR")
-                await browser.close()
-                return "Falha na Análise", f"Erro: {log_result_text[:50]}", None
-            else:
-                log_task(f"RSUS: Resultado inconclusivo: {log_result_text[:30]}", "WARNING")
-                await browser.close()
-                return "Importado, falta analisar", f"Resultado parcial: {log_result_text[:50]}", None
+            # Se chegou aqui, não achou Sucesso nem Falha explícita nas primeiras linhas
+            log_task("Resultado final da análise não localizado (falta processar?).", "WARNING")
+            await browser.close()
+            return "Importado, falta analisar", "Arquivo importado, análise não concluída ou não localizada.", None
 
     except Exception as e:
         import traceback

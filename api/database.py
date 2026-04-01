@@ -474,12 +474,14 @@ def get_task_logs(task_id):
     """Recupera todos os logs de uma tarefa específica, ordenados por tempo."""
     try:
         logs_ref = firestore_db.collection('tasks').document(task_id).collection('logs')
-        # Como o Firestore não garante ordem de inserção em subcoleções sem um campo de ordenação robusto,
-        # e aqui estamos usando um timestamp de string (HH:MM:SS), 
-        # para uma checagem rápida isso deve bastar, mas em lote pode precisar de mais precisão.
-        # Ordenação por timestamp_precise garante a ordem exata de inserção
-        docs = logs_ref.order_by('timestamp_precise', direction=firestore.Query.ASCENDING).get()
-        return [doc.to_dict() for doc in docs]
+        # Recupera todos os logs e ordena em memória para lidar com logs antigos (sem timestamp_precise)
+        docs = logs_ref.get()
+        logs = [doc.to_dict() for doc in docs]
+        
+        # Ordenação robusta: timestamp (string HH:MM:SS) + timestamp_precise (float epoch)
+        # Logs antigos terão timestamp_precise como 0.0 se não existir
+        logs.sort(key=lambda x: (x.get('timestamp', ''), x.get('timestamp_precise', 0)))
+        return logs
     except Exception as e:
         logger.error(f"Erro ao recuperar logs da tarefa {task_id}: {e}")
         return []
@@ -899,9 +901,10 @@ def mark_all_task_files_as_error(task_id, error_message):
 
 def get_logs_for_task(task_id, limit=2000):
     try:
-        # Agora os logs estão em uma subcoleção
-        docs = firestore_db.collection('tasks').document(task_id).collection('logs').order_by('timestamp_precise', direction=firestore.Query.ASCENDING).limit(limit).stream()
+        # Recupera logs e ordena em memória para consistência
+        docs = firestore_db.collection('tasks').document(task_id).collection('logs').limit(limit).get()
         logs = [doc.to_dict() for doc in docs]
+        logs.sort(key=lambda x: (x.get('timestamp', ''), x.get('timestamp_precise', 0)))
         return logs
     except Exception as e:
         logger.error(f"Erro ao recuperar logs: {e}")
