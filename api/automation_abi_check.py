@@ -288,19 +288,36 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
             found_result = False
             for r_idx in range(rows_to_check):
                 row = log_rows.nth(r_idx)
-                log_text = (await row.inner_text()).strip()
-                # log_task(f"Analisando log linha {r_idx+1}: {log_text[:50]}...")
+                cells = row.locator("td")
+                cell_count = await cells.count()
                 
-                if "Sucesso" in log_text:
-                    update_progress(100)
-                    log_task(f"RSUS: Sucesso detectado na linha {r_idx+1}!", "SUCCESS")
-                    await browser.close()
-                    return "Importado e Analisado", "Análise concluída com sucesso.", None
-                
-                if "Falha" in log_text or "Erro" in log_text:
-                    log_task(f"RSUS: Falha detectada na linha {r_idx+1}: {log_text[:50]}", "ERROR")
-                    await browser.close()
-                    return "Falha na Análise", f"Erro: {log_text[:50]}", None
+                if cell_count >= 7:
+                    abi_val = (await cells.nth(0).inner_text()).strip()
+                    result_text = (await cells.nth(6).inner_text()).strip()
+                    
+                    if "Sucesso" in result_text:
+                        update_progress(100)
+                        log_task(f"Sucesso detectado na análise do ABI {abi_val}", "SUCCESS")
+                        await browser.close()
+                        return "Importado e Analisado", f"ABI {abi_val}: Sucesso", None
+                    
+                    if "Falha" in result_text or "Erro" in result_text:
+                        log_task(f"Falha detectada na análise do ABI {abi_val}", "ERROR")
+                        await browser.close()
+                        return "Falha na Análise", f"ABI {abi_val}: Erro", None
+                else:
+                    # Fallback para estrutura inesperada
+                    log_text = (await row.inner_text()).strip()
+                    if "Sucesso" in log_text:
+                        update_progress(100)
+                        log_task(f"Sucesso detectado na análise (fallback)", "SUCCESS")
+                        await browser.close()
+                        return "Importado e Analisado", "Análise concluída com sucesso.", None
+                    
+                    if "Falha" in log_text or "Erro" in log_text:
+                        log_task(f"Falha detectada na análise (fallback): {log_text[:50]}", "ERROR")
+                        await browser.close()
+                        return "Falha na Análise", f"Erro: {log_text[:50]}", None
             
             # Se chegou aqui, não achou Sucesso nem Falha explícita nas primeiras linhas
             log_task("Resultado final da análise não localizado (falta processar?).", "WARNING")
