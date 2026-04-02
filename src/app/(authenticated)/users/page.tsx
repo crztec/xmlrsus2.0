@@ -100,10 +100,10 @@ export default function UsersPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6 p-8 pt-2 max-w-7xl mx-auto">
       <div></div>
 
-      <div className="overflow-hidden rounded-3xl border border-slate-200/60 bg-white/70 shadow-sm backdrop-blur-sm animate-in fade-in duration-500">
+      <div className="overflow-hidden rounded-3xl border border-slate-200/60 bg-white/70 shadow-sm backdrop-blur-sm">
         <table className="w-full text-left font-sans text-xs">
           <thead className="bg-slate-50/30 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">
             <tr className="border-b border-slate-100/50">

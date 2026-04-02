@@ -913,27 +913,32 @@ def get_logs_for_task(task_id, limit=2000):
 def get_aggregated_history_logs(task_category="abi", limit_tasks=5):
     """
     Recupera logs agregados das últimas N tarefas de uma categoria (abi ou api).
-    Usa filtragem em memória para evitar a necessidade de índices compostos no Firestore.
+    Usa filtragem e ordenação em memória para ser 100% resiliente a falta de índices no Firestore.
     """
     try:
-        # Busca as últimas 200 tarefas para filtrar em memória (mais resiliente)
-        tasks_query = firestore_db.collection('tasks') \
-            .order_by('created_at', direction=firestore.Query.DESCENDING) \
-            .limit(200)
-        
+        # 1. Busca documentos da coleção tasks sem filtros ou ordenação do Firestore (mais seguro)
+        # Pegamos 500 para garantir que encontraremos tarefas da categoria mesmo se houver muitas outras
+        tasks_query = firestore_db.collection('tasks').limit(500)
         task_docs = tasks_query.get()
         
+        all_tasks = []
+        for doc in task_docs:
+            data = doc.to_dict()
+            data['id'] = doc.id
+            all_tasks.append(data)
+            
+        # 2. Ordenação em memória por created_at (decrescente)
+        all_tasks.sort(key=lambda x: x.get('created_at', ''), reverse=True)
+
         if task_category == "abi":
             target_types = ["abi_check_batch", "abi_check_single"]
         else:
             target_types = ["api_check_batch", "api_check_single", "batch_api_check", "single_api_check"]
 
         filtered_tasks = []
-        for doc in task_docs:
-            data = doc.to_dict()
-            if data.get('type') in target_types:
-                data['id'] = doc.id
-                filtered_tasks.append(data)
+        for doc_data in all_tasks:
+            if doc_data.get('type') in target_types:
+                filtered_tasks.append(doc_data)
             if len(filtered_tasks) >= limit_tasks:
                 break
 
@@ -943,22 +948,26 @@ def get_aggregated_history_logs(task_category="abi", limit_tasks=5):
             t_id = t_data['id']
             client_name = t_data.get('razao_social') or t_data.get('current_client') or "Sistema"
             
-            # 2. Busca logs para cada tarefa
-            t_logs = get_task_logs(t_id)
+            # 3. Busca logs para cada tarefa
+            t_logs = get_logs_for_task(t_id)
             
-            # 3. Adiciona prefixo do cliente se não houver (para clareza no histórico)
-            for log in t_logs:
+            # 4. Limitamos os logs por tarefa para não estourar a memória/payload no histórico agregado
+            # Pegamos apenas os últimos 50 logs de cada tarefa para o histórico resumido
+            recent_t_logs = t_logs[-50:] if len(t_logs) > 50 else t_logs
+            
+            # 5. Adiciona prefixo do cliente se não houver (para clareza no histórico)
+            for log in recent_t_logs:
                 msg = log.get('message', '')
                 if client_name != "Sistema" and f"[{client_name}]" not in msg:
                     log['message'] = f"[{client_name}] {msg}"
                 all_aggregated_logs.append(log)
 
-        # 4. Ordenação final por timestamp_precise (absoluta)
+        # 6. Ordenação final por timestamp_precise (absoluta)
         all_aggregated_logs.sort(key=lambda x: x.get('timestamp_precise', 0))
         
         return all_aggregated_logs
     except Exception as e:
-        logger.error(f"Erro ao agregar histórico de logs: {e}")
+        logger.error(f"Erro ao recuperar histórico agregado: {e}")
         return []
 
 def clear_import_logs():

@@ -61,11 +61,11 @@ export default function PendingUsersPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6 p-8 pt-2 max-w-7xl mx-auto">
       <div></div>
 
       {users.length > 0 ? (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 animate-in fade-in slide-in-from-bottom-4 duration-700">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           {users.map((user, idx) => (
             <div 
               key={user.email} 

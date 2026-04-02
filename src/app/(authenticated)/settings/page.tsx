@@ -95,10 +95,10 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="flex flex-col gap-8 p-8 pt-2 max-w-7xl mx-auto">
       <div></div>
 
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-2 animate-in fade-in duration-700">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
         {/* Branding Section */}
         <section className="space-y-6 rounded-3xl border border-slate-200/60 bg-white/70 p-8 shadow-sm backdrop-blur-sm">
           <div className="flex items-center gap-4 border-b border-slate-100/50 pb-6">

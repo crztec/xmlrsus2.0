@@ -70,7 +70,7 @@ export default function SettingsRSUSPage() {
   }
 
   return (
-    <div className="max-w-4xl space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <div className="flex flex-col gap-8 p-8 pt-2 max-w-7xl mx-auto uppercase">
 
       <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
         {/* General Credentials */}

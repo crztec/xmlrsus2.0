@@ -147,7 +147,7 @@ export default function XmlDataPage() {
   // --- RENDERING: CLIENT SELECTION ---
   if (!selectedClient) {
     return (
-      <div className="space-y-6">
+      <div className="flex flex-col gap-6 p-8 pt-2 max-w-7xl mx-auto">
         <div></div>
 
         <div className="relative max-w-md">
@@ -163,7 +163,7 @@ export default function XmlDataPage() {
           />
         </div>
 
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
         {paginatedClients.map((client, idx) => (
           <button
             key={client.id}
@@ -172,7 +172,6 @@ export default function XmlDataPage() {
               setSearchTerm("");
             }}
             className="group relative flex flex-col items-start rounded-3xl border border-slate-200/60 bg-white/70 p-6 text-left transition-all hover:border-gax-blue/30 hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 backdrop-blur-sm"
-            style={{ animationDelay: `${(idx % 10) * 50}ms`, animationFillMode: 'both' }}
           >
             <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-gax-blue/10 to-gax-blue/5 text-gax-blue shadow-inner group-hover:scale-110 transition-transform duration-500">
               <Building2 size={24} />
@@ -239,7 +238,7 @@ export default function XmlDataPage() {
 
   // --- RENDERING: DATA TABLE ---
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+    <div className="flex flex-col gap-6 p-8 pt-2 max-w-7xl mx-auto">
       <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-5">
           <button 

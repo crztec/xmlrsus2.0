@@ -76,7 +76,7 @@ export default function AuditLogsPage() {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="flex flex-col gap-8 p-8 pt-2 max-w-7xl mx-auto animate-in fade-in duration-500">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">

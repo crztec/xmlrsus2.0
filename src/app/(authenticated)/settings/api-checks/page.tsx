@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import {
   Zap, Search, CheckCircle2, XCircle, Clock, Terminal, X,
   ChevronLeft, ChevronRight, Activity, Camera, MoreHorizontal,
-  RotateCcw, FileText, Ban, RefreshCw, Loader2, ShieldCheck
+  RotateCcw, FileText, Ban, RefreshCw, Loader2, ShieldCheck, History, Play
 } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { doc, onSnapshot, collection, query, where, orderBy, limit, getDocs, updateDoc } from "firebase/firestore";
@@ -55,13 +55,14 @@ export default function ApiChecksPage() {
 
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
-  const [taskLogs, setTaskLogs] = useState<TaskLog[]>([]);
   const [showLogs, setShowLogs] = useState(false);
+  const [viewingTaskId, setViewingTaskId] = useState<string | null>(null);
+  const [taskLogs, setTaskLogs] = useState<TaskLog[]>([]);
+  const [modalTitle, setModalTitle] = useState("Console Técnico");
   const [isExecuting, setIsExecuting] = useState(false);
 
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [selectedScreenshot, setSelectedScreenshot] = useState<string | null>(null);
-  const [viewingTaskId, setViewingTaskId] = useState<string | null>(null);
   const [selectedClientMessage, setSelectedClientMessage] = useState<string | null>(null);
   const [logFilterClient, setLogFilterClient] = useState<string | null>(null);
 
@@ -157,7 +158,7 @@ export default function ApiChecksPage() {
   };
 
   const fetchTaskLogs = async (taskId: string) => {
-    if (!taskId) return;
+    if (!taskId || taskId === "history") return;
     try {
       const res = await fetch(`/api/task/${taskId}/logs`);
       const data = await res.json();
@@ -234,25 +235,26 @@ export default function ApiChecksPage() {
     }
   };
 
-  const openPastLogs = (taskId: string, message?: string, clientName?: string) => {
+  const openDetailedLogs = async (taskId: string, title: string, clientName?: string) => {
     setViewingTaskId(taskId);
-    setSelectedClientMessage(message || null);
-    setLogFilterClient(clientName || null);
-    setTaskLogs([]);
+    setModalTitle(title);
     setShowLogs(true);
+    setTaskLogs([]);
+    setLogFilterClient(clientName || null);
     setOpenMenuId(null);
     fetchTaskLogs(taskId);
   };
 
   const handleViewGlobalLog = async () => {
-    setShowLogs(true);
     setViewingTaskId("history");
+    setModalTitle("Histórico Recente de APIs");
+    setShowLogs(true);
+    setTaskLogs([]);
     setLogFilterClient(null);
     setSelectedClientMessage("Log Completo do Sistema (Últimos 5)");
-    setTaskLogs([]);
     
     try {
-      const res = await fetch("/api/tasks/history-logs?type=api&limit=5");
+      const res = await fetch("http://localhost:8000/api/tasks/history-logs?type=api&limit=5");
       const logsData = await res.json();
       if (logsData && logsData.length > 0) {
         setTaskLogs(logsData);
@@ -318,52 +320,54 @@ export default function ApiChecksPage() {
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
-
+    <div className="flex flex-col gap-6 p-8 max-w-7xl mx-auto animate-in fade-in duration-500 pt-2">
+      
       {/* ── REAL-TIME STATUS BAR ── */}
-      <div className={cn(
-        "rounded-2xl border bg-white px-5 py-3 flex items-center justify-between gap-4 shadow-sm transition-all",
-        isExecuting ? "border-gax-blue/30 bg-gax-blue/[0.02]" : "border-slate-200"
-      )}>
+      <div className="flex items-center justify-between gap-4 bg-white px-5 py-3 rounded-2xl border border-slate-200 shadow-sm">
         {isExecuting && activeTask ? (
           <>
-            <div className="flex items-center gap-3 flex-1 min-w-0">
-              <div className="relative flex h-2.5 w-2.5 shrink-0">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-gax-blue opacity-60" />
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-gax-blue" />
+            <div className="flex-1 flex items-center gap-4 min-w-0">
+              <div className="h-10 w-10 rounded-xl bg-gax-blue/10 flex items-center justify-center shrink-0">
+                <Loader2 size={20} className="animate-spin text-gax-blue" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-gax-blue">
-                    {activeTask.total && activeTask.total > 1 ? "Lote em execução" : "Verificando cliente"}
-                  </span>
-                  {activeTask.current_client && (
-                    <span className="text-[10px] text-slate-400 truncate">— {activeTask.current_client}</span>
-                  )}
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-gax-blue">
+                      {activeTask.total && activeTask.total > 1 ? "Lote em execução" : "Verificando cliente"}
+                    </span>
+                    <span className="text-xs font-bold text-slate-800 truncate">
+                      {activeTask.current_client && (
+                        <span className="px-2 py-0.5 bg-slate-100 rounded-md text-slate-600 mr-2">
+                          {activeTask.current_client}
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  <span className="text-xs font-bold text-gax-blue shrink-0">{progressPercent}%</span>
                 </div>
-                <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-gax-blue transition-all duration-700 ease-in-out shadow-[0_0_10px_rgba(14,165,233,0.4)]"
+                <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-gax-blue transition-all duration-500 ease-out shadow-[0_0_8px_rgba(0,102,255,0.4)]"
                     style={{ width: `${progressPercent}%` }}
                   />
                 </div>
               </div>
-              <span className="text-xs font-bold text-gax-blue shrink-0">{progressPercent}%</span>
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
               <button
-                onClick={() => { setViewingTaskId(activeTaskId); setShowLogs(true); }}
-                className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 transition-colors"
+                onClick={() => { setViewingTaskId(activeTaskId); setShowLogs(true); setModalTitle("Monitoramento em Tempo Real"); }}
+                className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 transition-colors"
                 title="Abrir Console"
               >
-                <Terminal size={14} />
+                <Terminal size={18} />
               </button>
               <button
                 onClick={handleStopCheck}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-red-50 text-red-600 border border-red-100 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-red-100 transition-all"
+                className="flex items-center gap-2 px-4 py-2 bg-rose-50 text-rose-600 border border-rose-100 rounded-xl text-xs font-bold hover:bg-rose-100 transition-all"
               >
-                <X size={12} />
+                <X size={14} />
                 Parar
               </button>
             </div>
@@ -384,15 +388,15 @@ export default function ApiChecksPage() {
               </button>
               <button
                 onClick={handleViewGlobalLog}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-white transition-all"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-slate-50 transition-all shadow-sm font-display"
               >
                 <Terminal size={12} />
-                Histórico
+                HISTÓRICO
               </button>
               <button
                 onClick={handleRunFailedChecks}
                 disabled={isExecuting}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 border border-rose-100 text-rose-600 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-rose-100 transition-all disabled:opacity-40"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 border border-rose-100 text-rose-600 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-rose-100 transition-all disabled:opacity-40 font-display"
               >
                 <RotateCcw size={12} />
                 Re-testar Falhas
@@ -400,9 +404,9 @@ export default function ApiChecksPage() {
               <button
                 onClick={handleRunBatchCheck}
                 disabled={isExecuting}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-gax-blue text-white rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-gax-blue-hover transition-all shadow-md shadow-gax-blue/20 disabled:opacity-40"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-gax-blue text-white rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-gax-blue-hover transition-all shadow-md shadow-gax-blue/20 disabled:opacity-40 font-display"
               >
-                <Zap size={12} className={isExecuting ? 'animate-pulse' : ''} />
+                <Play size={12} className={isExecuting ? 'animate-pulse' : ''} />
                 Executar Lote
               </button>
             </div>
@@ -442,8 +446,8 @@ export default function ApiChecksPage() {
               {card.icon}
             </div>
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{card.label}</p>
-              <p className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 font-display">{card.label}</p>
+              <p className="text-2xl font-black text-slate-900 tracking-tight font-display flex items-center gap-2">
                 {card.value}
                 {card.pulse && card.value > 0 && (
                   <span className="relative flex h-2.5 w-2.5">
@@ -497,7 +501,7 @@ export default function ApiChecksPage() {
                   <th
                     key={h}
                     className={cn(
-                      "px-5 py-3.5 text-[10px] font-bold uppercase tracking-widest text-slate-400 border-b border-slate-100",
+                      "px-5 py-3.5 text-[10px] font-bold uppercase tracking-widest text-slate-400 border-b border-slate-100 font-display",
                       i === 4 ? "text-right" : ""
                     )}
                   >
@@ -603,10 +607,10 @@ export default function ApiChecksPage() {
                           </button>
                           {client.api_last_task_id && (
                             <button
-                              onClick={() => openPastLogs(client.api_last_task_id!, client.api_last_message, client.name)}
-                              className="w-full flex items-center gap-2.5 px-4 py-3 text-xs font-semibold text-slate-700 hover:bg-gax-blue hover:text-white transition-colors border-t border-slate-50"
+                              onClick={() => { openDetailedLogs(client.api_last_task_id!, `Log da API: ${client.name}`, client.name); setOpenMenuId(null); }}
+                              className="w-full flex items-center gap-2.5 px-4 py-3 text-[11px] font-bold text-slate-700 hover:bg-gax-blue hover:text-white transition-colors border-t border-slate-50"
                             >
-                              <FileText size={14} /> Ver Log
+                              <FileText size={14} /> Ver Log Individual
                             </button>
                           )}
                           {(client.api_status === 'error' || client.api_status === 'offline') && client.api_last_screenshot_url && (
@@ -678,7 +682,7 @@ export default function ApiChecksPage() {
                   <Terminal size={16} />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-900">Console Técnico</h3>
+                  <h3 className="text-sm font-bold text-slate-900">{modalTitle}</h3>
                   <p className="text-[10px] text-gax-blue font-bold uppercase tracking-widest">
                     {(viewingTaskId && viewingTaskId !== activeTaskId) ? 'Visualizando Histórico' : 'Monitoramento em Tempo Real'}
                   </p>
@@ -723,7 +727,7 @@ export default function ApiChecksPage() {
               ) : (
                 <div className="h-40 flex flex-col items-center justify-center gap-3">
                   <Loader2 size={24} className="animate-spin text-gax-blue" />
-                  <p className="text-xs text-slate-400 italic">Carregando logs...</p>
+                  <p className="text-xs text-slate-400 italic font-display">Carregando logs...</p>
                 </div>
               )}
               <div ref={logEndRef} />
@@ -732,7 +736,7 @@ export default function ApiChecksPage() {
             <div className="px-6 py-3.5 border-t border-slate-100 flex justify-end bg-slate-50/60">
               <button
                 onClick={() => { setShowLogs(false); setViewingTaskId(null); setSelectedClientMessage(null); setLogFilterClient(null); }}
-                className="px-5 py-2 text-xs font-bold text-slate-600 hover:bg-white border border-transparent hover:border-slate-200 rounded-xl transition-all"
+                className="px-5 py-2 text-xs font-bold text-slate-600 hover:bg-white border border-transparent hover:border-slate-200 rounded-xl transition-all font-display"
               >
                 Fechar Console
               </button>

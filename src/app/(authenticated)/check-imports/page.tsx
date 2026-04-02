@@ -217,7 +217,7 @@ export default function CheckImportsPage() {
 
     try {
       // Usa o novo endpoint de histórico agregado (últimos 5 clientes/tasks)
-      const res = await fetch("/api/tasks/history-logs?type=abi&limit=5");
+      const res = await fetch("http://localhost:8000/api/tasks/history-logs?type=abi&limit=5");
       const logsData = await res.json();
       
       if (logsData && logsData.length > 0) {
@@ -317,7 +317,7 @@ export default function CheckImportsPage() {
   );
 
   return (
-    <div className="flex flex-col gap-6 p-8 max-w-7xl mx-auto animate-in fade-in duration-500">
+    <div className="flex flex-col gap-6 p-8 pt-2 max-w-7xl mx-auto animate-in fade-in duration-500">
       
       {/* Actions Toolbar (Real-time Status Bar) */}
       <div className={cn(
@@ -584,8 +584,8 @@ export default function CheckImportsPage() {
 
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <p className="text-[9px] font-bold uppercase tracking-widest text-white/50 mb-1">Fim Ciência</p>
-                        <p className="font-black text-sm text-amber-300">{activeAbi['Data fim de Ciência'] || '-'}</p>
+                        <p className="text-[9px] font-bold uppercase tracking-widest text-white/50 mb-1">Data de Lançamento</p>
+                        <p className="font-black text-sm text-amber-300">{activeAbi['Data de Lançamento'] || '-'}</p>
                       </div>
                       <div>
                         <p className="text-[9px] font-bold uppercase tracking-widest text-white/50 mb-1">Limite Impugn.</p>
@@ -622,7 +622,7 @@ export default function CheckImportsPage() {
                               <span className="font-bold text-slate-700 text-xs">{item.ABI}</span>
                               <span className="text-[9px] font-bold text-slate-400 px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 uppercase">{item.Competência}</span>
                             </div>
-                            <p className="text-[10px] text-slate-500 mt-1">Limite: <span className="font-medium text-slate-600">{item['Data fim de Ciência']}</span></p>
+                            <p className="text-[10px] text-slate-500 mt-1">Lançamento: <span className="font-medium text-slate-600">{item['Data de Lançamento']}</span></p>
                           </div>
                         </div>
                       ))
@@ -632,19 +632,6 @@ export default function CheckImportsPage() {
                 </div>
               </div>
             </div>
-          </div>
-
-          {/* Quick Info Card */}
-          <div className="rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 p-5 text-white shadow-xl animate-in fade-in slide-in-from-bottom-4 duration-500" style={{ animationDelay: '400ms', animationFillMode: 'both' }}>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-white/10 rounded-xl text-amber-400">
-                <AlertCircle size={18} />
-              </div>
-              <p className="text-xs font-bold leading-tight uppercase tracking-wider">Atenção aos<br/>Prazos ABI</p>
-            </div>
-            <p className="text-[11px] text-slate-400 leading-relaxed font-medium">
-              A análise deve ser concluída antes da data de <span className="text-white">Fim de Ciência</span> para garantir o direito de impugnação automática.
-            </p>
           </div>
         </div>
       </div>

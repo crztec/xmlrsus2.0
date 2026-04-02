@@ -78,7 +78,7 @@ export default function LogsPage() {
   };
 
   return (
-    <div className="space-y-6 text-sans">
+    <div className="flex flex-col gap-6 p-8 pt-2 max-w-7xl mx-auto animate-in fade-in duration-500 text-sans">
       <div></div>
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3 animate-in fade-in duration-700">
