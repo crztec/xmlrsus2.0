@@ -154,6 +154,21 @@ export default function CheckImportsPage() {
 
   React.useEffect(() => {
     fetchData();
+    
+    // Verifica se há alguma tarefa de ABI já em execução no backend (Persistência pós-refresh)
+    const checkActiveTask = async () => {
+      try {
+        const res = await fetch("/api/active-task/abi");
+        const data = await res.json();
+        if (data.id && data.status === 'running') {
+          setActiveTaskId(data.id);
+          setCurrentTaskStatus(data);
+        }
+      } catch (err) {
+        console.error("Erro ao recuperar tarefa ativa:", err);
+      }
+    };
+    checkActiveTask();
   }, []);
 
   // Auto-scroll logs
@@ -374,6 +389,9 @@ export default function CheckImportsPage() {
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-gax-blue">
                     {currentTaskStatus?.total && currentTaskStatus.total > 1 ? "Lote em execução" : "Verificando ABI"}
+                    {currentTaskStatus?.total && currentTaskStatus.total > 0 && (
+                      <span className="ml-2 opacity-60">({currentTaskStatus.current || 0}/{currentTaskStatus.total})</span>
+                    )}
                   </span>
                   {currentTaskStatus?.current_client && (
                     <span className="text-[10px] text-slate-400 truncate">— {currentTaskStatus.current_client}</span>

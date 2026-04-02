@@ -1140,6 +1140,28 @@ def save_abi_schedule(data_list):
         logger.error(f"Erro ao salvar cronograma ABI: {e}")
         return False
 
+def get_active_task(category="abi"):
+    """
+    Busca a tarefa mais recente que ainda está em execução para uma categoria.
+    Filtra tipos de tarefa correspondentes e status 'running'.
+    """
+    try:
+        # Pega as últimas 20 tarefas para encontrar a ativa sem precisar de índices compostos complexos no where
+        tasks = get_tasks_for_dashboard(limit=20)
+        
+        if category == "abi":
+            target_types = ["abi_check_batch", "abi_check_single"]
+        else:
+            target_types = ["api_check_batch", "api_check_single", "batch_api_check", "single_api_check"]
+
+        for task in tasks:
+            if task.get('type') in target_types and task.get('status') == 'running':
+                return task
+        return None
+    except Exception as e:
+        logger.error(f"Erro ao buscar tarefa ativa ({category}): {e}")
+        return None
+
 def get_abi_schedule():
     """Returns the complete ABI schedule."""
     try:

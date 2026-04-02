@@ -315,6 +315,14 @@ async def check_single_integration(client_id: str, background_tasks: BackgroundT
     background_tasks.add_task(auto_check.run_single_api_check, client_id, task_id)
     return {"status": "pending", "task_id": task_id}
 
+@app.get("/api/active-task/{category}")
+async def get_active_task_route(category: str):
+    """Retorna a tarefa ativa para uma categoria (abi ou api)."""
+    task = db.get_active_task(category)
+    if task:
+        return task
+    return {"status": "none"}
+
 @app.get("/clients")
 async def get_clients(page: int = 1, limit: int = 10, search: str = ""):
     clients, total = db.get_clients_paginated(page, limit, search)
