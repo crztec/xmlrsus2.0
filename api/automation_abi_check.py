@@ -336,10 +336,15 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
             except: pass
         return "Falha", f"Erro: {err_msg}", None
 
-async def run_batch_abi_check(task_id):
-    """Executa a checagem de ABI para todos os clientes ativos."""
+async def run_batch_abi_check(task_id, client_ids=None):
+    """Executa a checagem de ABI para todos ou alguns clientes específicos."""
     try:
-        clients = db.get_all_clients()
+        if client_ids:
+            all_clients = db.get_all_clients()
+            clients = [c for c in all_clients if c['id'] in client_ids]
+        else:
+            clients = db.get_all_clients()
+            
         total = len(clients)
         
         db.update_task(task_id, {"total": total, "current": 0, "status": "running"})

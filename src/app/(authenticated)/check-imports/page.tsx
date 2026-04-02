@@ -21,7 +21,8 @@ import {
   History,
   MoreHorizontal,
   Calendar,
-  Clock
+  Clock,
+  RotateCcw
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
@@ -288,6 +289,44 @@ export default function CheckImportsPage() {
       alert("Erro de conexão com o servidor.");
     }
   };
+  
+  const handleRunFailedChecks = async () => {
+    if (!!activeTaskId) return;
+    
+    // Filtra operadoras que falharam (Falha, Erro, ou status contendo falha/erro)
+    const failedOnes = clients.filter(c => {
+      const s = (c.abi_status || "").toLowerCase();
+      return s.includes("falha") || s.includes("erro") || s === "nao importado";
+    }).map(c => c.id);
+    
+    if (failedOnes.length === 0) {
+      alert("Não há operadoras com falha para re-testar.");
+      return;
+    }
+    
+    try {
+      const res = await fetch("/api/start-abi-check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ client_ids: failedOnes }),
+      });
+      
+      if (!res.ok) {
+        const error = await res.json();
+        alert(error.detail || "Erro ao iniciar checagem.");
+        return;
+      }
+
+      const data = await res.json();
+      if (data.task_id) {
+        setActiveTaskId(data.task_id);
+        setRealtimeLogs([]);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao disparar checagem de falhas.");
+    }
+  };
 
   const handleCancel = async () => {
     if (!activeTaskId) return;
@@ -387,6 +426,14 @@ export default function CheckImportsPage() {
               >
                 <Terminal size={12} />
                 Histórico
+              </button>
+              <button 
+                onClick={handleRunFailedChecks}
+                disabled={!!activeTaskId}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-white transition-all disabled:opacity-40 font-display"
+              >
+                <RotateCcw size={12} />
+                Re-testar Falhas
               </button>
               <label className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-white transition-all cursor-pointer font-display">
                 <CloudUpload size={12} />

@@ -150,6 +150,7 @@ async def save_rsus_creds(type: str = Form(...), username: str = Form(...), pass
 
 class ABICheckRequest(BaseModel):
     client_id: Optional[str] = None
+    client_ids: Optional[List[str]] = None
 
 @app.post("/cancel-task/{task_id}")
 async def cancel_task(task_id: str):
@@ -292,10 +293,14 @@ async def start_abi_check(request: ABICheckRequest, background_tasks: Background
     
     abi_label = active_abi.get('ABI', 'Desconhecido') or 'Desconhecido'
     client_id = request.client_id
+    client_ids = request.client_ids
     
     if client_id:
         task_id = db.create_task("abi_check_single", f"Checagem ABI {abi_label}: {client_id}")
         background_tasks.add_task(abi_auto.run_single_abi_check, client_id, task_id)
+    elif client_ids:
+        task_id = db.create_task("abi_check_batch", f"Checagem ABI {abi_label} (Parcial: {len(client_ids)} operadoras)")
+        background_tasks.add_task(abi_auto.run_batch_abi_check, task_id, client_ids)
     else:
         task_id = db.create_task("abi_check_batch", f"Checagem ABI {abi_label} em Lote")
         background_tasks.add_task(abi_auto.run_batch_abi_check, task_id)
