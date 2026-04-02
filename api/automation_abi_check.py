@@ -219,13 +219,13 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
             count = await rows.count()
             target_row = None
             
-            log_task(f"Analisando {count} linhas da grid...")
+            # log_task(f"Analisando {count} linhas da grid...")
             for i in range(count):
                 row = rows.nth(i)
                 first_cell = row.locator("td").first
                 if await first_cell.count() > 0:
                     cell_text = (await first_cell.inner_text()).strip()
-                    log_task(f"Linha {i+1}: Texto lido = '{cell_text}'")
+                    # log_task(f"Linha {i+1}: Texto lido = '{cell_text}'")
                     
                     # Comparações flexíveis
                     cell_clean = cell_text.replace('º', '').strip()
@@ -237,19 +237,22 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                     
                     if active_abi == cell_text or abi_clean == cell_clean or active_abi in cell_text or (abi_numbers and cell_numbers == abi_numbers):
                         target_row = row
-                        log_task(f"SUCESSO: ABI {active_abi} localizado na linha {i+1}!")
+                        # log_task(f"SUCESSO: ABI {active_abi} localizado na linha {i+1}!")
                         break
             
             if not target_row:
-                log_task(f"ERRO: ABI {active_abi} não localizado na primeira coluna das {count} linhas da grid.", "ERROR")
+                log_task(f"ABI atual ({active_abi}) não localizado na primeira coluna das {count} linhas da grid.", "ERROR")
                 if browser: await browser.close()
-                return "Nao Importado", f"ABI {active_abi} não localizado.", None
+                return "Nao Importado", "ABI atual não Importado", None
 
-            row_text = await target_row.inner_text()
-            if "Importado" not in row_text:
-                log_task(f"ABI {active_abi} encontrado com status: {row_text.split()[-1] if row_text else 'Indefinido'}", "INFO")
-                await browser.close()
-                return "Pendente", f"Status: {row_text.split()[-1] if row_text else 'Indefinido'}", None
+            # Obtém status direto da segunda coluna (Status Arquivo)
+            status_cell = target_row.locator("td").nth(1)
+            status_text = (await status_cell.inner_text()).strip()
+            
+            if status_text != "Importado":
+                log_task(f"ABI {active_abi} encontrado com status: {status_text}", "INFO")
+                if browser: await browser.close()
+                return "Pendente", f"Status: {status_text}", None
 
             # 3. Ver Logs de Análise
             update_progress(85)
@@ -286,7 +289,7 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
             for r_idx in range(rows_to_check):
                 row = log_rows.nth(r_idx)
                 log_text = (await row.inner_text()).strip()
-                log_task(f"Analisando log linha {r_idx+1}: {log_text[:50]}...")
+                # log_task(f"Analisando log linha {r_idx+1}: {log_text[:50]}...")
                 
                 if "Sucesso" in log_text:
                     update_progress(100)
