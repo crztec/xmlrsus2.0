@@ -605,7 +605,7 @@ async def run_batch_api_check(task_id=None, client_ids=None):
                 target_creds = creds_vitoria if "vitoria" in client.get('url_sistema', '').lower() else creds_general
                 status, message, snap_url = await run_api_check_for_client(client['id'], task_id=task_id, pre_fetched_creds=target_creds, is_batch_run=True)
                 # O status já é atualizado dentro de run_api_check_for_client, mas aqui garantimos o vínculo final
-                db.update_client_api_status(client['id'], status, message, task_id=task_id, screenshot_url=snap_url)
+                db.update_client_api_status(client['id'], status, message, task_id=task_id, screenshot_url=snap_url, is_batch=True)
             except Exception as e:
                 logger.error(f"Erro ao checar cliente {client.get('id')}: {e}")
                 if task_id:

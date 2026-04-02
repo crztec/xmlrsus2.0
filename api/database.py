@@ -508,7 +508,7 @@ def update_client_config(client_id, update_data):
         logger.error(f"Erro ao atualizar cliente {client_id}: {e}")
         return False
 
-def update_client_api_status(client_id, status, message, task_id=None, screenshot_url=None):
+def update_client_api_status(client_id, status, message, task_id=None, screenshot_url=None, is_batch=False):
     """Updates the API monitoring status for a client, maintaining history and forensics."""
     if not client_id: return False
     try:
@@ -524,7 +524,7 @@ def update_client_api_status(client_id, status, message, task_id=None, screensho
             'api_last_check': firestore.SERVER_TIMESTAMP
         }
         
-        if task_id:
+        if task_id and (not is_batch or not client_doc.to_dict().get('api_last_task_id')):
             update_data['api_last_task_id'] = task_id
         if screenshot_url:
             update_data['api_last_screenshot_url'] = screenshot_url
@@ -854,19 +854,25 @@ def get_pending_task():
     return None
 
 def get_tasks_for_dashboard(limit=50, task_type=None, exclude_api_checks=False):
-    query = firestore_db.collection('tasks').order_by('created_at', direction=firestore.Query.DESCENDING)
+    """
+    Recupera tarefas para o dashboard de forma index-resiliente.
+    """
+    # 1. Busca documentos da coleção tasks ordenados por data (Firestore aceita order_by sozinho sem índice composto)
+    # Pegamos 300 para garantir que encontraremos tarefas filtradas mesmo se houver muitas outras
+    query = firestore_db.collection('tasks').order_by('created_at', direction=firestore.Query.DESCENDING).limit(300)
     
-    if task_type:
-        query = query.where('type', '==', task_type)
-        
-    api_check_types = ['batch_api_check', 'single_api_check', 'api_check_batch', 'api_check_single']
-    
-    docs = query.stream()
+    docs = query.get()
     tasks = []
+    
+    api_check_types = ['batch_api_check', 'single_api_check', 'api_check_batch', 'api_check_single']
     
     for doc in docs:
         task_dict = doc.to_dict()
         
+        # Filtro de tipo em memória para evitar necessidade de índice composto
+        if task_type and task_dict.get('type') != task_type:
+            continue
+            
         # Filtra tipos de checagem de API no backend para não prejudicar o limit(50)
         if exclude_api_checks and task_dict.get('type') in api_check_types:
             continue
@@ -1178,7 +1184,7 @@ def get_active_abi():
         logger.error(f"Erro ao identificar ABI ativo: {e}")
         return None
 
-def update_client_abi_status(client_id, abi, status, message, task_id=None):
+def update_client_abi_status(client_id, abi, status, message, task_id=None, is_batch=False):
     """Updates ABI check status for a client."""
     if not client_id: return False
     try:
@@ -1191,7 +1197,10 @@ def update_client_abi_status(client_id, abi, status, message, task_id=None):
             'abi_last_check': firestore.SERVER_TIMESTAMP
         }
         
-        if task_id:
+        # Só atualiza o abi_last_task_id se NÃO for um processamento em lote, 
+        # ou se o cliente não tiver um task_id individual anterior
+        # Isso garante que o link 'Ver Log Individual' aponte para um log focado no cliente.
+        if task_id and (not is_batch or not client_data.get('abi_last_task_id')):
             update_data['abi_last_task_id'] = task_id
             
         client_ref.update(update_data)

@@ -19,13 +19,13 @@ async def run_abi_check_for_client(client_id, task_id=None, pre_fetched_creds=No
 
     try:
         status, message, snap_url = await _run_abi_check_logic(client_id, active_abi, task_id, pre_fetched_creds)
-        db.update_client_abi_status(client_id, active_abi, status, message, task_id)
+        db.update_client_abi_status(client_id, active_abi, status, message, task_id, is_batch=is_batch_run)
         return status, message, snap_url
     except Exception as e:
         import traceback
         err = f"{type(e).__name__}: {str(e)}"
         logger.error(f"run_abi_check_for_client error: {traceback.format_exc()}")
-        db.update_client_abi_status(client_id, active_abi, "Falha", err, task_id)
+        db.update_client_abi_status(client_id, active_abi, "Falha", err, task_id, is_batch=is_batch_run)
         if task_id:
             db.add_log(task_id, f"[{client_name}] Erro crítico: {err}", "ERROR")
         return "Falha", err, None
