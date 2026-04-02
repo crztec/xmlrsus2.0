@@ -470,16 +470,27 @@ def add_log(task_id, message, level="INFO"):
         logger.error(f"Erro ao adicionar log à tarefa {task_id}: {e}")
         return False
 
-def get_task_logs(task_id):
-    """Recupera todos os logs de uma tarefa específica, ordenados por tempo."""
+def get_task_logs(task_id, client_filter=None):
+    """Recupera todos os logs de uma tarefa específica, com filtro opcional por cliente."""
     try:
         logs_ref = firestore_db.collection('tasks').document(task_id).collection('logs')
-        # Recupera todos os logs e ordena em memória para lidar com logs antigos (sem timestamp_precise)
         docs = logs_ref.get()
-        logs = [doc.to_dict() for doc in docs]
+        
+        logs = []
+        for doc in docs:
+            log_data = doc.to_dict()
+            msg = log_data.get('message', '')
+            
+            # Se houver filtro por cliente, filtra por [Nome] ou mensagens globais
+            if client_filter:
+                is_global = msg.startswith("🚀") or "em lote" in msg.lower() or "finalizada" in msg.lower() or "Finalizado" in msg
+                is_for_client = f"[{client_filter}]" in msg
+                if is_for_client or is_global:
+                    logs.append(log_data)
+            else:
+                logs.append(log_data)
         
         # Ordenação robusta: timestamp (string HH:MM:SS) + timestamp_precise (float epoch)
-        # Logs antigos terão timestamp_precise como 0.0 se não existir
         logs.sort(key=lambda x: (x.get('timestamp', ''), x.get('timestamp_precise', 0)))
         return logs
     except Exception as e:
@@ -905,11 +916,26 @@ def mark_all_task_files_as_error(task_id, error_message):
         logger.error(f"Erro ao marcar arquivos como erro: {e}")
         return False
 
-def get_logs_for_task(task_id, limit=2000):
+def get_logs_for_task(task_id, limit=2000, client_filter=None):
     try:
         # Recupera logs e ordena em memória para consistência
         docs = firestore_db.collection('tasks').document(task_id).collection('logs').limit(limit).get()
-        logs = [doc.to_dict() for doc in docs]
+        
+        logs = []
+        for doc in docs:
+            log_data = doc.to_dict()
+            msg = log_data.get('message', '')
+            
+            # Se houver filtro por cliente, filtra por [Nome] ou mensagens globais
+            if client_filter:
+                # Mantém mensagens de início/fim de lote ou específicas do cliente
+                is_global = msg.startswith("🚀") or "em lote" in msg.lower() or "finalizada" in msg.lower() or "Finalizado" in msg
+                is_for_client = f"[{client_filter}]" in msg
+                if is_for_client or is_global:
+                    logs.append(log_data)
+            else:
+                logs.append(log_data)
+        
         logs.sort(key=lambda x: (x.get('timestamp', ''), x.get('timestamp_precise', 0)))
         return logs
     except Exception as e:
@@ -1219,10 +1245,8 @@ def update_client_abi_status(client_id, abi, status, message, task_id=None, is_b
             'abi_last_check': firestore.SERVER_TIMESTAMP
         }
         
-        # Só atualiza o abi_last_task_id se NÃO for um processamento em lote, 
-        # ou se o cliente não tiver um task_id individual anterior
-        # Isso garante que o link 'Ver Log Individual' aponte para um log focado no cliente.
-        if task_id and (not is_batch or not client_data.get('abi_last_task_id')):
+        # Atualiza o abi_last_task_id SEMPRE para ser o mais recente
+        if task_id:
             update_data['abi_last_task_id'] = task_id
             
         client_ref.update(update_data)
@@ -1267,7 +1291,7 @@ def get_abi_dashboard_stats():
             elif status == 'Importado, falta analisar':
                 stats['imported'] += 1
                 stats['imported_not_analyzed'] += 1
-            elif status == 'Falha':
+            elif status in ['Falha', 'Falha na Análise']:
                 stats['failure'] += 1
             elif status == 'Nao Importado':
                 stats['not_imported'] += 1

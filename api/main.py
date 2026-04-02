@@ -573,9 +573,9 @@ async def get_task_status(task_id: str):
     return response
 
 @app.get("/task/{task_id}/logs")
-async def route_get_task_logs(task_id: str):
-    """Retorna a lista de logs de uma tarefa específica."""
-    return db.get_task_logs(task_id)
+async def route_get_task_logs(task_id: str, client_name: str = None):
+    """Retorna a lista de logs de uma tarefa específica, opcionalmente filtrada por cliente."""
+    return db.get_task_logs(task_id, client_filter=client_name)
 
 @app.get("/api/tasks/history-logs")
 async def get_history_logs(type: str = "abi", limit: int = 5):

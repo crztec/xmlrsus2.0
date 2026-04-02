@@ -212,7 +212,7 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                 # O abi_clean já foi definido no início da função
                 await page.wait_for_selector(f"table td:has-text('{active_abi}'), table td:has-text('{abi_clean}')", timeout=35000)
             except:
-                log_task(f"Aviso: Texto do ABI {active_abi} não detectado via seletor após 35s. Varrendo linhas...", "WARNING")
+                pass # Silenciando aviso genérico para unificar adiante
             
             # Varredura manual de linhas para garantir detecção correta na primeira coluna
             rows = page.locator("table tbody tr")
@@ -241,9 +241,9 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                         break
             
             if not target_row:
-                log_task(f"ABI atual ({active_abi}) não localizado na primeira coluna das {count} linhas da grid.", "ERROR")
+                log_task(f"Aviso: ABI atual ainda nao importado no RSUS.", "WARNING")
                 if browser: await browser.close()
-                return "Nao Importado", "ABI atual não Importado", None
+                return "Nao Importado", "ABI atual ainda nao importado no RSUS.", None
 
             # Obtém status direto da segunda coluna (Status Arquivo)
             status_cell = target_row.locator("td").nth(1)
@@ -263,7 +263,14 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
             
             log_task("Clicando em 'Logs Análise'...")
             logs_btn = page.locator(".dropdown-menu a:has-text('Logs Análise'), a:has-text('Logs Análise')").first
-            await logs_btn.click(force=True)
+            try:
+                # Reduzido para 15s conforme solicitado
+                await logs_btn.wait_for(state="visible", timeout=15000)
+                await logs_btn.click(force=True)
+            except:
+                log_task(f"Aviso: Cliente nao realiza análise.", "WARNING")
+                if browser: await browser.close()
+                return "Importado", "Cliente nao realiza análise.", None
             
             log_task("Aguardando carregamento da tabela de logs...")
             try:
@@ -302,7 +309,7 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                         return "Importado e Analisado", f"ABI {abi_val}: Sucesso", None
                     
                     if "Falha" in result_text or "Erro" in result_text:
-                        log_task(f"Falha detectada na análise do ABI {abi_val}", "ERROR")
+                        log_task(f"Falha detectada na análise do ABI {abi_val}.", "ERROR")
                         await browser.close()
                         return "Falha na Análise", f"ABI {abi_val}: Erro", None
                 else:
@@ -315,7 +322,7 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                         return "Importado e Analisado", "Análise concluída com sucesso.", None
                     
                     if "Falha" in log_text or "Erro" in log_text:
-                        log_task(f"Falha detectada na análise (fallback): {log_text[:50]}", "ERROR")
+                        log_task(f"Falha detectada na análise (fallback): {log_text[:50]}.", "ERROR")
                         await browser.close()
                         return "Falha na Análise", f"Erro: {log_text[:50]}", None
             

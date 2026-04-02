@@ -22,7 +22,8 @@ import {
   MoreHorizontal,
   Calendar,
   Clock,
-  RotateCcw
+  RotateCcw,
+  FileX
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
@@ -208,11 +209,14 @@ export default function CheckImportsPage() {
     setModalTitle(title);
     setLogFilterClient(clientName || null);
     setDetailedLogs([]);
-    setShowLogsModal(true); // Abre o modal imediatamente
-    setIsLoadingLogs(true); // Mostra spinner
+    setShowLogsModal(true);
+    setIsLoadingLogs(true);
     
     try {
-      const res = await fetch(`/api/task/${taskId}/logs`);
+      const url = clientName 
+        ? `/api/task/${taskId}/logs?client_name=${encodeURIComponent(clientName)}`
+        : `/api/task/${taskId}/logs`;
+      const res = await fetch(url);
       const data = await res.json();
       setDetailedLogs(data);
     } catch (err) {
@@ -472,12 +476,13 @@ export default function CheckImportsPage() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-4">
         {[
-          { label: "Total Importados", value: stats?.imported || 0, color: "bg-blue-50", text: "text-blue-700", icon: <FileSpreadsheet className="text-blue-500" /> },
+          { label: "Importados", value: stats?.imported || 0, color: "bg-blue-50", text: "text-blue-700", icon: <FileSpreadsheet className="text-blue-500" /> },
           { label: "Importados e Analisados", value: stats?.imported_analyzed || 0, color: "bg-green-50", text: "text-green-700", icon: <ShieldCheck className="text-green-500" /> },
           { label: "Falta Analisar", value: stats?.imported_not_analyzed || 0, color: "bg-amber-50", text: "text-amber-700", icon: <AlertCircle className="text-amber-500" /> },
           { label: "Falhas na Análise", value: stats?.failure || 0, color: "bg-red-50", text: "text-red-700", icon: <XCircle className="text-red-500" /> },
+          { label: "Não Importados", value: stats?.not_imported || 0, color: "bg-slate-100", text: "text-slate-600", icon: <FileX className="text-slate-400" /> },
         ].map((stat, i) => (
           <div key={i} className="rounded-2xl bg-white border border-slate-200 p-5 flex items-center gap-4 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500" style={{ animationDelay: `${i * 60}ms`, animationFillMode: 'both' }}>
             <div className={cn("flex h-10 w-10 items-center justify-center rounded-xl shrink-0", stat.color)}>
@@ -553,7 +558,9 @@ export default function CheckImportsPage() {
                             "font-bold text-[10px] uppercase border px-2.5 py-1 rounded-full",
                             client.abi_status === "Importado e Analisado" ? "bg-emerald-50 text-emerald-700 border-emerald-100" : 
                             client.abi_status === "Importado, falta analisar" ? "bg-blue-50 text-blue-700 border-blue-100" :
-                            client.abi_status === "Falha" ? "bg-rose-50 text-rose-700 border-rose-100" :
+                            client.abi_status === "Importado" ? "bg-sky-50 text-sky-700 border-sky-100" :
+                            client.abi_status === "Falha na Análise" || client.abi_status === "Falha" ? "bg-rose-50 text-rose-700 border-rose-100" :
+                            client.abi_status === "Nao Importado" ? "bg-slate-50 text-slate-500 border-slate-200" :
                             "bg-slate-100 text-slate-500 border-slate-200"
                           )}>
                             {client.abi_status || "Não Checado"}
