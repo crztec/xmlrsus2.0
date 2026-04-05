@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 async def send_whatsapp_alert(text_message: str, task_id: str = None, target_numbers: list = None):
     import api.database as db
     
-    url = "https://evolution-api-gax-472418735916.us-central1.run.app/message/sendText/GaxBot"
+    url = "http://34.75.185.221:8080/message/sendText/GaxBot"
     api_key = "92367wC!"
     
     # Se nenhum número for passado, usa o padrão do admin (COM o 9º dígito para DDD 27)

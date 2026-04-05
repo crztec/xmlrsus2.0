@@ -20,6 +20,19 @@ async def run_abi_check_for_client(client_id, task_id=None, pre_fetched_creds=No
     try:
         status, message, snap_url = await _run_abi_check_logic(client_id, active_abi, task_id, pre_fetched_creds)
         db.update_client_abi_status(client_id, active_abi, status, message, task_id, is_batch=is_batch_run)
+        
+        # Alerta individual de WhatsApp se não for lote
+        if not is_batch_run:
+            status_emoji = "✅" if status == 'Importado e Analisado' else "⚠️" if "Importado" in status else "❌"
+            whatsapp_msg = (
+                f"{status_emoji} *GAX RSUS - Checagem de ABI Individual*\n\n"
+                f"Operadora: {client_name}\n"
+                f"ABI: {active_abi}\n"
+                f"Status: {status.upper()}\n\n"
+                f"Detalhes: {message}"
+            )
+            await send_whatsapp_alert(whatsapp_msg, task_id=task_id, target_numbers=["5527997629236"])
+            
         return status, message, snap_url
     except Exception as e:
         import traceback
@@ -28,6 +41,16 @@ async def run_abi_check_for_client(client_id, task_id=None, pre_fetched_creds=No
         db.update_client_abi_status(client_id, active_abi, "Falha", err, task_id, is_batch=is_batch_run)
         if task_id:
             db.add_log(task_id, f"[{client_name}] Erro crítico: {err}", "ERROR")
+            
+        # Alerta de erro no WhatsApp se não for lote
+        if not is_batch_run:
+            whatsapp_msg = (
+                f"❌ *GAX RSUS - Erro na Checagem de ABI*\n\n"
+                f"Operadora: {client_name}\n"
+                f"Erro: {err[:200]}"
+            )
+            await send_whatsapp_alert(whatsapp_msg, task_id=task_id, target_numbers=["5527997629236"])
+            
         return "Falha", err, None
 
 async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_creds=None):
