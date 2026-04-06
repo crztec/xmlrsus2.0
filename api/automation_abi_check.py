@@ -9,6 +9,129 @@ from api.utils import send_whatsapp_alert
 
 logger = logging.getLogger(__name__)
 
+async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, task_id=None):
+    def log_task(msg, level="INFO"):
+        full_msg = f"[SYNC CUBETI - {client_name}] {msg}"
+        if task_id:
+            db.add_log(task_id, full_msg, level)
+        if level == "ERROR": logger.error(full_msg)
+        else: logger.info(full_msg)
+
+    browser = None
+    try:
+        async with async_playwright() as p:
+            log_task("Iniciando sincronização com gestaocomercial.cubeti.com.br/ABITracker...")
+            browser = await p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
+            
+            context = await browser.new_context(ignore_https_errors=True, viewport={"width": 1920, "height": 1080})
+            page = await context.new_page()
+            
+            # Login
+            log_task("Realizando login Gestaocomercial...")
+            await page.goto("https://gestaocomercial.cubeti.com.br/ABITracker", wait_until="domcontentloaded", timeout=45000)
+            
+            await page.fill("input#Email, input[type='email']", "victor@cubeti.com.br")
+            await page.fill("input#Password, input[type='password']", "Teste.123")
+            await page.click("button[type='submit'], input[type='submit']")
+            
+            try:
+                await page.wait_for_load_state("networkidle", timeout=15000)
+            except: pass
+            
+            if "ABITracker" not in page.url:
+                await page.goto("https://gestaocomercial.cubeti.com.br/ABITracker", wait_until="domcontentloaded", timeout=30000)
+                await asyncio.sleep(2)
+                
+            log_task("Buscando operadora na grid...")
+            search_input = page.locator("input[type='search']").first
+            if await search_input.count() > 0:
+                await search_input.fill(client_name)
+                await asyncio.sleep(3)
+            
+            rows = page.locator("table tbody tr")
+            count = await rows.count()
+            target_row = None
+            
+            part_name = client_name.split(" ")[0].lower()
+            for i in range(count):
+                row = rows.nth(i)
+                text = await row.inner_text()
+                if part_name in text.lower():
+                    target_row = row
+                    break
+                    
+            if not target_row:
+                log_task("Operadora não encontrada na grid da Cubeti.", "WARNING")
+                await browser.close()
+                return False
+                
+            log_task("Operadora localizada!")
+            
+            # Map status
+            target_status = "Nao iniciou"
+            if status_gax == "Nao Importado":
+                target_status = "Nao iniciou"
+            elif status_gax in ["Importado", "Importado, falta analisar", "Pendente"]:
+                target_status = "Importou o ABI"
+            elif status_gax in ["Importado e Analisado", "Falha na Análise", "Falha"]:
+                target_status = "Importou e Analisou"
+                
+            log_task(f"Atualizando status para '{target_status}'")
+            status_select = target_row.locator("select").first
+            if await status_select.count() > 0:
+                options = status_select.locator("option")
+                opt_count = await options.count()
+                val_to_select = None
+                for i in range(opt_count):
+                    opt = options.nth(i)
+                    t = await opt.inner_text()
+                    if target_status.lower() in t.lower():
+                        val_to_select = await opt.get_attribute("value")
+                        break
+                if val_to_select:
+                    await status_select.select_option(val_to_select)
+                    await asyncio.sleep(2)
+                    log_task(f"Status '{target_status}' selecionado.")
+                else:
+                    log_task("Opção de status não encontrada.", "WARNING")
+            
+            log_task("Atualizando registro de contatos (botão + verde)...")
+            btn_add = target_row.locator("a.btn-success, button.btn-success, .fa-plus").first
+            if await btn_add.count() > 0:
+                await btn_add.scroll_into_view_if_needed()
+                await btn_add.click(force=True)
+                
+                # Aguarda modal (AngularJS costuma usar classes padrao ou ids)
+                try:
+                    await page.wait_for_selector(".modal.in, .modal.show, .modal[style*='block']", timeout=15000)
+                    await asyncio.sleep(2)
+                except: pass
+                
+                txt_area = page.locator(".modal textarea, textarea").last
+                if await txt_area.count() > 0:
+                    await txt_area.fill("") # Clear
+                    await txt_area.fill(mensagem_analise)
+                else:
+                    log_task("Área de texto do modal não encontrada.", "WARNING")
+                    
+                btn_save = page.locator(".modal button.btn-primary, .modal button:has-text('Salvar'), button:has-text('Salvar')").first
+                if await btn_save.count() > 0:
+                    await btn_save.click(force=True)
+                    await asyncio.sleep(3)
+                    log_task("Registro salvo com sucesso.")
+                else:
+                    log_task("Botão Salvar do modal não encontrado.", "WARNING")
+            else:
+                log_task("Botão '+' verde não encontrado na linha.", "WARNING")
+
+            await browser.close()
+            return True
+            
+    except Exception as e:
+        log_task(f"Erro na sincronização: {str(e)}", "ERROR")
+        if browser: await browser.close()
+        return False
+
 async def run_abi_check_for_client(client_id, task_id=None, pre_fetched_creds=None, is_batch_run=False):
     """Wrapper para a checagem de ABI para um único cliente."""
     client = db.get_client_config(client_id)
@@ -20,6 +143,9 @@ async def run_abi_check_for_client(client_id, task_id=None, pre_fetched_creds=No
     try:
         status, message, snap_url = await _run_abi_check_logic(client_id, active_abi, task_id, pre_fetched_creds)
         db.update_client_abi_status(client_id, active_abi, status, message, task_id, is_batch=is_batch_run)
+        
+        # Sincroniza status final com Gestaocomercial Cubeti
+        await sync_to_cubeti_management(client_name, status, message, task_id)
         
         # Alerta individual de WhatsApp se não for lote
         if not is_batch_run:
@@ -334,9 +460,59 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                         return "Importado e Analisado", f"ABI {abi_val}: Sucesso", None
                     
                     if "Falha" in result_text or "Erro" in result_text:
-                        log_task(f"Falha detectada na análise do ABI {abi_val}.", "ERROR")
-                        await browser.close()
-                        return "Falha na Análise", f"ABI {abi_val}: Erro", None
+                        log_task(f"Falha detectada. Iniciando Deep Dive (Detalhes da Análise)...", "INFO")
+                        try:
+                            # 1. Clicar no menu hambúrguer desta linha
+                            h_btn = row.locator("td").last.locator("button, a, .fa-bars").first
+                            await h_btn.click(force=True)
+                            await asyncio.sleep(1)
+                            
+                            # 2. Clicar em Detalhes da Análise
+                            detalhes_btn = page.locator(".dropdown-menu a:has-text('Detalhes')").first
+                            await detalhes_btn.click(force=True)
+                            
+                            # 3. Aguardar modal abrir content
+                            await page.wait_for_selector(".modal.in, .modal.show, .modal[style*='block']", timeout=15000)
+                            await asyncio.sleep(3)
+                            
+                            # 4. Selecionar '100' registros por página no modal
+                            select_qtd = page.locator(".modal select").first
+                            if await select_qtd.count() > 0:
+                                await select_qtd.scroll_into_view_if_needed()
+                                await select_qtd.select_option("100")
+                                await asyncio.sleep(3)
+                                
+                            # 5. Ler mensagens e procurar por "Sucesso - Parcial"
+                            msgs = await page.evaluate('''() => {
+                                const modal = document.querySelector('.modal.in, .modal.show, .modal[style*="block"], .modal-content');
+                                if (!modal) return [];
+                                const rows = modal.querySelectorAll('table tbody tr');
+                                return Array.from(rows).map(r => r.innerText || r.textContent);
+                            }''')
+                            
+                            # Fechar modal
+                            close_btn = page.locator(".modal button.close, .modal [data-dismiss='modal']").first
+                            if await close_btn.count() > 0:
+                                await close_btn.click()
+                                await asyncio.sleep(1)
+                                
+                            has_partial = any("Análise Sucesso - Parcial" in m or "Analise Sucesso - Parcial" in m for m in msgs)
+                            
+                            if has_partial:
+                                update_progress(100)
+                                log_task(f"Deep Dive: Encontrado Sucesso Parcial no ABI {abi_val}", "SUCCESS")
+                                await browser.close()
+                                return "Importado e Analisado", "Análise Sucesso - Parcial", None
+                            else:
+                                log_task(f"Deep Dive: Nenhum Sucesso Parcial, mantendo Erro.", "ERROR")
+                                await browser.close()
+                                return "Falha na Análise", "Erro na análise", None
+                                
+                        except Exception as deep_e:
+                            log_task(f"Aviso no Deep Dive: {str(deep_e)[:100]}", "WARNING")
+                            log_task(f"Falha detectada na análise do ABI {abi_val}.", "ERROR")
+                            await browser.close()
+                            return "Falha na Análise", f"ABI {abi_val}: Erro", None
                 else:
                     # Fallback para estrutura inesperada
                     log_text = (await row.inner_text()).strip()
