@@ -315,7 +315,7 @@ async def check_single_integration(client_id: str, background_tasks: BackgroundT
     background_tasks.add_task(auto_check.run_single_api_check, client_id, task_id)
     return {"status": "pending", "task_id": task_id}
 
-@app.get("/api/active-task/{category}")
+@app.get("/active-task/{category}")
 async def get_active_task_route(category: str):
     """Retorna a tarefa ativa para uma categoria (abi ou api)."""
     task = db.get_active_task(category)
@@ -577,7 +577,7 @@ async def route_get_task_logs(task_id: str, client_name: str = None):
     """Retorna a lista de logs de uma tarefa específica, opcionalmente filtrada por cliente."""
     return db.get_task_logs(task_id, client_filter=client_name)
 
-@app.get("/api/tasks/history-logs")
+@app.get("/tasks/history-logs")
 async def get_history_logs(type: str = "abi", limit: int = 5):
     """Retorna logs agregados das últimas N tarefas de uma categoria."""
     return db.get_aggregated_history_logs(task_category=type, limit_tasks=limit)
