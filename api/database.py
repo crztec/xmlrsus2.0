@@ -948,9 +948,15 @@ def get_aggregated_history_logs(task_category="abi", limit_tasks=5):
     Usa filtragem e ordenação em memória para ser 100% resiliente a falta de índices no Firestore.
     """
     try:
-        # 1. Busca documentos da coleção tasks sem filtros ou ordenação do Firestore (mais seguro)
-        # Pegamos 500 para garantir que encontraremos tarefas da categoria mesmo se houver muitas outras
-        tasks_query = firestore_db.collection('tasks').limit(500)
+        if task_category == "abi":
+            target_types = ["abi_check_batch", "abi_check_single"]
+        else:
+            target_types = ["api_check_batch", "api_check_single", "batch_api_check", "single_api_check"]
+
+        # 1. Busca documentos filtrando por tipo para não depender de limit(500) genérico
+        # Se houver muitos registros, o Firestore pode exigir índice composto (type + created_at)
+        # Por segurança, buscamos por tipo primeiro e ordenamos em memória
+        tasks_query = firestore_db.collection('tasks').where('type', 'in', target_types).limit(limit_tasks * 20)
         task_docs = tasks_query.get()
         
         all_tasks = []
@@ -962,10 +968,7 @@ def get_aggregated_history_logs(task_category="abi", limit_tasks=5):
         # 2. Ordenação em memória por created_at (decrescente)
         all_tasks.sort(key=lambda x: x.get('created_at', ''), reverse=True)
 
-        if task_category == "abi":
-            target_types = ["abi_check_batch", "abi_check_single"]
-        else:
-            target_types = ["api_check_batch", "api_check_single", "batch_api_check", "single_api_check"]
+        # target_types já definidos acima
 
         filtered_tasks = []
         for doc_data in all_tasks:

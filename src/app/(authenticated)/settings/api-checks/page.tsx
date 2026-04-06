@@ -97,6 +97,18 @@ export default function ApiChecksPage() {
             .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
           if (activeTasks.length > 0) {
             setActiveTaskId(activeTasks[0].id);
+            setActiveTask(activeTasks[0]);
+            setIsExecuting(true);
+          }
+        }
+
+        // Tenta também via endpoint de persistência dedicada (igual ao ABI)
+        const res = await fetch("/api/active-task/api");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.id && data.status === 'running') {
+            setActiveTaskId(data.id);
+            setActiveTask(data);
             setIsExecuting(true);
           }
         }
