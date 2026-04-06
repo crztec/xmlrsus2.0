@@ -96,7 +96,7 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
                     log_task("Opção de status não encontrada.", "WARNING")
             
             log_task("Atualizando registro de contatos (botão + verde)...")
-            btn_add = target_row.locator("a.btn-success, button.btn-success, .fa-plus, text='+', :text-is('+')").first
+            btn_add = target_row.locator("button[title='Registrar contato'], a.btn-success, button.btn-success, .fa-plus, svg.lucide-plus").first
             if await btn_add.count() > 0:
                 await btn_add.scroll_into_view_if_needed()
                 await btn_add.click(force=True)
