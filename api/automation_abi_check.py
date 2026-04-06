@@ -31,7 +31,7 @@ async def run_abi_check_for_client(client_id, task_id=None, pre_fetched_creds=No
                 f"Status: {status.upper()}\n\n"
                 f"Detalhes: {message}"
             )
-            await send_whatsapp_alert(whatsapp_msg, task_id=task_id, target_numbers=["5527997629236"])
+            await send_whatsapp_alert(whatsapp_msg, task_id=task_id, target_numbers=["552797629236"])
             
         return status, message, snap_url
     except Exception as e:
@@ -49,7 +49,7 @@ async def run_abi_check_for_client(client_id, task_id=None, pre_fetched_creds=No
                 f"Operadora: {client_name}\n"
                 f"Erro: {err[:200]}"
             )
-            await send_whatsapp_alert(whatsapp_msg, task_id=task_id, target_numbers=["5527997629236"])
+            await send_whatsapp_alert(whatsapp_msg, task_id=task_id, target_numbers=["552797629236"])
             
         return "Falha", err, None
 
@@ -404,7 +404,7 @@ async def run_batch_abi_check(task_id, client_ids=None):
         # Alerta WhatsApp (opcional, mas bom manter o padrão)
         stats = db.get_abi_dashboard_stats()
         msg = f"📊 *GAX RSUS - Relatório de ABIs*\n\nProcessamento finalizado!\n✅ Analisados: {stats['imported_analyzed']}\n⚠️ Falta Analisar: {stats['imported_not_analyzed']}\n❌ Falhas: {stats['failure']}"
-        await send_whatsapp_alert(msg, task_id=task_id, target_numbers=["5527997629236"])
+        await send_whatsapp_alert(msg, task_id=task_id, target_numbers=["552797629236"])
 
     except Exception as e:
         db.add_log(task_id, f"Erro estrutural no lote: {str(e)}", "ERROR")
