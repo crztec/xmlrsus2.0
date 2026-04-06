@@ -101,15 +101,20 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
                 await btn_add.scroll_into_view_if_needed()
                 await btn_add.click(force=True)
                 
-                # Aguarda modal (AngularJS costuma usar classes padrao ou ids)
+                # Aguarda modal ou popover (AngularJS ou Radix/Shadcn)
                 try:
-                    await page.wait_for_selector(".modal.in, .modal.show, .modal[style*='block']", timeout=15000)
+                    await page.wait_for_selector(".modal.in, .modal.show, .modal[style*='block'], [role='dialog'], .radix-popper-content-wrapper", timeout=15000)
                     await asyncio.sleep(2)
                 except: pass
                 
-                txt_area = page.locator(".modal textarea, textarea").last
+                # Procura por textarea ou input de texto no modal/popover
+                txt_area = page.locator("textarea, input[type='text'], .modal input, [role='dialog'] input").last
                 if await txt_area.count() > 0:
-                    await txt_area.fill("") # Clear
+                    await txt_area.scroll_into_view_if_needed()
+                    await txt_area.click(force=True)
+                    # Limpa e preenche
+                    await page.keyboard.press("Control+A")
+                    await page.keyboard.press("Backspace")
                     await txt_area.fill(mensagem_analise)
                 else:
                     log_task("Área de texto do modal não encontrada.", "WARNING")
