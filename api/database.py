@@ -962,7 +962,7 @@ def get_aggregated_history_logs(task_category="abi", limit_tasks=5):
         tasks_query = (
             firestore_db.collection('tasks')
             .where('type', 'in', target_types)
-            .order_by(FieldPath.document_id(), direction=firestore.Query.DESCENDING)
+            .order_by(firestore.FieldPath.document_id(), direction=firestore.Query.DESCENDING)
             .limit(limit_tasks * 10)
         )
         task_docs = tasks_query.get()
