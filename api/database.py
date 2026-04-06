@@ -929,14 +929,12 @@ def get_logs_for_task(task_id, limit=2000, client_filter=None):
             log_data = doc.to_dict()
             msg = log_data.get('message', '')
             
-            # Se houver filtro por cliente, filtra por [Nome] ou mensagens globais
+            # Se houver filtro por cliente, mostra APENAS logs desse cliente
             if client_filter:
-                # Mantém mensagens de início/fim de lote ou específicas do cliente
-                is_global = msg.startswith("🚀") or "em lote" in msg.lower() or "finalizada" in msg.lower() or "Finalizado" in msg
-                is_for_client = f"[{client_filter}]" in msg
-                if is_for_client or is_global:
+                if f"[{client_filter}]" in msg:
                     logs.append(log_data)
             else:
+                # Na visão global, mostra tudo
                 logs.append(log_data)
         
         logs.sort(key=lambda x: (x.get('timestamp', ''), x.get('timestamp_precise', 0)))
@@ -962,7 +960,7 @@ def get_aggregated_history_logs(task_category="abi", limit_tasks=5):
         tasks_query = (
             firestore_db.collection('tasks')
             .where('type', 'in', target_types)
-            .order_by(firestore.FieldPath.document_id(), direction=firestore.Query.DESCENDING)
+            .order_by('__name__', direction=firestore.Query.DESCENDING)
             .limit(limit_tasks * 10)
         )
         task_docs = tasks_query.get()

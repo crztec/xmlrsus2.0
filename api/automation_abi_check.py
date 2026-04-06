@@ -286,12 +286,14 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
             
             log_task("Clicando em 'Logs Análise'...")
             logs_btn = page.locator(".dropdown-menu a:has-text('Logs Análise'), a:has-text('Logs Análise')").first
+            
+            # Verifica se o botão existe e é visível rapidamente
             try:
-                # Reduzido para 15s conforme solicitado
-                await logs_btn.wait_for(state="visible", timeout=15000)
-                await logs_btn.click(force=True)
+                # Se não aparecer em 5s após clicar no hambúrguer, provavelmente não existe para este cliente
+                await logs_btn.wait_for(state="visible", timeout=7000)
+                await logs_btn.click(force=True, timeout=5000)
             except:
-                log_task(f"Aviso: Cliente nao realiza análise.", "WARNING")
+                log_task(f"Aviso: Cliente nao realiza análise ou opção indisponível.", "WARNING")
                 if browser: await browser.close()
                 return "Importado", "Cliente nao realiza análise.", None
             
