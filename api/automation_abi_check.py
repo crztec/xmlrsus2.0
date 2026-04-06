@@ -79,23 +79,40 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
                 target_status = "Importou e Analisou"
                 
             log_task(f"Atualizando status para '{target_status}'")
-            status_select = target_row.locator("select").first
-            if await status_select.count() > 0:
-                options = status_select.locator("option")
-                opt_count = await options.count()
-                val_to_select = None
-                for i in range(opt_count):
-                    opt = options.nth(i)
-                    t = await opt.inner_text()
-                    if target_status.lower() in t.lower():
-                        val_to_select = await opt.get_attribute("value")
-                        break
-                if val_to_select:
-                    await status_select.select_option(val_to_select)
-                    await asyncio.sleep(2)
+            # Tenta Radix UI Dropdown primeiro (padrão atual)
+            status_trigger = target_row.locator("span.cursor-pointer[aria-haspopup='dialog'], button[aria-haspopup='dialog'], [data-state]").first
+            if await status_trigger.count() > 0:
+                await status_trigger.click(force=True)
+                await asyncio.sleep(2)
+                # Procura a opção no popover que apareceu
+                option = page.locator(f"[role='menuitem']:has-text('{target_status}'), [role='option']:has-text('{target_status}'), button:has-text('{target_status}'), .radix-popover-content span:has-text('{target_status}')").first
+                if await option.count() > 0:
+                    await option.click(force=True)
                     log_task(f"Status '{target_status}' selecionado.")
+                    await asyncio.sleep(2)
                 else:
-                    log_task("Opção de status não encontrada.", "WARNING")
+                    log_task(f"Opção '{target_status}' não encontrada no popover.", "WARNING")
+            else:
+                # Fallback para select padrão se ainda existir em algum lugar
+                status_select = target_row.locator("select").first
+                if await status_select.count() > 0:
+                    options = status_select.locator("option")
+                    opt_count = await options.count()
+                    val_to_select = None
+                    for i in range(opt_count):
+                        opt = options.nth(i)
+                        t = await opt.inner_text()
+                        if target_status.lower() in t.lower():
+                            val_to_select = await opt.get_attribute("value")
+                            break
+                    if val_to_select:
+                        await status_select.select_option(val_to_select)
+                        await asyncio.sleep(2)
+                        log_task(f"Status '{target_status}' selecionado (select).")
+                    else:
+                        log_task("Opção de status não encontrada.", "WARNING")
+                else:
+                    log_task("Dropdown de status não localizado.", "WARNING")
             
             log_task("Atualizando registro de contatos (botão + verde)...")
             btn_add = target_row.locator("button[title='Registrar contato'], a.btn-success, button.btn-success, .fa-plus, svg.lucide-plus").first
@@ -509,18 +526,23 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                             if not has_partial:
                                 try:
                                     # Verifica se há paginação e se não estamos na última página
-                                    page_info = page.locator("span#pageQuantity").first
+                                    page_info = page.locator("span.pagequantity, .pagequantity").first
                                     total_pages_text = await page_info.inner_text() if await page_info.count() > 0 else "1"
                                     import re
-                                    total_pages = int(re.sub(r'\D', '', total_pages_text)) if total_pages_text else 1
+                                    # Extrai o número do texto (ex: "de 2" -> 2)
+                                    nums = re.findall(r'\d+', total_pages_text)
+                                    total_pages = int(nums[0]) if nums else 1
                                     
                                     if total_pages > 1:
-                                        log_task(f"Deep Dive: Não encontrado na pág 1. Navegando para pág 2 de {total_pages}...", "INFO")
+                                        log_task(f"Deep Dive: Não achou na pág 1. Pulando para pág 2 de {total_pages}...", "INFO")
                                         input_page = page.locator("input#current-page").first
                                         if await input_page.count() > 0:
-                                            await input_page.fill("2")
-                                            await input_page.press("Enter")
-                                            await asyncio.sleep(4) # Aguarda carga da pág 2
+                                            # Limpa e digita "2"
+                                            await input_page.click(click_count=3)
+                                            await page.keyboard.press("Backspace")
+                                            await input_page.type("2", delay=100)
+                                            await page.keyboard.press("Enter")
+                                            await asyncio.sleep(4) 
                                             
                                             # Re-avalia mensagens na pág 2
                                             msgs_p2 = await page.evaluate('''() => {
