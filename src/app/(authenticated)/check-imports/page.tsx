@@ -190,12 +190,18 @@ export default function CheckImportsPage() {
           setCurrentTaskStatus(data);
           setRealtimeLogs(data.logs || []);
           
-          if (data.status === "completed" || data.status === "error" || data.status === "CONCLUIDO" || data.status === "CONCLUIDO_COM_RESSALVAS") {
-            clearInterval(interval);
-            // Busca dados atualizados primeiro, depois limpa o activeTask
-            await fetchData();
-            setTimeout(() => setActiveTaskId(null), 2000);
-          }
+            if (data.status === "completed" || data.status === "error" || data.status === "CONCLUIDO" || data.status === "CONCLUIDO_COM_RESSALVAS") {
+              clearInterval(interval);
+              await fetchData();
+              // Não limpa imediatamente o activeTaskId para evitar o flicker do console
+              // Deixa que o usuário feche ou que uma nova tarefa tome o lugar
+              setTimeout(() => {
+                // Só limpa se o console não estiver aberto visualizando ESTA tarefa
+                if (!showLogsModal || viewingTaskId !== activeTaskId) {
+                  setActiveTaskId(null);
+                }
+              }, 5000);
+            }
         } catch (err) {
           console.error("Erro polling status:", err);
         }

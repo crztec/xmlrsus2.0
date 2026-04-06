@@ -24,7 +24,13 @@ async def send_whatsapp_alert(text_message: str, task_id: str = None, target_num
         return requests.post(url, headers=headers, json=payload, timeout=60)
 
     for numero in target_numbers:
-        payload = {"number": numero, "text": text_message}
+        payload = {
+            "number": numero,
+            "text": text_message,
+            "textMessage": {
+                "text": text_message
+            }
+        }
         try:
             start_time = asyncio.get_event_loop().time()
             # Executa o request síncrono em uma thread separada para não bloquear o loop do Playwright
