@@ -237,7 +237,7 @@ export default function CheckImportsPage() {
 
     try {
       // Usa o novo endpoint de histórico agregado (últimos 5 clientes/tasks)
-      const res = await fetch("http://localhost:8000/api/tasks/history-logs?type=abi&limit=5");
+      const res = await fetch("/api/tasks/history-logs?type=abi&limit=5");
       const logsData = await res.json();
       
       if (logsData && logsData.length > 0) {

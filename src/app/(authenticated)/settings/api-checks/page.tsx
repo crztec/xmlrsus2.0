@@ -254,7 +254,7 @@ export default function ApiChecksPage() {
     setSelectedClientMessage("Log Completo do Sistema (Últimos 5)");
     
     try {
-      const res = await fetch("http://localhost:8000/api/tasks/history-logs?type=api&limit=5");
+      const res = await fetch("/api/tasks/history-logs?type=api&limit=5");
       const logsData = await res.json();
       if (logsData && logsData.length > 0) {
         setTaskLogs(logsData);
@@ -327,29 +327,40 @@ export default function ApiChecksPage() {
         "rounded-2xl border bg-white px-5 py-3 flex items-center justify-between gap-4 shadow-sm transition-all",
         activeTaskId ? "border-gax-blue/30 bg-gax-blue/[0.02]" : "border-slate-200"
       )}>
-        {activeTaskId && activeTask ? (
+        {activeTaskId ? (
           <>
             <div className="flex items-center gap-3 flex-1 min-w-0">
               <div className="relative flex h-2.5 w-2.5 shrink-0">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-gax-blue opacity-60" />
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-gax-blue" />
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-gax-blue">
-                    {activeTask.total && activeTask.total > 1 ? "Lote em execução" : "Verificando API"}
-                  </span>
-                  {activeTask.current_client && (
-                    <span className="text-[10px] text-slate-400 truncate">— {activeTask.current_client}</span>
-                  )}
+              {activeTask ? (
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-gax-blue">
+                      {activeTask.total && activeTask.total > 1 ? "Lote em execução" : "Verificando API"}
+                    </span>
+                    {activeTask.current_client && (
+                      <span className="text-[10px] text-slate-400 truncate">— {activeTask.current_client}</span>
+                    )}
+                  </div>
+                  <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-gax-blue transition-all duration-700 ease-in-out shadow-[0_0_10px_rgba(14,165,233,0.4)]"
+                      style={{ width: `${progressPercent}%` }}
+                    />
+                  </div>
                 </div>
-                <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-gax-blue transition-all duration-700 ease-in-out shadow-[0_0_10px_rgba(14,165,233,0.4)]"
-                    style={{ width: `${progressPercent}%` }}
-                  />
+              ) : (
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-gax-blue">Iniciando checagem...</span>
+                  </div>
+                  <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden relative">
+                    <div className="h-full bg-gax-blue/30 animate-pulse w-full" />
+                  </div>
                 </div>
-              </div>
+              )}
               <span className="text-xs font-bold text-gax-blue shrink-0">{progressPercent}%</span>
             </div>
 

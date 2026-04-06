@@ -1212,10 +1212,10 @@ def get_active_abi():
         
         now = get_now_br()
         
-        # O ABI ativo é o primeiro cuja data_fim_ciencia >= hoje
+        # O ABI ativo é o primeiro cuja Data fim de Impugnação >= hoje
         active = None
         for item in schedule:
-            dt_str = item.get('Data fim de Ciência', '')
+            dt_str = item.get('Data fim de Impugnação', '')
             if not dt_str: continue
             try:
                 dt_obj = datetime.strptime(dt_str, "%d/%m/%Y").replace(tzinfo=timezone(timedelta(hours=-3)))
