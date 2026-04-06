@@ -43,7 +43,7 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
                 await asyncio.sleep(2)
                 
             log_task("Buscando operadora na grid...")
-            search_input = page.locator("input[type='search']").first
+            search_input = page.locator("input[placeholder*='Buscar cliente'], input[type='search']").first
             if await search_input.count() > 0:
                 await search_input.fill(client_name)
                 await asyncio.sleep(3)
@@ -526,7 +526,7 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                             if not has_partial:
                                 try:
                                     # Verifica se há paginação e se não estamos na última página
-                                    page_info = page.locator("span.pagequantity, .pagequantity").first
+                                    page_info = page.locator("span.pageQuantity, .pageQuantity, span.pagequantity").first
                                     total_pages_text = await page_info.inner_text() if await page_info.count() > 0 else "1"
                                     import re
                                     # Extrai o número do texto (ex: "de 2" -> 2)
