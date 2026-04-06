@@ -32,9 +32,12 @@ export default function LogsPage() {
       });
       const allData = await res.json();
       
-      // Exclude API check task types — show imports and legacy tasks with no type
-      const API_CHECK_TYPES = ['batch_api_check', 'single_api_check', 'api_check_batch', 'api_check_single'];
-      const data = allData.filter((t: Task) => !API_CHECK_TYPES.includes((t as any).type));
+      // Exclude API and ABI check task types — show only imports and legacy tasks
+      const MONITORING_TYPES = [
+        'batch_api_check', 'single_api_check', 'api_check_batch', 'api_check_single',
+        'abi_check_batch', 'abi_check_single'
+      ];
+      const data = allData.filter((t: Task) => !MONITORING_TYPES.includes((t as any).type));
       
       setTasks(data);
       

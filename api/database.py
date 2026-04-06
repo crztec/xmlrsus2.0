@@ -875,7 +875,10 @@ def get_tasks_for_dashboard(limit=50, task_type=None, exclude_api_checks=False):
     docs = query.get()
     tasks = []
     
-    api_check_types = ['batch_api_check', 'single_api_check', 'api_check_batch', 'api_check_single']
+    monitoring_types = [
+        'batch_api_check', 'single_api_check', 'api_check_batch', 'api_check_single',
+        'abi_check_batch', 'abi_check_single'
+    ]
     
     for doc in docs:
         task_dict = doc.to_dict()
@@ -884,8 +887,8 @@ def get_tasks_for_dashboard(limit=50, task_type=None, exclude_api_checks=False):
         if task_type and task_dict.get('type') != task_type:
             continue
             
-        # Filtra tipos de checagem de API no backend para não prejudicar o limit(50)
-        if exclude_api_checks and task_dict.get('type') in api_check_types:
+        # Filtra tipos de checagem de API/ABI no backend para não prejudicar o limit(50)
+        if exclude_api_checks and task_dict.get('type') in monitoring_types:
             continue
             
         task_data = {**task_dict, 'id': doc.id}
