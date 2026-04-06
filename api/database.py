@@ -1292,11 +1292,18 @@ def get_abi_dashboard_stats():
         
         for c in clients:
             status = c.get('abi_status', 'Pendente')
-            if status == 'Importado':
-                stats['imported'] += 1
-            elif status == 'Importado e Analisado':
-                stats['imported'] += 1
+            msg = c.get('abi_last_message', '')
+            
+            if status == 'Importado e Analisado':
                 stats['imported_analyzed'] += 1
+            elif status == 'Importado':
+                # Se o cliente não realiza análise, ele já está "concluído" (Importado e Analisado)
+                if msg == "Cliente nao realiza análise.":
+                    stats['imported_analyzed'] += 1
+                else:
+                    # Se apenas importado e realiza análise, conta como pendente de análise
+                    stats['imported'] += 1
+                    stats['imported_not_analyzed'] += 1
             elif status == 'Importado, falta analisar':
                 stats['imported'] += 1
                 stats['imported_not_analyzed'] += 1
