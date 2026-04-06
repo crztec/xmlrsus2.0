@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, task_id=None):
     def log_task(msg, level="INFO"):
-        full_msg = f"[SYNC CUBETI - {client_name}] {msg}"
+        full_msg = f"[{client_name}] [SYNC CUBETI] {msg}"
         if task_id:
             db.add_log(task_id, full_msg, level)
         if level == "ERROR": logger.error(full_msg)
@@ -51,13 +51,15 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
             rows = page.locator("table tbody tr")
             count = await rows.count()
             target_row = None
+            log_task(f"Analisando {count} registros para encontrar '{client_name}'...")
             
-            part_name = client_name.split(" ")[0].lower()
             for i in range(count):
                 row = rows.nth(i)
                 text = await row.inner_text()
-                if part_name in text.lower():
+                # Verifica se o NOME COMPLETO está na linha (case-insensitive)
+                if client_name.lower() in text.lower():
                     target_row = row
+                    log_task(f"Operadora '{client_name}' localizada na linha {i+1}.")
                     break
                     
             if not target_row:
@@ -503,6 +505,36 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                                 
                             has_partial = any("Análise Sucesso - Parcial" in m or "Analise Sucesso - Parcial" in m for m in msgs)
                             
+                            # 6. Se não achou na página 1, tenta navegar para a página 2 (se existir)
+                            if not has_partial:
+                                try:
+                                    # Verifica se há paginação e se não estamos na última página
+                                    page_info = page.locator("span#pageQuantity").first
+                                    total_pages_text = await page_info.inner_text() if await page_info.count() > 0 else "1"
+                                    import re
+                                    total_pages = int(re.sub(r'\D', '', total_pages_text)) if total_pages_text else 1
+                                    
+                                    if total_pages > 1:
+                                        log_task(f"Deep Dive: Não encontrado na pág 1. Navegando para pág 2 de {total_pages}...", "INFO")
+                                        input_page = page.locator("input#current-page").first
+                                        if await input_page.count() > 0:
+                                            await input_page.fill("2")
+                                            await input_page.press("Enter")
+                                            await asyncio.sleep(4) # Aguarda carga da pág 2
+                                            
+                                            # Re-avalia mensagens na pág 2
+                                            msgs_p2 = await page.evaluate('''() => {
+                                                const modal = document.querySelector('.modal.in, .modal.show, .modal[style*="block"], .modal-content');
+                                                if (!modal) return [];
+                                                const rows = modal.querySelectorAll('table tbody tr');
+                                                return Array.from(rows).map(r => r.innerText || r.textContent);
+                                            }''')
+                                            has_partial = any("Análise Sucesso - Parcial" in m or "Analise Sucesso - Parcial" in m for m in msgs_p2)
+                                            if has_partial:
+                                                log_task(f"Deep Dive: Encontrado Sucesso Parcial na página 2!", "SUCCESS")
+                                except Exception as pag_e:
+                                    log_task(f"Aviso na paginação do modal: {str(pag_e)[:100]}", "WARNING")
+
                             if has_partial:
                                 update_progress(100)
                                 log_task(f"Deep Dive: Encontrado Sucesso Parcial no ABI {abi_val}", "SUCCESS")
