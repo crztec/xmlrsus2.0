@@ -79,16 +79,19 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
                 target_status = "Importou e Analisou"
                 
             log_task(f"Atualizando status para '{target_status}'")
-            # Tenta Radix UI Dropdown primeiro (padrão atual)
-            status_trigger = target_row.locator("span.cursor-pointer[aria-haspopup='dialog'], button[aria-haspopup='dialog'], [data-state]").first
+            # Isola a coluna de status para não clicar no botão de contatos acidentalmente
+            status_col = target_row.locator("td").nth(2)
+            status_trigger = status_col.locator("button, span.cursor-pointer, [aria-haspopup='dialog']").first
+            
             if await status_trigger.count() > 0:
                 await status_trigger.click(force=True)
                 await asyncio.sleep(2)
-                # Procura a opção no popover que apareceu
-                option = page.locator(f"[role='menuitem']:has-text('{target_status}'), [role='option']:has-text('{target_status}'), button:has-text('{target_status}'), .radix-popover-content span:has-text('{target_status}')").first
+                # O popover do Radix UI é renderizado no final do body. Buscamos as opções com cuidado.
+                option = page.locator(f"[role='menuitem']:has-text('{target_status}'), [role='option']:has-text('{target_status}'), [data-radix-popper-content-wrapper] button:has-text('{target_status}')").last
                 if await option.count() > 0:
+                    await option.scroll_into_view_if_needed()
                     await option.click(force=True)
-                    log_task(f"Status '{target_status}' selecionado.")
+                    log_task(f"Status '{target_status}' selecionado no Popover.")
                     await asyncio.sleep(2)
                 else:
                     log_task(f"Opção '{target_status}' não encontrada no popover.", "WARNING")
@@ -110,12 +113,14 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
                         await asyncio.sleep(2)
                         log_task(f"Status '{target_status}' selecionado (select).")
                     else:
-                        log_task("Opção de status não encontrada.", "WARNING")
+                        log_task("Opção de status não encontrada no select.", "WARNING")
                 else:
-                    log_task("Dropdown de status não localizado.", "WARNING")
+                    log_task("Dropdown de status não localizado na coluna 3.", "WARNING")
             
             log_task("Atualizando registro de contatos (botão + verde)...")
-            btn_add = target_row.locator("button[title='Registrar contato'], a.btn-success, button.btn-success, .fa-plus, svg.lucide-plus").first
+            # Isola a coluna de contatos (coluna 4) para evitar pegar ícones soltos na grid
+            contacts_col = target_row.locator("td").nth(3)
+            btn_add = contacts_col.locator("button[title='Registrar contato'], a.btn-success, button.btn-success, .fa-plus, svg.lucide-plus").first
             if await btn_add.count() > 0:
                 await btn_add.scroll_into_view_if_needed()
                 await btn_add.click(force=True)
@@ -525,22 +530,27 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                             # 6. Se não achou na página 1, tenta navegar para a página 2 (se existir)
                             if not has_partial:
                                 try:
-                                    # Verifica se há paginação e se não estamos na última página
-                                    page_info = page.locator("span.pageQuantity, .pageQuantity, span.pagequantity").first
-                                    total_pages_text = await page_info.inner_text() if await page_info.count() > 0 else "1"
-                                    import re
-                                    # Extrai o número do texto (ex: "de 2" -> 2)
-                                    nums = re.findall(r'\d+', total_pages_text)
-                                    total_pages = int(nums[0]) if nums else 1
+                                    # Verifica se há paginação e se não estamos na última página (RESTRITO AO MODAL)
+                                    modal_container = page.locator(".modal.in, .modal.show, .modal[style*='block'], .modal-content").first
+                                    page_info = modal_container.locator("span.pageQuantity, .pageQuantity, span.pagequantity").first
                                     
+                                    if await page_info.count() > 0:
+                                        total_pages_text = await page_info.inner_text()
+                                        import re
+                                        # Extrai o número do texto (ex: "de 2" -> 2)
+                                        nums = re.findall(r'\d+', total_pages_text)
+                                        total_pages = int(nums[0]) if nums else 1
+                                    else:
+                                        total_pages = 1
+                                        
                                     if total_pages > 1:
                                         log_task(f"Deep Dive: Não achou na pág 1. Pulando para pág 2 de {total_pages}...", "INFO")
-                                        input_page = page.locator("input#current-page").first
+                                        input_page = modal_container.locator("input#current-page").first
                                         if await input_page.count() > 0:
                                             # Limpa e digita "2"
                                             await input_page.click(click_count=3)
                                             await page.keyboard.press("Backspace")
-                                            await input_page.type("2", delay=100)
+                                            await input_page.fill("2")
                                             await page.keyboard.press("Enter")
                                             await asyncio.sleep(4) 
                                             
