@@ -959,7 +959,12 @@ def get_aggregated_history_logs(task_category="abi", limit_tasks=5):
         # 1. Busca documentos filtrando por tipo para não depender de limit(500) genérico
         # Se houver muitos registros, o Firestore pode exigir índice composto (type + created_at)
         # Por segurança, buscamos por tipo primeiro e ordenamos em memória
-        tasks_query = firestore_db.collection('tasks').where('type', 'in', target_types).limit(limit_tasks * 20)
+        tasks_query = (
+            firestore_db.collection('tasks')
+            .where('type', 'in', target_types)
+            .order_by(FieldPath.document_id(), direction=firestore.Query.DESCENDING)
+            .limit(limit_tasks * 10)
+        )
         task_docs = tasks_query.get()
         
         all_tasks = []
