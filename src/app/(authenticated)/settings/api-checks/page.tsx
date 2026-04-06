@@ -121,25 +121,38 @@ export default function ApiChecksPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Polling logs e status em tempo real (Igual ao ABI)
   useEffect(() => {
-    let unsubscribe: () => void;
+    let interval: any;
     if (activeTaskId) {
-      unsubscribe = onSnapshot(doc(db, "tasks", activeTaskId), (docSnap) => {
-        if (docSnap.exists()) {
-          const data = docSnap.data() as Task;
-          setActiveTask(data);
-          if (data.status === 'completed' || data.status === 'failed' || data.status === 'cancelled') {
-            setTimeout(() => {
-              setIsExecuting(false);
+      interval = setInterval(async () => {
+        try {
+          const res = await fetch(`/api/task/${activeTaskId}`);
+          if (res.ok) {
+            const data = await res.json() as Task;
+            setActiveTask(data);
+            setIsExecuting(true);
+            
+            if (data.status === "completed" || data.status === "failed" || data.status === "cancelled") {
+              clearInterval(interval);
               fetchClients();
-              setActiveTaskId(null);
-            }, 2000);
+              // Não limpa imediatamente para evitar o flicker
+              setTimeout(() => {
+                // Só limpa se o console não estiver aberto visualizando ESTA tarefa
+                if (!showLogs || viewingTaskId !== activeTaskId) {
+                  setActiveTaskId(null);
+                  setIsExecuting(false);
+                }
+              }, 5000);
+            }
           }
+        } catch (err) {
+          console.error("Erro polling status API:", err);
         }
-      });
+      }, 2000);
     }
-    return () => { if (unsubscribe) unsubscribe(); };
-  }, [activeTaskId]);
+    return () => clearInterval(interval);
+  }, [activeTaskId, showLogs, viewingTaskId]);
 
   useEffect(() => {
     if (showLogs && (activeTaskId || viewingTaskId)) {
