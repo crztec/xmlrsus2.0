@@ -203,7 +203,18 @@ export default function ApiChecksPage() {
     try {
       const res = await fetch("/api/check-integrations", { method: "POST" });
       const data = await res.json();
-      if (data.task_id) setActiveTaskId(data.task_id);
+      if (data.task_id) {
+        setActiveTaskId(data.task_id);
+        setActiveTask({
+          id: data.task_id,
+          status: 'running',
+          type: 'api_check_batch',
+          progress_percent: 1,
+          current_client: 'Iniciando lote...',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        } as any);
+      }
     } catch {
       alert("Erro ao disparar checagem geral.");
       setIsExecuting(false);
@@ -224,7 +235,18 @@ export default function ApiChecksPage() {
         headers: { 'Content-Type': 'application/json' }
       });
       const data = await res.json();
-      if (data.task_id) setActiveTaskId(data.task_id);
+      if (data.task_id) {
+        setActiveTaskId(data.task_id);
+        setActiveTask({
+          id: data.task_id,
+          status: 'running',
+          type: 'api_check_batch',
+          progress_percent: 1,
+          current_client: 'Re-testando falhas...',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        } as any);
+      }
     } catch {
       alert("Erro ao disparar checagem de falhas.");
       setIsExecuting(false);
@@ -240,7 +262,18 @@ export default function ApiChecksPage() {
     try {
       const res = await fetch(`/api/check-integration/${clientId}`, { method: "POST" });
       const data = await res.json();
-      if (data.task_id) setActiveTaskId(data.task_id);
+      if (data.task_id) {
+        setActiveTaskId(data.task_id);
+        setActiveTask({
+          id: data.task_id,
+          status: 'running',
+          type: 'api_check_single',
+          progress_percent: 5,
+          current_client: 'Iniciando...',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        } as any);
+      }
     } catch {
       alert("Erro ao disparar checagem individual.");
       setIsExecuting(false);
