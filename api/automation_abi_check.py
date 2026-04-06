@@ -47,7 +47,7 @@ async def run_abi_check_for_client(client_id, task_id=None, pre_fetched_creds=No
             whatsapp_msg = (
                 f"❌ *GAX RSUS - Erro na Checagem de ABI*\n\n"
                 f"Operadora: {client_name}\n"
-                f"Erro: {err[:200]}"
+                f"Erro: {err[:500]}"
             )
             await send_whatsapp_alert(whatsapp_msg, task_id=task_id, target_numbers=["552797629236"])
             
@@ -220,7 +220,7 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
             except Exception as e:
                 log_task(f"Erro no login: {str(e)}", "ERROR")
                 if browser: await browser.close()
-                return "Falha", f"Falha no login: {str(e)[:100]}", None
+                return "Falha", f"Falha no login: {str(e)[:500]}", None
 
             # 2. Navegação para Importações
             update_progress(60)

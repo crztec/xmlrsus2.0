@@ -28,7 +28,7 @@ async def run_api_check_for_client(client_id, task_id=None, pre_fetched_creds=No
     except Exception as e:
         status, message = "error", f"Erro inesperado: {str(e)}"
         if not is_batch_run:
-            msg = f"❌ *GAX RSUS - Erro na Checagem*\n\nOperadora: {client_name}\nErro: {str(e)[:100]}"
+            msg = f"❌ *GAX RSUS - Erro na Checagem*\n\nOperadora: {client_name}\nErro: {str(e)[:500]}"
             await send_whatsapp_alert(msg, task_id=task_id, target_numbers=["552797629236"])
         return status, message, None
 
@@ -438,7 +438,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                     log_task(f"Erro ao capturar screenshot: {str(e_shot)}", "WARNING")
 
                 log_task(f"Erro de navegação (Atendimentos): {str(e)}", "ERROR")
-                return "error", f"Falha na navegação: {str(e)[:50]}", screenshot_url
+                return "error", f"Falha na navegação: {str(e)[:500]}", screenshot_url
 
             # 3. Navegação para Beneficiário (Novo hambúrguer na tela de atendimentos)
             try:
@@ -481,7 +481,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                 except: pass
 
                 log_task(f"Erro ao abrir beneficiário: {str(e)}", "ERROR")
-                return "error", f"Erro no Beneficiário: {str(e)[:50]}", screenshot_url
+                return "error", f"Erro no Beneficiário: {str(e)[:500]}", screenshot_url
 
             # 4. Ação de Atualização e Verificação Final
             try:
