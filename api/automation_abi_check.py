@@ -395,9 +395,9 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                         break
             
             if not target_row:
-                log_task(f"Aviso: ABI atual ainda nao importado no RSUS.", "WARNING")
+                log_task(f"Aviso: ABI atual ainda não importado no RSUS.", "WARNING")
                 if browser: await browser.close()
-                return "Nao Importado", "ABI atual ainda nao importado no RSUS.", None
+                return "Nao Importado", "ABI atual ainda não importado no RSUS.", None
 
             # Obtém status direto da segunda coluna (Status Arquivo)
             status_cell = target_row.locator("td").nth(1)
@@ -424,9 +424,9 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                 await logs_btn.wait_for(state="visible", timeout=7000)
                 await logs_btn.click(force=True, timeout=5000)
             except:
-                log_task(f"Aviso: Cliente nao realiza análise ou opção indisponível.", "WARNING")
+                log_task(f"Aviso: Cliente não realiza análise ou opção indisponível.", "WARNING")
                 if browser: await browser.close()
-                return "Importado", "Cliente nao realiza análise.", None
+                return "Importado", "Cliente não realiza análise.", None
             
             log_task("Aguardando carregamento da tabela de logs...")
             try:
