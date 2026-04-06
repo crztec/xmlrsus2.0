@@ -264,37 +264,43 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                 
                 # Função auxiliar para encontrar e clicar em elementos em qualquer frame (incluindo aninhados)
                 async def click_in_frames(selector, text_match=None, title_match=None):
+                    async def try_click_visible(root_locator):
+                        try:
+                            # Se o locator tiver múltiplos matches (ex: vários ícones .fa-bars), 
+                            # tentamos clicar no primeiro que estiver visível na tela.
+                            items = await root_locator.all()
+                            for item in items:
+                                if await item.is_visible():
+                                    await item.scroll_into_view_if_needed()
+                                    await item.click(force=True)
+                                    return True
+                        except: pass
+                        return False
+
                     # 1. Tenta no frame principal primário
-                    try:
-                        target = None
-                        if title_match:
-                            target = page.locator(f"{selector}[title*='{title_match}']").first
-                        elif text_match:
-                            target = page.locator(f"{selector}:has-text('{text_match}')").first
-                        else:
-                            target = page.locator(selector).first
-                        
-                        if target and await target.count() > 0 and await target.is_visible():
-                            await target.click(force=True)
-                            return True
-                    except: pass
+                    target_locator = None
+                    if title_match:
+                        target_locator = page.locator(f"{selector}[title*='{title_match}']")
+                    elif text_match:
+                        target_locator = page.locator(f"{selector}:has-text('{text_match}')")
+                    else:
+                        target_locator = page.locator(selector)
                     
-                    # 2. Varredura recursiva de todos os frames (Playwright page.frames retorna todos os frames ativos)
+                    if await try_click_visible(target_locator):
+                        return True
+                    
+                    # 2. Varredura recursiva de todos os frames
                     for frame in page.frames:
                         try:
-                            # Ignora frames sem URL ou de trackers comuns se necessário, mas aqui buscamos em tudo
                             f_target = None
                             if title_match:
-                                f_target = frame.locator(f"{selector}[title*='{title_match}']").first
+                                f_target = frame.locator(f"{selector}[title*='{title_match}']")
                             elif text_match:
-                                f_target = frame.locator(f"{selector}:has-text('{text_match}')").first
+                                f_target = frame.locator(f"{selector}:has-text('{text_match}')")
                             else:
-                                f_target = frame.locator(selector).first
+                                f_target = frame.locator(selector)
                             
-                            if f_target and await f_target.count() > 0 and await f_target.is_visible():
-                                # Garante scroll para visibilidade se estiver enterrado
-                                await f_target.scroll_into_view_if_needed()
-                                await f_target.click(force=True)
+                            if await try_click_visible(f_target):
                                 return True
                         except: continue
                     return False
@@ -405,10 +411,10 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                 log_task("Menu aberto. Navegando para 'Atendimentos'...")
                 found_atend = False
                 for _ in range(3):
-                    if await click_in_frames('*', title_match='Atendimentos'):
+                    if await click_in_frames('a, button, li', title_match='Atendimentos'):
                         found_atend = True
                         break
-                    if await click_in_frames('*', text_match='Atendimentos'):
+                    if await click_in_frames('a, button, li', text_match='Atendimentos'):
                         found_atend = True
                         break
                     await asyncio.sleep(2)
@@ -442,7 +448,8 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                     return "offline", "Tarefa cancelada pelo usuário.", None
                 found_bars_benef = False
                 for _ in range(5):
-                    if await click_in_frames('.fa-bars, button.dropdown-toggle'):
+                    # Especificidade aumentada: prioriza ícones dentro de tabelas ou grids para evitar o menu lateral
+                    if await click_in_frames('table .fa-bars, .grid .fa-bars, #dropdownGrid0, button.dropdown-toggle'):
                         found_bars_benef = True
                         break
                     await asyncio.sleep(4)
