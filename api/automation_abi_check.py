@@ -18,12 +18,30 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
         if level == "ERROR": logger.error(full_msg)
         else: logger.info(full_msg)
 
+    async def is_cancelled():
+        if not task_id: return False
+        try:
+            task = db.get_task(task_id)
+            if not task: return False
+            st = str(task.get('status', '')).upper()
+            if st in ['STOPPED', 'CANCELLED']:
+                log_task("Interrupção solicitada pelo usuário.", "WARNING")
+                return True
+        except: pass
+        return False
+
     browser = None
     try:
+        if await is_cancelled(): return False
+
         async with async_playwright() as p:
             log_task("Iniciando sincronização com gestaocomercial.cubeti.com.br/ABITracker...")
             browser = await p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
             
+            if await is_cancelled(): 
+                await browser.close()
+                return False
+
             context = await browser.new_context(ignore_https_errors=True, viewport={"width": 1920, "height": 1080})
             page = await context.new_page()
             
@@ -81,19 +99,28 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
                 await status_trigger.click(force=True)
                 await asyncio.sleep(2)
                 
-                # Procura a opção pelo texto (regex para suportar Analisou/Analisado)
-                option = page.locator("[role='menuitem'], [role='option'], button").filter(has_text=re.compile(r"Importou.*Analisou", re.I)).last
+                # Procura a opção pelo texto dinâmico (não mais fixo)
+                # target_status pode ser "Nao iniciou", "Importou o ABI", "Importou e Analisou"
+                # Usamos regex ignorando case e espaços para ser resiliente
+                option_regex = re.compile(f"^{target_status}$".replace(" ", ".*"), re.I)
+                option = page.locator("[role='menuitem'], [role='option'], .dropdown-item, button").filter(has_text=option_regex).first
                 
                 if await option.count() > 0:
                     await option.click(force=True)
                     log_task(f"Status '{target_status}' selecionado.")
                     await asyncio.sleep(2)
                 else:
-                    # Tenta via teclado como fallback
-                    log_task("Popover não detectado via clique, tentando teclado...", "WARNING")
-                    await page.keyboard.press("ArrowDown")
-                    await asyncio.sleep(1)
-                    await page.keyboard.press("Enter")
+                    # Fallback por texto exato se regex falhar
+                    log_task(f"Popover não detectado via regex '{target_status}', tentando fallback literal...", "WARNING")
+                    option_fallback = page.locator(f"button:has-text('{target_status}'), a:has-text('{target_status}')").filter(visible=True).first
+                    if await option_fallback.count() > 0:
+                        await option_fallback.click(force=True)
+                        log_task(f"Status '{target_status}' selecionado via fallback.")
+                    else:
+                        log_task("Menu de status não reconheceu a opção, tentando teclado...", "WARNING")
+                        await page.keyboard.press("ArrowDown")
+                        await asyncio.sleep(1)
+                        await page.keyboard.press("Enter")
             else:
                 log_task("Dropdown de status não encontrado.", "WARNING")
         
@@ -186,15 +213,14 @@ async def run_abi_check_for_client(client_id, task_id=None, pre_fetched_creds=No
         return "Falha", err, None
 
 async def is_task_stopped(task_id):
-    """Verifica se a tarefa foi interrompida pelo usuário."""
+    """Verifica se a tarefa foi interrompida pelo usuário (Suporta STOPPED e CANCELLED)."""
     if not task_id: return False
     try:
-        task = db.get_task(task_id) # Usando merge ou get
+        task = db.get_task(task_id)
         if not task:
-            # Tenta buscar por get_task_status se disponível
-            status = db.get_task_status_only(task_id) if hasattr(db, 'get_task_status_only') else 'running'
-            return status.upper() == 'STOPPED'
-        return task.get('status', '').upper() == 'STOPPED'
+            status = str(db.get_task_status_only(task_id)).upper() if hasattr(db, 'get_task_status_only') else 'RUNNING'
+            return status in ['STOPPED', 'CANCELLED']
+        return str(task.get('status', '')).upper() in ['STOPPED', 'CANCELLED']
     except:
         return False
 
@@ -297,9 +323,11 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
             async def is_cancelled():
                 if not task_id: return False
                 try:
-                    doc = db.firestore_db.collection('tasks').document(task_id).get()
-                    if doc.exists and doc.to_dict().get('status') == 'cancelled':
-                        log_task("Interrupção solicitada pelo usuário.", "WARNING")
+                    task = db.get_task(task_id)
+                    if not task: return False
+                    st = str(task.get('status', '')).upper()
+                    if st in ['STOPPED', 'CANCELLED']:
+                        log_task("⏹️ Interrupção solicitada pelo usuário.", "WARNING")
                         return True
                 except: pass
                 return False
@@ -350,6 +378,10 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                     await page.wait_for_selector("#logIn, button[type='submit']", state="hidden", timeout=15000)
                 except: pass
                 
+                if await is_cancelled():
+                    if browser: await browser.close()
+                    return "Falha", "Tarefa cancelada pelo usuário.", None
+
                 # Estabilização pós-login
                 update_progress(45)
                 log_task("Aguardando carregamento da interface...")
@@ -357,6 +389,9 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                     await page.wait_for_selector(".navbar, .main-sidebar, .content-header, #wrapper", timeout=60000)
                 except:
                     # Tenta forçar salto se estiver preso
+                    if await is_cancelled(): 
+                        await browser.close()
+                        return "Falha", "Cancelado", None
                     await page.goto(url_sistema.split('/Account')[0] if '/Account' in url_sistema else url_sistema, wait_until="commit", timeout=30000)
                     await asyncio.sleep(2)
                 
@@ -426,8 +461,10 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                 if browser: await browser.close()
                 return "Pendente", f"Status: {status_text}", None
 
-            # 3. Ver Logs de Análise
-            update_progress(85)
+            if await is_cancelled():
+                if browser: await browser.close()
+                return "Falha", "Cancelado", None
+
             log_task("ABI Importado. Abrindo menu de ações...")
             hamburger = target_row.locator("td").last.locator("button, a, .fa-bars").first
             await hamburger.click(force=True)
@@ -645,8 +682,8 @@ async def run_batch_abi_check(task_id, client_ids=None):
 
         for i, client in enumerate(clients):
             # Check cancelamento
-            task_doc = db.firestore_db.collection('tasks').document(task_id).get()
-            if task_doc.exists and task_doc.to_dict().get('status') == 'cancelled':
+            task_doc = db.get_task(task_id)
+            if task_doc and str(task_doc.get('status', '')).upper() in ['STOPPED', 'CANCELLED']:
                 db.add_log(task_id, "⏹️ Processamento interrompido pelo usuário.", "WARNING")
                 break
 
