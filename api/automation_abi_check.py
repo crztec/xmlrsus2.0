@@ -47,8 +47,10 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
             
             # Login
             log_task("Realizando login Gestaocomercial...")
+            if await is_cancelled(): return False
             await page.goto("https://gestaocomercial.cubeti.com.br/ABITracker", wait_until="domcontentloaded", timeout=45000)
             
+            if await is_cancelled(): return False
             await page.fill("input#Email, input[type='email']", "victor@cubeti.com.br")
             await page.fill("input#Password, input[type='password']", "Teste.123")
             await page.click("button[type='submit'], input[type='submit']")
@@ -57,6 +59,7 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
                 await page.wait_for_load_state("networkidle", timeout=15000)
             except: pass
             
+            if await is_cancelled(): return False
             if "ABITracker" not in page.url:
                 await page.goto("https://gestaocomercial.cubeti.com.br/ABITracker", wait_until="domcontentloaded", timeout=30000)
                 await asyncio.sleep(2)
@@ -551,17 +554,29 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                             mensagem_analise = ""
                             
                             modal_container = page.locator(".modal-content").first
+                            if await is_cancelled():
+                                if browser: await browser.close()
+                                return "Falha", "Cancelado", None
+
                             search_field = modal_container.locator("input.searchTerm, input[placeholder*='Pesquisar']").first
                             if await search_field.count() > 0:
-                                log_task("Deep Dive: Utilizando busca direta no modal para 'Análise Sucesso - Parcial'...")
+                                log_task("Deep Dive: Utilizando busca direta no modal para 'Parcial'...")
                                 await search_field.click()
-                                await search_field.fill("Análise Sucesso - Parcial")
+                                # Limpa e preenche com um termo mais curto e abrangente
+                                await search_field.fill("")
+                                await search_field.type("Parcial", delay=50)
                                 await page.keyboard.press("Enter")
-                                await asyncio.sleep(4) # Aguarda processamento do filtro
+                                
+                                # Aguarda a tabela atualizar (procura o texto nela)
+                                try:
+                                    await modal_container.locator("td").filter(has_text=re.compile(r"Parcial", re.I)).first.wait_for(state="visible", timeout=10000)
+                                    log_task("Deep Dive: Resultados filtrados carregados.")
+                                except:
+                                    await asyncio.sleep(3) # Fallback sleep
                                 
                                 # Verifica se o texto apareceu na grade filtrada
                                 modal_text = await modal_container.inner_text(timeout=5000)
-                                if "Análise Sucesso - Parcial" in modal_text or "Analise Sucesso - Parcial" in modal_text:
+                                if "Parcial" in modal_text:
                                     log_task("Deep Dive: Sucesso Parcial encontrado via busca direta!", "SUCCESS")
                                     success_parcial = True
                                     mensagem_analise = "Análise Sucesso - Parcial"
@@ -569,7 +584,7 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                                 # Fallback para o modo antigo de varredura se o campo de busca não existir
                                 log_task("Aviso: Campo de busca não localizado no modal, usando varredura de texto...", "WARNING")
                                 modal_text = await modal_container.inner_text(timeout=5000)
-                                if "Análise Sucesso - Parcial" in modal_text or "Analise Sucesso - Parcial" in modal_text:
+                                if "Parcial" in modal_text:
                                     success_parcial = True
                                     mensagem_analise = "Análise Sucesso - Parcial (Varredura)"
                             

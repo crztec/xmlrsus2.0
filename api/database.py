@@ -1072,6 +1072,27 @@ def reset_system_database():
         logger.error(f"Erro ao resetar banco: {e}")
         return False
 
+def update_task(task_id, data):
+    """Updates task metadata in Firestore."""
+    if not task_id: return False
+    try:
+        firestore_db.collection('tasks').document(task_id).update(data)
+        return True
+    except Exception as e:
+        logger.error(f"Error updating task {task_id}: {e}")
+        return False
+
+def get_task(task_id):
+    """Fetches a task document from Firestore."""
+    if not task_id: return None
+    try:
+        doc = firestore_db.collection('tasks').document(task_id).get()
+        if doc.exists:
+            return doc.to_dict()
+    except Exception as e:
+        logger.error(f"Error fetching task {task_id}: {e}")
+    return None
+
 # --- SYSTEM AUDIT LOGS ---
 def add_audit_log(user_email, action, details, level="INFO"):
     """
