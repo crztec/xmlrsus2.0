@@ -174,31 +174,38 @@ async def save_whatsapp_config(body: dict):
 
 @app.get("/whatsapp/instance/status")
 async def whatsapp_instance_status():
-    """Proxy: checks GaxBot instance connection state in Evolution API."""
+    """Proxy: checks GaxBot instance connection state (Evolution API v1.8.x compatible)."""
     import requests as req
     config = db.get_whatsapp_config()
     base = config["url"].rstrip("/")
     headers = {"apikey": config["api_key"]}
     try:
-        # Try v2: GET /instance/connectionState/GaxBot
+        # v1.8.x: GET /instance/connectionState/{instanceName}
         resp = req.get(f"{base}/instance/connectionState/GaxBot", headers=headers, timeout=15)
-        if resp.status_code == 404:
-            # Fallback: try listing all instances (v1 / alternate endpoint)
-            resp = req.get(f"{base}/instance/fetchInstances", headers=headers, timeout=15)
-        return resp.json()
+        if resp.status_code == 200:
+            return resp.json()
+        # Fallback: GET /instance/fetchInstances?instanceName=GaxBot  (also works in v1.8)
+        resp2 = req.get(f"{base}/instance/fetchInstances", params={"instanceName": "GaxBot"}, headers=headers, timeout=15)
+        return resp2.json()
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Erro ao consultar Evolution API: {str(e)}")
 
 @app.post("/whatsapp/instance/create")
 async def whatsapp_instance_create():
-    """Proxy: creates a new Evolution API instance 'GaxBot'."""
+    """Proxy: creates a new Evolution API v1.8.x instance 'GaxBot'."""
     import requests as req
     config = db.get_whatsapp_config()
+    base = config["url"].rstrip("/")
+    headers = {"apikey": config["api_key"], "Content-Type": "application/json"}
     try:
         resp = req.post(
-            f"{config['url']}/instance/create",
-            headers={"apikey": config["api_key"], "Content-Type": "application/json"},
-            json={"instanceName": "GaxBot", "integration": "WHATSAPP-BAILEYS", "qrcode": True},
+            f"{base}/instance/create",
+            headers=headers,
+            json={
+                "instanceName": "GaxBot",
+                "qrcode": True,
+                "integration": "WHATSAPP-BAILEYS"
+            },
             timeout=30
         )
         return resp.json()
@@ -207,15 +214,13 @@ async def whatsapp_instance_create():
 
 @app.get("/whatsapp/instance/qrcode")
 async def whatsapp_instance_qrcode():
-    """Proxy: fetches QR Code for the GaxBot instance."""
+    """Proxy: fetches QR Code for GaxBot (Evolution API v1.8.x: GET /instance/connect/{name})."""
     import requests as req
     config = db.get_whatsapp_config()
+    base = config["url"].rstrip("/")
+    headers = {"apikey": config["api_key"]}
     try:
-        resp = req.get(
-            f"{config['url']}/instance/connect/GaxBot",
-            headers={"apikey": config["api_key"]},
-            timeout=30
-        )
+        resp = req.get(f"{base}/instance/connect/GaxBot", headers=headers, timeout=30)
         return resp.json()
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Erro ao gerar QR Code: {str(e)}")
