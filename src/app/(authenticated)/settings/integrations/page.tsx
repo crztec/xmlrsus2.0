@@ -6,6 +6,7 @@ import { Puzzle, Save, Loader2, Plus, Trash2, Wifi, WifiOff, QrCode, Phone, Glob
 export default function IntegrationsPage() {
   const [evoUrl, setEvoUrl] = useState("http://34.75.185.221:8080");
   const [evoKey, setEvoKey] = useState("92367wC!");
+  const [instanceName, setInstanceName] = useState("GaxBot");
   const [numbers, setNumbers] = useState<string[]>(["5527997629236"]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -28,6 +29,7 @@ export default function IntegrationsPage() {
         if (data && !data.detail) {
           setEvoUrl(data.url || "http://34.75.185.221:8080");
           setEvoKey(data.api_key || "92367wC!");
+          setInstanceName(data.instance_name || "GaxBot");
           if (data.target_numbers && data.target_numbers.length > 0) {
             setNumbers(data.target_numbers);
           }
@@ -43,7 +45,7 @@ export default function IntegrationsPage() {
       const res = await fetch("/api/whatsapp/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: evoUrl, api_key: evoKey, target_numbers: numbers.filter(n => n.trim()) }),
+        body: JSON.stringify({ url: evoUrl, api_key: evoKey, instance_name: instanceName, target_numbers: numbers.filter(n => n.trim()) }),
       });
       if (res.ok) alert("Configuração salva com sucesso!");
       else alert("Erro ao salvar configuração.");
@@ -146,6 +148,16 @@ export default function IntegrationsPage() {
             </div>
 
             <div>
+              <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-slate-400">Nome da Instância</label>
+              <div className="relative">
+                <Wifi className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={16} />
+                <input type="text" value={instanceName} onChange={(e) => setInstanceName(e.target.value)}
+                  placeholder="Ex: GaxBot"
+                  className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 text-slate-700 font-medium font-mono" />
+              </div>
+            </div>
+
+            <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Números de Destino</label>
                 <button onClick={addNumber} className="flex items-center gap-1 text-[10px] text-gax-blue font-bold hover:text-gax-blue-hover transition-colors">
@@ -187,7 +199,7 @@ export default function IntegrationsPage() {
             </div>
             <div>
               <h2 className="text-xl font-bold text-slate-900">Gestão da Instância</h2>
-              <p className="text-[11px] text-slate-400">Controle a instância 'GaxBot' da Evolution API</p>
+              <p className="text-[11px] text-slate-400">Controle a instância <span className="font-bold text-slate-600">'{instanceName}'</span> da Evolution API</p>
             </div>
           </div>
 

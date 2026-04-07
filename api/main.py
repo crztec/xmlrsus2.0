@@ -168,7 +168,12 @@ async def get_whatsapp_config():
 
 @app.post("/whatsapp/config")
 async def save_whatsapp_config(body: dict):
-    if db.save_whatsapp_config(body.get("url", ""), body.get("api_key", ""), body.get("target_numbers", [])):
+    if db.save_whatsapp_config(
+        body.get("url", ""),
+        body.get("api_key", ""),
+        body.get("instance_name", "GaxBot"),
+        body.get("target_numbers", [])
+    ):
         return {"status": "success"}
     raise HTTPException(status_code=500, detail="Erro ao salvar config WhatsApp.")
 
@@ -178,14 +183,13 @@ async def whatsapp_instance_status():
     import requests as req
     config = db.get_whatsapp_config()
     base = config["url"].rstrip("/")
+    instance = config.get("instance_name", "GaxBot")
     headers = {"apikey": config["api_key"]}
     try:
-        # v1.8.x: GET /instance/connectionState/{instanceName}
-        resp = req.get(f"{base}/instance/connectionState/GaxBot", headers=headers, timeout=15)
+        resp = req.get(f"{base}/instance/connectionState/{instance}", headers=headers, timeout=15)
         if resp.status_code == 200:
             return resp.json()
-        # Fallback: GET /instance/fetchInstances?instanceName=GaxBot  (also works in v1.8)
-        resp2 = req.get(f"{base}/instance/fetchInstances", params={"instanceName": "GaxBot"}, headers=headers, timeout=15)
+        resp2 = req.get(f"{base}/instance/fetchInstances", params={"instanceName": instance}, headers=headers, timeout=15)
         return resp2.json()
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Erro ao consultar Evolution API: {str(e)}")
@@ -196,16 +200,13 @@ async def whatsapp_instance_create():
     import requests as req
     config = db.get_whatsapp_config()
     base = config["url"].rstrip("/")
+    instance = config.get("instance_name", "GaxBot")
     headers = {"apikey": config["api_key"], "Content-Type": "application/json"}
     try:
         resp = req.post(
             f"{base}/instance/create",
             headers=headers,
-            json={
-                "instanceName": "GaxBot",
-                "qrcode": True,
-                "integration": "WHATSAPP-BAILEYS"
-            },
+            json={"instanceName": instance, "qrcode": True, "integration": "WHATSAPP-BAILEYS"},
             timeout=30
         )
         return resp.json()
@@ -218,9 +219,10 @@ async def whatsapp_instance_qrcode():
     import requests as req
     config = db.get_whatsapp_config()
     base = config["url"].rstrip("/")
+    instance = config.get("instance_name", "GaxBot")
     headers = {"apikey": config["api_key"]}
     try:
-        resp = req.get(f"{base}/instance/connect/GaxBot", headers=headers, timeout=30)
+        resp = req.get(f"{base}/instance/connect/{instance}", headers=headers, timeout=30)
         return resp.json()
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Erro ao gerar QR Code: {str(e)}")

@@ -11,12 +11,13 @@ async def send_whatsapp_alert(text_message: str, task_id: str = None, target_num
     config = db.get_whatsapp_config()
     url_base = config.get("url", "http://34.75.185.221:8080")
     api_key = config.get("api_key", "92367wC!")
+    instance_name = config.get("instance_name", "GaxBot")
     
     # Se nenhum número for passado como override, usa os configurados no banco
     if not target_numbers:
         target_numbers = config.get("target_numbers", ["5527997629236"])
         
-    url = f"{url_base}/message/sendText/GaxBot"
+    url = f"{url_base}/message/sendText/{instance_name}"
     headers = {"apikey": api_key, "Content-Type": "application/json"}
     
     if task_id:
