@@ -84,9 +84,9 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
             log_task("Operadora localizada!")
             
             # Map status
-            target_status = "Nao iniciou"
+            target_status = "Não iniciou"
             if status_gax == "Nao Importado":
-                target_status = "Nao iniciou"
+                target_status = "Não iniciou"
             elif status_gax in ["Importado e Analisado", "Falha na Análise", "Falha"]:
                 target_status = "Importou e Analisou"
                 
@@ -253,7 +253,20 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
     def update_progress(percent):
         if task_id:
             try:
-                db.update_task(task_id, {"progress_percent": percent})
+                task = db.get_task(task_id)
+                if task:
+                    t_total = task.get('total', 0)
+                    if t_total > 1:
+                        # Batch progress: scale according to current client index
+                        t_curr = task.get('current', 1) - 1
+                        t_curr = max(0, t_curr)
+                        scaled = int(((t_curr + (percent / 100)) / t_total) * 100)
+                        db.update_task(task_id, {"progress_percent": scaled})
+                    else:
+                        # Individual progress
+                        db.update_task(task_id, {"progress_percent": percent})
+                else:
+                    db.update_task(task_id, {"progress_percent": percent})
             except: pass
 
     if not url_sistema:

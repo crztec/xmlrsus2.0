@@ -308,6 +308,7 @@ export default function CheckImportsPage() {
       const data = await res.json();
       if (data.task_id) {
         setActiveTaskId(data.task_id);
+        setCurrentTaskStatus(null);
         setRealtimeLogs([]);
         // Atualiza o abi_last_task_id localmente para que o menu 'Ver Log Individual' funcione
         // mesmo antes do fetchData() ser chamado ao final da task
@@ -353,6 +354,7 @@ export default function CheckImportsPage() {
       const data = await res.json();
       if (data.task_id) {
         setActiveTaskId(data.task_id);
+        setCurrentTaskStatus(null);
         setRealtimeLogs([]);
       }
     } catch (err) {
