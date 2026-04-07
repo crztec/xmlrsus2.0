@@ -48,6 +48,26 @@ const PAGE_METADATA: Record<string, { title: string; subtitle: string }> = {
   "/check-imports": {
     title: "Checar Importações",
     subtitle: "Monitoramento em tempo real do processamento de ABIs no RSUS"
+  },
+  "/settings/branding": {
+    title: "Identidade Visual",
+    subtitle: "Personalize o nome e o logotipo do sistema"
+  },
+  "/settings/maintenance": {
+    title: "Manutenção",
+    subtitle: "Ações administrativas permanentes de limpeza e reinicialização"
+  },
+  "/settings/audit": {
+    title: "Segurança e Auditoria",
+    subtitle: "Rastreabilidade de ações administrativas no sistema"
+  },
+  "/settings/access-control": {
+    title: "Controle de Acessos",
+    subtitle: "Credenciais dos sistemas RSUS e CubeTI Gestão Comercial"
+  },
+  "/settings/integrations": {
+    title: "Integrações",
+    subtitle: "Configurações de conectores externos (WhatsApp, Evolution API)"
   }
 };
 

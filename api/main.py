@@ -149,30 +149,30 @@ async def save_rsus_creds(type: str = Form(...), username: str = Form(...), pass
     raise HTTPException(status_code=500, detail="Erro ao salvar credenciais.")
 
 # --- CUBETI CREDENTIALS MANAGEMENT ---
-@app.get("/api/settings/cubeti-credentials")
+@app.get("/settings/cubeti-credentials")
 async def get_cubeti_creds():
     """Returns stored credentials for CubeTI Gestão Comercial."""
     return db.get_cubeti_credentials()
 
-@app.post("/api/settings/cubeti-credentials")
+@app.post("/settings/cubeti-credentials")
 async def save_cubeti_creds(body: dict):
     if db.save_cubeti_credentials(body.get("email", ""), body.get("password", "")):
         return {"status": "success"}
     raise HTTPException(status_code=500, detail="Erro ao salvar credenciais CubeTI.")
 
 # --- WHATSAPP / EVOLUTION API MANAGEMENT ---
-@app.get("/api/whatsapp/config")
+@app.get("/whatsapp/config")
 async def get_whatsapp_config():
     """Returns stored WhatsApp Evolution API configuration."""
     return db.get_whatsapp_config()
 
-@app.post("/api/whatsapp/config")
+@app.post("/whatsapp/config")
 async def save_whatsapp_config(body: dict):
     if db.save_whatsapp_config(body.get("url", ""), body.get("api_key", ""), body.get("target_numbers", [])):
         return {"status": "success"}
     raise HTTPException(status_code=500, detail="Erro ao salvar config WhatsApp.")
 
-@app.get("/api/whatsapp/instance/status")
+@app.get("/whatsapp/instance/status")
 async def whatsapp_instance_status():
     """Proxy: checks Evolution API instance status."""
     import requests as req
@@ -187,7 +187,7 @@ async def whatsapp_instance_status():
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Erro ao consultar Evolution API: {str(e)}")
 
-@app.post("/api/whatsapp/instance/create")
+@app.post("/whatsapp/instance/create")
 async def whatsapp_instance_create():
     """Proxy: creates a new Evolution API instance 'GaxBot'."""
     import requests as req
@@ -203,7 +203,7 @@ async def whatsapp_instance_create():
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Erro ao criar instância: {str(e)}")
 
-@app.get("/api/whatsapp/instance/qrcode")
+@app.get("/whatsapp/instance/qrcode")
 async def whatsapp_instance_qrcode():
     """Proxy: fetches QR Code for the GaxBot instance."""
     import requests as req
