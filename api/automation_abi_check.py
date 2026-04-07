@@ -181,6 +181,19 @@ async def run_abi_check_for_client(client_id, task_id=None, pre_fetched_creds=No
             
         return "Falha", err, None
 
+async def is_task_stopped(task_id):
+    """Verifica se a tarefa foi interrompida pelo usuário."""
+    if not task_id: return False
+    try:
+        task = db.get_task(task_id) # Usando merge ou get
+        if not task:
+            # Tenta buscar por get_task_status se disponível
+            status = db.get_task_status_only(task_id) if hasattr(db, 'get_task_status_only') else 'running'
+            return status.upper() == 'STOPPED'
+        return task.get('status', '').upper() == 'STOPPED'
+    except:
+        return False
+
 async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_creds=None):
     """
     Lógica interna da checagem de ABI no RSUS (Refatorada com técnicas do API Check).
@@ -214,6 +227,10 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
         return "Falha", "URL não configurada.", None
 
     cred_type = "unimed_vitoria" if "vitoria" in url_sistema.lower() else "general"
+
+    # Check stop signal
+    if await is_task_stopped(task_id):
+        return "Falha", "Tarefa parada pelo usuário.", None
 
     browser = None
     try:
@@ -301,10 +318,10 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                 except: pass
                 
                 # Localiza campo de login
-                email_field = page.locator("input#email, input#Email, input#username, #username, input[name='username']").first
+                email_field = page.locator("input[type='email'], input[name*='mail'], input#email, input#Email, input#username, #username, input[name='username']").first
                 if await email_field.count() == 0:
                     for frame in page.frames:
-                        f_email = frame.locator("input#email, input#Email, input#username, #username, input[name='username']").first
+                        f_email = frame.locator("input[type='email'], input[name*='mail'], input#email, input#Email, input#username, #username, input[name='username']").first
                         if await f_email.count() > 0:
                             email_field = f_email
                             break
@@ -464,9 +481,12 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                     if "Falha" in result_text or "Erro" in result_text:
                         log_task(f"Falha detectada. Iniciando Deep Dive (Detalhes da Análise)...", "INFO")
                         try:
-                            # 1. Abre o detalhe (Print do usuário mostra botão 'Detalhes do Análise' - com erro de pt)
-                            # Tentamos pelo texto exato (considerando erro do portal) ou pelo ícone
-                            menu_btn = row.locator("button:has-text('Detalhes do Análise'), button:has-text('Detalhes'), .fa-bars, i.fa-bars").first
+                            # 1. Abre o detalhe (Resiliente a 'da' vs 'do' e erro de pt)
+                            import re
+                            menu_btn = row.locator("button").filter(has_text=re.compile(r"Detalhes d. Análise", re.I)).first
+                            if await menu_btn.count() == 0:
+                                menu_btn = row.locator("button.btn-default, .fa-bars, i.fa-bars").first
+                                
                             await menu_btn.scroll_into_view_if_needed()
                             await menu_btn.click(force=True)
                             
@@ -476,64 +496,70 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                                 log_task("Modal de Detalhes aberto com sucesso.")
                             except:
                                 # Se o clique abriu um dropdown em vez do modal direto, clica em Detalhes
-                                item_detalhe = page.locator("a:has-text('Detalhes'), .dropdown-menu :text('Detalhes'), button:has-text('Detalhes do Análise')").filter(visible=True).first
+                                item_detalhe = page.locator("a:has-text('Detalhes'), .dropdown-menu :text('Detalhes')").filter(visible=True).first
                                 if await item_detalhe.count() > 0:
                                     await item_detalhe.click(force=True)
-                                    await page.wait_for_selector(".modal-content", state="visible", timeout=8000)
+                                    try:
+                                        await page.wait_for_selector(".modal-content", state="visible", timeout=8000)
+                                    except: pass
                             
                             await asyncio.sleep(2)
                             
-                            # 4. Selecionar '100' registros por página no modal
-                            select_qtd = page.locator(".modal select").first
-                            if await select_qtd.count() > 0:
-                                await select_qtd.scroll_into_view_if_needed()
-                                await select_qtd.select_option("100")
-                                await asyncio.sleep(3)
-                                
-                            # Fechar modal
-                            close_btn = page.locator(".modal button.close, .modal [data-dismiss='modal']").first
-                            if await close_btn.count() > 0:
-                                await close_btn.click()
-                                await asyncio.sleep(1)
-                                
+                            # 4. Configura registros por página para 100
+                            modal_container = page.locator(".modal-content").first
+                            if await modal_container.count() > 0:
+                                # O RSUS as vezes usa "Registros por página: 10 25 50 100" (onde 100 é <a>)
+                                # Vamos procurar pelo link de texto exato '100' dentro ou fora do form
+                                link_100 = modal_container.locator("a", has_text=re.compile(r"^100$")).first
+                                if await link_100.count() > 0:
+                                    try:
+                                        await link_100.click()
+                                        await asyncio.sleep(4)
+                                    except: pass
+                                else:
+                                    # Caso ainda seja um select oculto
+                                    select_qtd = modal_container.locator("select").first
+                                    if await select_qtd.count() > 0:
+                                        try:
+                                            await select_qtd.select_option("100")
+                                            await select_qtd.dispatch_event("change")
+                                        except: pass
+                                        await asyncio.sleep(4)
+                            
                             # 3. Busca por 'Análise Sucesso - Parcial' na página 1 (RESTRITO AO MODAL)
                             success_parcial = False
                             mensagem_analise = ""
-                            modal_text = await page.locator(".modal-content").inner_text()
-                            if "Análise Sucesso - Parcial" in modal_text or "Analise Sucesso - Parcial" in modal_text:
-                                log_task("Deep Dive: Sucesso Parcial encontrado na página 1!", "SUCCESS")
-                                success_parcial = True
-                                mensagem_analise = "Análise Sucesso - Parcial (Pág 1)"
+                            if await modal_container.count() > 0:
+                                modal_text = await modal_container.inner_text(timeout=5000)
+                                if "Análise Sucesso - Parcial" in modal_text or "Analise Sucesso - Parcial" in modal_text:
+                                    log_task("Deep Dive: Sucesso Parcial encontrado na página 1!", "SUCCESS")
+                                    success_parcial = True
+                                    mensagem_analise = "Análise Sucesso - Parcial (Pág 1)"
                             
                             # 6. Se não achou na página 1, tenta navegar para a página 2 (se existir)
-                            if not success_parcial:
+                            if not success_parcial and await modal_container.count() > 0:
                                 try:
                                     # Verifica se há paginação e se não estamos na última página (RESTRITO AO MODAL)
-                                    modal_container = page.locator(".modal-content").first
                                     page_info = modal_container.locator("span.pageQuantity, .pageQuantity, span.pagequantity").first
                                     
+                                    total_pages = 1
                                     if await page_info.count() > 0:
-                                        total_pages_text = await page_info.inner_text()
-                                        import re
-                                        # Extrai o número do texto (ex: "de 2" -> 2)
-                                        nums = re.findall(r'\d+', total_pages_text)
-                                        total_pages = int(nums[0]) if nums else 1
-                                    else:
-                                        total_pages = 1
+                                        total_pages_text = (await page_info.inner_text(timeout=3000)).strip()
+                                        nums = [int(s) for s in total_pages_text.split() if s.isdigit()]
+                                        if nums:
+                                            total_pages = max(nums)
                                         
                                     if total_pages > 1:
                                         log_task(f"Deep Dive: Não achou na pág 1. Pulando para pág 2 de {total_pages}...", "INFO")
                                         input_page = modal_container.locator("input#current-page").first
                                         if await input_page.count() > 0:
-                                            # Limpa e digita "2"
-                                            await input_page.click(click_count=3)
-                                            await page.keyboard.press("Backspace")
+                                            await input_page.click()
                                             await input_page.fill("2")
                                             await page.keyboard.press("Enter")
                                             await asyncio.sleep(4) 
                                             
-                                            # Re-avalia mensagens na pág 2
-                                            modal_text_p2 = await page.locator(".modal-content").inner_text()
+                                            # Re-avalia na pág 2
+                                            modal_text_p2 = await modal_container.inner_text(timeout=5000)
                                             if "Análise Sucesso - Parcial" in modal_text_p2 or "Analise Sucesso - Parcial" in modal_text_p2:
                                                 log_task("Deep Dive: Sucesso Parcial encontrado na página 2!", "SUCCESS")
                                                 success_parcial = True
@@ -542,6 +568,12 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                                                 log_task("Deep Dive: Nenhum Sucesso Parcial na pág 2.", "INFO")
                                 except Exception as pag_e:
                                     log_task(f"Aviso na paginação do modal: {str(pag_e)[:100]}", "WARNING")
+                            
+                            # Fecha o modal ao final
+                            close_btn = page.locator(".modal button.close, .modal [data-dismiss='modal']").first
+                            if await close_btn.count() > 0:
+                                await close_btn.click()
+                                await asyncio.sleep(1)
 
                             if success_parcial:
                                 update_progress(100)
