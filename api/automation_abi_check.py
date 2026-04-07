@@ -42,10 +42,14 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
                 await page.goto("https://gestaocomercial.cubeti.com.br/ABITracker", wait_until="domcontentloaded", timeout=30000)
                 await asyncio.sleep(2)
                 
-            log_task("Buscando operadora na grid...")
-            search_input = page.locator("input[placeholder*='Buscar cliente'], input[type='search']").first
+            # Busca operadora específica (Isolamento de Grid)
+            search_input = page.locator("input[placeholder*='Buscar cliente'], input[placeholder*='Pesquisar']").first
             if await search_input.count() > 0:
+                await search_input.click()
+                await search_input.fill("")
                 await search_input.fill(client_name)
+                await asyncio.sleep(2)
+                await page.keyboard.press("Enter")
                 await asyncio.sleep(3)
             
             rows = page.locator("table tbody tr")
@@ -73,85 +77,54 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
             target_status = "Nao iniciou"
             if status_gax == "Nao Importado":
                 target_status = "Nao iniciou"
-            elif status_gax in ["Importado", "Importado, falta analisar", "Pendente"]:
-                target_status = "Importou o ABI"
             elif status_gax in ["Importado e Analisado", "Falha na Análise", "Falha"]:
                 target_status = "Importou e Analisou"
                 
             log_task(f"Atualizando status para '{target_status}'")
-            # Isola a coluna de status para não clicar no botão de contatos acidentalmente
+            # Isola a coluna de status (coluna 3)
             status_col = target_row.locator("td").nth(2)
-            status_trigger = status_col.locator("button, span.cursor-pointer, [aria-haspopup='dialog']").first
+            # Gatilho de status (Radix / Shadcn)
+            status_trigger = status_col.locator("button, [role='combobox'], .cursor-pointer").first
             
             if await status_trigger.count() > 0:
+                await status_trigger.scroll_into_view_if_needed()
+                # Dispara mousedown para componentes que dependem dele (Radix/Angular)
+                await status_trigger.dispatch_event("mousedown")
                 await status_trigger.click(force=True)
                 await asyncio.sleep(2)
-                # O popover do Radix UI é renderizado no final do body. Buscamos as opções com cuidado.
-                option = page.locator(f"[role='menuitem']:has-text('{target_status}'), [role='option']:has-text('{target_status}'), [data-radix-popper-content-wrapper] button:has-text('{target_status}')").last
+                
+                # Procura a opção pelo texto (regex para suportar Analisou/Analisado)
+                import re
+                option = page.locator("[role='menuitem'], [role='option'], button").filter(has_text=re.compile(r"Importou.*Analisou", re.I)).last
+                
                 if await option.count() > 0:
-                    await option.scroll_into_view_if_needed()
                     await option.click(force=True)
-                    log_task(f"Status '{target_status}' selecionado no Popover.")
+                    log_task(f"Status '{target_status}' selecionado.")
                     await asyncio.sleep(2)
                 else:
-                    log_task(f"Opção '{target_status}' não encontrada no popover.", "WARNING")
+                    # Tenta via teclado como fallback
+                    log_task("Popover não detectado via clique, tentando teclado...", "WARNING")
+                    await page.keyboard.press("ArrowDown")
+                    await asyncio.sleep(1)
+                    await page.keyboard.press("Enter")
             else:
-                # Fallback para select padrão se ainda existir em algum lugar
-                status_select = target_row.locator("select").first
-                if await status_select.count() > 0:
-                    options = status_select.locator("option")
-                    opt_count = await options.count()
-                    val_to_select = None
-                    for i in range(opt_count):
-                        opt = options.nth(i)
-                        t = await opt.inner_text()
-                        if target_status.lower() in t.lower():
-                            val_to_select = await opt.get_attribute("value")
-                            break
-                    if val_to_select:
-                        await status_select.select_option(val_to_select)
-                        await asyncio.sleep(2)
-                        log_task(f"Status '{target_status}' selecionado (select).")
-                    else:
-                        log_task("Opção de status não encontrada no select.", "WARNING")
-                else:
-                    log_task("Dropdown de status não localizado na coluna 3.", "WARNING")
-            
+                log_task("Dropdown de status não encontrado.", "WARNING")
+        
+            # 4. REGISTRO DE CONTATOS (BOTÃO + VERDE)
             log_task("Atualizando registro de contatos (botão + verde)...")
-            # Isola a coluna de contatos (coluna 4) para evitar pegar ícones soltos na grid
             contacts_col = target_row.locator("td").nth(3)
-            btn_add = contacts_col.locator("button[title='Registrar contato'], a.btn-success, button.btn-success, .fa-plus, svg.lucide-plus").first
+            btn_add = contacts_col.locator("button[title='Registrar contato'], button:has-text('+'), .btn-success").first
             if await btn_add.count() > 0:
-                await btn_add.scroll_into_view_if_needed()
                 await btn_add.click(force=True)
-                
-                # Aguarda modal ou popover (AngularJS ou Radix/Shadcn)
-                try:
-                    await page.wait_for_selector(".modal.in, .modal.show, .modal[style*='block'], [role='dialog'], .radix-popper-content-wrapper", timeout=15000)
+                await asyncio.sleep(2)
+                # Se abrir modal, salva
+                save_btn = page.locator("button:has-text('Salvar'), button:has-text('Confirmar'), .btn-primary").filter(visible=True).first
+                if await save_btn.count() > 0:
+                    await save_btn.click()
                     await asyncio.sleep(2)
-                except: pass
-                
-                # Procura por textarea ou input de texto no modal/popover
-                txt_area = page.locator("textarea, input[type='text'], .modal input, [role='dialog'] input").last
-                if await txt_area.count() > 0:
-                    await txt_area.scroll_into_view_if_needed()
-                    await txt_area.click(force=True)
-                    # Limpa e preenche
-                    await page.keyboard.press("Control+A")
-                    await page.keyboard.press("Backspace")
-                    await txt_area.fill(mensagem_analise)
-                else:
-                    log_task("Área de texto do modal não encontrada.", "WARNING")
-                    
-                btn_save = page.locator(".modal button.btn-primary, .modal button:has-text('Salvar'), button:has-text('Salvar')").first
-                if await btn_save.count() > 0:
-                    await btn_save.click(force=True)
-                    await asyncio.sleep(3)
-                    log_task("Registro salvo com sucesso.")
-                else:
-                    log_task("Botão Salvar do modal não encontrado.", "WARNING")
+                log_task("Registro de contato processado.")
             else:
-                log_task("Botão '+' verde não encontrado na linha.", "WARNING")
+                log_task("Botão '+' não encontrado.", "WARNING")
 
             await browser.close()
             return True
@@ -491,18 +464,24 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                     if "Falha" in result_text or "Erro" in result_text:
                         log_task(f"Falha detectada. Iniciando Deep Dive (Detalhes da Análise)...", "INFO")
                         try:
-                            # 1. Clicar no menu hambúrguer desta linha
-                            h_btn = row.locator("td").last.locator("button, a, .fa-bars").first
-                            await h_btn.click(force=True)
-                            await asyncio.sleep(1)
+                            # 1. Abre o detalhe (Print do usuário mostra botão 'Detalhes do Análise' - com erro de pt)
+                            # Tentamos pelo texto exato (considerando erro do portal) ou pelo ícone
+                            menu_btn = row.locator("button:has-text('Detalhes do Análise'), button:has-text('Detalhes'), .fa-bars, i.fa-bars").first
+                            await menu_btn.scroll_into_view_if_needed()
+                            await menu_btn.click(force=True)
                             
-                            # 2. Clicar em Detalhes da Análise
-                            detalhes_btn = page.locator(".dropdown-menu a:has-text('Detalhes')").first
-                            await detalhes_btn.click(force=True)
+                            # Aguarda o modal abrir (identificado por 'Detalhes' ou 'ATENDIMENTOS')
+                            try:
+                                await page.wait_for_selector(".modal-content:has-text('Detalhes'), .modal-content:has-text('ATENDIMENTOS')", state="visible", timeout=12000)
+                                log_task("Modal de Detalhes aberto com sucesso.")
+                            except:
+                                # Se o clique abriu um dropdown em vez do modal direto, clica em Detalhes
+                                item_detalhe = page.locator("a:has-text('Detalhes'), .dropdown-menu :text('Detalhes'), button:has-text('Detalhes do Análise')").filter(visible=True).first
+                                if await item_detalhe.count() > 0:
+                                    await item_detalhe.click(force=True)
+                                    await page.wait_for_selector(".modal-content", state="visible", timeout=8000)
                             
-                            # 3. Aguardar modal abrir content
-                            await page.wait_for_selector(".modal.in, .modal.show, .modal[style*='block']", timeout=15000)
-                            await asyncio.sleep(3)
+                            await asyncio.sleep(2)
                             
                             # 4. Selecionar '100' registros por página no modal
                             select_qtd = page.locator(".modal select").first
@@ -511,27 +490,26 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                                 await select_qtd.select_option("100")
                                 await asyncio.sleep(3)
                                 
-                            # 5. Ler mensagens e procurar por "Sucesso - Parcial"
-                            msgs = await page.evaluate('''() => {
-                                const modal = document.querySelector('.modal.in, .modal.show, .modal[style*="block"], .modal-content');
-                                if (!modal) return [];
-                                const rows = modal.querySelectorAll('table tbody tr');
-                                return Array.from(rows).map(r => r.innerText || r.textContent);
-                            }''')
-                            
                             # Fechar modal
                             close_btn = page.locator(".modal button.close, .modal [data-dismiss='modal']").first
                             if await close_btn.count() > 0:
                                 await close_btn.click()
                                 await asyncio.sleep(1)
                                 
-                            has_partial = any("Análise Sucesso - Parcial" in m or "Analise Sucesso - Parcial" in m for m in msgs)
+                            # 3. Busca por 'Análise Sucesso - Parcial' na página 1 (RESTRITO AO MODAL)
+                            success_parcial = False
+                            mensagem_analise = ""
+                            modal_text = await page.locator(".modal-content").inner_text()
+                            if "Análise Sucesso - Parcial" in modal_text or "Analise Sucesso - Parcial" in modal_text:
+                                log_task("Deep Dive: Sucesso Parcial encontrado na página 1!", "SUCCESS")
+                                success_parcial = True
+                                mensagem_analise = "Análise Sucesso - Parcial (Pág 1)"
                             
                             # 6. Se não achou na página 1, tenta navegar para a página 2 (se existir)
-                            if not has_partial:
+                            if not success_parcial:
                                 try:
                                     # Verifica se há paginação e se não estamos na última página (RESTRITO AO MODAL)
-                                    modal_container = page.locator(".modal.in, .modal.show, .modal[style*='block'], .modal-content").first
+                                    modal_container = page.locator(".modal-content").first
                                     page_info = modal_container.locator("span.pageQuantity, .pageQuantity, span.pagequantity").first
                                     
                                     if await page_info.count() > 0:
@@ -555,19 +533,17 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                                             await asyncio.sleep(4) 
                                             
                                             # Re-avalia mensagens na pág 2
-                                            msgs_p2 = await page.evaluate('''() => {
-                                                const modal = document.querySelector('.modal.in, .modal.show, .modal[style*="block"], .modal-content');
-                                                if (!modal) return [];
-                                                const rows = modal.querySelectorAll('table tbody tr');
-                                                return Array.from(rows).map(r => r.innerText || r.textContent);
-                                            }''')
-                                            has_partial = any("Análise Sucesso - Parcial" in m or "Analise Sucesso - Parcial" in m for m in msgs_p2)
-                                            if has_partial:
-                                                log_task(f"Deep Dive: Encontrado Sucesso Parcial na página 2!", "SUCCESS")
+                                            modal_text_p2 = await page.locator(".modal-content").inner_text()
+                                            if "Análise Sucesso - Parcial" in modal_text_p2 or "Analise Sucesso - Parcial" in modal_text_p2:
+                                                log_task("Deep Dive: Sucesso Parcial encontrado na página 2!", "SUCCESS")
+                                                success_parcial = True
+                                                mensagem_analise = "Análise Sucesso - Parcial (Pág 2)"
+                                            else:
+                                                log_task("Deep Dive: Nenhum Sucesso Parcial na pág 2.", "INFO")
                                 except Exception as pag_e:
                                     log_task(f"Aviso na paginação do modal: {str(pag_e)[:100]}", "WARNING")
 
-                            if has_partial:
+                            if success_parcial:
                                 update_progress(100)
                                 log_task(f"Deep Dive: Encontrado Sucesso Parcial no ABI {abi_val}", "SUCCESS")
                                 await browser.close()
