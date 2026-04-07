@@ -11,7 +11,8 @@ export default function IntegrationsPage() {
   const [testMessage, setTestMessage] = useState("🔔 Teste de Conexão GAX - Evolution API está funcionando!");
   
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
+  const [isSavingServer, setIsSavingServer] = useState(false);
+  const [isSavingInstance, setIsSavingInstance] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [instanceStatus, setInstanceStatus] = useState<any>(null);
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
@@ -42,8 +43,8 @@ export default function IntegrationsPage() {
       .catch(() => setIsLoading(false));
   }, []);
 
-  const handleSaveConfig = async () => {
-    setIsSaving(true);
+  const handleSaveServerConfig = async () => {
+    setIsSavingServer(true);
     try {
       const res = await fetch("/api/whatsapp/config", {
         method: "POST",
@@ -51,17 +52,39 @@ export default function IntegrationsPage() {
         body: JSON.stringify({ 
           url: evoUrl, 
           api_key: evoKey, 
-          instance_name: instanceName, 
+          instance_name: instanceName,
           target_numbers: numbers.filter(n => n.trim()) 
         }),
       });
-      if (res.ok) alert("Configuração salva com sucesso!");
+      if (res.ok) alert("Configuração do servidor salva com sucesso!");
       else {
         const err = await res.json();
         alert(err.detail || "Erro ao salvar configuração.");
       }
     } catch { alert("Erro de conexão."); }
-    finally { setIsSaving(false); }
+    finally { setIsSavingServer(false); }
+  };
+
+  const handleSaveInstanceConfig = async () => {
+    setIsSavingInstance(true);
+    try {
+      const res = await fetch("/api/whatsapp/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          url: evoUrl,
+          api_key: evoKey,
+          instance_name: instanceName,
+          target_numbers: numbers.filter(n => n.trim())
+        }),
+      });
+      if (res.ok) alert("Nome da instância salvo com sucesso!");
+      else {
+        const err = await res.json();
+        alert(err.detail || "Erro ao salvar nome da instância.");
+      }
+    } catch { alert("Erro de conexão."); }
+    finally { setIsSavingInstance(false); }
   };
 
   const handleSendTest = async () => {
@@ -208,12 +231,6 @@ export default function IntegrationsPage() {
               </div>
             </div>
 
-            <button onClick={handleSaveConfig} disabled={isSaving}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-600/20 transition-all hover:bg-emerald-700 disabled:opacity-50">
-              {isSaving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
-              Salvar Configuração
-            </button>
-
             <div className="border-t border-slate-100/50 pt-6 mt-4">
               <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-slate-400">Mensagem de Teste</label>
               <textarea 
@@ -225,13 +242,19 @@ export default function IntegrationsPage() {
               />
               <button 
                 onClick={handleSendTest} 
-                disabled={isTesting || isSaving}
+                disabled={isTesting || isSavingServer || isSavingInstance}
                 className="flex w-full items-center justify-center gap-2 rounded-xl border border-gax-blue bg-white py-2.5 text-xs font-bold text-gax-blue transition-all hover:bg-gax-blue/5 disabled:opacity-50"
               >
                 {isTesting ? <Loader2 className="animate-spin" size={16} /> : <Phone size={16} />}
                 Enviar Mensagem de Teste
               </button>
             </div>
+
+            <button onClick={handleSaveServerConfig} disabled={isSavingServer || isSavingInstance}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-600/20 transition-all hover:bg-emerald-700 disabled:opacity-50">
+              {isSavingServer ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
+              Salvar Configuração do Servidor
+            </button>
           </div>
         </section>
 
@@ -248,18 +271,28 @@ export default function IntegrationsPage() {
           </div>
 
           <div className="space-y-6">
-            <div>
-              <label className="mb-2 block text-[10px] font-bold uppercase tracking-wider text-slate-400">Nome da Instância</label>
-              <div className="relative">
-                <Puzzle className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={16} />
-                <input type="text" value={instanceName} onChange={(e) => setInstanceName(e.target.value)}
-                  placeholder="Ex: GaxBot"
-                  className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 text-slate-700 font-medium font-mono" />
+            <div className="space-y-3">
+              <div>
+                <label className="mb-2 block text-[10px] font-bold uppercase tracking-wider text-slate-400">Nome da Instância</label>
+                <div className="relative">
+                  <Puzzle className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={16} />
+                  <input type="text" value={instanceName} onChange={(e) => setInstanceName(e.target.value)}
+                    placeholder="Ex: GaxBot"
+                    className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 text-slate-700 font-medium font-mono" />
+                </div>
+                <p className="mt-2 text-[10px] text-slate-400 italic leading-relaxed">
+                  A instância salva será usada pelo GAX para enviar todas as mensagens e alertas.
+                </p>
               </div>
-              <p className="mt-1.5 text-[10px] text-slate-400 italic">Este nome deve ser idêntico ao criado na Evolution API.</p>
+
+              <button onClick={handleSaveInstanceConfig} disabled={isSavingInstance || isSavingServer}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-violet-100 py-2.5 text-xs font-bold text-violet-700 transition-all hover:bg-violet-200 disabled:opacity-50">
+                {isSavingInstance ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+                Salvar Nome da Instância
+              </button>
             </div>
 
-            <div className="flex gap-3 flex-wrap">
+            <div className="flex gap-3 flex-wrap border-t border-slate-100/50 pt-6">
               <button onClick={handleCheckStatus} disabled={isCheckingStatus}
                 className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all disabled:opacity-50">
                 {isCheckingStatus ? <Loader2 className="animate-spin" size={14} /> : <Wifi size={14} />}
