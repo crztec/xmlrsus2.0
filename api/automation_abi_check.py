@@ -113,7 +113,7 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
                 if await modal_area.count() == 0:
                     modal_area = page.locator("body") # fallback caso o modal não tenha as tags claras
                     
-                textbox = modal_area.locator("textarea, input[type='text'], .form-control").filter(visible=True).first
+                textbox = modal_area.locator("textarea, input:not([type='hidden']):not([type='checkbox']):not([type='radio'])").filter(visible=True).first
                 if await textbox.count() > 0:
                     await textbox.fill("")
                     if mensagem_analise:
