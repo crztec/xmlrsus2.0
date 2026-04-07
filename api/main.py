@@ -179,7 +179,7 @@ async def save_whatsapp_config(body: dict):
 
 @app.get("/whatsapp/instance/status")
 async def whatsapp_instance_status():
-    """Proxy: checks GaxBot instance connection state (Evolution API v1.8.x compatible)."""
+    """Proxy: checks Evolution API instance connection state."""
     import requests as req
     config = db.get_whatsapp_config()
     base = config["url"].rstrip("/")
@@ -196,7 +196,7 @@ async def whatsapp_instance_status():
 
 @app.post("/whatsapp/instance/create")
 async def whatsapp_instance_create():
-    """Proxy: creates a new Evolution API v1.8.x instance 'GaxBot'."""
+    """Proxy: creates a new Evolution API v1.8.x instance with the configured name."""
     import requests as req
     config = db.get_whatsapp_config()
     base = config["url"].rstrip("/")
@@ -215,7 +215,7 @@ async def whatsapp_instance_create():
 
 @app.get("/whatsapp/instance/qrcode")
 async def whatsapp_instance_qrcode():
-    """Proxy: fetches QR Code for GaxBot (Evolution API v1.8.x: GET /instance/connect/{name})."""
+    """Proxy: fetches QR Code for the configured instance (Evolution API v1.8.x: GET /instance/connect/{name})."""
     import requests as req
     config = db.get_whatsapp_config()
     base = config["url"].rstrip("/")

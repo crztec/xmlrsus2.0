@@ -6,7 +6,7 @@ import { Puzzle, Save, Loader2, Plus, Trash2, Wifi, WifiOff, QrCode, Phone, Glob
 export default function IntegrationsPage() {
   const [evoUrl, setEvoUrl] = useState("http://34.75.185.221:8080");
   const [evoKey, setEvoKey] = useState("92367wC!");
-  const [instanceName, setInstanceName] = useState("GaxBot");
+  const [instanceName, setInstanceName] = useState("");
   const [numbers, setNumbers] = useState<string[]>(["5527997629236"]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -29,7 +29,7 @@ export default function IntegrationsPage() {
         if (data && !data.detail) {
           setEvoUrl(data.url || "http://34.75.185.221:8080");
           setEvoKey(data.api_key || "92367wC!");
-          setInstanceName(data.instance_name || "GaxBot");
+          setInstanceName(data.instance_name || "");
           if (data.target_numbers && data.target_numbers.length > 0) {
             setNumbers(data.target_numbers);
           }
