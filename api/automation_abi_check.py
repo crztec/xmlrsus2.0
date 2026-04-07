@@ -107,8 +107,22 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
             if await btn_add.count() > 0:
                 await btn_add.click(force=True)
                 await asyncio.sleep(2)
-                # Se abrir modal, salva
-                save_btn = page.locator("button:has-text('Salvar'), button:has-text('Confirmar'), .btn-primary").filter(visible=True).first
+                
+                # Se abrir modal, procura o campo de preenchimento (Geralmente textarea ou input de observação)
+                modal_area = page.locator("[role='dialog'], .modal-content, [role='document']").first
+                if await modal_area.count() == 0:
+                    modal_area = page.locator("body") # fallback caso o modal não tenha as tags claras
+                    
+                textbox = modal_area.locator("textarea, input[type='text'], .form-control").filter(visible=True).first
+                if await textbox.count() > 0:
+                    await textbox.fill("")
+                    if mensagem_analise:
+                        await textbox.fill(mensagem_analise)
+                    else:
+                        await textbox.fill(target_status)
+                    await asyncio.sleep(1)
+
+                save_btn = page.locator("button:has-text('Salvar'), button:has-text('Confirmar'), .btn-primary, button[type='submit']").filter(visible=True).first
                 if await save_btn.count() > 0:
                     await save_btn.click()
                     await asyncio.sleep(2)
