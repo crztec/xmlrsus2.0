@@ -28,11 +28,18 @@ async def send_whatsapp_alert(text_message: str, task_id: str = None, target_num
         return requests.post(url, headers=headers, json=payload, timeout=60)
 
     for numero in target_numbers:
+        # Evolution API aceita números puros (individual) ou JIDs completos (grupos @g.us)
+        # O campo 'number' no payload é usado para ambos.
         payload = {
             "number": numero,
             "text": text_message,
             "textMessage": {
                 "text": text_message
+            },
+            "options": {
+                "delay": 1200,
+                "presence": "composing",
+                "linkPreview": False
             }
         }
         try:
