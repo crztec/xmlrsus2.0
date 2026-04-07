@@ -520,7 +520,7 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                         update_progress(100)
                         log_task(f"Sucesso detectado na análise do ABI {abi_val}", "SUCCESS")
                         await browser.close()
-                        return "Importado e Analisado", f"ABI {abi_val}: Sucesso", None
+                        return "Importado e Analisado", "Análise feita com sucesso.", None
                     
                     if "Falha" in result_text or "Erro" in result_text:
                         log_task(f"Falha detectada. Iniciando Deep Dive (Detalhes da Análise)...", "INFO")
@@ -551,6 +551,7 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                             
                             # 3. Busca Direta no Modal (Otimizado via campo de pesquisa)
                             success_parcial = False
+                            has_real_error = False
                             mensagem_analise = ""
                             
                             modal_container = page.locator(".modal-content").first
@@ -560,37 +561,54 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
 
                             search_field = modal_container.locator("input.searchTerm, input[placeholder*='Pesquisar']").first
                             if await search_field.count() > 0:
-                                log_task("Deep Dive: Utilizando busca direta no modal para 'Parcial'...")
+                                # Busca 1: Parcial
                                 await search_field.click()
-                                # Limpa e preenche com um termo mais curto e abrangente
                                 await search_field.fill("")
                                 await search_field.type("Parcial", delay=50)
                                 await page.keyboard.press("Enter")
-                                
-                                # Aguarda a tabela atualizar (procura o texto nela)
                                 try:
-                                    await modal_container.locator("td").filter(has_text=re.compile(r"Parcial", re.I)).first.wait_for(state="visible", timeout=10000)
-                                    log_task("Deep Dive: Resultados filtrados carregados.")
-                                except:
-                                    await asyncio.sleep(3) # Fallback sleep
+                                    await modal_container.locator("td").filter(has_text=re.compile(r"Parcial", re.I)).first.wait_for(state="visible", timeout=5000)
+                                except: pass
                                 
-                                # Verifica se o texto apareceu na grade filtrada
-                                await page.screenshot(path="debug_deep_dive_modal.png")
-                                modal_text = await modal_container.inner_text(timeout=5000)
-                                log_task(f"TEXTO DO MODAL: {modal_text[:500]}...", "WARNING")
+                                modal_text = await modal_container.inner_text(timeout=3000)
                                 if "Parcial" in modal_text or "parcial" in modal_text.lower():
-                                    log_task("Deep Dive: Sucesso Parcial encontrado via busca direta!", "SUCCESS")
                                     success_parcial = True
                                     mensagem_analise = "Análise Sucesso - Parcial"
+                                
+                                if not success_parcial:
+                                    # Busca 2: Falha
+                                    await search_field.fill("")
+                                    await search_field.type("Falha", delay=50)
+                                    await page.keyboard.press("Enter")
+                                    try:
+                                        await modal_container.locator("td").filter(has_text=re.compile(r"Falha", re.I)).first.wait_for(state="visible", timeout=3000)
+                                    except: pass
+                                    modal_text = await modal_container.inner_text(timeout=3000)
+                                    if "Falha" in modal_text or "falha" in modal_text.lower():
+                                        has_real_error = True
+                                        mensagem_analise = "Erro na análise"
+                                        
+                                    if not has_real_error:
+                                        # Busca 3: Erro
+                                        await search_field.fill("")
+                                        await search_field.type("Erro", delay=50)
+                                        await page.keyboard.press("Enter")
+                                        try:
+                                            await modal_container.locator("td").filter(has_text=re.compile(r"Erro", re.I)).first.wait_for(state="visible", timeout=3000)
+                                        except: pass
+                                        modal_text = await modal_container.inner_text(timeout=3000)
+                                        if "Erro" in modal_text or "erro" in modal_text.lower():
+                                            has_real_error = True
+                                            mensagem_analise = "Erro na análise"
                             else:
                                 # Fallback para o modo antigo de varredura se o campo de busca não existir
-                                log_task("Aviso: Campo de busca não localizado no modal, usando varredura de texto...", "WARNING")
-                                await page.screenshot(path="debug_deep_dive_fallback.png")
                                 modal_text = await modal_container.inner_text(timeout=5000)
-                                log_task(f"TEXTO DO MODAL (Fallback): {modal_text[:500]}...", "WARNING")
                                 if "Parcial" in modal_text or "parcial" in modal_text.lower():
                                     success_parcial = True
                                     mensagem_analise = "Análise Sucesso - Parcial (Varredura)"
+                                elif "Falha" in modal_text or "falha" in modal_text.lower() or "Erro" in modal_text or "erro" in modal_text.lower():
+                                    has_real_error = True
+                                    mensagem_analise = "Erro na análise"
                             
                             # Fecha o modal ao final
                             close_btn = page.locator(".modal button.close, .modal [data-dismiss='modal']").first
@@ -602,11 +620,17 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                                 update_progress(100)
                                 log_task(f"Deep Dive: Encontrado Sucesso Parcial no ABI {abi_val}", "SUCCESS")
                                 await browser.close()
-                                return "Importado e Analisado", "Análise Sucesso - Parcial", None
-                            else:
-                                log_task(f"Deep Dive: Nenhum Sucesso Parcial, mantendo Erro.", "ERROR")
+                                return "Importado e Analisado", mensagem_analise, None
+                            elif has_real_error:
+                                log_task(f"Deep Dive: Falha/Erro real confirmado nos detalhes.", "ERROR")
                                 await browser.close()
-                                return "Falha na Análise", "Erro na análise", None
+                                return "Falha na Análise", mensagem_analise, None
+                            else:
+                                # FALSO POSITIVO: main grid disse "Erro", mas o modal de detalhes não possui erros/falhas
+                                log_task("Deep Dive: Nenhuma falha nos detalhes. Ignorando falso erro e definindo como Sucesso.", "SUCCESS")
+                                update_progress(100)
+                                await browser.close()
+                                return "Importado e Analisado", "Análise feita com sucesso.", None
                                 
                         except Exception as deep_e:
                             log_task(f"Aviso no Deep Dive: {str(deep_e)[:100]}", "WARNING")
