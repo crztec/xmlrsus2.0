@@ -3,6 +3,7 @@ import logging
 import time
 import base64
 from datetime import datetime
+import re
 from playwright.async_api import async_playwright
 import api.database as db
 from api.utils import send_whatsapp_alert
@@ -52,21 +53,9 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
                 await page.keyboard.press("Enter")
                 await asyncio.sleep(3)
             
-            rows = page.locator("table tbody tr")
-            count = await rows.count()
-            target_row = None
-            log_task(f"Analisando {count} registros para encontrar '{client_name}'...")
+            target_row = page.locator("table tbody tr").filter(has_text=re.compile(client_name, re.IGNORECASE)).first
             
-            for i in range(count):
-                row = rows.nth(i)
-                text = await row.inner_text()
-                # Verifica se o NOME COMPLETO está na linha (case-insensitive)
-                if client_name.lower() in text.lower():
-                    target_row = row
-                    log_task(f"Operadora '{client_name}' localizada na linha {i+1}.")
-                    break
-                    
-            if not target_row:
+            if await target_row.count() == 0:
                 log_task("Operadora não encontrada na grid da Cubeti.", "WARNING")
                 await browser.close()
                 return False
@@ -81,10 +70,9 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
                 target_status = "Importou e Analisou"
                 
             log_task(f"Atualizando status para '{target_status}'")
-            # Isola a coluna de status (coluna 3)
-            status_col = target_row.locator("td").nth(2)
-            # Gatilho de status (Radix / Shadcn)
-            status_trigger = status_col.locator("button, [role='combobox'], .cursor-pointer").first
+            # Gatilho de status independe da coluna exata. Procura por botões/comboboxes na linha atual.
+            # Baseado na foto, é text "Não Iniciou", "Importou e Analisou", etc.
+            status_trigger = target_row.locator("button, [role='combobox'], .cursor-pointer, span.inline-flex").filter(has_text=re.compile(r"Não iniciou|Importou|Impugnado|Finalizou|Agendou|Erro", re.IGNORECASE)).first
             
             if await status_trigger.count() > 0:
                 await status_trigger.scroll_into_view_if_needed()
@@ -94,7 +82,6 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
                 await asyncio.sleep(2)
                 
                 # Procura a opção pelo texto (regex para suportar Analisou/Analisado)
-                import re
                 option = page.locator("[role='menuitem'], [role='option'], button").filter(has_text=re.compile(r"Importou.*Analisou", re.I)).last
                 
                 if await option.count() > 0:
@@ -112,8 +99,11 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
         
             # 4. REGISTRO DE CONTATOS (BOTÃO + VERDE)
             log_task("Atualizando registro de contatos (botão + verde)...")
-            contacts_col = target_row.locator("td").nth(3)
-            btn_add = contacts_col.locator("button[title='Registrar contato'], button:has-text('+'), .btn-success").first
+            btn_add = target_row.locator("button, a").filter(has_text=re.compile(r"^\+$")).first
+            if await btn_add.count() == 0:
+                # Fallback mais abrangente
+                btn_add = target_row.locator("[title*='ontato'], .text-green-500, svg:has(path[d*='M12 5'])").first
+
             if await btn_add.count() > 0:
                 await btn_add.click(force=True)
                 await asyncio.sleep(2)

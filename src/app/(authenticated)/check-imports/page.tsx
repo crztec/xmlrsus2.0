@@ -179,6 +179,14 @@ export default function CheckImportsPage() {
     }
   }, [realtimeLogs, detailedLogs]);
 
+  const showLogsRef = React.useRef(showLogsModal);
+  const viewingTaskRef = React.useRef(viewingTaskId);
+
+  React.useEffect(() => {
+    showLogsRef.current = showLogsModal;
+    viewingTaskRef.current = viewingTaskId;
+  }, [showLogsModal, viewingTaskId]);
+
   // Polling logs em tempo real
   React.useEffect(() => {
     let interval: any;
@@ -197,7 +205,7 @@ export default function CheckImportsPage() {
               // Deixa que o usuário feche ou que uma nova tarefa tome o lugar
               setTimeout(() => {
                 // Só limpa se o console não estiver aberto visualizando ESTA tarefa
-                if (!showLogsModal || viewingTaskId !== activeTaskId) {
+                if (!showLogsRef.current || viewingTaskRef.current !== activeTaskId) {
                   setActiveTaskId(null);
                 }
               }, 5000);
