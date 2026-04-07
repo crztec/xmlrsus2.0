@@ -550,6 +550,7 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                             success_parcial = False
                             mensagem_analise = ""
                             
+                            modal_container = page.locator(".modal-content").first
                             search_field = modal_container.locator("input.searchTerm, input[placeholder*='Pesquisar']").first
                             if await search_field.count() > 0:
                                 log_task("Deep Dive: Utilizando busca direta no modal para 'Análise Sucesso - Parcial'...")
