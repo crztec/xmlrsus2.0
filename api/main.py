@@ -180,52 +180,76 @@ async def save_whatsapp_config(body: dict):
 @app.get("/whatsapp/instance/status")
 async def whatsapp_instance_status():
     """Proxy: checks Evolution API instance connection state."""
-    import requests as req
+    import requests
     config = db.get_whatsapp_config()
     base = config["url"].rstrip("/")
     instance = config.get("instance_name", "GaxBot")
     headers = {"apikey": config["api_key"]}
     try:
-        resp = req.get(f"{base}/instance/connectionState/{instance}", headers=headers, timeout=15)
+        resp = requests.get(f"{base}/instance/connectionState/{instance}", headers=headers, timeout=15)
+        if resp.status_code == 403:
+            raise HTTPException(status_code=403, detail="Erro de Autenticação (Forbidden): Verifique sua Global API Key no Evolution.")
         if resp.status_code == 200:
             return resp.json()
-        resp2 = req.get(f"{base}/instance/fetchInstances", params={"instanceName": instance}, headers=headers, timeout=15)
+        
+        resp2 = requests.get(f"{base}/instance/fetchInstances", params={"instanceName": instance}, headers=headers, timeout=15)
+        if resp2.status_code == 403:
+            raise HTTPException(status_code=403, detail="Erro de Autenticação (Forbidden): Verifique sua Global API Key no Evolution.")
         return resp2.json()
+    except HTTPException: raise
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Erro ao consultar Evolution API: {str(e)}")
 
 @app.post("/whatsapp/instance/create")
 async def whatsapp_instance_create():
     """Proxy: creates a new Evolution API v1.8.x instance with the configured name."""
-    import requests as req
+    import requests
     config = db.get_whatsapp_config()
     base = config["url"].rstrip("/")
     instance = config.get("instance_name", "GaxBot")
     headers = {"apikey": config["api_key"], "Content-Type": "application/json"}
     try:
-        resp = req.post(
+        resp = requests.post(
             f"{base}/instance/create",
             headers=headers,
             json={"instanceName": instance, "qrcode": True, "integration": "WHATSAPP-BAILEYS"},
             timeout=30
         )
+        if resp.status_code == 403:
+            raise HTTPException(status_code=403, detail="Erro de Autenticação (Forbidden): Verifique sua Global API Key no Evolution.")
         return resp.json()
+    except HTTPException: raise
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Erro ao criar instância: {str(e)}")
 
 @app.get("/whatsapp/instance/qrcode")
 async def whatsapp_instance_qrcode():
-    """Proxy: fetches QR Code for the configured instance (Evolution API v1.8.x: GET /instance/connect/{name})."""
-    import requests as req
+    """Proxy: fetches QR Code for the configured instance."""
+    import requests
     config = db.get_whatsapp_config()
     base = config["url"].rstrip("/")
     instance = config.get("instance_name", "GaxBot")
     headers = {"apikey": config["api_key"]}
     try:
-        resp = req.get(f"{base}/instance/connect/{instance}", headers=headers, timeout=30)
+        resp = requests.get(f"{base}/instance/connect/{instance}", headers=headers, timeout=30)
+        if resp.status_code == 403:
+            raise HTTPException(status_code=403, detail="Erro de Autenticação (Forbidden): Verifique sua Global API Key no Evolution.")
         return resp.json()
+    except HTTPException: raise
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Erro ao gerar QR Code: {str(e)}")
+
+@app.post("/whatsapp/send-test")
+async def whatsapp_send_test(body: dict):
+    """Dispara uma mensagem de teste para os números configurados."""
+    import api.utils as utils
+    message = body.get("message", "🔔 Teste de Conexão GAX - Evolution API está funcionando!")
+    try:
+        # Chama a função refatorada no utils.py que busca config do banco
+        await utils.send_whatsapp_alert(message)
+        return {"status": "success", "message": "Mensagem de teste enviada com sucesso!"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao enviar mensagem de teste: {str(e)}")
 
 class ABICheckRequest(BaseModel):
     client_id: Optional[str] = None
