@@ -546,69 +546,31 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                             
                             await asyncio.sleep(2)
                             
-                            # 4. Configura registros por página para 100
-                            modal_container = page.locator(".modal-content").first
-                            if await modal_container.count() > 0:
-                                # O RSUS as vezes usa "Registros por página: 10 25 50 100" (onde 100 é <a>)
-                                # Vamos procurar pelo link de texto exato '100' dentro ou fora do form
-                                link_100 = modal_container.locator("a", has_text=re.compile(r"^100$")).first
-                                if await link_100.count() > 0:
-                                    try:
-                                        await link_100.click()
-                                        await asyncio.sleep(4)
-                                    except: pass
-                                else:
-                                    # Caso ainda seja um select oculto
-                                    select_qtd = modal_container.locator("select").first
-                                    if await select_qtd.count() > 0:
-                                        try:
-                                            await select_qtd.select_option("100")
-                                            await select_qtd.dispatch_event("change")
-                                        except: pass
-                                        await asyncio.sleep(4)
-                            
-                            # 3. Busca por 'Análise Sucesso - Parcial' na página 1 (RESTRITO AO MODAL)
+                            # 3. Busca Direta no Modal (Otimizado via campo de pesquisa)
                             success_parcial = False
                             mensagem_analise = ""
-                            if await modal_container.count() > 0:
+                            
+                            search_field = modal_container.locator("input.searchTerm, input[placeholder*='Pesquisar']").first
+                            if await search_field.count() > 0:
+                                log_task("Deep Dive: Utilizando busca direta no modal para 'Análise Sucesso - Parcial'...")
+                                await search_field.click()
+                                await search_field.fill("Análise Sucesso - Parcial")
+                                await page.keyboard.press("Enter")
+                                await asyncio.sleep(4) # Aguarda processamento do filtro
+                                
+                                # Verifica se o texto apareceu na grade filtrada
                                 modal_text = await modal_container.inner_text(timeout=5000)
                                 if "Análise Sucesso - Parcial" in modal_text or "Analise Sucesso - Parcial" in modal_text:
-                                    log_task("Deep Dive: Sucesso Parcial encontrado na página 1!", "SUCCESS")
+                                    log_task("Deep Dive: Sucesso Parcial encontrado via busca direta!", "SUCCESS")
                                     success_parcial = True
-                                    mensagem_analise = "Análise Sucesso - Parcial (Pág 1)"
-                            
-                            # 6. Se não achou na página 1, tenta navegar para a página 2 (se existir)
-                            if not success_parcial and await modal_container.count() > 0:
-                                try:
-                                    # Verifica se há paginação e se não estamos na última página (RESTRITO AO MODAL)
-                                    page_info = modal_container.locator("span.pageQuantity, .pageQuantity, span.pagequantity").first
-                                    
-                                    total_pages = 1
-                                    if await page_info.count() > 0:
-                                        total_pages_text = (await page_info.inner_text(timeout=3000)).strip()
-                                        nums = [int(s) for s in total_pages_text.split() if s.isdigit()]
-                                        if nums:
-                                            total_pages = max(nums)
-                                        
-                                    if total_pages > 1:
-                                        log_task(f"Deep Dive: Não achou na pág 1. Pulando para pág 2 de {total_pages}...", "INFO")
-                                        input_page = modal_container.locator("input#current-page").first
-                                        if await input_page.count() > 0:
-                                            await input_page.click()
-                                            await input_page.fill("2")
-                                            await page.keyboard.press("Enter")
-                                            await asyncio.sleep(4) 
-                                            
-                                            # Re-avalia na pág 2
-                                            modal_text_p2 = await modal_container.inner_text(timeout=5000)
-                                            if "Análise Sucesso - Parcial" in modal_text_p2 or "Analise Sucesso - Parcial" in modal_text_p2:
-                                                log_task("Deep Dive: Sucesso Parcial encontrado na página 2!", "SUCCESS")
-                                                success_parcial = True
-                                                mensagem_analise = "Análise Sucesso - Parcial (Pág 2)"
-                                            else:
-                                                log_task("Deep Dive: Nenhum Sucesso Parcial na pág 2.", "INFO")
-                                except Exception as pag_e:
-                                    log_task(f"Aviso na paginação do modal: {str(pag_e)[:100]}", "WARNING")
+                                    mensagem_analise = "Análise Sucesso - Parcial"
+                            else:
+                                # Fallback para o modo antigo de varredura se o campo de busca não existir
+                                log_task("Aviso: Campo de busca não localizado no modal, usando varredura de texto...", "WARNING")
+                                modal_text = await modal_container.inner_text(timeout=5000)
+                                if "Análise Sucesso - Parcial" in modal_text or "Analise Sucesso - Parcial" in modal_text:
+                                    success_parcial = True
+                                    mensagem_analise = "Análise Sucesso - Parcial (Varredura)"
                             
                             # Fecha o modal ao final
                             close_btn = page.locator(".modal button.close, .modal [data-dismiss='modal']").first
