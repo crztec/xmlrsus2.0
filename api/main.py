@@ -174,15 +174,17 @@ async def save_whatsapp_config(body: dict):
 
 @app.get("/whatsapp/instance/status")
 async def whatsapp_instance_status():
-    """Proxy: checks Evolution API instance status."""
+    """Proxy: checks GaxBot instance connection state in Evolution API."""
     import requests as req
     config = db.get_whatsapp_config()
+    base = config["url"].rstrip("/")
+    headers = {"apikey": config["api_key"]}
     try:
-        resp = req.get(
-            f"{config['url']}/instance/fetchInstances",
-            headers={"apikey": config["api_key"]},
-            timeout=15
-        )
+        # Try v2: GET /instance/connectionState/GaxBot
+        resp = req.get(f"{base}/instance/connectionState/GaxBot", headers=headers, timeout=15)
+        if resp.status_code == 404:
+            # Fallback: try listing all instances (v1 / alternate endpoint)
+            resp = req.get(f"{base}/instance/fetchInstances", headers=headers, timeout=15)
         return resp.json()
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Erro ao consultar Evolution API: {str(e)}")
