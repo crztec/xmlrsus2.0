@@ -155,7 +155,7 @@ class ABICheckRequest(BaseModel):
 @app.post("/cancel-task/{task_id}")
 async def cancel_task(task_id: str):
     """Cancela uma tarefa em andamento."""
-    db.update_task_status(task_id, "cancelled")
+    db.update_task(task_id, {"status": "cancelled"})
     db.add_log(task_id, "Interrompendo processamento (solicitação do usuário)...", "WARNING")
     return {"status": "success"}
 
