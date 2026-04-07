@@ -51,8 +51,15 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
             await page.goto("https://gestaocomercial.cubeti.com.br/ABITracker", wait_until="domcontentloaded", timeout=45000)
             
             if await is_cancelled(): return False
-            await page.fill("input#Email, input[type='email']", "victor@cubeti.com.br")
-            await page.fill("input#Password, input[type='password']", "Teste.123")
+            cubeti_creds = db.get_cubeti_credentials()
+            cub_email = cubeti_creds.get("email", "")
+            cub_pass = cubeti_creds.get("password", "")
+            if not cub_email or not cub_pass:
+                log_task("Credenciais CubeTI não configuradas. Configure em Controle de Acessos.", "WARNING")
+                await browser.close()
+                return False
+            await page.fill("input#Email, input[type='email']", cub_email)
+            await page.fill("input#Password, input[type='password']", cub_pass)
             await page.click("button[type='submit'], input[type='submit']")
             
             try:

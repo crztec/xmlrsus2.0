@@ -148,9 +148,80 @@ async def save_rsus_creds(type: str = Form(...), username: str = Form(...), pass
         return {"status": "success"}
     raise HTTPException(status_code=500, detail="Erro ao salvar credenciais.")
 
+# --- CUBETI CREDENTIALS MANAGEMENT ---
+@app.get("/api/settings/cubeti-credentials")
+async def get_cubeti_creds():
+    """Returns stored credentials for CubeTI Gestão Comercial."""
+    return db.get_cubeti_credentials()
+
+@app.post("/api/settings/cubeti-credentials")
+async def save_cubeti_creds(body: dict):
+    if db.save_cubeti_credentials(body.get("email", ""), body.get("password", "")):
+        return {"status": "success"}
+    raise HTTPException(status_code=500, detail="Erro ao salvar credenciais CubeTI.")
+
+# --- WHATSAPP / EVOLUTION API MANAGEMENT ---
+@app.get("/api/whatsapp/config")
+async def get_whatsapp_config():
+    """Returns stored WhatsApp Evolution API configuration."""
+    return db.get_whatsapp_config()
+
+@app.post("/api/whatsapp/config")
+async def save_whatsapp_config(body: dict):
+    if db.save_whatsapp_config(body.get("url", ""), body.get("api_key", ""), body.get("target_numbers", [])):
+        return {"status": "success"}
+    raise HTTPException(status_code=500, detail="Erro ao salvar config WhatsApp.")
+
+@app.get("/api/whatsapp/instance/status")
+async def whatsapp_instance_status():
+    """Proxy: checks Evolution API instance status."""
+    import requests as req
+    config = db.get_whatsapp_config()
+    try:
+        resp = req.get(
+            f"{config['url']}/instance/fetchInstances",
+            headers={"apikey": config["api_key"]},
+            timeout=15
+        )
+        return resp.json()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Erro ao consultar Evolution API: {str(e)}")
+
+@app.post("/api/whatsapp/instance/create")
+async def whatsapp_instance_create():
+    """Proxy: creates a new Evolution API instance 'GaxBot'."""
+    import requests as req
+    config = db.get_whatsapp_config()
+    try:
+        resp = req.post(
+            f"{config['url']}/instance/create",
+            headers={"apikey": config["api_key"], "Content-Type": "application/json"},
+            json={"instanceName": "GaxBot", "integration": "WHATSAPP-BAILEYS", "qrcode": True},
+            timeout=30
+        )
+        return resp.json()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Erro ao criar instância: {str(e)}")
+
+@app.get("/api/whatsapp/instance/qrcode")
+async def whatsapp_instance_qrcode():
+    """Proxy: fetches QR Code for the GaxBot instance."""
+    import requests as req
+    config = db.get_whatsapp_config()
+    try:
+        resp = req.get(
+            f"{config['url']}/instance/connect/GaxBot",
+            headers={"apikey": config["api_key"]},
+            timeout=30
+        )
+        return resp.json()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Erro ao gerar QR Code: {str(e)}")
+
 class ABICheckRequest(BaseModel):
     client_id: Optional[str] = None
     client_ids: Optional[List[str]] = None
+
 
 @app.post("/cancel-task/{task_id}")
 async def cancel_task(task_id: str):

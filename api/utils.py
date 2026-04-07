@@ -7,13 +7,16 @@ logger = logging.getLogger(__name__)
 async def send_whatsapp_alert(text_message: str, task_id: str = None, target_numbers: list = None):
     import api.database as db
     
-    url = "http://34.75.185.221:8080/message/sendText/GaxBot"
-    api_key = "92367wC!"
+    # Busca config do banco de dados (URL, API Key, números de destino)
+    config = db.get_whatsapp_config()
+    url_base = config.get("url", "http://34.75.185.221:8080")
+    api_key = config.get("api_key", "92367wC!")
     
-    # Se nenhum número for passado, usa o padrão do admin (COM o 9º dígito para DDD 27)
+    # Se nenhum número for passado como override, usa os configurados no banco
     if not target_numbers:
-        target_numbers = ["552797629236"]
+        target_numbers = config.get("target_numbers", ["5527997629236"])
         
+    url = f"{url_base}/message/sendText/GaxBot"
     headers = {"apikey": api_key, "Content-Type": "application/json"}
     
     if task_id:

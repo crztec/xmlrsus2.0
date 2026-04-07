@@ -590,6 +590,57 @@ def get_rsus_credentials(cred_type):
         logger.error(f"Erro ao buscar credenciais RSUS ({cred_type}): {e}")
     return None
 
+# ============ CubeTI Credentials ============
+
+def get_cubeti_credentials():
+    """Retrieves CubeTI Gestão Comercial credentials."""
+    try:
+        doc = firestore_db.collection('system_settings').document('cubeti_credentials').get()
+        if doc.exists:
+            return doc.to_dict()
+    except Exception as e:
+        logger.error(f"Erro ao buscar credenciais CubeTI: {e}")
+    return {"email": "", "password": ""}
+
+def save_cubeti_credentials(email, password):
+    """Saves CubeTI Gestão Comercial credentials."""
+    try:
+        firestore_db.collection('system_settings').document('cubeti_credentials').set({
+            "email": email,
+            "password": password,
+            "updated_at": get_now_br().isoformat()
+        }, merge=True)
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao salvar credenciais CubeTI: {e}")
+        return False
+
+# ============ WhatsApp / Evolution API Config ============
+
+def get_whatsapp_config():
+    """Retrieves WhatsApp Evolution API configuration."""
+    try:
+        doc = firestore_db.collection('system_settings').document('whatsapp_config').get()
+        if doc.exists:
+            return doc.to_dict()
+    except Exception as e:
+        logger.error(f"Erro ao buscar config WhatsApp: {e}")
+    return {"url": "http://34.75.185.221:8080", "api_key": "92367wC!", "target_numbers": ["5527997629236"]}
+
+def save_whatsapp_config(url, api_key, target_numbers):
+    """Saves WhatsApp Evolution API configuration."""
+    try:
+        firestore_db.collection('system_settings').document('whatsapp_config').set({
+            "url": url,
+            "api_key": api_key,
+            "target_numbers": target_numbers,
+            "updated_at": get_now_br().isoformat()
+        }, merge=True)
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao salvar config WhatsApp: {e}")
+        return False
+
 def get_xml_data_paginated(page=1, limit=10, search=""):
     """Recupera metadados de XML com paginação e busca, com deduplicação por ABI."""
     try:

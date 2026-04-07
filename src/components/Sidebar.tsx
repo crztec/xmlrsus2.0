@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -10,19 +10,22 @@ import {
   UserPlus,
   Settings,
   LogOut,
-  ChevronLeft,
   LayoutDashboard,
   FileText,
   User,
-  Mail,
   Key,
   Shield,
   Loader2,
-  X
+  ChevronDown,
+  Palette,
+  Wrench,
+  ScrollText,
+  Lock,
+  Puzzle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const menuItems = [
+const mainMenuItems = [
   { label: "Importação", isTitle: true },
   { label: "Enviar ABIs", icon: <CloudUpload size={20} />, href: "/dashboard" },
   { label: "Dados ABIs", icon: <FileText size={20} />, href: "/xml-data" },
@@ -33,8 +36,14 @@ const menuItems = [
   { label: "Usuários", icon: <Users size={20} />, href: "/users", isAdmin: true },
   { label: "Pendentes", icon: <UserPlus size={20} />, href: "/pending", isAdmin: true },
   { label: "Checar APIs", icon: <Shield size={20} />, href: "/settings/api-checks", isAdmin: true },
-  { label: "Login RSUS", icon: <Key size={20} />, href: "/settings/rsus", isAdmin: true },
-  { label: "Sistema", icon: <Settings size={20} />, href: "/settings", isAdmin: true },
+];
+
+const systemSubItems = [
+  { label: "Identidade Visual", icon: <Palette size={18} />, href: "/settings/branding" },
+  { label: "Manutenção", icon: <Wrench size={18} />, href: "/settings/maintenance" },
+  { label: "Segurança e Auditoria", icon: <ScrollText size={18} />, href: "/settings/audit" },
+  { label: "Controle de Acessos", icon: <Lock size={18} />, href: "/settings/access-control" },
+  { label: "Integrações", icon: <Puzzle size={18} />, href: "/settings/integrations" },
 ];
 
 interface SidebarProps {
@@ -44,6 +53,13 @@ interface SidebarProps {
 export default function Sidebar({ onOpenProfile }: SidebarProps) {
   const pathname = usePathname();
   const [isAdmin, setIsAdmin] = React.useState(false);
+  const [systemMenuOpen, setSystemMenuOpen] = useState(() => {
+    // Auto-open if current path is under /settings
+    if (typeof window !== "undefined") {
+      return window.location.pathname.startsWith("/settings");
+    }
+    return false;
+  });
   const [branding, setBranding] = React.useState(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("gax_branding");
@@ -71,16 +87,12 @@ export default function Sidebar({ onOpenProfile }: SidebarProps) {
     return "...";
   });
 
-
-
   React.useEffect(() => {
-    // Busca os dados do usuário logado na máquina
     const storedEmail = localStorage.getItem("gax_user_email");
     const storedRole = localStorage.getItem("gax_user_role");
 
     if (storedEmail) {
       setUserEmail(storedEmail);
-      // Busca perfil básico para o nome do usuário
       fetch(`/api/profile?email=${storedEmail}`)
         .then(res => res.json())
         .then(data => {
@@ -116,6 +128,15 @@ export default function Sidebar({ onOpenProfile }: SidebarProps) {
       .finally(() => setIsLoadingBranding(false));
   }, []);
 
+  // Auto-open system menu when navigating to a settings sub-route
+  React.useEffect(() => {
+    if (pathname.startsWith("/settings")) {
+      setSystemMenuOpen(true);
+    }
+  }, [pathname]);
+
+  const isSettingsActive = pathname.startsWith("/settings") && !pathname.includes("api-checks");
+
   return (
     <aside className="flex h-screen w-64 flex-col border-r border-slate-200/60 bg-white/80 backdrop-blur-xl">
       {/* Header Sidebar */}
@@ -148,7 +169,7 @@ export default function Sidebar({ onOpenProfile }: SidebarProps) {
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label="Navegação Principal">
         <div className="space-y-1">
-          {menuItems.map((item, idx) => {
+          {mainMenuItems.map((item, idx) => {
             if (item.isTitle) {
               if (item.isAdmin && !isAdmin) return null;
               return (
@@ -190,6 +211,70 @@ export default function Sidebar({ onOpenProfile }: SidebarProps) {
               </Link>
             );
           })}
+
+          {/* Sistema - Collapsible Menu (admin only) */}
+          {isAdmin && (
+            <>
+              <button
+                onClick={() => setSystemMenuOpen(!systemMenuOpen)}
+                className={cn(
+                  "flex w-full items-center gap-3 rounded-xl px-3 py-2 text-[13px] font-medium transition-all outline-none focus-visible:ring-2 focus-visible:ring-gax-blue/20 group",
+                  isSettingsActive
+                    ? "bg-gax-blue-light/50 text-gax-blue shadow-sm border border-gax-blue/10"
+                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 border border-transparent"
+                )}
+              >
+                <span className={cn(
+                  "transition-colors",
+                  isSettingsActive ? "text-gax-blue" : "text-slate-400 group-hover:text-slate-600"
+                )}>
+                  <Settings size={20} />
+                </span>
+                Sistema
+                <ChevronDown 
+                  size={14} 
+                  className={cn(
+                    "ml-auto transition-transform duration-200",
+                    systemMenuOpen ? "rotate-180" : ""
+                  )} 
+                />
+              </button>
+
+              <div className={cn(
+                "overflow-hidden transition-all duration-300 ease-in-out",
+                systemMenuOpen ? "max-h-[300px] opacity-100" : "max-h-0 opacity-0"
+              )}>
+                <div className="ml-3 space-y-0.5 border-l-2 border-slate-100 pl-3 py-1">
+                  {systemSubItems.map((sub, idx) => {
+                    const isSubActive = pathname === sub.href;
+                    return (
+                      <Link
+                        key={idx}
+                        href={sub.href}
+                        className={cn(
+                          "flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[12px] font-medium transition-all group",
+                          isSubActive
+                            ? "bg-gax-blue/5 text-gax-blue"
+                            : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+                        )}
+                      >
+                        <span className={cn(
+                          "transition-colors",
+                          isSubActive ? "text-gax-blue" : "text-slate-400 group-hover:text-slate-500"
+                        )}>
+                          {sub.icon}
+                        </span>
+                        {sub.label}
+                        {isSubActive && (
+                          <div className="ml-auto h-4 w-0.5 rounded-full bg-gax-blue" />
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </nav>
 
