@@ -7,12 +7,15 @@ import api.database as db
 from api.automation_abi_check import _run_abi_check_logic, sync_to_cubeti_management
 
 async def debug_petropolis():
-    client_name = "Unimed Petrópolis"
+    client_name = "Unimed Goiânia"
     task_id = "debug_task_local_9999"
     
     print(f"Iniciando debug para {client_name}...")
     
-    client = next((c for c in db.get_all_clients() if "Petr" in c['name']), None)
+    client = next((c for c in db.get_all_clients() if "goi" in str(c.get('name', '')).lower()), None)
+    if not client:
+        print("Tentando buscar Goiânia...")
+        client = next((c for c in db.get_all_clients() if "goiânia" in str(c.get('name', '')).lower()), None)
     if not client:
         print("Cliente não encontrado na base local.")
         return

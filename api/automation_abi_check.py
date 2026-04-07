@@ -575,16 +575,20 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                                     await asyncio.sleep(3) # Fallback sleep
                                 
                                 # Verifica se o texto apareceu na grade filtrada
+                                await page.screenshot(path="debug_deep_dive_modal.png")
                                 modal_text = await modal_container.inner_text(timeout=5000)
-                                if "Parcial" in modal_text:
+                                log_task(f"TEXTO DO MODAL: {modal_text[:500]}...", "WARNING")
+                                if "Parcial" in modal_text or "parcial" in modal_text.lower():
                                     log_task("Deep Dive: Sucesso Parcial encontrado via busca direta!", "SUCCESS")
                                     success_parcial = True
                                     mensagem_analise = "Análise Sucesso - Parcial"
                             else:
                                 # Fallback para o modo antigo de varredura se o campo de busca não existir
                                 log_task("Aviso: Campo de busca não localizado no modal, usando varredura de texto...", "WARNING")
+                                await page.screenshot(path="debug_deep_dive_fallback.png")
                                 modal_text = await modal_container.inner_text(timeout=5000)
-                                if "Parcial" in modal_text:
+                                log_task(f"TEXTO DO MODAL (Fallback): {modal_text[:500]}...", "WARNING")
+                                if "Parcial" in modal_text or "parcial" in modal_text.lower():
                                     success_parcial = True
                                     mensagem_analise = "Análise Sucesso - Parcial (Varredura)"
                             
