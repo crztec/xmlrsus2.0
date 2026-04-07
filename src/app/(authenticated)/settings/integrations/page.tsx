@@ -4,10 +4,10 @@ import React, { useState, useEffect } from "react";
 import { Puzzle, Save, Loader2, Plus, Trash2, Wifi, WifiOff, QrCode, Phone, Globe, Key } from "lucide-react";
 
 export default function IntegrationsPage() {
-  const [evoUrl, setEvoUrl] = useState("http://34.75.185.221:8080");
-  const [evoKey, setEvoKey] = useState("92367wC!");
+  const [evoUrl, setEvoUrl] = useState("");
+  const [evoKey, setEvoKey] = useState("");
   const [instanceName, setInstanceName] = useState("");
-  const [numbers, setNumbers] = useState<string[]>(["5527997629236"]);
+  const [numbers, setNumbers] = useState<string[]>([]);
   const [testMessage, setTestMessage] = useState("🔔 Teste de Conexão GAX - Evolution API está funcionando!");
   
   const [isLoading, setIsLoading] = useState(true);
@@ -30,8 +30,8 @@ export default function IntegrationsPage() {
       .then(res => res.json())
       .then(data => {
         if (data && !data.detail) {
-          setEvoUrl(data.url || "http://34.75.185.221:8080");
-          setEvoKey(data.api_key || "92367wC!");
+          setEvoUrl(data.url || "");
+          setEvoKey(data.api_key || "");
           setInstanceName(data.instance_name || "");
           if (data.target_numbers && data.target_numbers.length > 0) {
             setNumbers(data.target_numbers);

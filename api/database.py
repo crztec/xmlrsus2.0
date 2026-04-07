@@ -625,7 +625,7 @@ def get_whatsapp_config():
             return doc.to_dict()
     except Exception as e:
         logger.error(f"Erro ao buscar config WhatsApp: {e}")
-    return {"url": "http://34.75.185.221:8080", "api_key": "92367wC!", "instance_name": "GaxBot", "target_numbers": ["5527997629236"]}
+    return {"url": "", "api_key": "", "instance_name": "GaxBot", "target_numbers": []}
 
 def save_whatsapp_config(url, api_key, instance_name, target_numbers):
     """Saves WhatsApp Evolution API configuration."""
