@@ -220,6 +220,7 @@ export default function IntegrationsPage() {
                 value={testMessage} 
                 onChange={(e) => setTestMessage(e.target.value)}
                 rows={2}
+                maxLength={4000}
                 className="w-full rounded-xl border border-slate-200 bg-white/50 p-3 text-xs outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 text-slate-600 font-medium resize-none mb-3"
               />
               <button 
