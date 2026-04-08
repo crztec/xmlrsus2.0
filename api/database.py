@@ -727,12 +727,29 @@ def get_message_logs_paginated(page=1, limit=10):
         logger.error(f"Erro ao buscar logs de mensagens: {e}")
         return [], 0
 
-def get_xml_data_paginated(page=1, limit=10, search=""):
+def get_xml_data_paginated(page=1, limit=10, search="", client_filter=""):
     """Recupera metadados de XML com paginação e busca, com deduplicação por ABI."""
     try:
-        # Pega os 500 mais recentes e deduplica (para manter performance)
-        # Em um sistema com milhões de registros, precisaríamos de uma coleção 'abis' única.
-        docs = firestore_db.collection('task_files').order_by('data_processamento', direction=firestore.Query.DESCENDING).limit(1000).get()
+        query = firestore_db.collection('task_files').order_by('data_processamento', direction=firestore.Query.DESCENDING)
+        
+        # Se houver filtro por cliente, aplicamos na consulta
+        if client_filter:
+            # Tenta busca exata primeiro
+            docs = query.where('razao_social', '==', client_filter.strip()).limit(500).get()
+            
+            # Se não trouxe nada, pode ser o caso de nomes longos no XML (ex: Erechim)
+            if not docs:
+                # Busca tarefas do cliente para pegar os IDs vinculados
+                tasks = firestore_db.collection('tasks').where('razao_social', '==', client_filter.strip()).limit(50).stream()
+                task_ids = [t.id for t in tasks]
+                if task_ids:
+                    # Firestore IN limit is 30, but we can do a loop or just filter the recent ones
+                    docs = firestore_db.collection('task_files').where('task_id', 'in', task_ids[:30]).limit(500).get()
+                else:
+                    # Fallback para busca por prefixo se possível (riscado em Firestore sem índices específicos)
+                    docs = []
+        else:
+            docs = query.limit(1000).get()
         
         xml_list = []
         seen_abis = set()
@@ -743,14 +760,23 @@ def get_xml_data_paginated(page=1, limit=10, search=""):
             file_name = d.get("nome_arquivo") or "-"
             client = d.get("razao_social") or "Desconhecido"
             
-            if abi in seen_abis: continue
+            # FILTRO CRÍTICO: Se houver filtro de cliente, ignorar qualquer doc que não seja dele
+            if client_filter:
+                # print(f"DEBUG: Comparing '{client_filter.strip().lower()}' with '{client.lower()}'")
+                if client_filter.strip().lower() not in client.lower():
+                    continue
+                
+            # Normalização de ABI para deduplicação (específica por cliente)
+            abi_key = f"{client}_{str(abi).replace('º', '').replace('°', '').strip()}"
+            
+            if abi_key in seen_abis: continue
+            seen_abis.add(abi_key)
             
             if search:
                 s = search.lower()
-                if s not in abi.lower() and s not in file_name.lower() and s not in client.lower():
+                if s not in str(abi).lower() and s not in file_name.lower() and s not in client.lower():
                     continue
             
-            seen_abis.add(abi)
             xml_list.append({
                 "id": doc.id,
                 "file_name": file_name,
@@ -1507,15 +1533,10 @@ def mark_abis_as_substituted(razao_social, abis):
                         continue
                         
                     doc_abi = str(data.get('numero_abi', '')).replace("º", "").replace("°", "").strip()
-                    
                     if doc_abi == abi_str:
                         doc.reference.update({'status_importacao': 'SUBSTITUIDO'})
                         count_marked += 1
                 
-                if doc_abi == abi_str:
-                    doc.reference.update({'status_importacao': 'SUBSTITUIDO'})
-                    count_marked += 1
-        
         if count_marked > 0:
             logger.info(f"Sucesso: {count_marked} ABIs para '{razao_social}' marcadas como SUBSTITUIDO.")
         return True

@@ -229,6 +229,8 @@ function LogItem({ time, date, type, title, message, abiResults }: {
                     ? 'bg-green-50 text-green-700 border-green-100' 
                     : res.status === 'ERRO'
                     ? 'bg-red-50 text-red-700 border-red-100'
+                    : res.status === 'SUBSTITUIDO'
+                    ? 'bg-zinc-100 text-zinc-500 border-zinc-200 shadow-none'
                     : 'bg-blue-50 text-blue-700 border-blue-100 shadow-none'
                 }`}
               >

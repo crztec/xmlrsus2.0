@@ -555,8 +555,8 @@ async def update_client(client_id: str, data: dict):
     return {"status": "success"}
 
 @app.get("/xml-data")
-async def get_xml_data(page: int = 1, limit: int = 10, search: str = ""):
-    xml_data, total = db.get_xml_data_paginated(page, limit, search)
+async def get_xml_data(page: int = 1, limit: int = 10, search: str = "", client: str = ""):
+    xml_data, total = db.get_xml_data_paginated(page, limit, search, client)
     return {"xml_data": xml_data, "total": total}
 
 @app.get("/xml-data/export")
