@@ -244,15 +244,127 @@ export default function MessagesPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ whatsapp_numbers: updatedNumbers })
       });
-      // Não precisa atualizar o estado de novo se o res for OK, já foi feito acima
     } catch (err) {
       console.error("Erro ao atualizar contato:", err);
-      // Aqui poderíamos fazer um rollback se necessário, mas para esse caso simples 
-      // o usuário provavelmente tentará digitar de novo.
     } finally {
       setIsSavingQuickContact(null);
     }
   };
+
+  // Helper component for smooth typing in modal
+  const QuickContactField = ({ 
+    initialValue, 
+    onSave, 
+    placeholder, 
+    className 
+  }: { 
+    initialValue: string, 
+    onSave: (val: string) => void, 
+    placeholder: string,
+    className: string 
+  }) => {
+    const [localValue, setLocalValue] = useState(initialValue);
+    
+    // Update local value if initialValue changes (from external sync)
+    useEffect(() => {
+      setLocalValue(initialValue);
+    }, [initialValue]);
+
+    return (
+      <input 
+        className={className}
+        value={localValue}
+        placeholder={placeholder}
+        onChange={(e) => setLocalValue(e.target.value)}
+        onBlur={() => {
+          if (localValue !== initialValue) {
+            // Pequeno delay para permitir que o browser processe a troca de foco (clique no próximo campo)
+            // antes que o re-render pesado da página ocorra.
+            setTimeout(() => {
+              onSave(localValue);
+            }, 100);
+          }
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            (e.target as HTMLInputElement).blur();
+          }
+        }}
+      />
+    );
+  };
+
+  // Memoized card for the modal to prevent flicker/focus loss on other cards
+  const ClientContactCard = React.memo(({ 
+    client, 
+    handleUpdateQuickContact, 
+    isSaving 
+  }: { 
+    client: ClientSummary, 
+    handleUpdateQuickContact: (id: string, nums: WhatsAppContact[]) => void,
+    isSaving: boolean
+  }) => {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm hover:shadow-md transition-shadow">
+        <div className="mb-3 flex items-start justify-between">
+          <div className="flex flex-col">
+            <span className="text-sm font-bold text-slate-800">{client.name}</span>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <span className={cn(
+                "text-[9px] font-bold uppercase border px-1.5 py-0.5 rounded-md",
+                client.abi_status === "Importado e Analisado" ? "bg-emerald-50 text-emerald-700 border-emerald-100" : 
+                client.abi_status === "Importado, falta analisar" ? "bg-blue-50 text-blue-700 border-blue-100" :
+                client.abi_status === "Nao Importado" ? "bg-slate-50 text-slate-500 border-slate-200" :
+                "bg-amber-50 text-amber-700 border-amber-100"
+              )}>
+                {client.abi_status || "Desconhecido"}
+              </span>
+            </div>
+          </div>
+        </div>
+        
+        <div className="space-y-2">
+          {(client.whatsapp_numbers || []).map((contact: any, idx: number) => {
+            const contactObj = typeof contact === 'string' ? { number: contact, label: "" } : contact;
+            return (
+              <div key={idx} className="flex items-center gap-2 group/item">
+                <div className="flex-[2] relative overflow-hidden rounded-lg border border-slate-100 focus-within:border-gax-blue transition-colors">
+                   <QuickContactField 
+                      className="w-full bg-slate-50 px-3 py-1.5 text-[10px] font-medium text-slate-900 outline-none"
+                      initialValue={contactObj.label}
+                      placeholder="Etiqueta/Nome"
+                      onSave={(newVal) => {
+                        const newContacts = [...client.whatsapp_numbers.map((c: any) => typeof c === 'string' ? {number: c, label: ""} : {...c})];
+                        newContacts[idx].label = newVal;
+                        handleUpdateQuickContact(client.id, newContacts);
+                      }}
+                   />
+                </div>
+                <div className="flex-[3] relative overflow-hidden rounded-lg border border-slate-100 focus-within:border-gax-blue transition-colors">
+                   <QuickContactField 
+                      className="w-full bg-slate-50 px-3 py-1.5 text-[10px] font-bold text-slate-900 outline-none"
+                      initialValue={contactObj.number}
+                      placeholder="WhatsApp"
+                      onSave={(newVal) => {
+                        const newContacts = [...client.whatsapp_numbers.map((c: any) => typeof c === 'string' ? {number: c, label: ""} : {...c})];
+                        newContacts[idx].number = newVal;
+                        handleUpdateQuickContact(client.id, newContacts);
+                      }}
+                   />
+                </div>
+                {isSaving && (
+                  <Loader2 size={12} className="animate-spin text-gax-blue opacity-50" />
+                )}
+              </div>
+            );
+          })}
+          {(!client.whatsapp_numbers || client.whatsapp_numbers.length === 0) && (
+            <p className="text-[10px] text-slate-400 italic">Sem contatos configurados.</p>
+          )}
+        </div>
+      </div>
+    );
+  });
 
   return (
     <div className="flex flex-col gap-6 p-8 pt-2 max-w-7xl mx-auto animate-in fade-in duration-500">
@@ -755,7 +867,7 @@ export default function MessagesPage() {
                   type="text"
                   value={editingTemplate.name}
                   onChange={(e) => setEditingTemplate({...editingTemplate, name: e.target.value})}
-                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all font-medium"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-sm text-slate-800 outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all font-bold"
                   placeholder="Ex: Aviso de Importação"
                 />
               </div>
@@ -764,7 +876,7 @@ export default function MessagesPage() {
                 <textarea 
                   value={editingTemplate.content}
                   onChange={(e) => setEditingTemplate({...editingTemplate, content: e.target.value})}
-                  className="w-full min-h-[150px] rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all font-sans resize-none"
+                  className="w-full min-h-[150px] rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all font-sans resize-none"
                   placeholder="Digite o texto do template..."
                 />
               </div>
@@ -808,64 +920,12 @@ export default function MessagesPage() {
             <div className="flex-1 overflow-y-auto p-6 bg-slate-50/30">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {targetClients.map(client => (
-                  <div key={client.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm hover:shadow-md transition-shadow">
-                    <div className="mb-3 flex items-start justify-between">
-                      <div className="flex flex-col">
-                        <span className="text-sm font-bold text-slate-800">{client.name}</span>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <span className={cn(
-                            "text-[9px] font-bold uppercase border px-1.5 py-0.5 rounded-md",
-                            client.abi_status === "Importado e Analisado" ? "bg-emerald-50 text-emerald-700 border-emerald-100" : 
-                            client.abi_status === "Importado, falta analisar" ? "bg-blue-50 text-blue-700 border-blue-100" :
-                            client.abi_status === "Nao Importado" ? "bg-slate-50 text-slate-500 border-slate-200" :
-                            "bg-amber-50 text-amber-700 border-amber-100"
-                          )}>
-                            {client.abi_status || "Desconhecido"}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      {(client.whatsapp_numbers || []).map((contact: any, idx: number) => {
-                        const contactObj = typeof contact === 'string' ? { number: contact, label: "" } : contact;
-                        return (
-                          <div key={idx} className="flex items-center gap-2 group/item">
-                            <div className="flex-[2] relative overflow-hidden rounded-lg border border-slate-100 focus-within:border-gax-blue transition-colors">
-                               <input 
-                                  className="w-full bg-slate-50 px-3 py-1.5 text-[10px] font-medium text-slate-600 outline-none"
-                                  value={contactObj.label}
-                                  placeholder="Etiqueta/Nome"
-                                  onChange={(e) => {
-                                    const newContacts = [...client.whatsapp_numbers.map(c => typeof c === 'string' ? {number: c, label: ""} : {...c})];
-                                    newContacts[idx].label = e.target.value;
-                                    handleUpdateQuickContact(client.id, newContacts);
-                                  }}
-                               />
-                            </div>
-                            <div className="flex-[3] relative overflow-hidden rounded-lg border border-slate-100 focus-within:border-gax-blue transition-colors">
-                               <input 
-                                  className="w-full bg-slate-50 px-3 py-1.5 text-[10px] font-bold text-slate-800 outline-none"
-                                  value={contactObj.number}
-                                  placeholder="WhatsApp"
-                                  onChange={(e) => {
-                                    const newContacts = [...client.whatsapp_numbers.map(c => typeof c === 'string' ? {number: c, label: ""} : {...c})];
-                                    newContacts[idx].number = e.target.value;
-                                    handleUpdateQuickContact(client.id, newContacts);
-                                  }}
-                               />
-                            </div>
-                            {isSavingQuickContact === client.id && (
-                              <Loader2 size={12} className="animate-spin text-gax-blue opacity-50" />
-                            )}
-                          </div>
-                        );
-                      })}
-                      {(!client.whatsapp_numbers || client.whatsapp_numbers.length === 0) && (
-                        <p className="text-[10px] text-slate-400 italic">Sem contatos configurados.</p>
-                      )}
-                    </div>
-                  </div>
+                  <ClientContactCard 
+                    key={client.id}
+                    client={client}
+                    handleUpdateQuickContact={handleUpdateQuickContact}
+                    isSaving={isSavingQuickContact === client.id}
+                  />
                 ))}
               </div>
             </div>
