@@ -21,7 +21,10 @@ import {
   Copy,
   MessageSquare,
   Search,
-  Pencil
+  Pencil,
+  ChevronDown,
+  X,
+  AlertCircle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -65,17 +68,18 @@ export default function MessagesPage() {
   // New Message State
   const [message, setMessage] = useState("");
   const [filters, setFilters] = useState({
-    client_id: "",
     api_offline: false,
     abi_pending: false,
-    abi_missing: false,
-    abi_failed: false
+    abi_missing_analysis: false,
+    abi_failed_analysis: false,
+    client_ids: [] as string[]
   });
   const [isSending, setIsSending] = useState(false);
   const [sendResult, setSendResult] = useState<{success: boolean, message: string} | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [clientSearch, setClientSearch] = useState("");
   const [isClientsModalOpen, setIsClientsModalOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isSavingQuickContact, setIsSavingQuickContact] = useState<string | null>(null);
 
   // Template Management
@@ -140,9 +144,11 @@ export default function MessagesPage() {
   // Filtering Logic
   const targetClients = clients.filter(c => {
     // Se selecionou cliente específico, ignora outros filtros
-    if (filters.client_id) return c.id === filters.client_id;
+    if (filters.client_ids.length > 0) {
+      return filters.client_ids.includes(c.id);
+    }
     
-    const hasAnyCheckbox = filters.api_offline || filters.abi_pending || filters.abi_missing || filters.abi_failed;
+    const hasAnyCheckbox = filters.api_offline || filters.abi_pending || filters.abi_missing_analysis || filters.abi_failed_analysis;
     
     // Se nenhum filtro for selecionado, retorna vazio (conforme pedido do usuário: "mostrar 60 mas não selecionei nada")
     if (!hasAnyCheckbox) return false;
@@ -158,8 +164,8 @@ export default function MessagesPage() {
 
     const matchesApi = filters.api_offline ? c.api_status === "offline" : false;
     const matchesPending = filters.abi_pending ? isPending : false;
-    const matchesMissing = filters.abi_missing ? isMissing : false;
-    const matchesFailed = filters.abi_failed ? isFailed : false;
+    const matchesMissing = filters.abi_missing_analysis ? isMissing : false;
+    const matchesFailed = filters.abi_failed_analysis ? isFailed : false;
     
     return matchesApi || matchesPending || matchesMissing || matchesFailed;
   });
@@ -290,35 +296,124 @@ export default function MessagesPage() {
               
               <div className="space-y-4">
                 <div className="space-y-3">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 block">Cliente Específico</label>
-                  <div className="flex flex-col rounded-2xl border border-slate-200 overflow-hidden focus-within:ring-4 focus-within:ring-gax-blue/10 focus-within:border-gax-blue transition-all shadow-sm bg-white">
-                    <div className="relative group flex items-center bg-slate-50/50 border-b border-slate-100">
-                      <Search size={14} className="ml-3 text-slate-300 group-focus-within:text-gax-blue transition-colors" />
-                      <input 
-                        type="text" 
-                        placeholder="Pesquisar cliente..." 
-                        value={clientSearch}
-                        onChange={(e) => setClientSearch(e.target.value)}
-                        className="w-full bg-transparent pl-2 pr-4 py-2.5 text-[11px] font-medium outline-none text-slate-600"
-                      />
-                    </div>
-                    <select 
-                      value={filters.client_id}
-                      onChange={(e) => setFilters({...filters, client_id: e.target.value})}
-                      className="w-full px-2 py-1 text-[11px] font-bold text-slate-700 outline-none hover:bg-slate-50 transition-colors cursor-pointer scrollbar-thin border-none rounded-b-2xl"
-                      size={5}
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 block">Clientes / Grupos Selecionados</label>
+                  <div className="relative">
+                    <div 
+                      className={cn(
+                        "flex items-center rounded-2xl border border-slate-200 bg-white transition-all shadow-sm focus-within:ring-4 focus-within:ring-gax-blue/10 focus-within:border-gax-blue",
+                        isSearchOpen && "rounded-b-none border-b-transparent ring-4 ring-gax-blue/5 border-gax-blue"
+                      )}
                     >
-                      <option value="" className="py-2 px-2">-- Todos os Clientes --</option>
-                      {clients
-                        .filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase()))
-                        .map(c => (
-                          <option key={c.id} value={c.id} className="py-2 px-2 hover:bg-gax-blue/10">{c.name}</option>
-                        ))}
-                    </select>
+                      <div className="flex flex-1 items-center px-3 py-2.5 cursor-pointer" onClick={() => setIsSearchOpen(!isSearchOpen)}>
+                         <Search size={14} className={cn("mr-2 transition-colors", isSearchOpen || filters.client_ids.length > 0 ? "text-gax-blue" : "text-slate-300")} />
+                         <input 
+                            type="text" 
+                            placeholder={
+                              filters.client_ids.length === 0 
+                                ? "Pesquisar por nome..." 
+                                : filters.client_ids.length === 1
+                                  ? clients.find(c => c.id === filters.client_ids[0])?.name
+                                  : `${filters.client_ids.length} clientes selecionados`
+                            } 
+                            value={clientSearch}
+                            onChange={(e) => {
+                              setClientSearch(e.target.value);
+                              if (!isSearchOpen) setIsSearchOpen(true);
+                            }}
+                            onFocus={() => setIsSearchOpen(true)}
+                            className="bg-transparent text-[11px] font-bold outline-none text-slate-700 placeholder:text-slate-400 w-full"
+                         />
+                      </div>
+                      
+                      <div className="flex items-center gap-1 pr-3 border-l border-slate-50 ml-2 py-1">
+                        {filters.client_ids.length > 0 && (
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setFilters({...filters, client_ids: []});
+                              setClientSearch("");
+                            }}
+                            className="p-1 text-slate-300 hover:text-rose-500 transition-colors"
+                          >
+                            <X size={14} />
+                          </button>
+                        )}
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setIsSearchOpen(!isSearchOpen);
+                          }}
+                          className="p-1"
+                        >
+                          <ChevronDown 
+                            size={14} 
+                            className={cn("text-slate-300 transition-transform duration-200", isSearchOpen && "rotate-180")} 
+                          />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Droppable List */}
+                    {isSearchOpen && (
+                      <>
+                        <div 
+                          className="fixed inset-0 z-10" 
+                          onClick={() => setIsSearchOpen(false)}
+                        />
+                        <div className="absolute left-0 right-0 top-full z-20 overflow-hidden rounded-b-2xl border-x border-b border-gax-blue bg-white shadow-2xl animate-in slide-in-from-top-1 duration-200">
+                           <div className="p-2 border-b border-slate-50 flex items-center justify-between">
+                              <button 
+                                onClick={() => {
+                                  if (filters.client_ids.length === clients.length) {
+                                    setFilters({...filters, client_ids: []});
+                                  } else {
+                                    setFilters({...filters, client_ids: clients.map(c => c.id)});
+                                  }
+                                }}
+                                className="text-[10px] font-bold text-gax-blue hover:underline px-2 py-1"
+                              >
+                                {filters.client_ids.length === clients.length ? "Desmarcar Todos" : "Selecionar Todos"}
+                              </button>
+                              <span className="text-[10px] text-slate-400 px-2">{filters.client_ids.length} selecionados</span>
+                           </div>
+                          
+                          <div className="max-h-[250px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+                            {clients
+                              .filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase()))
+                              .map(c => (
+                                <button
+                                  key={c.id}
+                                  onClick={() => {
+                                    const newIds = filters.client_ids.includes(c.id)
+                                      ? filters.client_ids.filter(id => id !== c.id)
+                                      : [...filters.client_ids, c.id];
+                                    setFilters({...filters, client_ids: newIds});
+                                  }}
+                                  className={cn(
+                                    "flex w-full items-center px-4 py-2.5 text-left text-[11px] font-bold transition-all border-b last:border-b-0 border-slate-50 gap-3",
+                                    filters.client_ids.includes(c.id) ? "bg-gax-blue/5 text-gax-blue" : "text-slate-600 hover:bg-slate-50"
+                                  )}
+                                >
+                                  <div className={cn(
+                                    "w-4 h-4 rounded border flex items-center justify-center transition-colors",
+                                    filters.client_ids.includes(c.id) ? "bg-gax-blue border-gax-blue" : "border-slate-300 bg-white"
+                                  )}>
+                                    {filters.client_ids.includes(c.id) && <X size={10} className="text-white" />}
+                                  </div>
+                                  {c.name}
+                                </button>
+                              ))}
+                            {clients.filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase())).length === 0 && (
+                              <div className="p-4 text-center text-[10px] text-slate-400 italic">Nenhum cliente encontrado</div>
+                            )}
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
 
-                <div className={cn("space-y-3", filters.client_id ? "opacity-30 pointer-events-none" : "")}>
+                <div className={cn("space-y-3", filters.client_ids.length > 0 ? "opacity-30 pointer-events-none" : "")}>
                    <div className="flex items-center gap-3">
                     <input 
                       id="f-api" 
@@ -349,12 +444,12 @@ export default function MessagesPage() {
                     <input 
                       id="f-missing" 
                       type="checkbox" 
-                      checked={filters.abi_missing} 
-                      onChange={(e) => setFilters({...filters, abi_missing: e.target.checked})}
+                      checked={filters.abi_missing_analysis} 
+                      onChange={(e) => setFilters({...filters, abi_missing_analysis: e.target.checked})}
                       className="h-4 w-4 rounded border-slate-300 text-gax-blue focus:ring-gax-blue"
                     />
                     <label htmlFor="f-missing" className="text-xs font-medium text-slate-600 flex items-center gap-2">
-                      <FileWarning size={14} className="text-orange-500" />
+                      <AlertCircle size={14} className="text-orange-500" />
                       ABI: Falta Analisar
                     </label>
                   </div>
@@ -362,8 +457,8 @@ export default function MessagesPage() {
                     <input 
                       id="f-failed" 
                       type="checkbox" 
-                      checked={filters.abi_failed} 
-                      onChange={(e) => setFilters({...filters, abi_failed: e.target.checked})}
+                      checked={filters.abi_failed_analysis} 
+                      onChange={(e) => setFilters({...filters, abi_failed_analysis: e.target.checked})}
                       className="h-4 w-4 rounded border-slate-300 text-gax-blue focus:ring-gax-blue"
                     />
                     <label htmlFor="f-failed" className="text-xs font-medium text-slate-600 flex items-center gap-2">
