@@ -376,6 +376,7 @@ def get_clients_paginated(page=1, limit=10, search=""):
                 'abi_last_check': abi_last_check,
                 'abi_last_message': data.get('abi_last_message', ''),
                 'abi_last_task_id': data.get('abi_last_task_id', ''),
+                'whatsapp_numbers': data.get('whatsapp_numbers', []),
             })
             
         clients.sort(key=lambda x: x['name'])
@@ -511,6 +512,7 @@ def update_client_config(client_id, update_data):
             'registro_ans': update_data.get('registro_ans', ''),
             'endereco': update_data.get('endereco', ''),
             'url_sistema': update_data.get('url_sistema', ''),
+            'whatsapp_numbers': update_data.get('whatsapp_numbers', []),
             'updated_at': get_now_br().strftime("%Y-%m-%d %H:%M:%S")
         }
         firestore_db.collection('client_configs').document(client_id).set(clean_data, merge=True)
@@ -641,6 +643,89 @@ def save_whatsapp_config(url, api_key, instance_name, target_numbers):
     except Exception as e:
         logger.error(f"Erro ao salvar config WhatsApp: {e}")
         return False
+
+# ============ Global Messaging (Broadcast) ============
+
+def save_message_template(name, content, template_id=None):
+    """Salva ou atualiza um template de mensagem no Firestore."""
+    try:
+        if not template_id:
+            template_id = str(uuid.uuid4())[:8]
+        
+        data = {
+            "id": template_id,
+            "name": name,
+            "content": content,
+            "updated_at": firestore.SERVER_TIMESTAMP
+        }
+        firestore_db.collection('message_templates').document(template_id).set(data, merge=True)
+        return template_id
+    except Exception as e:
+        logger.error(f"Erro ao salvar template: {e}")
+        return None
+
+def get_message_templates():
+    """Recupera todos os templates de mensagem."""
+    try:
+        docs = firestore_db.collection('message_templates').order_by("name").stream()
+        return [doc.to_dict() for doc in docs]
+    except Exception as e:
+        logger.error(f"Erro ao buscar templates: {e}")
+        return []
+
+def delete_message_template(template_id):
+    """Remove um template de mensagem."""
+    try:
+        firestore_db.collection('message_templates').document(template_id).delete()
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao deletar template {template_id}: {e}")
+        return False
+
+def save_message_log(client_id, client_name, recipient, message, status, error_details=None):
+    """Registra o log de um disparo de mensagem."""
+    try:
+        log_data = {
+            "client_id": client_id,
+            "client_name": client_name,
+            "recipient": recipient,
+            "message": message[:200] + ("..." if len(message) > 200 else ""),
+            "full_message": message,
+            "status": status,
+            "error_details": error_details,
+            "created_at": firestore.SERVER_TIMESTAMP
+        }
+        firestore_db.collection('message_logs').add(log_data)
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao salvar log de mensagem: {e}")
+        return False
+
+def get_message_logs_paginated(page=1, limit=10):
+    """Busca logs de mensagens com paginação."""
+    try:
+        # Pega todos ordenados por data decrescente (limitado a 500 para performance)
+        query = firestore_db.collection('message_logs').order_by("created_at", direction=firestore.Query.DESCENDING).limit(500)
+        docs = query.get()
+        
+        logs = []
+        for doc in docs:
+            d = doc.to_dict()
+            ca = d.get('created_at')
+            # Formatação robusta de data do Firestore (Timestamp) para string ISO
+            if hasattr(ca, 'isoformat'):
+                d['created_at'] = ca.isoformat()
+            
+            logs.append(d)
+        
+        total = len(logs)
+        start = (page - 1) * limit
+        end = start + limit
+        
+        return logs[start:end], total
+    except Exception as e:
+        logger.error(f"Erro ao buscar logs de mensagens: {e}")
+        return [], 0
 
 def get_xml_data_paginated(page=1, limit=10, search=""):
     """Recupera metadados de XML com paginação e busca, com deduplicação por ABI."""

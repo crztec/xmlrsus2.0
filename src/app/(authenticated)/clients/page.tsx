@@ -16,7 +16,10 @@ import {
   LayoutGrid,
   List,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Plus,
+  Trash2,
+  Smartphone
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -29,6 +32,7 @@ interface Client {
   url_sistema?: string;
   total_abis?: number;
   ultima_importacao?: string;
+  whatsapp_numbers?: string[];
 }
 
 export default function ClientsPage() {
@@ -48,7 +52,8 @@ export default function ClientsPage() {
     cnpj: "",
     registro_ans: "",
     endereco: "",
-    url_sistema: ""
+    url_sistema: "",
+    whatsapp_numbers: [] as string[]
   });
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -99,7 +104,8 @@ export default function ClientsPage() {
       cnpj: client.cnpj || "",
       registro_ans: client.registro_ans || "",
       endereco: client.endereco || "",
-      url_sistema: client.url_sistema || ""
+      url_sistema: client.url_sistema || "",
+      whatsapp_numbers: client.whatsapp_numbers || []
     });
     setIsEditModalOpen(true);
   };
@@ -503,6 +509,55 @@ export default function ClientsPage() {
                   className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-xs outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all font-sans text-slate-700 font-medium italic text-gax-blue"
                   placeholder="https://exemplo.cubeti.com.br"
                 />
+              </div>
+
+              {/* WhatsApp Numbers Dynamic List */}
+              <div className="space-y-3 border-t border-slate-100 pt-4">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Contatos de WhatsApp / Grupos</label>
+                  <button 
+                    type="button"
+                    onClick={() => setFormData({...formData, whatsapp_numbers: [...formData.whatsapp_numbers, ""]})}
+                    className="flex items-center gap-1 text-[10px] font-bold text-gax-blue hover:text-gax-blue-hover transition-colors"
+                  >
+                    <Plus size={12} />
+                    Adicionar
+                  </button>
+                </div>
+
+                <div className="space-y-2 max-h-[150px] overflow-y-auto pr-1">
+                  {formData.whatsapp_numbers.map((num, i) => (
+                    <div key={i} className="flex gap-2 animate-in slide-in-from-right-2">
+                       <div className="relative flex-1">
+                        <Smartphone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={14} />
+                        <input 
+                          type="text" 
+                          value={num}
+                          onChange={(e) => {
+                            const newNums = [...formData.whatsapp_numbers];
+                            newNums[i] = e.target.value;
+                            setFormData({...formData, whatsapp_numbers: newNums});
+                          }}
+                          className="w-full rounded-xl border border-slate-200 pl-9 pr-4 py-2 text-[11px] outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all font-sans text-slate-700 font-medium"
+                          placeholder="Ex: 55279... ou @g.us"
+                        />
+                      </div>
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          const newNums = formData.whatsapp_numbers.filter((_, idx) => idx !== i);
+                          setFormData({...formData, whatsapp_numbers: newNums});
+                        }}
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-400 hover:bg-rose-100 hover:text-rose-600 transition-all"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
+                  {formData.whatsapp_numbers.length === 0 && (
+                    <p className="text-[10px] text-slate-400 italic text-center py-2">Nenhum número configurado.</p>
+                  )}
+                </div>
               </div>
 
               <div className="flex gap-3 pt-4">

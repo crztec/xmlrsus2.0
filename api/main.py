@@ -251,6 +251,100 @@ async def whatsapp_send_test(body: dict):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao enviar mensagem de teste: {str(e)}")
 
+# --- MESSAGE BROADCAST & TEMPLATES ---
+
+@app.get("/messages/templates")
+async def get_templates():
+    return db.get_message_templates()
+
+@app.post("/messages/templates")
+async def save_template(body: dict):
+    tid = db.save_message_template(body.get("name"), body.get("content"), body.get("id"))
+    if tid: return {"status": "success", "id": tid}
+    raise HTTPException(status_code=500, detail="Erro ao salvar template.")
+
+@app.delete("/messages/templates/{template_id}")
+async def delete_template(template_id: str):
+    if db.delete_message_template(template_id):
+        return {"status": "success"}
+    raise HTTPException(status_code=500, detail="Erro ao deletar template.")
+
+@app.get("/messages/logs")
+async def get_message_logs(page: int = 1, limit: int = 10):
+    logs, total = db.get_message_logs_paginated(page, limit)
+    return {"logs": logs, "total": total}
+
+@app.post("/messages/broadcast")
+async def broadcast_message(body: dict, background_tasks: BackgroundTasks):
+    """
+    Processa o envio em lote com base em filtros inteligentes.
+    """
+    import api.utils as utils
+    
+    filters = body.get("filters", {})
+    message = body.get("message", "")
+    
+    if not message:
+        raise HTTPException(status_code=400, detail="Mensagem não pode estar vazia.")
+    
+    # 1. Busca todos os clientes para filtrar
+    all_clients = db.get_all_clients()
+    targets = [] # List of tuples (client_id, client_name, whatsapp_numbers_list)
+    
+    # Busca detalhes de whatsapp_numbers separadamente pois get_all_clients retorna resumido
+    # NOTA: Otimização futura - incluir whatsapp_numbers no stream do get_all_clients se necessário
+    
+    for c in all_clients:
+        # Recarrega config completa para pegar whatsapp_numbers (array)
+        conf = db.get_client_config(c['id'])
+        if not conf: continue
+        
+        nums = conf.get("whatsapp_numbers", [])
+        if not nums: continue
+        
+        # Filtro: Cliente Específico
+        if filters.get("client_id") and filters["client_id"] != c['id']:
+            continue
+            
+        # Filtro: API Offline
+        if filters.get("api_offline") and c.get("api_status") != "offline":
+            continue
+            
+        # Filtros ABI
+        abi_status = c.get("abi_status", "").lower()
+        if filters.get("abi_pending") and "pendente" not in abi_status: continue
+        if filters.get("abi_missing") and "falta" not in abi_status: continue
+        if filters.get("abi_failed") and "falha" not in abi_status: continue
+        
+        targets.append((c['id'], c['name'], nums))
+
+    if not targets:
+        return {"status": "success", "sent_count": 0, "message": "Nenhum cliente encontrado para os filtros aplicados."}
+
+    # 2. Lógica de Disparo Assíncrono (Processa em background)
+    async def run_broadcast():
+        count = 0
+        for cid, cname, nums in targets:
+            for n in nums:
+                try:
+                    # Usamos a porta de saída utils.send_whatsapp_alert
+                    # Precisamos passar o target_numbers como override [n]
+                    await utils.send_whatsapp_alert(message, target_numbers=[n])
+                    db.save_message_log(cid, cname, n, message, "SUCCESS")
+                except Exception as e:
+                    db.save_message_log(cid, cname, n, message, "ERROR", str(e))
+                count += 1
+                await asyncio.sleep(1) # Delay de segurança entre números
+    
+    background_tasks.add_task(run_broadcast)
+    
+    return {
+        "status": "success", 
+        "sent_count": sum(len(t[2]) for t in targets),
+        "target_clients": len(targets),
+        "message": f"Disparo iniciado para {len(targets)} cliente(s)."
+    }
+
 class ABICheckRequest(BaseModel):
     client_id: Optional[str] = None
     client_ids: Optional[List[str]] = None

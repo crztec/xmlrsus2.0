@@ -44,6 +44,7 @@ const systemSubItems = [
   { label: "Segurança e Auditoria", icon: <ScrollText size={18} />, href: "/settings/audit" },
   { label: "Controle de Acessos", icon: <Lock size={18} />, href: "/settings/access-control" },
   { label: "Integrações", icon: <Puzzle size={18} />, href: "/settings/integrations" },
+  { label: "Mensagens", icon: <FileText size={18} />, href: "/settings/messages" },
 ];
 
 interface SidebarProps {
@@ -74,18 +75,15 @@ export default function Sidebar({ onOpenProfile }: SidebarProps) {
     return { system_name: "GAX", logo_base64: "" };
   });
   const [isLoadingBranding, setIsLoadingBranding] = React.useState(true);
-  const [userName, setUserName] = React.useState(() => {
+  const [userName, setUserName] = React.useState("Usuário");
+  const [userEmail, setUserEmail] = React.useState("...");
+
+  React.useEffect(() => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem("gax_user_name") || "Usuário";
+      setUserName(localStorage.getItem("gax_user_name") || "Usuário");
+      setUserEmail(localStorage.getItem("gax_user_email") || "...");
     }
-    return "Usuário";
-  });
-  const [userEmail, setUserEmail] = React.useState(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("gax_user_email") || "...";
-    }
-    return "...";
-  });
+  }, []);
 
   React.useEffect(() => {
     const storedEmail = localStorage.getItem("gax_user_email");
