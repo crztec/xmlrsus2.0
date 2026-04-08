@@ -57,6 +57,114 @@ interface ClientSummary {
   whatsapp_numbers: (string | WhatsAppContact)[];
 }
 
+// --- Helper Components ---
+
+const QuickContactField = ({ 
+  initialValue, 
+  onSave, 
+  placeholder, 
+  className 
+}: { 
+  initialValue: string, 
+  onSave: (val: string) => void, 
+  placeholder: string,
+  className: string 
+}) => {
+  const [localValue, setLocalValue] = useState(initialValue);
+  
+  // Sync with prop ONLY if prop changes externally, not during typing
+  useEffect(() => {
+    setLocalValue(initialValue);
+  }, [initialValue]);
+
+  return (
+    <input 
+      className={className}
+      value={localValue}
+      placeholder={placeholder}
+      onChange={(e) => {
+        const newVal = e.target.value;
+        setLocalValue(newVal);
+        onSave(newVal);
+      }}
+      onBlur={() => {}}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          (e.target as HTMLInputElement).blur();
+        }
+      }}
+    />
+  );
+};
+
+const ClientContactCard = React.memo(({ 
+  client, 
+  handleUpdateQuickContact, 
+  isSaving 
+}: { 
+  client: any, 
+  handleUpdateQuickContact: (id: string, nums: WhatsAppContact[]) => void,
+  isSaving: boolean
+}) => {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm hover:shadow-md transition-shadow">
+      <div className="mb-3 flex items-start justify-between">
+        <div className="flex flex-col">
+          <span className="text-sm font-bold text-slate-800">{client.name}</span>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <span className={cn(
+              "text-[9px] font-bold uppercase border px-1.5 py-0.5 rounded-md",
+              client.abi_status === "Importado e Analisado" ? "bg-emerald-50 text-emerald-700 border-emerald-100" : 
+              client.abi_status === "Importado, falta analisar" ? "bg-blue-50 text-blue-700 border-blue-100" :
+              client.abi_status === "Nao Importado" ? "bg-slate-50 text-slate-500 border-slate-200" :
+              "bg-amber-50 text-amber-700 border-amber-100"
+            )}>
+              {client.abi_status || "Desconhecido"}
+            </span>
+          </div>
+        </div>
+      </div>
+      
+      <div className="space-y-2">
+        {(client.whatsapp_numbers || []).map((contact: any, idx: number) => {
+          const contactObj = typeof contact === 'string' ? { number: contact, label: "" } : contact;
+          return (
+            <div key={`${client.id}-cont-${idx}`} className="flex items-center gap-2 group/item">
+              <div className="flex-[2] relative overflow-hidden rounded-lg border border-slate-100 focus-within:border-gax-blue transition-colors">
+                 <QuickContactField 
+                    className="w-full bg-slate-50 px-3 py-1.5 text-[10px] font-medium text-slate-900 outline-none"
+                    initialValue={contactObj.label}
+                    placeholder="Etiqueta/Nome"
+                    onSave={(newVal) => {
+                      const newContacts = [...client.whatsapp_numbers.map((c: any) => typeof c === 'string' ? {number: c, label: ""} : {...c})];
+                      newContacts[idx].label = newVal;
+                      handleUpdateQuickContact(client.id, newContacts);
+                    }}
+                 />
+              </div>
+              <div className="flex-[3] relative overflow-hidden rounded-lg border border-slate-100 focus-within:border-gax-blue transition-colors">
+                 <QuickContactField 
+                    className="w-full bg-slate-50 px-3 py-1.5 text-[10px] font-bold text-slate-900 outline-none"
+                    initialValue={contactObj.number}
+                    placeholder="WhatsApp"
+                    onSave={(newVal) => {
+                      const newContacts = [...client.whatsapp_numbers.map((c: any) => typeof c === 'string' ? {number: c, label: ""} : {...c})];
+                      newContacts[idx].number = newVal;
+                      handleUpdateQuickContact(client.id, newContacts);
+                    }}
+                 />
+              </div>
+              {isSaving && (
+                <Loader2 size={12} className="animate-spin text-gax-blue opacity-50" />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
+
 export default function MessagesPage() {
   const [activeTab, setActiveTab] = useState<"new" | "history">("new");
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -240,12 +348,12 @@ export default function MessagesPage() {
     }
   };
 
-  const handleUpdateQuickContact = async (clientId: string, updatedNumbers: WhatsAppContact[]) => {
+  const handleUpdateQuickContact = React.useCallback(async (clientId: string, updatedNumbers: WhatsAppContact[]) => {
     // Agora apenas atualiza o estado local do modal
     setLocalModalClients(prev => prev.map(c => 
       c.id === clientId ? { ...c, whatsapp_numbers: updatedNumbers } : c
     ));
-  };
+  }, []);
 
   const handleSaveAllContacts = async () => {
     setIsSavingAllContacts(true);
@@ -281,120 +389,6 @@ export default function MessagesPage() {
     }
   };
 
-  // Helper component for smooth typing in modal
-  const QuickContactField = ({ 
-    initialValue, 
-    onSave, 
-    placeholder, 
-    className 
-  }: { 
-    initialValue: string, 
-    onSave: (val: string) => void, 
-    placeholder: string,
-    className: string 
-  }) => {
-    const [localValue, setLocalValue] = useState(initialValue);
-    
-    // Update local value if initialValue changes (from external sync)
-    useEffect(() => {
-      setLocalValue(initialValue);
-    }, [initialValue]);
-
-    return (
-      <input 
-        className={className}
-        value={localValue}
-        placeholder={placeholder}
-        onChange={(e) => setLocalValue(e.target.value)}
-        onBlur={() => {
-          if (localValue !== initialValue) {
-            // Pequeno delay para permitir que o browser processe a troca de foco (clique no próximo campo)
-            // antes que o re-render pesado da página ocorra.
-            setTimeout(() => {
-              onSave(localValue);
-            }, 100);
-          }
-        }}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            (e.target as HTMLInputElement).blur();
-          }
-        }}
-      />
-    );
-  };
-
-  // Memoized card for the modal to prevent flicker/focus loss on other cards
-  const ClientContactCard = React.memo(({ 
-    client, 
-    handleUpdateQuickContact, 
-    isSaving 
-  }: { 
-    client: ClientSummary, 
-    handleUpdateQuickContact: (id: string, nums: WhatsAppContact[]) => void,
-    isSaving: boolean
-  }) => {
-    return (
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm hover:shadow-md transition-shadow">
-        <div className="mb-3 flex items-start justify-between">
-          <div className="flex flex-col">
-            <span className="text-sm font-bold text-slate-800">{client.name}</span>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <span className={cn(
-                "text-[9px] font-bold uppercase border px-1.5 py-0.5 rounded-md",
-                client.abi_status === "Importado e Analisado" ? "bg-emerald-50 text-emerald-700 border-emerald-100" : 
-                client.abi_status === "Importado, falta analisar" ? "bg-blue-50 text-blue-700 border-blue-100" :
-                client.abi_status === "Nao Importado" ? "bg-slate-50 text-slate-500 border-slate-200" :
-                "bg-amber-50 text-amber-700 border-amber-100"
-              )}>
-                {client.abi_status || "Desconhecido"}
-              </span>
-            </div>
-          </div>
-        </div>
-        
-        <div className="space-y-2">
-          {(client.whatsapp_numbers || []).map((contact: any, idx: number) => {
-            const contactObj = typeof contact === 'string' ? { number: contact, label: "" } : contact;
-            return (
-              <div key={idx} className="flex items-center gap-2 group/item">
-                <div className="flex-[2] relative overflow-hidden rounded-lg border border-slate-100 focus-within:border-gax-blue transition-colors">
-                   <QuickContactField 
-                      className="w-full bg-slate-50 px-3 py-1.5 text-[10px] font-medium text-slate-900 outline-none"
-                      initialValue={contactObj.label}
-                      placeholder="Etiqueta/Nome"
-                      onSave={(newVal) => {
-                        const newContacts = [...client.whatsapp_numbers.map((c: any) => typeof c === 'string' ? {number: c, label: ""} : {...c})];
-                        newContacts[idx].label = newVal;
-                        handleUpdateQuickContact(client.id, newContacts);
-                      }}
-                   />
-                </div>
-                <div className="flex-[3] relative overflow-hidden rounded-lg border border-slate-100 focus-within:border-gax-blue transition-colors">
-                   <QuickContactField 
-                      className="w-full bg-slate-50 px-3 py-1.5 text-[10px] font-bold text-slate-900 outline-none"
-                      initialValue={contactObj.number}
-                      placeholder="WhatsApp"
-                      onSave={(newVal) => {
-                        const newContacts = [...client.whatsapp_numbers.map((c: any) => typeof c === 'string' ? {number: c, label: ""} : {...c})];
-                        newContacts[idx].number = newVal;
-                        handleUpdateQuickContact(client.id, newContacts);
-                      }}
-                   />
-                </div>
-                {isSaving && (
-                  <Loader2 size={12} className="animate-spin text-gax-blue opacity-50" />
-                )}
-              </div>
-            );
-          })}
-          {(!client.whatsapp_numbers || client.whatsapp_numbers.length === 0) && (
-            <p className="text-[10px] text-slate-400 italic">Sem contatos configurados.</p>
-          )}
-        </div>
-      </div>
-    );
-  });
 
   return (
     <div className="flex flex-col gap-6 p-8 pt-2 max-w-7xl mx-auto animate-in fade-in duration-500">
@@ -450,7 +444,7 @@ export default function MessagesPage() {
                     >
                       <div 
                         className="flex flex-1 items-center px-3 py-2.5 cursor-text" 
-                        onClick={() => !isSearchOpen && setIsSearchOpen(true)}
+                        onClick={() => setIsSearchOpen(true)}
                       >
                          <Search size={14} className={cn("mr-2 transition-colors", isSearchOpen || filters.client_ids.length > 0 ? "text-gax-blue" : "text-slate-300")} />
                          <input 
@@ -464,10 +458,13 @@ export default function MessagesPage() {
                             } 
                             value={clientSearch}
                             onChange={(e) => {
-                              setClientSearch(e.target.value);
-                              if (!isSearchOpen) setIsSearchOpen(true);
+                               setClientSearch(e.target.value);
+                               if (!isSearchOpen) setIsSearchOpen(true);
                             }}
-                            onFocus={() => setIsSearchOpen(true)}
+                            onFocus={(e) => {
+                               e.stopPropagation();
+                               setIsSearchOpen(true);
+                            }}
                             className="bg-transparent text-[11px] font-bold outline-none text-slate-700 placeholder:text-slate-400 w-full"
                          />
                       </div>
@@ -475,6 +472,7 @@ export default function MessagesPage() {
                       <div className="flex items-center gap-1 pr-3 border-l border-slate-50 ml-2 py-1">
                         {filters.client_ids.length > 0 && (
                           <button 
+                            onMouseDown={(e) => e.preventDefault()} 
                             onClick={(e) => {
                               e.stopPropagation();
                               setFilters({...filters, client_ids: []});
@@ -486,6 +484,7 @@ export default function MessagesPage() {
                           </button>
                         )}
                         <button 
+                          onMouseDown={(e) => e.preventDefault()} 
                           onClick={(e) => {
                             e.stopPropagation();
                             setIsSearchOpen(!isSearchOpen);
