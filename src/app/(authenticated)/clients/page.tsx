@@ -23,6 +23,11 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+interface WhatsAppContact {
+  number: string;
+  label: string;
+}
+
 interface Client {
   id: string;
   name: string;
@@ -32,7 +37,9 @@ interface Client {
   url_sistema?: string;
   total_abis?: number;
   ultima_importacao?: string;
-  whatsapp_numbers?: string[];
+  api_status?: string;
+  api_last_check?: any;
+  whatsapp_numbers?: (string | WhatsAppContact)[];
 }
 
 export default function ClientsPage() {
@@ -47,13 +54,20 @@ export default function ClientsPage() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
   // Form states
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    name: string;
+    cnpj: string;
+    registro_ans: string;
+    endereco: string;
+    url_sistema: string;
+    whatsapp_numbers: WhatsAppContact[];
+  }>({
     name: "",
     cnpj: "",
     registro_ans: "",
     endereco: "",
     url_sistema: "",
-    whatsapp_numbers: [] as string[]
+    whatsapp_numbers: []
   });
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -105,7 +119,9 @@ export default function ClientsPage() {
       registro_ans: client.registro_ans || "",
       endereco: client.endereco || "",
       url_sistema: client.url_sistema || "",
-      whatsapp_numbers: client.whatsapp_numbers || []
+      whatsapp_numbers: (client.whatsapp_numbers || []).map((n: any) => 
+        typeof n === 'string' ? { number: n, label: "" } : n
+      )
     });
     setIsEditModalOpen(true);
   };
@@ -517,7 +533,7 @@ export default function ClientsPage() {
                   <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Contatos de WhatsApp / Grupos</label>
                   <button 
                     type="button"
-                    onClick={() => setFormData({...formData, whatsapp_numbers: [...formData.whatsapp_numbers, ""]})}
+                    onClick={() => setFormData({...formData, whatsapp_numbers: [...formData.whatsapp_numbers, { number: "", label: "" }]})}
                     className="flex items-center gap-1 text-[10px] font-bold text-gax-blue hover:text-gax-blue-hover transition-colors"
                   >
                     <Plus size={12} />
@@ -526,32 +542,48 @@ export default function ClientsPage() {
                 </div>
 
                 <div className="space-y-2 max-h-[150px] overflow-y-auto pr-1">
-                  {formData.whatsapp_numbers.map((num, i) => (
-                    <div key={i} className="flex gap-2 animate-in slide-in-from-right-2">
-                       <div className="relative flex-1">
-                        <Smartphone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={14} />
-                        <input 
-                          type="text" 
-                          value={num}
-                          onChange={(e) => {
-                            const newNums = [...formData.whatsapp_numbers];
-                            newNums[i] = e.target.value;
+                  {formData.whatsapp_numbers.map((item: any, i: number) => (
+                    <div key={i} className="flex flex-col gap-1.5 p-2 rounded-xl bg-slate-50 border border-slate-100 animate-in slide-in-from-right-2">
+                      <div className="flex gap-2">
+                        <div className="relative flex-[2]">
+                          <Users size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" />
+                          <input 
+                            type="text" 
+                            value={item.label}
+                            onChange={(e) => {
+                              const newNums = [...formData.whatsapp_numbers];
+                              newNums[i] = { ...newNums[i], label: e.target.value };
+                              setFormData({...formData, whatsapp_numbers: newNums});
+                            }}
+                            className="w-full rounded-xl border border-slate-200 pl-8 pr-4 py-1.5 text-[10px] outline-none focus:border-gax-blue transition-all font-sans text-slate-700"
+                            placeholder="Nome/Grupo"
+                          />
+                        </div>
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            const newNums = formData.whatsapp_numbers.filter((_: any, idx: number) => idx !== i);
                             setFormData({...formData, whatsapp_numbers: newNums});
                           }}
-                          className="w-full rounded-xl border border-slate-200 pl-9 pr-4 py-2 text-[11px] outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all font-sans text-slate-700 font-medium"
-                          placeholder="Ex: 55279... ou @g.us"
+                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-rose-400 hover:bg-rose-100 hover:text-rose-600 transition-all"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                      <div className="relative flex-1">
+                        <Smartphone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={12} />
+                        <input 
+                          type="text" 
+                          value={item.number}
+                          onChange={(e) => {
+                            const newNums = [...formData.whatsapp_numbers];
+                            newNums[i] = { ...newNums[i], number: e.target.value };
+                            setFormData({...formData, whatsapp_numbers: newNums});
+                          }}
+                          className="w-full rounded-xl border border-slate-200 pl-8 pr-4 py-1.5 text-[10px] outline-none focus:border-gax-blue transition-all font-sans text-slate-700 font-bold"
+                          placeholder="Número (Ex: 5527...)"
                         />
                       </div>
-                      <button 
-                        type="button"
-                        onClick={() => {
-                          const newNums = formData.whatsapp_numbers.filter((_, idx) => idx !== i);
-                          setFormData({...formData, whatsapp_numbers: newNums});
-                        }}
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-400 hover:bg-rose-100 hover:text-rose-600 transition-all"
-                      >
-                        <Trash2 size={14} />
-                      </button>
                     </div>
                   ))}
                   {formData.whatsapp_numbers.length === 0 && (

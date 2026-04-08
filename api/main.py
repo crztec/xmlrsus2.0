@@ -274,6 +274,14 @@ async def get_message_logs(page: int = 1, limit: int = 10):
     logs, total = db.get_message_logs_paginated(page, limit)
     return {"logs": logs, "total": total}
 
+@app.patch("/clients/{client_id}/whatsapp")
+async def update_client_whatsapp(client_id: str, body: dict):
+    """Atualização rápida de contatos de whatsapp."""
+    whatsapp_numbers = body.get("whatsapp_numbers", [])
+    if db.update_client_config(client_id, {"whatsapp_numbers": whatsapp_numbers}):
+        return {"status": "success"}
+    raise HTTPException(status_code=500, detail="Erro ao atualizar contatos.")
+
 @app.post("/messages/broadcast")
 async def broadcast_message(body: dict, background_tasks: BackgroundTasks):
     """
@@ -310,11 +318,21 @@ async def broadcast_message(body: dict, background_tasks: BackgroundTasks):
         if filters.get("api_offline") and c.get("api_status") != "offline":
             continue
             
-        # Filtros ABI
+        # Filtros ABI (Sincronizado com Checar Importações)
+        # Nao Importado -> Pendente Importação
+        # Importado, falta analisar -> Falta Analisar
+        # Falha na Análise / Falha -> Falha na Análise
         abi_status = c.get("abi_status", "").lower()
-        if filters.get("abi_pending") and "pendente" not in abi_status: continue
-        if filters.get("abi_missing") and "falta" not in abi_status: continue
-        if filters.get("abi_failed") and "falha" not in abi_status: continue
+        
+        passed_abi_filter = False
+        has_any_abi_filter = filters.get("abi_pending") or filters.get("abi_missing") or filters.get("abi_failed")
+        
+        if has_any_abi_filter:
+            if filters.get("abi_pending") and "nao importado" in abi_status: passed_abi_filter = True
+            if filters.get("abi_missing") and "falta" in abi_status: passed_abi_filter = True
+            if filters.get("abi_failed") and ("falha" in abi_status or "erro" in abi_status): passed_abi_filter = True
+            
+            if not passed_abi_filter: continue
         
         targets.append((c['id'], c['name'], nums))
 
@@ -325,10 +343,12 @@ async def broadcast_message(body: dict, background_tasks: BackgroundTasks):
     async def run_broadcast():
         count = 0
         for cid, cname, nums in targets:
-            for n in nums:
+            for contact_item in nums:
+                # Suporta tanto o formato antigo (string) quanto o novo (dict com 'number')
+                n = contact_item.get("number") if isinstance(contact_item, dict) else contact_item
+                if not n: continue
+                
                 try:
-                    # Usamos a porta de saída utils.send_whatsapp_alert
-                    # Precisamos passar o target_numbers como override [n]
                     await utils.send_whatsapp_alert(message, target_numbers=[n])
                     db.save_message_log(cid, cname, n, message, "SUCCESS")
                 except Exception as e:

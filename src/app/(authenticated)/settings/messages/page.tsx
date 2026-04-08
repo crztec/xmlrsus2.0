@@ -40,12 +40,17 @@ interface MessageLog {
   error_details?: string;
 }
 
+interface WhatsAppContact {
+  number: string;
+  label: string;
+}
+
 interface ClientSummary {
   id: string;
   name: string;
   api_status: string;
   abi_status: string;
-  whatsapp_numbers: string[];
+  whatsapp_numbers: (string | WhatsAppContact)[];
 }
 
 export default function MessagesPage() {
@@ -67,6 +72,10 @@ export default function MessagesPage() {
   });
   const [isSending, setIsSending] = useState(false);
   const [sendResult, setSendResult] = useState<{success: boolean, message: string} | null>(null);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [clientSearch, setClientSearch] = useState("");
+  const [isClientsModalOpen, setIsClientsModalOpen] = useState(false);
+  const [isSavingQuickContact, setIsSavingQuickContact] = useState<string | null>(null);
 
   // Template Management
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
@@ -126,25 +135,26 @@ export default function MessagesPage() {
     // Se selecionou cliente específico, ignora outros filtros
     if (filters.client_id) return c.id === filters.client_id;
     
-    // Se nenhum filtro especial, retorna falso por padrão (ou true se "Todos os Clientes" for o default)
-    // Vamos considerar que se nenhum checkbox está marcado, retorna TODOS SE o dropdown não tiver selecionado.
-    // Mas o usuário quer filtros cruzados.
-    
-    const matchesApi = filters.api_offline ? c.api_status === "offline" : true;
-    const s = c.abi_status?.toLowerCase() || "";
-    const matchesPending = filters.abi_pending ? s.includes("pendente") : true;
-    const matchesMissing = filters.abi_missing ? s.includes("falta") : true;
-    const matchesFailed = filters.abi_failed ? s.includes("falha") : true;
-    
-    // Se o usuário não marcou nenhum filtro de checkbox, desconsideramos os filtros parciais
     const hasAnyCheckbox = filters.api_offline || filters.abi_pending || filters.abi_missing || filters.abi_failed;
     
-    if (!hasAnyCheckbox) return true; // Retorna todos
+    // Se nenhum filtro for selecionado, retorna vazio (conforme pedido do usuário: "mostrar 60 mas não selecionei nada")
+    if (!hasAnyCheckbox) return false;
     
-    return (filters.api_offline ? c.api_status === "offline" : false) ||
-           (filters.abi_pending ? s.includes("pendente") : false) ||
-           (filters.abi_missing ? s.includes("falta") : false) ||
-           (filters.abi_failed ? s.includes("falha") : false);
+    const abi_s = (c.abi_status || "").toLowerCase();
+    
+    // ABI: Pendente Importação -> Nao Importado
+    const isPending = abi_s === "nao importado";
+    // ABI: Falta Analisar -> Importado, falta analisar
+    const isMissing = abi_s === "importado, falta analisar";
+    // ABI: Falha na Análise -> Falha ou Falha na Análise
+    const isFailed = abi_s === "falha" || abi_s === "falha na análise" || abi_s.includes("erro");
+
+    const matchesApi = filters.api_offline ? c.api_status === "offline" : false;
+    const matchesPending = filters.abi_pending ? isPending : false;
+    const matchesMissing = filters.abi_missing ? isMissing : false;
+    const matchesFailed = filters.abi_failed ? isFailed : false;
+    
+    return matchesApi || matchesPending || matchesMissing || matchesFailed;
   });
 
   const totalNumbers = targetClients.reduce((acc, c) => acc + (c.whatsapp_numbers?.length || 0), 0);
@@ -198,9 +208,33 @@ export default function MessagesPage() {
     if (!confirm("Excluir este template?")) return;
     try {
       const res = await fetch(`/api/messages/templates/${id}`, { method: "DELETE" });
-      if (res.ok) fetchData();
+      if (res.ok) {
+        fetchData();
+        if (selectedTemplateId === id) setSelectedTemplateId(null);
+      }
     } catch (err) {
       console.error("Erro ao deletar:", err);
+    }
+  };
+
+  const handleUpdateQuickContact = async (clientId: string, updatedNumbers: WhatsAppContact[]) => {
+    setIsSavingQuickContact(clientId);
+    try {
+      const res = await fetch(`/api/clients/${clientId}/whatsapp`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ whatsapp_numbers: updatedNumbers })
+      });
+      if (res.ok) {
+        // Atualiza estado local
+        setClients(prev => prev.map(c => 
+          c.id === clientId ? { ...c, whatsapp_numbers: updatedNumbers } : c
+        ));
+      }
+    } catch (err) {
+      console.error("Erro ao atualizar contato:", err);
+    } finally {
+      setIsSavingQuickContact(null);
     }
   };
 
@@ -247,17 +281,30 @@ export default function MessagesPage() {
               </h3>
               
               <div className="space-y-4">
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5 block">Cliente Específico</label>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 block">Cliente Específico</label>
+                  <div className="relative group">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-gax-blue transition-colors" />
+                    <input 
+                      type="text" 
+                      placeholder="Pesquisar cliente..." 
+                      value={clientSearch}
+                      onChange={(e) => setClientSearch(e.target.value)}
+                      className="w-full rounded-t-xl border border-slate-200 pl-9 pr-4 py-2 text-[11px] outline-none focus:border-gax-blue transition-all"
+                    />
+                  </div>
                   <select 
                     value={filters.client_id}
                     onChange={(e) => setFilters({...filters, client_id: e.target.value})}
-                    className="w-full rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-700 focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 outline-none transition-all"
+                    className="w-full rounded-b-xl border-x border-b border-slate-200 px-4 py-2 text-[11px] font-bold text-slate-700 focus:border-gax-blue outline-none transition-all"
+                    size={4}
                   >
                     <option value="">-- Todos os Clientes --</option>
-                    {clients.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
+                    {clients
+                      .filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase()))
+                      .map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
                   </select>
                 </div>
 
@@ -324,10 +371,14 @@ export default function MessagesPage() {
                 <span className="text-3xl font-black text-gax-blue">{targetClients.length}</span>
                 <span className="text-xs font-bold text-slate-500 mb-1">Clientes selecionados</span>
               </div>
-              <div className="mt-2 flex items-center gap-1.5 text-xs text-gax-blue/70 font-medium">
+              <button 
+                onClick={() => setIsClientsModalOpen(true)}
+                disabled={targetClients.length === 0}
+                className="mt-2 flex items-center gap-1.5 text-xs text-gax-blue/70 font-bold hover:text-gax-blue transition-colors group disabled:opacity-50"
+              >
                 <UsersIcon size={14} />
-                {totalNumbers} contatos encontrados
-              </div>
+                <span className="border-b border-gax-blue/20 group-hover:border-gax-blue">{totalNumbers} contatos encontrados</span>
+              </button>
             </section>
           </div>
 
@@ -355,30 +406,46 @@ export default function MessagesPage() {
 
               <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin">
                 {templates.map(t => (
-                  <div key={t.id} className="group relative flex shrink-0 flex-col gap-2 rounded-2xl border border-slate-100 bg-slate-50/50 p-4 transition-all hover:border-gax-blue/30 hover:bg-white w-[180px]">
+                  <div 
+                    key={t.id} 
+                    className={cn(
+                      "group relative flex shrink-0 flex-col gap-2 rounded-2xl border p-4 transition-all cursor-pointer w-[200px]",
+                      selectedTemplateId === t.id 
+                        ? "border-gax-blue bg-gax-blue/[0.03] ring-2 ring-gax-blue/20" 
+                        : "border-slate-100 bg-slate-50/50 hover:border-gax-blue/30 hover:bg-white"
+                    )}
+                    onClick={() => {
+                      setMessage(t.content);
+                      setSelectedTemplateId(t.id);
+                    }}
+                  >
                     <div className="flex items-center justify-between">
-                       <span className="truncate text-xs font-bold text-slate-800 pr-4">{t.name}</span>
-                       <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                       <span className={cn("truncate text-xs font-bold pr-4", selectedTemplateId === t.id ? "text-gax-blue" : "text-slate-800")}>{t.name}</span>
+                       <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 bg-white/80 backdrop-blur rounded-lg shadow-sm p-0.5">
                           <button 
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               setEditingTemplate(t);
                               setIsTemplateModalOpen(true);
                             }}
                             className="p-1 text-slate-400 hover:text-gax-blue"
-                          ><Save size={12} /></button>
+                          ><Plus size={12} /></button>
                           <button 
-                            onClick={() => handleDeleteTemplate(t.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteTemplate(t.id);
+                            }}
                             className="p-1 text-slate-400 hover:text-red-500"
                           ><Trash2 size={12} /></button>
                        </div>
                     </div>
-                    <p className="line-clamp-2 text-[10px] text-slate-500">{t.content}</p>
-                    <button 
-                      onClick={() => setMessage(t.content)}
-                      className="mt-2 w-full rouded-lg bg-white border border-slate-200 py-1.5 text-[10px] font-bold text-gax-blue hover:bg-gax-blue hover:text-white transition-all rounded-lg"
-                    >
-                      Selecionar
-                    </button>
+                    <p className="line-clamp-3 text-[10px] text-slate-500 leading-relaxed italic">"{t.content}"</p>
+                    <div className={cn(
+                      "mt-auto pt-2 text-[9px] font-bold uppercase tracking-wider text-right transition-colors",
+                      selectedTemplateId === t.id ? "text-gax-blue" : "text-slate-300"
+                    )}>
+                      {selectedTemplateId === t.id ? "✓ Selecionado" : "Clique p/ usar"}
+                    </div>
                   </div>
                 ))}
                 {templates.length === 0 && (
@@ -540,51 +607,99 @@ export default function MessagesPage() {
         </div>
       )}
 
-      {/* Template Modal */}
-      {isTemplateModalOpen && (
+      {/* Clients List Modal */}
+      {isClientsModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-lg rounded-3xl bg-white p-8 shadow-2xl animate-in zoom-in-95 duration-200">
-             <div className="mb-6 flex items-center justify-between">
-              <h3 className="text-xl font-bold text-slate-800">Template de Mensagem</h3>
-              <button onClick={() => setIsTemplateModalOpen(false)} className="text-slate-400 hover:text-slate-600"><XCircle size={20} /></button>
+          <div className="w-full max-w-4xl rounded-3xl bg-white shadow-2xl animate-in zoom-in-95 duration-200 max-h-[85vh] flex flex-col overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div>
+                <h3 className="text-xl font-bold text-slate-800">Lista de Destinatários</h3>
+                <p className="text-xs text-slate-400 font-medium">Contatos selecionados com base nos filtros atuais</p>
+              </div>
+              <button 
+                onClick={() => setIsClientsModalOpen(false)} 
+                className="p-2 hover:bg-white hover:shadow-sm rounded-xl transition-all text-slate-400 hover:text-slate-600 border border-transparent hover:border-slate-100"
+              >
+                <XCircle size={20} />
+              </button>
             </div>
             
-            <div className="space-y-4">
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5 block">Nome do Template</label>
-                <input 
-                  type="text" 
-                  value={editingTemplate.name}
-                  onChange={(e) => setEditingTemplate({...editingTemplate, name: e.target.value})}
-                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all"
-                  placeholder="Ex: Aviso de Manutenção"
-                />
+            <div className="flex-1 overflow-y-auto p-6 bg-slate-50/30">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {targetClients.map(client => (
+                  <div key={client.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="mb-3 flex items-start justify-between">
+                      <div className="flex flex-col">
+                        <span className="text-sm font-bold text-slate-800">{client.name}</span>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className={cn(
+                            "text-[9px] font-bold uppercase border px-1.5 py-0.5 rounded-md",
+                            client.abi_status === "Importado e Analisado" ? "bg-emerald-50 text-emerald-700 border-emerald-100" : 
+                            client.abi_status === "Importado, falta analisar" ? "bg-blue-50 text-blue-700 border-blue-100" :
+                            client.abi_status === "Nao Importado" ? "bg-slate-50 text-slate-500 border-slate-200" :
+                            "bg-amber-50 text-amber-700 border-amber-100"
+                          )}>
+                            {client.abi_status || "Desconhecido"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      {(client.whatsapp_numbers || []).map((contact: any, idx: number) => {
+                        const contactObj = typeof contact === 'string' ? { number: contact, label: "" } : contact;
+                        return (
+                          <div key={idx} className="flex items-center gap-2 group/item">
+                            <div className="flex-[2] relative overflow-hidden rounded-lg border border-slate-100 focus-within:border-gax-blue transition-colors">
+                               <input 
+                                  className="w-full bg-slate-50 px-3 py-1.5 text-[10px] font-medium text-slate-600 outline-none"
+                                  value={contactObj.label}
+                                  placeholder="Etiqueta/Nome"
+                                  onChange={(e) => {
+                                    const newContacts = [...client.whatsapp_numbers.map(c => typeof c === 'string' ? {number: c, label: ""} : {...c})];
+                                    newContacts[idx].label = e.target.value;
+                                    handleUpdateQuickContact(client.id, newContacts);
+                                  }}
+                               />
+                            </div>
+                            <div className="flex-[3] relative overflow-hidden rounded-lg border border-slate-100 focus-within:border-gax-blue transition-colors">
+                               <input 
+                                  className="w-full bg-slate-50 px-3 py-1.5 text-[10px] font-bold text-slate-800 outline-none"
+                                  value={contactObj.number}
+                                  placeholder="WhatsApp"
+                                  onChange={(e) => {
+                                    const newContacts = [...client.whatsapp_numbers.map(c => typeof c === 'string' ? {number: c, label: ""} : {...c})];
+                                    newContacts[idx].number = e.target.value;
+                                    handleUpdateQuickContact(client.id, newContacts);
+                                  }}
+                               />
+                            </div>
+                            {isSavingQuickContact === client.id && (
+                              <Loader2 size={12} className="animate-spin text-gax-blue opacity-50" />
+                            )}
+                          </div>
+                        );
+                      })}
+                      {(!client.whatsapp_numbers || client.whatsapp_numbers.length === 0) && (
+                        <p className="text-[10px] text-slate-400 italic">Sem contatos configurados.</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5 block">Conteúdo da Mensagem</label>
-                <textarea 
-                  value={editingTemplate.content}
-                  onChange={(e) => setEditingTemplate({...editingTemplate, content: e.target.value})}
-                  className="w-full min-h-[200px] rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all font-sans text-slate-700 resize-none"
-                  placeholder="Olá, viemos informar que..."
-                />
-              </div>
-              
-              <div className="flex gap-3 pt-2">
-                <button 
-                  onClick={() => setIsTemplateModalOpen(false)}
-                  className="flex-1 rounded-xl bg-slate-100 py-3 text-sm font-bold text-slate-600 hover:bg-slate-200 transition-colors"
-                >Cancelar</button>
-                <button 
-                  onClick={handleSaveTemplate}
-                  className="flex-[2] rounded-xl bg-gax-blue py-3 text-sm font-bold text-white shadow-lg shadow-gax-blue/20 hover:bg-gax-blue-hover transition-all"
-                >Salvar Template</button>
-              </div>
+            </div>
+            
+            <div className="p-6 border-t border-slate-100 bg-white flex justify-end">
+              <button 
+                onClick={() => setIsClientsModalOpen(false)}
+                className="px-6 py-2 rounded-xl bg-gax-blue text-white text-xs font-bold shadow-lg shadow-gax-blue/20 hover:bg-gax-blue-hover transition-all font-display"
+              >
+                Concluído
+              </button>
             </div>
           </div>
         </div>
       )}
-
     </div>
   );
 }
