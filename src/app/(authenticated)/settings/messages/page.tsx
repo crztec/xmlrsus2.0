@@ -81,6 +81,8 @@ export default function MessagesPage() {
   const [isClientsModalOpen, setIsClientsModalOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isSavingQuickContact, setIsSavingQuickContact] = useState<string | null>(null);
+  const [localModalClients, setLocalModalClients] = useState<ClientSummary[]>([]);
+  const [isSavingAllContacts, setIsSavingAllContacts] = useState(false);
 
   // Template Management
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
@@ -140,6 +142,13 @@ export default function MessagesPage() {
       fetchLogs(currentPage);
     }
   }, [activeTab, currentPage]);
+
+  useEffect(() => {
+    if (isClientsModalOpen) {
+      // Inicializa o estado local do modal com os clientes filtrados atuais
+      setLocalModalClients(JSON.parse(JSON.stringify(targetClients)));
+    }
+  }, [isClientsModalOpen]);
 
   // Filtering Logic
   const targetClients = clients.filter(c => {
@@ -232,22 +241,43 @@ export default function MessagesPage() {
   };
 
   const handleUpdateQuickContact = async (clientId: string, updatedNumbers: WhatsAppContact[]) => {
-    // 1. Atualiza estado local imediatamente (Otimista)
-    setClients(prev => prev.map(c => 
+    // Agora apenas atualiza o estado local do modal
+    setLocalModalClients(prev => prev.map(c => 
       c.id === clientId ? { ...c, whatsapp_numbers: updatedNumbers } : c
     ));
+  };
 
-    setIsSavingQuickContact(clientId);
+  const handleSaveAllContacts = async () => {
+    setIsSavingAllContacts(true);
     try {
-      const res = await fetch(`/api/clients/${clientId}/whatsapp`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ whatsapp_numbers: updatedNumbers })
+      // Identifica apenas os clientes que sofreram alteração para economizar requisições
+      const modifiedClients = localModalClients.filter(localC => {
+        const originalC = clients.find(c => c.id === localC.id);
+        return JSON.stringify(localC.whatsapp_numbers) !== JSON.stringify(originalC?.whatsapp_numbers);
       });
+
+      if (modifiedClients.length > 0) {
+        await Promise.all(modifiedClients.map(c => 
+          fetch(`/api/clients/${c.id}/whatsapp`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ whatsapp_numbers: c.whatsapp_numbers })
+          })
+        ));
+
+        // Atualiza o estado global uma única vez
+        setClients(prev => prev.map(c => {
+          const updated = localModalClients.find(lc => lc.id === c.id);
+          return updated ? { ...c, whatsapp_numbers: updated.whatsapp_numbers } : c;
+        }));
+      }
+
+      setIsClientsModalOpen(false);
     } catch (err) {
-      console.error("Erro ao atualizar contato:", err);
+      console.error("Erro ao salvar contatos:", err);
+      alert("Erro ao salvar alguns contatos. Tente novamente.");
     } finally {
-      setIsSavingQuickContact(null);
+      setIsSavingAllContacts(false);
     }
   };
 
@@ -418,7 +448,10 @@ export default function MessagesPage() {
                         isSearchOpen && "rounded-b-none border-b-transparent ring-4 ring-gax-blue/5 border-gax-blue"
                       )}
                     >
-                      <div className="flex flex-1 items-center px-3 py-2.5 cursor-pointer" onClick={() => setIsSearchOpen(!isSearchOpen)}>
+                      <div 
+                        className="flex flex-1 items-center px-3 py-2.5 cursor-text" 
+                        onClick={() => !isSearchOpen && setIsSearchOpen(true)}
+                      >
                          <Search size={14} className={cn("mr-2 transition-colors", isSearchOpen || filters.client_ids.length > 0 ? "text-gax-blue" : "text-slate-300")} />
                          <input 
                             type="text" 
@@ -919,24 +952,35 @@ export default function MessagesPage() {
             
             <div className="flex-1 overflow-y-auto p-6 bg-slate-50/30">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {targetClients.map(client => (
+                {localModalClients.map(client => (
                   <ClientContactCard 
                     key={client.id}
                     client={client}
                     handleUpdateQuickContact={handleUpdateQuickContact}
-                    isSaving={isSavingQuickContact === client.id}
+                    isSaving={false} // Não mostramos loader individual mais, pois o salvamento é global
                   />
                 ))}
               </div>
             </div>
             
-            <div className="p-6 border-t border-slate-100 bg-white flex justify-end">
-              <button 
-                onClick={() => setIsClientsModalOpen(false)}
-                className="px-6 py-2 rounded-xl bg-gax-blue text-white text-xs font-bold shadow-lg shadow-gax-blue/20 hover:bg-gax-blue-hover transition-all font-display"
-              >
-                Concluído
-              </button>
+            <div className="p-6 border-t border-slate-100 flex justify-end bg-white">
+               <button 
+                  onClick={handleSaveAllContacts}
+                  disabled={isSavingAllContacts}
+                  className="flex items-center gap-2 px-8 py-2.5 rounded-2xl bg-gax-blue text-white text-xs font-bold shadow-lg shadow-gax-blue/20 hover:bg-gax-blue-hover transition-all disabled:opacity-50"
+               >
+                  {isSavingAllContacts ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      Salvando...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 size={14} />
+                      Concluído
+                    </>
+                  )}
+               </button>
             </div>
           </div>
         </div>
