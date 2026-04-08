@@ -1105,6 +1105,21 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
             files = db.get_files_for_task(task_id)
             total = len(files)
 
+            # --- LÓGICA DE SUBSTITUIÇÃO (GAX 2.0) ---
+            if force and total > 0:
+                try:
+                    task_snap = db.firestore_db.collection('tasks').document(task_id).get()
+                    razao_social_task = task_snap.to_dict().get('razao_social') if task_snap.exists else None
+                    if not razao_social_task:
+                        razao_social_task = files[0].get('razao_social')
+                    
+                    if razao_social_task:
+                        abis_to_replace = [f.get('numero_abi') for f in files if f.get('numero_abi')]
+                        db.mark_abis_as_substituted(razao_social_task, abis_to_replace)
+                        db.add_log(task_id, "INFO", f"🔄 Modo SUBSTITUIÇÃO: Registros antigos de {len(abis_to_replace)} ABIs foram invalidados.")
+                except Exception as e_sub:
+                    logger.error(f"Erro ao processar substituição: {e_sub}")
+
             # Ordenação numérica decrescente por ABI conforme o sistema antigo
             def extract_abi_num(num_abi_str):
                 import re
@@ -1382,6 +1397,15 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                                                     db.add_log(task_id, "SUCCESS", "Importação confirmada com sucesso pelo portal.")
                                                     status_final_abi = "SUCCESS"
                                                     msg_feedback = msg_text
+                                                    
+                                                    # Gatilho de atualização de estatísticas (GAX 2.0)
+                                                    try:
+                                                        task_snap = db.firestore_db.collection('tasks').document(task_id).get()
+                                                        rz_task = task_snap.to_dict().get('razao_social') if task_snap.exists else None
+                                                        if rz_task:
+                                                            db.recalculate_client_abis(rz_task)
+                                                    except: pass
+                                                    
                                                     break
                                                 elif any(key in msg_text.lower() for key in ["erro", "inválid", "rejeitad", "não encontrado", "sis00", "falhou"]):
                                                     if not intercepted_portal_error["text"]:

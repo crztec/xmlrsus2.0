@@ -1476,3 +1476,113 @@ def get_abi_dashboard_stats():
     except Exception as e:
         logger.error(f"Erro ao calcular estatísticas ABI: {e}")
         return {}
+
+def mark_abis_as_substituted(razao_social, abis):
+    """
+    Encontra entradas 'SUCESSO' existentes no task_files para um determinado cliente e lista de ABIs,
+    e marca-as como 'SUBSTITUIDO' para limpar o histórico e permitir nova importação limpa.
+    """
+    try:
+        if not abis:
+            return True
+            
+        if isinstance(abis, str):
+            abis = [abis]
+            
+        count_marked = 0
+        for abi in abis:
+            # Normalização básica para busca (remove o º se houver)
+            abi_str = str(abi).replace("º", "").replace("°", "").strip()
+            
+            # Busca as tasks do cliente para pegar os task_ids vinculados
+            tasks = firestore_db.collection('tasks').where('razao_social', '==', razao_social.strip()).stream()
+            
+            for task_doc in tasks:
+                task_id = task_doc.id
+                # Busca na coleção RAIZ 'task_files' pelo task_id
+                files = firestore_db.collection('task_files').where('task_id', '==', task_id).stream()
+                for doc in files:
+                    data = doc.to_dict()
+                    if data.get('status_importacao') != 'SUCESSO':
+                        continue
+                        
+                    doc_abi = str(data.get('numero_abi', '')).replace("º", "").replace("°", "").strip()
+                    
+                    if doc_abi == abi_str:
+                        doc.reference.update({'status_importacao': 'SUBSTITUIDO'})
+                        count_marked += 1
+                
+                if doc_abi == abi_str:
+                    doc.reference.update({'status_importacao': 'SUBSTITUIDO'})
+                    count_marked += 1
+        
+        if count_marked > 0:
+            logger.info(f"Sucesso: {count_marked} ABIs para '{razao_social}' marcadas como SUBSTITUIDO.")
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao marcar ABIs como substituídas para {razao_social}: {e}")
+        return False
+
+def recalculate_client_abis(client_id):
+    """
+    Reconta o total de ABIs importadas com sucesso para um cliente e atualiza o documento do cliente.
+    """
+    try:
+        client_ref = firestore_db.collection('client_configs').document(client_id)
+        doc = client_ref.get()
+        if not doc.exists:
+            # Tenta buscar pelo campo 'name' se o client_id não for o ID do documento
+            query = firestore_db.collection('client_configs').where('name', '==', client_id).limit(1).stream()
+            client_doc = next(query, None)
+            if client_doc:
+                client_ref = client_doc.reference
+                doc = client_doc
+            else:
+                logger.warning(f"Cliente {client_id} não encontrado para recalcular estatísticas.")
+                return False
+
+        data = doc.to_dict()
+        name = data.get('name', client_id)
+        
+        # Busca manual iterando pelas tasks para obter IDs vinculados
+        tasks = firestore_db.collection('tasks').where('razao_social', '==', name.strip()).stream()
+            
+        success_abis = []
+        last_abi = data.get('abi_current')
+        last_date = None
+        
+        for task_doc in tasks:
+            task_id = task_doc.id
+            files = firestore_db.collection('task_files').where('task_id', '==', task_id).stream()
+            for f in files:
+                fdata = f.to_dict()
+                if fdata.get('status_importacao') != 'SUCESSO':
+                    continue
+                    
+                abi = fdata.get('numero_abi')
+                if abi:
+                    success_abis.append(str(abi))
+                    # Tenta pegar a data de criação para definir o atual
+                    created_at = fdata.get('created_at')
+                    if created_at:
+                        if not last_date or created_at > last_date:
+                            last_date = created_at
+                            last_abi = str(abi)
+        
+        unique_abis = list(set(success_abis))
+        count = len(unique_abis)
+        
+        update_payload = {
+            'total_abis': count,
+            'updated_at': get_now_br().strftime("%Y-%m-%d %H:%M:%S")
+        }
+        
+        if last_abi:
+            update_payload['abi_current'] = last_abi
+            
+        client_ref.update(update_payload)
+        logger.info(f"Contagem do cliente '{name}' atualizada: {count} ABIs.")
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao recalcular estatísticas para {client_id}: {e}")
+        return False
