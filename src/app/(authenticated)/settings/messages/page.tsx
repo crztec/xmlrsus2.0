@@ -20,7 +20,8 @@ import {
   RefreshCw,
   Copy,
   MessageSquare,
-  Search
+  Search,
+  Pencil
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -121,7 +122,13 @@ export default function MessagesPage() {
   };
 
   useEffect(() => {
+    document.title = "Mensagens & Broadcast - GAX";
     fetchData();
+    // Re-set title if it gets lost during hydration/navigation
+    const timer = setTimeout(() => {
+      document.title = "Mensagens & Broadcast - GAX";
+    }, 500);
+    return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {
@@ -198,6 +205,7 @@ export default function MessagesPage() {
         fetchData();
         setIsTemplateModalOpen(false);
         setEditingTemplate({ name: "", content: "" });
+        setSelectedTemplateId(null); // Reset selection after editing/saving
       }
     } catch (err) {
       console.error("Erro ao salvar template:", err);
@@ -242,17 +250,17 @@ export default function MessagesPage() {
     <div className="flex flex-col gap-6 p-8 pt-2 max-w-7xl mx-auto animate-in fade-in duration-500">
       
       {/* Tab Switcher */}
-      <div className="flex items-center gap-1.5 rounded-2xl border border-slate-200/60 bg-white p-1.5 shadow-sm w-fit">
+      <div className="flex items-center gap-1.5 rounded-2xl border border-slate-200/60 bg-white/70 backdrop-blur-md p-1.5 shadow-sm w-fit sticky top-0 z-30">
         <button
           onClick={() => setActiveTab("new")}
           className={cn(
             "flex items-center gap-2 px-6 py-2.5 rounded-xl transition-all font-bold text-xs",
             activeTab === "new" 
-              ? "bg-gax-blue text-white shadow-md shadow-gax-blue/20" 
+              ? "bg-gax-blue text-white shadow-lg shadow-gax-blue/30" 
               : "text-slate-400 hover:bg-slate-50 hover:text-slate-600"
           )}
         >
-          <Send size={16} />
+          <Send size={15} />
           Nova Mensagem
         </button>
         <button
@@ -260,11 +268,11 @@ export default function MessagesPage() {
           className={cn(
             "flex items-center gap-2 px-6 py-2.5 rounded-xl transition-all font-bold text-xs",
             activeTab === "history" 
-              ? "bg-gax-blue text-white shadow-md shadow-gax-blue/20" 
+              ? "bg-gax-blue text-white shadow-lg shadow-gax-blue/30" 
               : "text-slate-400 hover:bg-slate-50 hover:text-slate-600"
           )}
         >
-          <History size={16} />
+          <History size={15} />
           Histórico de Envios
         </button>
       </div>
@@ -281,31 +289,33 @@ export default function MessagesPage() {
               </h3>
               
               <div className="space-y-4">
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 block">Cliente Específico</label>
-                  <div className="relative group">
-                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-gax-blue transition-colors" />
-                    <input 
-                      type="text" 
-                      placeholder="Pesquisar cliente..." 
-                      value={clientSearch}
-                      onChange={(e) => setClientSearch(e.target.value)}
-                      className="w-full rounded-t-xl border border-slate-200 pl-9 pr-4 py-2 text-[11px] outline-none focus:border-gax-blue transition-all"
-                    />
+                  <div className="flex flex-col rounded-2xl border border-slate-200 overflow-hidden focus-within:ring-4 focus-within:ring-gax-blue/10 focus-within:border-gax-blue transition-all shadow-sm bg-white">
+                    <div className="relative group flex items-center bg-slate-50/50 border-b border-slate-100">
+                      <Search size={14} className="ml-3 text-slate-300 group-focus-within:text-gax-blue transition-colors" />
+                      <input 
+                        type="text" 
+                        placeholder="Pesquisar cliente..." 
+                        value={clientSearch}
+                        onChange={(e) => setClientSearch(e.target.value)}
+                        className="w-full bg-transparent pl-2 pr-4 py-2.5 text-[11px] font-medium outline-none text-slate-600"
+                      />
+                    </div>
+                    <select 
+                      value={filters.client_id}
+                      onChange={(e) => setFilters({...filters, client_id: e.target.value})}
+                      className="w-full px-2 py-1 text-[11px] font-bold text-slate-700 outline-none hover:bg-slate-50 transition-colors cursor-pointer scrollbar-thin border-none rounded-b-2xl"
+                      size={5}
+                    >
+                      <option value="" className="py-2 px-2">-- Todos os Clientes --</option>
+                      {clients
+                        .filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase()))
+                        .map(c => (
+                          <option key={c.id} value={c.id} className="py-2 px-2 hover:bg-gax-blue/10">{c.name}</option>
+                        ))}
+                    </select>
                   </div>
-                  <select 
-                    value={filters.client_id}
-                    onChange={(e) => setFilters({...filters, client_id: e.target.value})}
-                    className="w-full rounded-b-xl border-x border-b border-slate-200 px-4 py-2 text-[11px] font-bold text-slate-700 focus:border-gax-blue outline-none transition-all"
-                    size={4}
-                  >
-                    <option value="">-- Todos os Clientes --</option>
-                    {clients
-                      .filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase()))
-                      .map(c => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                  </select>
                 </div>
 
                 <div className={cn("space-y-3", filters.client_id ? "opacity-30 pointer-events-none" : "")}>
@@ -365,19 +375,20 @@ export default function MessagesPage() {
               </div>
             </section>
 
-            <section className="rounded-3xl border border-slate-200/60 bg-gax-blue/5 p-6 shadow-sm border-dashed">
-              <h3 className="text-xs font-bold text-gax-blue mb-2">Resumo do Destinatário</h3>
-              <div className="flex items-end gap-2">
-                <span className="text-3xl font-black text-gax-blue">{targetClients.length}</span>
-                <span className="text-xs font-bold text-slate-500 mb-1">Clientes selecionados</span>
+            <section className="rounded-3xl border border-slate-200/60 bg-white p-6 shadow-sm border-dashed relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-gax-blue/5 rounded-full -mr-16 -mt-16 transition-transform group-hover:scale-110 duration-700"></div>
+              <h3 className="text-xs font-bold text-gax-blue mb-2 relative z-10 uppercase tracking-tight">Resumo do Destinatário</h3>
+              <div className="flex items-end gap-2 relative z-10">
+                <span className="text-4xl font-black text-gax-blue">{targetClients.length}</span>
+                <span className="text-xs font-bold text-slate-500 mb-1.5">Clientes selecionados</span>
               </div>
               <button 
                 onClick={() => setIsClientsModalOpen(true)}
                 disabled={targetClients.length === 0}
-                className="mt-2 flex items-center gap-1.5 text-xs text-gax-blue/70 font-bold hover:text-gax-blue transition-colors group disabled:opacity-50"
+                className="mt-4 flex items-center gap-2 px-4 py-2 rounded-xl bg-gax-blue/5 text-[11px] text-gax-blue font-bold hover:bg-gax-blue hover:text-white transition-all group disabled:opacity-50 relative z-10"
               >
-                <UsersIcon size={14} />
-                <span className="border-b border-gax-blue/20 group-hover:border-gax-blue">{totalNumbers} contatos encontrados</span>
+                <UsersIcon size={14} className="group-hover:scale-110 transition-transform" />
+                <span>{totalNumbers} contatos encontrados</span>
               </button>
             </section>
           </div>
@@ -393,11 +404,12 @@ export default function MessagesPage() {
                   Templates Salvos
                 </h3>
                 <button 
+                  type="button"
                   onClick={() => {
                     setEditingTemplate({ name: "", content: "" });
                     setIsTemplateModalOpen(true);
                   }}
-                  className="flex items-center gap-1.5 text-[10px] font-bold text-gax-blue hover:text-gax-blue-hover transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gax-blue/5 text-[10px] font-bold text-gax-blue hover:bg-gax-blue hover:text-white transition-all shadow-sm"
                 >
                   <Plus size={14} />
                   Novo Template
@@ -409,42 +421,57 @@ export default function MessagesPage() {
                   <div 
                     key={t.id} 
                     className={cn(
-                      "group relative flex shrink-0 flex-col gap-2 rounded-2xl border p-4 transition-all cursor-pointer w-[200px]",
+                      "group relative flex shrink-0 flex-col gap-3 rounded-2xl border p-4 transition-all cursor-pointer w-[210px]",
                       selectedTemplateId === t.id 
-                        ? "border-gax-blue bg-gax-blue/[0.03] ring-2 ring-gax-blue/20" 
-                        : "border-slate-100 bg-slate-50/50 hover:border-gax-blue/30 hover:bg-white"
+                        ? "border-gax-blue bg-gax-blue/[0.04] ring-2 ring-gax-blue/20" 
+                        : "border-slate-100 bg-slate-50/50 hover:border-gax-blue/30 hover:bg-white hover:shadow-md hover:-translate-y-0.5"
                     )}
                     onClick={() => {
-                      setMessage(t.content);
-                      setSelectedTemplateId(t.id);
+                      setEditingTemplate(t);
+                      setIsTemplateModalOpen(true);
                     }}
                   >
                     <div className="flex items-center justify-between">
                        <span className={cn("truncate text-xs font-bold pr-4", selectedTemplateId === t.id ? "text-gax-blue" : "text-slate-800")}>{t.name}</span>
-                       <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 bg-white/80 backdrop-blur rounded-lg shadow-sm p-0.5">
+                       <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 bg-white/90 backdrop-blur rounded-lg shadow-sm border border-slate-100 p-1">
                           <button 
                             onClick={(e) => {
                               e.stopPropagation();
                               setEditingTemplate(t);
                               setIsTemplateModalOpen(true);
                             }}
-                            className="p-1 text-slate-400 hover:text-gax-blue"
-                          ><Plus size={12} /></button>
+                            className="p-1 text-slate-400 hover:text-gax-blue transition-colors"
+                            title="Editar"
+                          ><Pencil size={12} /></button>
                           <button 
                             onClick={(e) => {
                               e.stopPropagation();
                               handleDeleteTemplate(t.id);
                             }}
-                            className="p-1 text-slate-400 hover:text-red-500"
+                            className="p-1 text-slate-400 hover:text-red-500 transition-colors"
+                            title="Excluir"
                           ><Trash2 size={12} /></button>
                        </div>
                     </div>
-                    <p className="line-clamp-3 text-[10px] text-slate-500 leading-relaxed italic">"{t.content}"</p>
-                    <div className={cn(
-                      "mt-auto pt-2 text-[9px] font-bold uppercase tracking-wider text-right transition-colors",
-                      selectedTemplateId === t.id ? "text-gax-blue" : "text-slate-300"
-                    )}>
-                      {selectedTemplateId === t.id ? "✓ Selecionado" : "Clique p/ usar"}
+                    <p className="line-clamp-3 text-[10px] text-slate-500 leading-relaxed min-h-[45px]">
+                      {t.content}
+                    </p>
+                    <div className="mt-auto pt-3 flex items-center justify-between">
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setMessage(t.content);
+                          setSelectedTemplateId(t.id);
+                        }}
+                        className={cn(
+                          "rounded-lg px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider transition-all",
+                          selectedTemplateId === t.id 
+                            ? "bg-gax-blue text-white shadow-sm" 
+                            : "bg-white border border-slate-200 text-gax-blue hover:bg-gax-blue hover:text-white"
+                        )}
+                      >
+                        {selectedTemplateId === t.id ? "✓ Ativo" : "Usar Agora"}
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -579,31 +606,88 @@ export default function MessagesPage() {
              </div>
            </div>
 
-           {/* Paginação */}
-           {totalLogs > logsPerPage && (
-             <div className="flex items-center justify-between rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-                <span className="text-xs font-medium text-slate-500">
-                  Mostrando {(currentPage - 1) * logsPerPage + 1} a {Math.min(currentPage * logsPerPage, totalLogs)} de {totalLogs} registros
-                </span>
-                <div className="flex items-center gap-2">
-                  <button 
-                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                    disabled={currentPage === 1}
-                    className="p-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all"
-                  >
-                    <ChevronLeft size={20} />
-                  </button>
-                  <span className="text-xs font-bold text-slate-700 px-2">{currentPage} / {Math.ceil(totalLogs / logsPerPage)}</span>
-                  <button 
-                    onClick={() => setCurrentPage(prev => prev + 1)}
-                    disabled={currentPage >= Math.ceil(totalLogs / logsPerPage)}
-                    className="p-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all"
-                  >
-                    <ChevronRight size={20} />
-                  </button>
-                </div>
-             </div>
-           )}
+            {/* Paginação */}
+            <div className="flex items-center justify-between rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+               <span className="text-xs font-medium text-slate-500">
+                 {totalLogs > 0 ? (
+                   `Mostrando ${(currentPage - 1) * logsPerPage + 1} a ${Math.min(currentPage * logsPerPage, totalLogs)} de ${totalLogs} registros`
+                 ) : (
+                   "Sem registros para mostrar"
+                 )}
+               </span>
+               <div className="flex items-center gap-2">
+                 <button 
+                   onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                   disabled={currentPage === 1 || totalLogs === 0}
+                   className="p-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all shadow-sm hover:shadow-md"
+                 >
+                   <ChevronLeft size={20} />
+                 </button>
+                 <span className="text-xs font-bold text-slate-700 px-3 bg-slate-50 py-2 rounded-lg border border-slate-100">
+                    {currentPage} / {Math.max(1, Math.ceil(totalLogs / logsPerPage))}
+                 </span>
+                 <button 
+                   onClick={() => setCurrentPage(prev => prev + 1)}
+                   disabled={currentPage >= Math.ceil(totalLogs / logsPerPage) || totalLogs === 0}
+                   className="p-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all shadow-sm hover:shadow-md"
+                 >
+                   <ChevronRight size={20} />
+                 </button>
+               </div>
+            </div>
+        </div>
+      )}
+
+      {/* Template Edit Modal */}
+      {isTemplateModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-lg rounded-3xl bg-white shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <h3 className="text-xl font-bold text-slate-800">
+                {editingTemplate.id ? "Editar Template" : "Novo Template"}
+              </h3>
+              <button onClick={() => setIsTemplateModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                <XCircle size={20} />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Nome do Template</label>
+                <input 
+                  type="text"
+                  value={editingTemplate.name}
+                  onChange={(e) => setEditingTemplate({...editingTemplate, name: e.target.value})}
+                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all font-medium"
+                  placeholder="Ex: Aviso de Importação"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Conteúdo da Mensagem</label>
+                <textarea 
+                  value={editingTemplate.content}
+                  onChange={(e) => setEditingTemplate({...editingTemplate, content: e.target.value})}
+                  className="w-full min-h-[150px] rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all font-sans resize-none"
+                  placeholder="Digite o texto do template..."
+                />
+              </div>
+            </div>
+            
+            <div className="p-6 border-t border-slate-100 flex justify-end gap-3">
+              <button 
+                onClick={() => setIsTemplateModalOpen(false)}
+                className="px-6 py-2 rounded-xl text-slate-500 text-xs font-bold hover:bg-slate-50 transition-all"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={handleSaveTemplate}
+                className="px-6 py-2 rounded-xl bg-gax-blue text-white text-xs font-bold shadow-lg shadow-gax-blue/20 hover:bg-gax-blue-hover transition-all"
+              >
+                Salvar Template
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

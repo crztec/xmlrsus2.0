@@ -68,6 +68,10 @@ const PAGE_METADATA: Record<string, { title: string; subtitle: string }> = {
   "/settings/integrations": {
     title: "Integrações",
     subtitle: "Configurações de conectores externos (WhatsApp, Evolution API)"
+  },
+  "/settings/messages": {
+    title: "Mensagens & Broadcast",
+    subtitle: "Envio de comunicados em massa via WhatsApp"
   }
 };
 
