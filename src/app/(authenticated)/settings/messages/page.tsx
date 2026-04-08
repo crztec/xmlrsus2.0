@@ -232,6 +232,11 @@ export default function MessagesPage() {
   };
 
   const handleUpdateQuickContact = async (clientId: string, updatedNumbers: WhatsAppContact[]) => {
+    // 1. Atualiza estado local imediatamente (Otimista)
+    setClients(prev => prev.map(c => 
+      c.id === clientId ? { ...c, whatsapp_numbers: updatedNumbers } : c
+    ));
+
     setIsSavingQuickContact(clientId);
     try {
       const res = await fetch(`/api/clients/${clientId}/whatsapp`, {
@@ -239,14 +244,11 @@ export default function MessagesPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ whatsapp_numbers: updatedNumbers })
       });
-      if (res.ok) {
-        // Atualiza estado local
-        setClients(prev => prev.map(c => 
-          c.id === clientId ? { ...c, whatsapp_numbers: updatedNumbers } : c
-        ));
-      }
+      // Não precisa atualizar o estado de novo se o res for OK, já foi feito acima
     } catch (err) {
       console.error("Erro ao atualizar contato:", err);
+      // Aqui poderíamos fazer um rollback se necessário, mas para esse caso simples 
+      // o usuário provavelmente tentará digitar de novo.
     } finally {
       setIsSavingQuickContact(null);
     }
