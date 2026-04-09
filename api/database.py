@@ -1840,7 +1840,8 @@ def restore_menu_default():
         # Remove metadata fields before saving as active
         for k in ['saved_as_default_at', 'updated_at']:
             default_config.pop(k, None)
-        return save_menu_config(default_config)
+        success, _ = save_menu_config_detailed(default_config)
+        return success
     except Exception as e:
         logger.error(f"Erro ao restaurar menu default: {e}")
         return False
