@@ -1954,12 +1954,12 @@ async def route_save_rsus_credentials(
 # MENU CONFIGURATION ENDPOINTS
 # ============================================================================
 
-@app.get("/api/menu-config")
+@app.get("/menu-config")
 async def route_get_menu_config():
     """Retorna a configuração atual de menus."""
     return db.get_menu_config()
 
-@app.post("/api/menu-config")
+@app.post("/menu-config")
 async def route_save_menu_config(config: dict):
     """Salva a configuração ativa de menus."""
     success, error_msg = db.save_menu_config_detailed(config)
@@ -1967,7 +1967,7 @@ async def route_save_menu_config(config: dict):
         return {"status": "success", "message": "Configuração de menus salva."}
     raise HTTPException(status_code=500, detail=f"Erro ao salvar no Firestore: {error_msg}")
 
-@app.post("/api/menu-config/set-default")
+@app.post("/menu-config/set-default")
 async def route_set_menu_default(config: dict):
     """Salva a configuração atual como padrão customizado."""
     success = db.save_menu_default(config)
