@@ -53,7 +53,7 @@ export default function ClientsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("list");
   const [selectedClients, setSelectedClients] = useState<Set<string>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -431,20 +431,13 @@ export default function ClientsPage() {
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-4 border-t border-slate-100/50 pt-5 mt-auto">
+              <div className="grid grid-cols-1 gap-4 border-t border-slate-100/50 pt-5 mt-auto">
                 <div className="space-y-1">
                   <p className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-slate-400">
                     <Calendar size={10} aria-hidden="true" />
                     Última Importação
                   </p>
                   <p className="text-xs font-bold text-slate-600">{client.ultima_importacao || "-"}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-slate-400">
-                    <FileCheck size={10} aria-hidden="true" />
-                    Capacidade ABIs
-                  </p>
-                  <p className="text-xs font-bold text-gax-blue">{client.total_abis} XMLs</p>
                 </div>
               </div>
             </div>

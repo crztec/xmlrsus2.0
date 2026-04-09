@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import {
   Zap, Search, CheckCircle2, XCircle, Clock, Terminal, X,
   ChevronLeft, ChevronRight, Activity, Camera, MoreHorizontal,
-  RotateCcw, FileText, Ban, RefreshCw, Loader2, ShieldCheck, History, Play
+  RotateCcw, FileText, Ban, RefreshCw, Loader2, ShieldCheck, History, Play, ExternalLink
 } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { doc, onSnapshot, collection, query, where, orderBy, limit, getDocs, updateDoc } from "firebase/firestore";
@@ -22,6 +22,7 @@ interface ClientConfig {
   api_status_history?: string[];
   api_last_task_id?: string;
   api_last_screenshot_url?: string;
+  group_name?: string;
 }
 
 interface TaskLog {
@@ -602,8 +603,22 @@ export default function ApiChecksPage() {
                   {/* Cliente */}
                   <td className="px-5 py-3.5">
                     <div className="flex flex-col">
-                      <span className="font-bold text-slate-800 text-sm">{client.name}</span>
-                      <span className="text-[10px] text-slate-400 font-medium truncate max-w-[240px]">{client.url_sistema}</span>
+                      {client.url_sistema ? (
+                        <a 
+                          href={client.url_sistema} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="font-bold text-slate-800 text-sm hover:text-gax-blue transition-colors flex items-center gap-1.5 group/namelink"
+                        >
+                          {client.name}
+                          <ExternalLink size={12} className="opacity-0 group-hover/namelink:opacity-100 transition-all text-slate-400 group-hover/namelink:text-gax-blue" />
+                        </a>
+                      ) : (
+                        <span className="font-bold text-slate-800 text-sm">{client.name}</span>
+                      )}
+                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
+                        {client.group_name || "Sem Grupo"}
+                      </span>
                     </div>
                   </td>
 

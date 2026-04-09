@@ -742,22 +742,23 @@ def get_xml_data_paginated(page=1, limit=10, search="", client_filter=""):
 
         query = firestore_db.collection('task_files').order_by('data_processamento', direction=firestore.Query.DESCENDING)
         
-        # Se houver filtro por cliente, aplicamos na consulta
+        # Estratégia resiliente: Buscar um lote grande e filtrar em memória para evitar falhas de indexação/case-sensitive
         if client_filter:
-            # Tenta busca exata primeiro
-            docs = query.where('razao_social', '==', client_filter.strip()).limit(500).get()
+            # 1. Tenta buscar tarefas vinculadas se for um nome simples
+            tasks = firestore_db.collection('tasks').where('razao_social', '==', client_filter.strip()).limit(50).stream()
+            task_ids = [t.id for t in tasks]
             
-            # Se não trouxe nada, pode ser o caso de nomes longos no XML (ex: Erechim)
-            if not docs:
-                # Busca tarefas do cliente para pegar os IDs vinculados
-                tasks = firestore_db.collection('tasks').where('razao_social', '==', client_filter.strip()).limit(50).stream()
-                task_ids = [t.id for t in tasks]
-                if task_ids:
-                    # Firestore IN limit is 30, but we can do a loop or just filter the recent ones
-                    docs = firestore_db.collection('task_files').where('task_id', 'in', task_ids[:30]).limit(500).get()
-                else:
-                    # Fallback para busca por prefixo se possível (riscado em Firestore sem índices específicos)
-                    docs = []
+            if task_ids:
+                # Se achou tarefas, busca os arquivos delas
+                docs_by_task = firestore_db.collection('task_files').where('task_id', 'in', task_ids[:30]).limit(500).get()
+            else:
+                docs_by_task = []
+                
+            # 2. Busca também os últimos 1000 arquivos para garantir que pegamos os recentes mesmo com nome diferente
+            docs_recent = query.limit(1000).get()
+            
+            # Combina os docs (mantendo a ordenação por data de processamento se possível)
+            docs = list(docs_by_task) + [d for d in docs_recent if d.id not in [x.id for x in docs_by_task]]
         else:
             docs = query.limit(1000).get()
         

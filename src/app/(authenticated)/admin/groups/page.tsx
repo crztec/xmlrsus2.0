@@ -287,7 +287,11 @@ export default function GroupsPage() {
                 </div>
 
                 <div className="flex-1 overflow-y-auto pr-2 space-y-2 custom-scrollbar lg:max-h-60">
-                  {allClients.map(client => (
+                  {allClients.filter(client => 
+                    !client.group_id || 
+                    (editingGroup && editingGroup.client_ids.includes(client.id)) ||
+                    selectedClientIds.has(client.id)
+                  ).map(client => (
                     <div 
                       key={client.id}
                       data-name={client.name}
