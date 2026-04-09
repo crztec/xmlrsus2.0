@@ -23,25 +23,54 @@ import {
   RotateCcw,
   Save,
   Star,
-  AlertTriangle,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// Icon registry — maps string keys to Lucide components
 const ICON_MAP: Record<string, React.ReactNode> = {
-  CloudUpload: <CloudUpload size={18} />,
-  FileText: <FileText size={18} />,
-  ClipboardList: <ClipboardList size={18} />,
-  Users: <Users size={18} />,
-  UserPlus: <UserPlus size={18} />,
-  Settings: <Settings size={18} />,
-  Puzzle: <Puzzle size={18} />,
-  Shield: <Shield size={18} />,
-  Palette: <Palette size={18} />,
-  ScrollText: <ScrollText size={18} />,
-  Lock: <Lock size={18} />,
-  LayoutDashboard: <LayoutDashboard size={18} />,
-  LayoutGrid: <LayoutGrid size={18} />,
+  CloudUpload: <CloudUpload size={16} />,
+  FileText: <FileText size={16} />,
+  ClipboardList: <ClipboardList size={16} />,
+  Users: <Users size={16} />,
+  UserPlus: <UserPlus size={16} />,
+  Settings: <Settings size={16} />,
+  Puzzle: <Puzzle size={16} />,
+  Shield: <Shield size={16} />,
+  Palette: <Palette size={16} />,
+  ScrollText: <ScrollText size={16} />,
+  Lock: <Lock size={16} />,
+  LayoutDashboard: <LayoutDashboard size={16} />,
+  LayoutGrid: <LayoutGrid size={16} />,
+};
+
+const HARDCODED_DEFAULTS = {
+  main_menu: [
+    { key: "dashboard", label: "Enviar ABIs", icon: "CloudUpload", order: 0 },
+    { key: "xml-data", label: "Dados ABIs", icon: "FileText", order: 1 },
+    { key: "check-imports", label: "Checar Importações", icon: "Shield", order: 2 },
+    { key: "logs", label: "Histórico de Importações", icon: "ClipboardList", order: 3 },
+    { key: "api-checks", label: "Checar APIs", icon: "Puzzle", order: 4, isAdmin: true },
+  ],
+  admin_menu: [
+    { key: "clients", label: "Clientes", icon: "Users", order: 0 },
+    { key: "users", label: "Usuários", icon: "Users", order: 1 },
+    { key: "groups", label: "Grupos", icon: "LayoutDashboard", order: 2 },
+    { key: "pending", label: "Pendentes", icon: "UserPlus", order: 3 },
+  ],
+  config_menu: [
+    { key: "integrations", label: "Integrações", icon: "Puzzle", order: 0 },
+    { key: "audit", label: "Logs do Sistema", icon: "ScrollText", order: 1 },
+    { key: "access-control", label: "Controle de Acessos", icon: "Lock", order: 2 },
+    { key: "messages", label: "Mensagens", icon: "FileText", order: 3 },
+    { key: "branding", label: "Identidade Visual", icon: "Palette", order: 4 },
+    { key: "menus", label: "Gerenciar Menus", icon: "LayoutGrid", order: 5 },
+  ],
+  section_labels: {
+    main_title: "Importação",
+    admin_title: "Administração",
+    config_title: "Configuração",
+  },
 };
 
 interface MenuItem {
@@ -63,129 +92,6 @@ interface MenuConfig {
   };
 }
 
-function DraggableItem({
-  item,
-  index,
-  sectionKey,
-  onDragStart,
-  onDragOver,
-  onDragEnd,
-  onDrop,
-  editingKey,
-  editValue,
-  onEditStart,
-  onEditChange,
-  onEditSave,
-  onEditCancel,
-  dragOverIndex,
-}: {
-  item: MenuItem;
-  index: number;
-  sectionKey: string;
-  onDragStart: (section: string, index: number) => void;
-  onDragOver: (e: React.DragEvent, section: string, index: number) => void;
-  onDragEnd: () => void;
-  onDrop: (e: React.DragEvent, section: string, index: number) => void;
-  editingKey: string | null;
-  editValue: string;
-  onEditStart: (key: string, label: string) => void;
-  onEditChange: (value: string) => void;
-  onEditSave: () => void;
-  onEditCancel: () => void;
-  dragOverIndex: { section: string; index: number } | null;
-}) {
-  const isEditing = editingKey === item.key;
-  const isDragOver = dragOverIndex?.section === sectionKey && dragOverIndex?.index === index;
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (isEditing && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, [isEditing]);
-
-  return (
-    <div
-      draggable={!isEditing}
-      onDragStart={() => onDragStart(sectionKey, index)}
-      onDragOver={(e) => onDragOver(e, sectionKey, index)}
-      onDragEnd={onDragEnd}
-      onDrop={(e) => onDrop(e, sectionKey, index)}
-      className={cn(
-        "flex items-center gap-3 rounded-xl border p-3.5 transition-all cursor-grab active:cursor-grabbing group",
-        isDragOver
-          ? "border-gax-blue bg-gax-blue/5 shadow-md shadow-gax-blue/10 scale-[1.02]"
-          : "border-slate-100 bg-white hover:border-slate-200 hover:shadow-sm",
-        isEditing && "ring-2 ring-gax-blue/20 border-gax-blue"
-      )}
-    >
-      {/* Drag Handle */}
-      <div className="text-slate-300 group-hover:text-slate-400 transition-colors cursor-grab">
-        <GripVertical size={16} />
-      </div>
-
-      {/* Icon */}
-      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-50 text-slate-500 shrink-0">
-        {ICON_MAP[item.icon] || <Settings size={18} />}
-      </div>
-
-      {/* Label */}
-      {isEditing ? (
-        <div className="flex-1 flex items-center gap-2">
-          <input
-            ref={inputRef}
-            type="text"
-            value={editValue}
-            onChange={(e) => onEditChange(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") onEditSave();
-              if (e.key === "Escape") onEditCancel();
-            }}
-            className="flex-1 rounded-lg border border-gax-blue/30 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-gax-blue/10 transition-all"
-          />
-          <button
-            onClick={onEditSave}
-            className="flex h-7 w-7 items-center justify-center rounded-lg bg-gax-blue text-white hover:bg-gax-blue-hover transition-all active:scale-90"
-          >
-            <Check size={12} />
-          </button>
-          <button
-            onClick={onEditCancel}
-            className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-600 transition-all active:scale-90"
-          >
-            <X size={12} />
-          </button>
-        </div>
-      ) : (
-        <div className="flex-1 flex items-center justify-between">
-          <div className="flex flex-col">
-            <span className="text-xs font-bold text-slate-700">{item.label}</span>
-            <span className="text-[9px] font-medium text-slate-300 uppercase tracking-wider">{item.key}</span>
-          </div>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onEditStart(item.key, item.label);
-            }}
-            className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-300 hover:bg-slate-50 hover:text-gax-blue transition-all opacity-0 group-hover:opacity-100"
-            title="Editar nome"
-          >
-            <Pencil size={12} />
-          </button>
-        </div>
-      )}
-
-      {/* Admin Badge */}
-      {item.isAdmin && (
-        <span className="text-[8px] font-black uppercase tracking-widest text-amber-500 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-100">
-          Admin
-        </span>
-      )}
-    </div>
-  );
-}
-
 export default function MenusPage() {
   const [config, setConfig] = useState<MenuConfig | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -196,17 +102,17 @@ export default function MenusPage() {
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
+  // Edit state
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
+  const [editingSectionKey, setEditingSectionKey] = useState<string | null>(null);
+  const [sectionEditValue, setSectionEditValue] = useState("");
+
   // Drag state
   const [dragSource, setDragSource] = useState<{ section: string; index: number } | null>(null);
   const [dragOverTarget, setDragOverTarget] = useState<{ section: string; index: number } | null>(null);
 
-  // Edit state
-  const [editingKey, setEditingKey] = useState<string | null>(null);
-  const [editValue, setEditValue] = useState("");
-
-  // Section title editing
-  const [editingSectionKey, setEditingSectionKey] = useState<string | null>(null);
-  const [sectionEditValue, setSectionEditValue] = useState("");
+  const editInputRef = useRef<HTMLInputElement>(null);
 
   const showSuccess = (msg: string) => {
     setSuccessMessage(msg);
@@ -220,33 +126,23 @@ export default function MenusPage() {
     setTimeout(() => setErrorMessage(""), 5000);
   };
 
-  const DEFAULT_SECTION_LABELS = {
-    main_title: "Importação",
-    admin_title: "Administração",
-    config_title: "Configuração",
-  };
+  const normalize = (data: any): MenuConfig => ({
+    main_menu: Array.isArray(data.main_menu) && data.main_menu.length > 0 ? data.main_menu : HARDCODED_DEFAULTS.main_menu,
+    admin_menu: Array.isArray(data.admin_menu) && data.admin_menu.length > 0 ? data.admin_menu : HARDCODED_DEFAULTS.admin_menu,
+    config_menu: Array.isArray(data.config_menu) && data.config_menu.length > 0 ? data.config_menu : HARDCODED_DEFAULTS.config_menu,
+    section_labels: { ...HARDCODED_DEFAULTS.section_labels, ...(data.section_labels || {}) },
+  });
 
   const fetchConfig = useCallback(async () => {
     setIsLoading(true);
     try {
       const res = await fetch("/api/menu-config");
       const data = await res.json();
-      // Clean metadata fields
       delete data.updated_at;
       delete data.saved_as_default_at;
-      // Ensure all fields exist with defaults
-      const normalized: MenuConfig = {
-        main_menu: Array.isArray(data.main_menu) ? data.main_menu : [],
-        admin_menu: Array.isArray(data.admin_menu) ? data.admin_menu : [],
-        config_menu: Array.isArray(data.config_menu) ? data.config_menu : [],
-        section_labels: {
-          ...DEFAULT_SECTION_LABELS,
-          ...(data.section_labels || {}),
-        },
-      };
-      setConfig(normalized);
+      setConfig(normalize(data));
       setHasChanges(false);
-    } catch (err) {
+    } catch {
       showError("Erro ao carregar configuração de menus.");
     } finally {
       setIsLoading(false);
@@ -255,174 +151,105 @@ export default function MenusPage() {
 
   useEffect(() => {
     const role = localStorage.getItem("gax_user_role");
-    if (role !== "admin") {
-      window.location.href = "/dashboard";
-      return;
-    }
+    if (role !== "admin") { window.location.href = "/dashboard"; return; }
     fetchConfig();
   }, [fetchConfig]);
 
-  // --- Drag & Drop ---
-  const handleDragStart = (section: string, index: number) => {
-    setDragSource({ section, index });
-  };
+  useEffect(() => {
+    if (editingKey && editInputRef.current) {
+      editInputRef.current.focus();
+      editInputRef.current.select();
+    }
+  }, [editingKey]);
 
+  // --- Drag & Drop ---
+  const handleDragStart = (section: string, index: number) => setDragSource({ section, index });
   const handleDragOver = (e: React.DragEvent, section: string, index: number) => {
     e.preventDefault();
-    if (dragSource && dragSource.section === section) {
-      setDragOverTarget({ section, index });
-    }
+    if (dragSource?.section === section) setDragOverTarget({ section, index });
   };
-
   const handleDrop = (e: React.DragEvent, section: string, index: number) => {
     e.preventDefault();
     if (!dragSource || !config || dragSource.section !== section) return;
-
-    const sectionKey = section as keyof Pick<MenuConfig, "main_menu" | "admin_menu" | "config_menu">;
+    const sectionKey = section as "main_menu" | "admin_menu" | "config_menu";
     const items = [...config[sectionKey]];
     const [removed] = items.splice(dragSource.index, 1);
     items.splice(index, 0, removed);
-
-    // Update order values
-    const reordered = items.map((item, i) => ({ ...item, order: i }));
-
-    setConfig({ ...config, [sectionKey]: reordered });
+    setConfig({ ...config, [sectionKey]: items.map((item, i) => ({ ...item, order: i })) });
     setHasChanges(true);
     setDragSource(null);
     setDragOverTarget(null);
   };
+  const handleDragEnd = () => { setDragSource(null); setDragOverTarget(null); };
 
-  const handleDragEnd = () => {
-    setDragSource(null);
-    setDragOverTarget(null);
+  // --- Move Up/Down ---
+  const moveItem = (sectionKey: "main_menu" | "admin_menu" | "config_menu", index: number, direction: -1 | 1) => {
+    if (!config) return;
+    const items = [...config[sectionKey]];
+    const newIndex = index + direction;
+    if (newIndex < 0 || newIndex >= items.length) return;
+    [items[index], items[newIndex]] = [items[newIndex], items[index]];
+    setConfig({ ...config, [sectionKey]: items.map((item, i) => ({ ...item, order: i })) });
+    setHasChanges(true);
   };
 
   // --- Inline Editing ---
-  const handleEditStart = (key: string, label: string) => {
-    setEditingKey(key);
-    setEditValue(label);
-  };
-
+  const handleEditStart = (key: string, label: string) => { setEditingKey(key); setEditValue(label); };
   const handleEditSave = () => {
     if (!config || !editingKey) return;
-
-    const updateSection = (items: MenuItem[]) =>
-      items.map((item) => (item.key === editingKey ? { ...item, label: editValue.trim() || item.label } : item));
-
-    setConfig({
-      ...config,
-      main_menu: updateSection(config.main_menu),
-      admin_menu: updateSection(config.admin_menu),
-      config_menu: updateSection(config.config_menu),
-    });
+    const update = (items: MenuItem[]) => items.map(item => item.key === editingKey ? { ...item, label: editValue.trim() || item.label } : item);
+    setConfig({ ...config, main_menu: update(config.main_menu), admin_menu: update(config.admin_menu), config_menu: update(config.config_menu) });
     setHasChanges(true);
     setEditingKey(null);
-    setEditValue("");
   };
-
-  const handleEditCancel = () => {
-    setEditingKey(null);
-    setEditValue("");
-  };
+  const handleEditCancel = () => { setEditingKey(null); setEditValue(""); };
 
   // --- Section Title Editing ---
-  const handleSectionEditStart = (key: string, currentLabel: string) => {
-    setEditingSectionKey(key);
-    setSectionEditValue(currentLabel);
-  };
-
+  const handleSectionEditStart = (key: string, label: string) => { setEditingSectionKey(key); setSectionEditValue(label); };
   const handleSectionEditSave = () => {
     if (!config || !editingSectionKey) return;
     setConfig({
       ...config,
-      section_labels: {
-        ...config.section_labels,
-        [editingSectionKey]: sectionEditValue.trim() || config.section_labels[editingSectionKey as keyof typeof config.section_labels],
-      },
+      section_labels: { ...config.section_labels, [editingSectionKey]: sectionEditValue.trim() || config.section_labels[editingSectionKey as keyof typeof config.section_labels] },
     });
     setHasChanges(true);
     setEditingSectionKey(null);
-    setSectionEditValue("");
   };
-
-  const handleSectionEditCancel = () => {
-    setEditingSectionKey(null);
-    setSectionEditValue("");
-  };
+  const handleSectionEditCancel = () => { setEditingSectionKey(null); setSectionEditValue(""); };
 
   // --- Save / Default / Restore ---
   const handleSave = async () => {
     if (!config) return;
     setIsSaving(true);
     try {
-      const res = await fetch("/api/menu-config", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(config),
-      });
-      if (res.ok) {
-        showSuccess("Configuração de menus salva com sucesso!");
-        setHasChanges(false);
-      } else {
-        showError("Erro ao salvar configuração.");
-      }
-    } catch (err) {
-      showError("Erro de conexão com o servidor.");
-    } finally {
-      setIsSaving(false);
-    }
+      const res = await fetch("/api/menu-config", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(config) });
+      if (res.ok) { showSuccess("Configuração salva com sucesso!"); setHasChanges(false); }
+      else showError("Erro ao salvar.");
+    } catch { showError("Erro de conexão."); }
+    finally { setIsSaving(false); }
   };
 
   const handleSaveDefault = async () => {
-    if (!config) return;
-    if (!confirm("Deseja salvar a configuração atual como o novo padrão do sistema?")) return;
+    if (!config || !confirm("Deseja salvar a configuração atual como o novo padrão do sistema?")) return;
     setIsSavingDefault(true);
     try {
-      // First save the active config
-      await fetch("/api/menu-config", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(config),
-      });
-      // Then save as default
-      const res = await fetch("/api/menu-config/set-default", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(config),
-      });
-      if (res.ok) {
-        showSuccess("Configuração salva como novo padrão do sistema!");
-        setHasChanges(false);
-      } else {
-        showError("Erro ao salvar padrão.");
-      }
-    } catch (err) {
-      showError("Erro de conexão com o servidor.");
-    } finally {
-      setIsSavingDefault(false);
-    }
+      await fetch("/api/menu-config", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(config) });
+      const res = await fetch("/api/menu-config/set-default", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(config) });
+      if (res.ok) { showSuccess("Configuração salva como padrão!"); setHasChanges(false); }
+      else showError("Erro ao salvar padrão.");
+    } catch { showError("Erro de conexão."); }
+    finally { setIsSavingDefault(false); }
   };
 
   const handleRestore = async () => {
-    if (!confirm("Deseja restaurar os menus ao padrão? Todas as alterações não salvas serão perdidas.")) return;
+    if (!confirm("Restaurar menus ao padrão? Alterações não salvas serão perdidas.")) return;
     setIsRestoring(true);
     try {
-      const res = await fetch("/api/menu-config/restore-default", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-      if (res.ok) {
-        showSuccess("Menus restaurados ao padrão!");
-        await fetchConfig();
-      } else {
-        showError("Erro ao restaurar padrão.");
-      }
-    } catch (err) {
-      showError("Erro de conexão com o servidor.");
-    } finally {
-      setIsRestoring(false);
-    }
+      const res = await fetch("/api/menu-config/restore-default", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
+      if (res.ok) { showSuccess("Menus restaurados!"); await fetchConfig(); }
+      else showError("Erro ao restaurar.");
+    } catch { showError("Erro de conexão."); }
+    finally { setIsRestoring(false); }
   };
 
   if (isLoading || !config) {
@@ -434,139 +261,189 @@ export default function MenusPage() {
     );
   }
 
-  const sections = [
-    { key: "main_menu" as const, titleKey: "main_title", items: config.main_menu },
-    { key: "admin_menu" as const, titleKey: "admin_title", items: config.admin_menu },
-    { key: "config_menu" as const, titleKey: "config_title", items: config.config_menu },
+  const sections: { key: "main_menu" | "admin_menu" | "config_menu"; titleKey: "main_title" | "admin_title" | "config_title"; items: MenuItem[] }[] = [
+    { key: "main_menu", titleKey: "main_title", items: config.main_menu },
+    { key: "admin_menu", titleKey: "admin_title", items: config.admin_menu },
+    { key: "config_menu", titleKey: "config_title", items: config.config_menu },
   ];
 
   return (
-    <div className="flex flex-col gap-6 p-8 pt-2 max-w-5xl mx-auto animate-in fade-in duration-500">
-      {/* Action Bar */}
-      <div className="flex flex-wrap items-center justify-end gap-3">
-        {successMessage && (
-          <div className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-100 animate-in fade-in slide-in-from-right-2 duration-300 mr-auto">
-            {successMessage}
-          </div>
-        )}
-        {errorMessage && (
-          <div className="text-[11px] font-bold text-rose-600 bg-rose-50 px-3 py-1.5 rounded-full border border-rose-100 animate-in fade-in slide-in-from-right-2 duration-300 mr-auto">
-            {errorMessage}
-          </div>
-        )}
-
-        <button
-          onClick={handleRestore}
-          disabled={isRestoring}
-          className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[11px] font-bold text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-all disabled:opacity-50 active:scale-95"
-        >
-          {isRestoring ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />}
-          Restaurar Padrão
-        </button>
-
-        <button
-          onClick={handleSaveDefault}
-          disabled={isSavingDefault || !hasChanges}
-          className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-[11px] font-bold text-amber-600 hover:bg-amber-100 transition-all disabled:opacity-50 active:scale-95"
-        >
-          {isSavingDefault ? <Loader2 size={14} className="animate-spin" /> : <Star size={14} />}
-          Salvar como Padrão
-        </button>
-
-        <button
-          onClick={handleSave}
-          disabled={isSaving || !hasChanges}
-          className="flex items-center gap-2 rounded-xl bg-gax-blue px-5 py-2.5 text-[11px] font-bold text-white shadow-xl shadow-gax-blue/20 transition-all hover:bg-gax-blue-hover disabled:opacity-50 active:scale-95"
-        >
-          {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-          Salvar Alterações
-        </button>
-      </div>
-
-      {/* Unsaved Changes Warning */}
-      {hasChanges && (
-        <div className="flex items-center gap-3 rounded-xl bg-amber-50 border border-amber-100 px-5 py-3 animate-in fade-in slide-in-from-top-2 duration-300">
-          <AlertTriangle size={16} className="text-amber-500 shrink-0" />
-          <span className="text-[11px] font-bold text-amber-700">
-            Você tem alterações não salvas. Clique em &ldquo;Salvar Alterações&rdquo; para aplicar.
-          </span>
+    <div className="flex flex-col gap-5 p-8 pt-2 max-w-3xl mx-auto animate-in fade-in duration-500">
+      {/* Feedback Messages */}
+      {successMessage && (
+        <div className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-100 animate-in fade-in slide-in-from-top-2 duration-300">
+          ✓ {successMessage}
+        </div>
+      )}
+      {errorMessage && (
+        <div className="text-[11px] font-bold text-rose-600 bg-rose-50 px-4 py-2 rounded-xl border border-rose-100 animate-in fade-in slide-in-from-top-2 duration-300">
+          {errorMessage}
         </div>
       )}
 
-      {/* Menu Sections */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {sections.map((section) => {
-          const sectionLabel = config.section_labels[section.titleKey as keyof typeof config.section_labels];
+      {/* Vertical List */}
+      <div className="rounded-2xl border border-slate-200/60 bg-white shadow-sm overflow-hidden">
+        {sections.map((section, sIdx) => {
+          const sectionLabel = config.section_labels[section.titleKey];
           const isEditingSection = editingSectionKey === section.titleKey;
+          const sortedItems = [...section.items].sort((a, b) => a.order - b.order);
 
           return (
-            <div
-              key={section.key}
-              className="flex flex-col rounded-[2rem] border border-slate-200/60 bg-white/70 p-6 shadow-sm backdrop-blur-sm"
-            >
-              {/* Section Header */}
-              <div className="flex items-center justify-between mb-5">
+            <React.Fragment key={section.key}>
+              {/* Section Separator */}
+              {sIdx > 0 && <div className="h-px bg-slate-100" />}
+
+              {/* Section Title Row */}
+              <div className="flex items-center justify-between px-6 py-3 bg-slate-50/50">
                 {isEditingSection ? (
                   <div className="flex items-center gap-2 flex-1">
                     <input
                       type="text"
                       value={sectionEditValue}
                       onChange={(e) => setSectionEditValue(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") handleSectionEditSave();
-                        if (e.key === "Escape") handleSectionEditCancel();
-                      }}
-                      className="flex-1 rounded-lg border border-gax-blue/30 bg-white px-3 py-1.5 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-gax-blue/10"
+                      onKeyDown={(e) => { if (e.key === "Enter") handleSectionEditSave(); if (e.key === "Escape") handleSectionEditCancel(); }}
+                      className="flex-1 max-w-xs rounded-lg border border-gax-blue/30 bg-white px-3 py-1 text-xs font-black uppercase tracking-widest text-slate-700 outline-none focus:ring-2 focus:ring-gax-blue/10"
                       autoFocus
                     />
-                    <button onClick={handleSectionEditSave} className="flex h-7 w-7 items-center justify-center rounded-lg bg-gax-blue text-white hover:bg-gax-blue-hover transition-all active:scale-90">
-                      <Check size={12} />
-                    </button>
-                    <button onClick={handleSectionEditCancel} className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-400 hover:bg-slate-200 transition-all active:scale-90">
-                      <X size={12} />
-                    </button>
+                    <button onClick={handleSectionEditSave} className="flex h-6 w-6 items-center justify-center rounded-md bg-gax-blue text-white hover:bg-gax-blue-hover transition-all"><Check size={10} /></button>
+                    <button onClick={handleSectionEditCancel} className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-200 text-slate-500 hover:bg-slate-300 transition-all"><X size={10} /></button>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-3 group cursor-pointer" onClick={() => handleSectionEditStart(section.titleKey, sectionLabel)}>
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-gax-blue/10 to-gax-blue/5 text-gax-blue">
-                      <Settings size={20} />
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-black text-slate-800 tracking-tight">{sectionLabel}</h3>
-                      <p className="text-[9px] font-medium text-slate-300">{section.items.length} itens</p>
-                    </div>
-                    <Pencil size={10} className="text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity ml-1" />
-                  </div>
+                  <button
+                    onClick={() => handleSectionEditStart(section.titleKey, sectionLabel)}
+                    className="flex items-center gap-2 group"
+                  >
+                    <span className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-400">{sectionLabel}</span>
+                    <Pencil size={9} className="text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </button>
                 )}
+                <span className="text-[9px] font-bold text-slate-300">{sortedItems.length} itens</span>
               </div>
 
-              {/* Items */}
-              <div className="space-y-2">
-                {section.items
-                  .sort((a, b) => a.order - b.order)
-                  .map((item, idx) => (
-                    <DraggableItem
-                      key={item.key}
-                      item={item}
-                      index={idx}
-                      sectionKey={section.key}
-                      onDragStart={handleDragStart}
-                      onDragOver={handleDragOver}
-                      onDragEnd={handleDragEnd}
-                      onDrop={handleDrop}
-                      editingKey={editingKey}
-                      editValue={editValue}
-                      onEditStart={handleEditStart}
-                      onEditChange={setEditValue}
-                      onEditSave={handleEditSave}
-                      onEditCancel={handleEditCancel}
-                      dragOverIndex={dragOverTarget}
-                    />
-                  ))}
-              </div>
-            </div>
+              {/* Menu Items */}
+              {sortedItems.map((item, idx) => {
+                const isEditing = editingKey === item.key;
+                const isDragOver = dragOverTarget?.section === section.key && dragOverTarget?.index === idx;
+
+                return (
+                  <div
+                    key={item.key}
+                    draggable={!isEditing}
+                    onDragStart={() => handleDragStart(section.key, idx)}
+                    onDragOver={(e) => handleDragOver(e, section.key, idx)}
+                    onDragEnd={handleDragEnd}
+                    onDrop={(e) => handleDrop(e, section.key, idx)}
+                    className={cn(
+                      "flex items-center gap-3 px-6 py-2.5 border-t border-slate-100/60 transition-all group cursor-grab active:cursor-grabbing",
+                      isDragOver && "bg-gax-blue/5 border-l-2 border-l-gax-blue",
+                      !isDragOver && "hover:bg-slate-50/50"
+                    )}
+                  >
+                    {/* Drag Handle */}
+                    <div className="text-slate-200 group-hover:text-slate-400 transition-colors shrink-0">
+                      <GripVertical size={14} />
+                    </div>
+
+                    {/* Up/Down Arrows */}
+                    <div className="flex flex-col shrink-0">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); moveItem(section.key, idx, -1); }}
+                        disabled={idx === 0}
+                        className="text-slate-300 hover:text-gax-blue disabled:opacity-20 transition-colors p-0.5"
+                        title="Mover para cima"
+                      >
+                        <ChevronUp size={12} />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); moveItem(section.key, idx, 1); }}
+                        disabled={idx === sortedItems.length - 1}
+                        className="text-slate-300 hover:text-gax-blue disabled:opacity-20 transition-colors p-0.5"
+                        title="Mover para baixo"
+                      >
+                        <ChevronDown size={12} />
+                      </button>
+                    </div>
+
+                    {/* Icon */}
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-50 text-slate-400 shrink-0 border border-slate-100">
+                      {ICON_MAP[item.icon] || <Settings size={16} />}
+                    </div>
+
+                    {/* Label */}
+                    {isEditing ? (
+                      <div className="flex-1 flex items-center gap-2">
+                        <input
+                          ref={editInputRef}
+                          type="text"
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Enter") handleEditSave(); if (e.key === "Escape") handleEditCancel(); }}
+                          className="flex-1 rounded-lg border border-gax-blue/30 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-gax-blue/10"
+                        />
+                        <button onClick={handleEditSave} className="flex h-6 w-6 items-center justify-center rounded-md bg-gax-blue text-white hover:bg-gax-blue-hover transition-all"><Check size={10} /></button>
+                        <button onClick={handleEditCancel} className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-200 text-slate-500 hover:bg-slate-300 transition-all"><X size={10} /></button>
+                      </div>
+                    ) : (
+                      <span className="flex-1 text-xs font-semibold text-slate-600">{item.label}</span>
+                    )}
+
+                    {/* Admin Badge */}
+                    {item.isAdmin && (
+                      <span className="text-[7px] font-black uppercase tracking-widest text-amber-500 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100 shrink-0">
+                        Admin
+                      </span>
+                    )}
+
+                    {/* Edit Button */}
+                    {!isEditing && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleEditStart(item.key, item.label); }}
+                        className="flex h-6 w-6 items-center justify-center rounded-md text-slate-300 hover:bg-slate-100 hover:text-gax-blue transition-all opacity-0 group-hover:opacity-100 shrink-0"
+                        title="Renomear"
+                      >
+                        <Pencil size={11} />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </React.Fragment>
           );
         })}
+      </div>
+
+      {/* Action Bar (sticky bottom) */}
+      <div className="flex items-center justify-end gap-3 sticky bottom-4 bg-white/80 backdrop-blur-md rounded-2xl border border-slate-200/60 px-5 py-3 shadow-lg">
+        {hasChanges && (
+          <span className="text-[10px] font-bold text-amber-600 mr-auto">● Alterações não salvas</span>
+        )}
+
+        <button
+          onClick={handleRestore}
+          disabled={isRestoring}
+          className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-[10px] font-bold text-slate-500 hover:bg-slate-50 transition-all disabled:opacity-50 active:scale-95"
+        >
+          {isRestoring ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />}
+          Restaurar Padrão
+        </button>
+
+        <button
+          onClick={handleSaveDefault}
+          disabled={isSavingDefault || !hasChanges}
+          className="flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-[10px] font-bold text-amber-600 hover:bg-amber-100 transition-all disabled:opacity-50 active:scale-95"
+        >
+          {isSavingDefault ? <Loader2 size={12} className="animate-spin" /> : <Star size={12} />}
+          Salvar como Padrão
+        </button>
+
+        <button
+          onClick={handleSave}
+          disabled={isSaving || !hasChanges}
+          className="flex items-center gap-1.5 rounded-xl bg-gax-blue px-5 py-2 text-[10px] font-bold text-white shadow-lg shadow-gax-blue/20 transition-all hover:bg-gax-blue-hover disabled:opacity-50 active:scale-95"
+        >
+          {isSaving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+          Salvar
+        </button>
       </div>
     </div>
   );

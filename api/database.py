@@ -1,3 +1,4 @@
+import copy
 import logging
 import os
 import secrets
@@ -1777,11 +1778,17 @@ def get_menu_config():
     try:
         doc = firestore_db.collection('system_config').document('menu_layout').get()
         if doc.exists:
-            return doc.to_dict()
-        return MENU_DEFAULTS.copy()
+            data = doc.to_dict()
+            # Merge with defaults to fill any missing fields
+            defaults = copy.deepcopy(MENU_DEFAULTS)
+            for key in defaults:
+                if key not in data or (isinstance(data.get(key), list) and len(data[key]) == 0):
+                    data[key] = defaults[key]
+            return data
+        return copy.deepcopy(MENU_DEFAULTS)
     except Exception as e:
         logger.error(f"Erro ao buscar menu config: {e}")
-        return MENU_DEFAULTS.copy()
+        return copy.deepcopy(MENU_DEFAULTS)
 
 def save_menu_config(config: dict):
     """Saves the active menu configuration."""
@@ -1798,11 +1805,16 @@ def get_menu_default():
     try:
         doc = firestore_db.collection('system_config').document('menu_layout_default').get()
         if doc.exists:
-            return doc.to_dict()
-        return MENU_DEFAULTS.copy()
+            data = doc.to_dict()
+            defaults = copy.deepcopy(MENU_DEFAULTS)
+            for key in defaults:
+                if key not in data or (isinstance(data.get(key), list) and len(data[key]) == 0):
+                    data[key] = defaults[key]
+            return data
+        return copy.deepcopy(MENU_DEFAULTS)
     except Exception as e:
         logger.error(f"Erro ao buscar menu default: {e}")
-        return MENU_DEFAULTS.copy()
+        return copy.deepcopy(MENU_DEFAULTS)
 
 def save_menu_default(config: dict):
     """Saves the current config as the new custom default."""
