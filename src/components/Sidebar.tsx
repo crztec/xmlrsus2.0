@@ -43,7 +43,7 @@ const adminSubItems = [
 
 const configSubItems = [
   { label: "Integrações", icon: <Puzzle size={18} />, href: "/settings/integrations" },
-  { label: "Segurança e Auditoria", icon: <ScrollText size={18} />, href: "/settings/audit" },
+  { label: "Logs do Sistema", icon: <ScrollText size={18} />, href: "/settings/audit" },
   { label: "Controle de Acessos", icon: <Lock size={18} />, href: "/settings/access-control" },
   { label: "Mensagens", icon: <FileText size={18} />, href: "/settings/messages" },
   { label: "Identidade Visual", icon: <Palette size={18} />, href: "/settings/branding" },

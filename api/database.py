@@ -380,6 +380,8 @@ def get_clients_paginated(page=1, limit=10, search=""):
                 'abi_last_message': data.get('abi_last_message', ''),
                 'abi_last_task_id': data.get('abi_last_task_id', ''),
                 'whatsapp_numbers': data.get('whatsapp_numbers', []),
+                'group_id': data.get('group_id'),
+                'group_name': data.get('group_name'),
             })
             
         clients.sort(key=lambda x: x['name'])

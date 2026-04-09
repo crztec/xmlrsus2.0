@@ -58,8 +58,12 @@ const PAGE_METADATA: Record<string, { title: string; subtitle: string }> = {
     subtitle: "Ações administrativas permanentes de limpeza e reinicialização"
   },
   "/settings/audit": {
-    title: "Segurança e Auditoria",
+    title: "Logs do Sistema",
     subtitle: "Rastreabilidade de ações administrativas no sistema"
+  },
+  "/admin/groups": {
+    title: "Gestão de Grupos",
+    subtitle: "Agrupe operadoras e federações para melhor organização"
   },
   "/settings/access-control": {
     title: "Controle de Acessos",

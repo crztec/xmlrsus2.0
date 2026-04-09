@@ -137,36 +137,25 @@ export default function GroupsPage() {
 
   return (
     <div className="flex flex-col gap-8 p-8 max-w-7xl mx-auto animate-in fade-in duration-500">
-      <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-2xl font-black tracking-tight text-slate-800 flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gax-blue/10 text-gax-blue shadow-inner lg:h-12 lg:w-12">
-              <LayoutDashboard size={24} />
-            </div>
-            Gestão de Grupos
-          </h1>
-          <p className="mt-1 text-sm font-medium text-slate-400">Agrupe operadoras e federações para melhor organização.</p>
-        </div>
 
-        <div className="flex items-center gap-4">
-          <div className="relative group max-w-xs w-full">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-gax-blue transition-colors" size={18} />
-            <input 
-              type="text" 
-              placeholder="Buscar grupo..." 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full rounded-2xl border border-slate-200/60 bg-white px-12 py-3 text-xs text-slate-700 outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all font-medium placeholder:text-slate-300 shadow-sm"
-            />
-          </div>
-          <button 
-            onClick={handleCreateNew}
-            className="flex items-center gap-2 rounded-2xl bg-gax-blue px-6 py-3 text-xs font-bold text-white shadow-xl shadow-gax-blue/20 transition-all hover:bg-gax-blue-hover active:scale-95"
-          >
-            <Plus size={18} />
-            Novo Grupo
-          </button>
+      <div className="flex items-center justify-end gap-4">
+        <div className="relative group max-w-xs w-full">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-gax-blue transition-colors" size={18} />
+          <input 
+            type="text" 
+            placeholder="Buscar grupo..." 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full rounded-2xl border border-slate-200/60 bg-white px-12 py-3 text-xs text-slate-700 outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all font-medium placeholder:text-slate-300 shadow-sm"
+          />
         </div>
+        <button 
+          onClick={handleCreateNew}
+          className="flex items-center gap-2 rounded-2xl bg-gax-blue px-6 py-3 text-xs font-bold text-white shadow-xl shadow-gax-blue/20 transition-all hover:bg-gax-blue-hover active:scale-95 shrink-0"
+        >
+          <Plus size={18} />
+          Novo Grupo
+        </button>
       </div>
 
       {isLoading ? (
@@ -219,7 +208,7 @@ export default function GroupsPage() {
                   {group.client_ids.slice(0, 4).map(cid => {
                     const client = allClients.find(c => c.id === cid);
                     return client ? (
-                      <span key={cid} className="inline-flex items-center rounded-xl bg-slate-50 px-3 py-1.5 text-[10px] font-bold text-slate-650 border border-slate-100 shadow-sm">
+                      <span key={cid} className="inline-flex items-center rounded-xl bg-slate-100 px-3 py-1.5 text-[10px] font-bold text-slate-700 border border-slate-200 shadow-sm">
                         {client.name.split(' ')[0]} {client.name.split(' ')[1] || ""}
                       </span>
                     ) : null;

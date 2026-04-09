@@ -263,10 +263,6 @@ export default function XmlDataPage() {
           >
             <ArrowLeft size={20} />
           </button>
-          <div>
-            <h1 className="text-3xl font-display font-bold text-slate-900 tracking-tight">{selectedClient}</h1>
-            <p className="text-xs font-medium text-slate-400 uppercase tracking-widest">Base de Dados Global</p>
-          </div>
         </div>
 
         <div className="flex items-center gap-4">
