@@ -220,6 +220,12 @@ export default function MenusPage() {
     setTimeout(() => setErrorMessage(""), 5000);
   };
 
+  const DEFAULT_SECTION_LABELS = {
+    main_title: "Importação",
+    admin_title: "Administração",
+    config_title: "Configuração",
+  };
+
   const fetchConfig = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -228,7 +234,17 @@ export default function MenusPage() {
       // Clean metadata fields
       delete data.updated_at;
       delete data.saved_as_default_at;
-      setConfig(data);
+      // Ensure all fields exist with defaults
+      const normalized: MenuConfig = {
+        main_menu: Array.isArray(data.main_menu) ? data.main_menu : [],
+        admin_menu: Array.isArray(data.admin_menu) ? data.admin_menu : [],
+        config_menu: Array.isArray(data.config_menu) ? data.config_menu : [],
+        section_labels: {
+          ...DEFAULT_SECTION_LABELS,
+          ...(data.section_labels || {}),
+        },
+      };
+      setConfig(normalized);
       setHasChanges(false);
     } catch (err) {
       showError("Erro ao carregar configuração de menus.");
