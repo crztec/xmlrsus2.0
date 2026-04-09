@@ -341,7 +341,7 @@ export default function ClientsPage() {
         </div>
       ) : viewMode === "grid" ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
-          {filteredClients.map((client: Client, idx: number) => (
+          {paginatedClients.map((client: Client, idx: number) => (
             <div 
               key={client.id} 
               className={cn(
@@ -401,7 +401,9 @@ export default function ClientsPage() {
                 </div>
                 
                 {client.group_name ? (
-                  <span className="text-[10px] font-bold text-gax-blue uppercase tracking-tight">{client.group_name}</span>
+                  <span className="inline-flex items-center rounded-full bg-gax-blue/5 px-2.5 py-0.5 text-[10px] font-bold text-gax-blue border border-gax-blue/10 w-fit">
+                    {client.group_name}
+                  </span>
                 ) : (
                   <span className="text-[10px] font-medium text-slate-400 italic">Sem grupo</span>
                 )}
@@ -413,7 +415,15 @@ export default function ClientsPage() {
                 )}
                 <div className="flex flex-col">
                   <span className="text-[9px] font-black uppercase tracking-widest text-slate-300">Última Importação</span>
-                  <span className="text-[11px] font-bold text-slate-600">{client.ultima_importacao || "-"}</span>
+                  <span className="text-[11px] font-bold text-slate-600">
+                    {client.ultima_importacao ? new Date(client.ultima_importacao.replace(' ', 'T')).toLocaleString('pt-BR', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    }) : "-"}
+                  </span>
                 </div>
               </div>
             </div>
@@ -436,7 +446,7 @@ export default function ClientsPage() {
                   <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">Cliente</th>
                   <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">Grupo</th>
                   <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">CNPJ / ANS</th>
-                  <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400 w-48">Última Atividade</th>
+                  <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400 w-48">Última Importação</th>
                   <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400 text-right">Ações</th>
                 </tr>
               </thead>
@@ -497,7 +507,15 @@ export default function ClientsPage() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-col gap-0.5">
-                        <span className="text-xs font-bold text-slate-600">{client.ultima_importacao || "Sem registros"}</span>
+                        <span className="text-xs font-bold text-slate-600">
+                          {client.ultima_importacao ? new Date(client.ultima_importacao.replace(' ', 'T')).toLocaleString('pt-BR', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          }) : "Sem registros"}
+                        </span>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right">

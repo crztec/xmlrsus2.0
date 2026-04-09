@@ -48,7 +48,7 @@ export default function XmlDataPage() {
 
   // Pagination State for Client Selection
   const [clientPage, setClientPage] = useState(1);
-  const clientsPerPage = 9;
+  const clientsPerPage = 10;
 
   useEffect(() => {
     const fetchData = async () => {
@@ -164,7 +164,7 @@ export default function XmlDataPage() {
           />
         </div>
 
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
         {paginatedClients.map((client, idx) => (
           <button
             key={client.id}
@@ -172,31 +172,35 @@ export default function XmlDataPage() {
               setSelectedClient(client.name);
               setSearchTerm("");
             }}
-            className="group relative flex flex-col items-start rounded-3xl border border-slate-200/60 bg-white/70 p-6 text-left transition-all hover:border-gax-blue/30 hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 backdrop-blur-sm"
+            className="group relative flex flex-col rounded-2xl border border-slate-200/50 bg-white/60 p-4 text-left transition-all duration-300 hover:border-gax-blue/30 hover:shadow-lg hover:shadow-slate-200/40 animate-in fade-in slide-in-from-bottom-2"
+            style={{ animationDelay: `${(idx % 5) * 40}ms`, animationFillMode: 'both' }}
           >
-            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-gax-blue/10 to-gax-blue/5 text-gax-blue shadow-inner group-hover:scale-110 transition-transform duration-500">
-              <Building2 size={24} />
+            <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50 text-slate-400 group-hover:bg-gax-blue/10 group-hover:text-gax-blue transition-all duration-300 shadow-sm">
+              <Building2 size={20} />
             </div>
-            <h3 className="text-lg font-bold text-slate-800 transition-colors group-hover:text-gax-blue">{client.name}</h3>
-            
-            <div className="flex flex-wrap gap-2 mt-2">
-              <div className="inline-flex items-center gap-2 rounded-full bg-slate-100/50 px-3 py-1">
-                <div className="h-1.5 w-1.5 rounded-full bg-gax-blue"></div>
-                <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-500">
-                  {client.total_abis || "0"} ABIs Detectadas
-                </span>
-              </div>
-              
+
+            <div className="flex flex-col mb-4">
+              <h3 className="text-sm font-bold text-slate-800 transition-colors group-hover:text-gax-blue truncate leading-snug">
+                {client.name}
+              </h3>
               {client.group_name && (
-                <div className="inline-flex items-center gap-2 rounded-full bg-gax-blue/5 px-3 py-1 border border-gax-blue/10">
-                  <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-gax-blue">
-                    {client.group_name}
-                  </span>
-                </div>
+                <span className="text-[10px] font-bold text-gax-blue uppercase tracking-tight">
+                  {client.group_name}
+                </span>
               )}
             </div>
-            <div className="absolute bottom-6 right-6 h-8 w-8 flex items-center justify-center rounded-full bg-slate-50 text-slate-300 group-hover:bg-gax-blue group-hover:text-white transition-all transform translate-x-2 opacity-0 group-hover:translate-x-0 group-hover:opacity-100">
-              <ChevronRight size={16} />
+            
+            <div className="space-y-1.5 border-t border-slate-50 pt-4 mt-auto">
+              <div className="flex flex-col">
+                <span className="text-[9px] font-black uppercase tracking-widest text-slate-300">ABIs Detectadas</span>
+                <span className="text-[11px] font-bold text-emerald-600">
+                  {client.total_abis || "0"} XMLs
+                </span>
+              </div>
+            </div>
+
+            <div className="absolute top-4 right-4 h-6 w-6 flex items-center justify-center rounded-lg bg-slate-50 text-slate-300 opacity-0 group-hover:opacity-100 group-hover:bg-gax-blue/10 group-hover:text-gax-blue transition-all">
+              <ChevronRight size={14} />
             </div>
           </button>
         ))}
