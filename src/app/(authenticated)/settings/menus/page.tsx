@@ -50,21 +50,21 @@ const HARDCODED_DEFAULTS = {
     { key: "xml-data", label: "Dados ABIs", icon: "FileText", order: 1 },
     { key: "check-imports", label: "Checar Importações", icon: "Shield", order: 2 },
     { key: "logs", label: "Histórico de Importações", icon: "ClipboardList", order: 3 },
-    { key: "api-checks", label: "Checar APIs", icon: "Puzzle", order: 4, isAdmin: true },
+    { key: "api-checks", label: "Checar APIs", icon: "Puzzle", order: 4 },
   ],
   admin_menu: [
-    { key: "clients", label: "Clientes", icon: "Users", order: 0 },
-    { key: "users", label: "Usuários", icon: "Users", order: 1 },
-    { key: "groups", label: "Grupos", icon: "LayoutDashboard", order: 2 },
-    { key: "pending", label: "Pendentes", icon: "UserPlus", order: 3 },
+    { key: "clients", label: "Clientes", icon: "Users", order: 0, isAdmin: true },
+    { key: "users", label: "Usuários", icon: "Users", order: 1, isAdmin: true },
+    { key: "groups", label: "Grupos", icon: "LayoutDashboard", order: 2, isAdmin: true },
+    { key: "pending", label: "Pendentes", icon: "UserPlus", order: 3, isAdmin: true },
   ],
   config_menu: [
-    { key: "integrations", label: "Integrações", icon: "Puzzle", order: 0 },
-    { key: "audit", label: "Logs do Sistema", icon: "ScrollText", order: 1 },
-    { key: "access-control", label: "Controle de Acessos", icon: "Lock", order: 2 },
-    { key: "messages", label: "Mensagens", icon: "FileText", order: 3 },
-    { key: "branding", label: "Identidade Visual", icon: "Palette", order: 4 },
-    { key: "menus", label: "Gerenciar Menus", icon: "LayoutGrid", order: 5 },
+    { key: "integrations", label: "Integrações", icon: "Puzzle", order: 0, isAdmin: true },
+    { key: "audit", label: "Logs do Sistema", icon: "ScrollText", order: 1, isAdmin: true },
+    { key: "access-control", label: "Controle de Acessos", icon: "Lock", order: 2, isAdmin: true },
+    { key: "messages", label: "Mensagens", icon: "FileText", order: 3, isAdmin: true },
+    { key: "branding", label: "Identidade Visual", icon: "Palette", order: 4, isAdmin: true },
+    { key: "menus", label: "Gerenciar Menus", icon: "LayoutGrid", order: 5, isAdmin: true },
   ],
   section_labels: {
     main_title: "Importação",
@@ -126,12 +126,15 @@ export default function MenusPage() {
     setTimeout(() => setErrorMessage(""), 5000);
   };
 
-  const normalize = (data: any): MenuConfig => ({
-    main_menu: Array.isArray(data.main_menu) && data.main_menu.length > 0 ? data.main_menu : HARDCODED_DEFAULTS.main_menu,
-    admin_menu: Array.isArray(data.admin_menu) && data.admin_menu.length > 0 ? data.admin_menu : HARDCODED_DEFAULTS.admin_menu,
-    config_menu: Array.isArray(data.config_menu) && data.config_menu.length > 0 ? data.config_menu : HARDCODED_DEFAULTS.config_menu,
-    section_labels: { ...HARDCODED_DEFAULTS.section_labels, ...(data.section_labels || {}) },
-  });
+  const normalize = (data: any): MenuConfig => {
+    const sort = (items: any[]) => [...items].sort((a, b) => (a.order || 0) - (b.order || 0));
+    return {
+      main_menu: sort(Array.isArray(data.main_menu) && data.main_menu.length > 0 ? data.main_menu : HARDCODED_DEFAULTS.main_menu),
+      admin_menu: sort(Array.isArray(data.admin_menu) && data.admin_menu.length > 0 ? data.admin_menu : HARDCODED_DEFAULTS.admin_menu),
+      config_menu: sort(Array.isArray(data.config_menu) && data.config_menu.length > 0 ? data.config_menu : HARDCODED_DEFAULTS.config_menu),
+      section_labels: { ...HARDCODED_DEFAULTS.section_labels, ...(data.section_labels || {}) },
+    };
+  };
 
   const fetchConfig = useCallback(async () => {
     setIsLoading(true);
@@ -286,7 +289,7 @@ export default function MenusPage() {
         {sections.map((section, sIdx) => {
           const sectionLabel = config.section_labels[section.titleKey];
           const isEditingSection = editingSectionKey === section.titleKey;
-          const sortedItems = [...section.items].sort((a, b) => a.order - b.order);
+          const sortedItems = section.items; // Already sorted in state
 
           return (
             <React.Fragment key={section.key}>
@@ -407,44 +410,47 @@ export default function MenusPage() {
                   </div>
                 );
               })}
-            </React.Fragment>
-          );
-        })}
+              </React.Fragment>
+            );
+          })}
+
+          {/* Action Bar (integrated at bottom of card) */}
+          <div className="flex items-center justify-end gap-3 bg-slate-50/80 backdrop-blur-sm border-t border-slate-100 px-6 py-4">
+            {hasChanges && (
+              <div className="flex items-center gap-1.5 mr-auto">
+                <div className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+                <span className="text-[10px] font-bold text-amber-600">Alterações não salvas</span>
+              </div>
+            )}
+
+            <button
+              onClick={handleRestore}
+              disabled={isRestoring}
+              className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-[10px] font-bold text-slate-500 hover:bg-slate-50 transition-all disabled:opacity-50 active:scale-95"
+            >
+              {isRestoring ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />}
+              Restaurar Padrão
+            </button>
+
+            <button
+              onClick={handleSaveDefault}
+              disabled={isSavingDefault || !hasChanges}
+              className="flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-[10px] font-bold text-amber-600 hover:bg-amber-100 transition-all disabled:opacity-50 active:scale-95"
+            >
+              {isSavingDefault ? <Loader2 size={12} className="animate-spin" /> : <Star size={12} />}
+              Salvar como Padrão
+            </button>
+
+            <button
+              onClick={handleSave}
+              disabled={isSaving || !hasChanges}
+              className="flex items-center gap-1.5 rounded-xl bg-gax-blue px-5 py-2 text-[10px] font-bold text-white shadow-lg shadow-gax-blue/20 transition-all hover:bg-gax-blue-hover disabled:opacity-50 active:scale-95"
+            >
+              {isSaving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+              Salvar
+            </button>
+          </div>
+        </div>
       </div>
-
-      {/* Action Bar (sticky bottom) */}
-      <div className="flex items-center justify-end gap-3 sticky bottom-4 bg-white/80 backdrop-blur-md rounded-2xl border border-slate-200/60 px-5 py-3 shadow-lg">
-        {hasChanges && (
-          <span className="text-[10px] font-bold text-amber-600 mr-auto">● Alterações não salvas</span>
-        )}
-
-        <button
-          onClick={handleRestore}
-          disabled={isRestoring}
-          className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-[10px] font-bold text-slate-500 hover:bg-slate-50 transition-all disabled:opacity-50 active:scale-95"
-        >
-          {isRestoring ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />}
-          Restaurar Padrão
-        </button>
-
-        <button
-          onClick={handleSaveDefault}
-          disabled={isSavingDefault || !hasChanges}
-          className="flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-[10px] font-bold text-amber-600 hover:bg-amber-100 transition-all disabled:opacity-50 active:scale-95"
-        >
-          {isSavingDefault ? <Loader2 size={12} className="animate-spin" /> : <Star size={12} />}
-          Salvar como Padrão
-        </button>
-
-        <button
-          onClick={handleSave}
-          disabled={isSaving || !hasChanges}
-          className="flex items-center gap-1.5 rounded-xl bg-gax-blue px-5 py-2 text-[10px] font-bold text-white shadow-lg shadow-gax-blue/20 transition-all hover:bg-gax-blue-hover disabled:opacity-50 active:scale-95"
-        >
-          {isSaving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-          Salvar
-        </button>
-      </div>
-    </div>
-  );
+    );
 }
