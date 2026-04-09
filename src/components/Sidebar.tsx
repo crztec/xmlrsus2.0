@@ -109,9 +109,10 @@ interface SidebarProps {
 export default function Sidebar({ onOpenProfile }: SidebarProps) {
   const pathname = usePathname();
   const [isAdmin, setIsAdmin] = React.useState(false);
+  const [importMenuOpen, setImportMenuOpen] = useState(true);
   const [systemMenuOpen, setSystemMenuOpen] = useState(() => {
     if (typeof window !== "undefined") {
-      return window.location.pathname.startsWith("/settings");
+      return window.location.pathname.startsWith("/settings") && !window.location.pathname.includes("api-checks");
     }
     return false;
   });
@@ -122,9 +123,9 @@ export default function Sidebar({ onOpenProfile }: SidebarProps) {
     }
     return false;
   });
-
+ 
   // Dynamic menu state
-  const [mainMenuItems, setMainMenuItems] = useState<any[]>([{ label: "Importação", isTitle: true }, ...DEFAULT_MAIN_MENU]);
+  const [mainMenuItems, setMainMenuItems] = useState<any[]>(DEFAULT_MAIN_MENU);
   const [adminSubItems, setAdminSubItems] = useState<any[]>(DEFAULT_ADMIN_SUB);
   const [configSubItems, setConfigSubItems] = useState<any[]>(DEFAULT_CONFIG_SUB);
   const [sectionLabels, setSectionLabels] = useState({ main_title: "Importação", admin_title: "Administração", config_title: "Configuração" });
@@ -144,7 +145,11 @@ export default function Sidebar({ onOpenProfile }: SidebarProps) {
   const [isLoadingBranding, setIsLoadingBranding] = React.useState(true);
   const [userName, setUserName] = React.useState("Usuário");
   const [userEmail, setUserEmail] = React.useState("...");
-
+ 
+  const isImportActive = pathname === "/dashboard" || pathname === "/xml-data" || pathname === "/check-imports" || pathname === "/logs" || pathname.includes("api-checks");
+  const isSettingsActive = pathname.startsWith("/settings") && !pathname.includes("api-checks");
+  const isAdminActive = pathname.startsWith("/clients") || pathname.startsWith("/users") || pathname.startsWith("/admin/groups") || pathname.startsWith("/pending");
+ 
   React.useEffect(() => {
     if (typeof window !== "undefined") {
       setUserName(localStorage.getItem("gax_user_name") || "Usuário");
@@ -193,29 +198,23 @@ export default function Sidebar({ onOpenProfile }: SidebarProps) {
       .finally(() => setIsLoadingBranding(false));
   }, []);
 
-  // Auto-open system menu when navigating to a settings sub-route
-  const isSettingsActive = pathname.startsWith("/settings") && !pathname.includes("api-checks");
-  const isAdminActive = pathname.startsWith("/clients") || pathname.startsWith("/users") || pathname.startsWith("/admin/groups") || pathname.startsWith("/pending");
-
   // Load dynamic menu config
   useEffect(() => {
     fetch("/api/menu-config")
       .then(res => res.json())
       .then(data => {
         if (data && data.main_menu) {
-          // Build main menu from config
-          const titleLabel = data.section_labels?.main_title || "Importação";
-          const dynamicMain: any[] = [{ label: titleLabel, isTitle: true }];
           const sortedMain = [...data.main_menu].sort((a: any, b: any) => a.order - b.order);
-          sortedMain.forEach((item: any) => {
-            dynamicMain.push({
-              label: item.label,
-              icon: ICON_MAP[item.icon] || <Settings size={20} />,
-              href: ROUTE_MAP[item.key] || "/dashboard",
-              isAdmin: item.isAdmin || false,
-            });
-          });
-          setMainMenuItems(dynamicMain);
+          setMainMenuItems(sortedMain.map((item: any) => ({
+            label: item.label,
+            icon: ICON_MAP[item.icon] || <Settings size={20} />,
+            href: ROUTE_MAP[item.key] || "/dashboard",
+            isAdmin: item.isAdmin || false,
+          })));
+          
+          if (data.section_labels) {
+            setSectionLabels(data.section_labels);
+          }
 
           // Build admin sub-items
           if (data.admin_menu) {
@@ -278,42 +277,63 @@ export default function Sidebar({ onOpenProfile }: SidebarProps) {
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label="Navegação Principal">
         <div className="space-y-1">
-          {mainMenuItems.map((item, idx) => {
-            if (item.isTitle) {
-              if (item.isAdmin && !isAdmin) return null;
-              return (
-                <div key={idx} className="mb-2 mt-4 px-3 text-[11px] font-bold uppercase tracking-wider text-slate-400" aria-hidden="true">
-                  {item.label}
-                </div>
-              );
-            }
+          {/* Importação - Collapsible Menu */}
+          <button
+            onClick={() => setImportMenuOpen(!importMenuOpen)}
+            className={cn(
+              "flex w-full items-center gap-3 rounded-xl px-3 py-2 text-[13px] font-medium transition-all outline-none focus-visible:ring-2 focus-visible:ring-gax-blue/20 group",
+              isImportActive
+                ? "bg-gax-blue-light/50 text-gax-blue shadow-sm border border-gax-blue/10"
+                : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 border border-transparent"
+            )}
+          >
+            <span className={cn(
+              "transition-colors",
+              isImportActive ? "text-gax-blue" : "text-slate-400 group-hover:text-slate-600"
+            )}>
+              <CloudUpload size={20} />
+            </span>
+            {sectionLabels.main_title}
+            <ChevronDown 
+              size={14} 
+              className={cn(
+                "ml-auto transition-transform duration-200",
+                importMenuOpen ? "rotate-180" : ""
+              )} 
+            />
+          </button>
 
-            if (item.isAdmin && !isAdmin) return null;
-
-            const isActive = pathname === item.href;
-
-            return (
-              <Link
-                key={idx}
-                href={item.href || "#"}
-                className={cn(
-                  "flex items-center gap-3 rounded-xl px-3 py-2 text-[13px] font-medium transition-all outline-none focus-visible:ring-2 focus-visible:ring-gax-blue/20 group",
-                  isActive
-                    ? "bg-gax-blue-light/50 text-gax-blue shadow-sm border border-gax-blue/10"
-                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 border border-transparent"
-                )}
-                aria-current={isActive ? "page" : undefined}
-              >
-                <span className={cn(
-                  "transition-colors",
-                  isActive ? "text-gax-blue" : "text-slate-400 group-hover:text-slate-600"
-                )} aria-hidden="true">
-                  {item.icon}
-                </span>
-                {item.label}
-              </Link>
-            );
-          })}
+          <div className={cn(
+            "overflow-hidden transition-all duration-300 ease-in-out",
+            importMenuOpen ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0"
+          )}>
+            <div className="ml-3 space-y-0.5 border-l-2 border-slate-100 pl-3 py-1">
+              {mainMenuItems.map((item, idx) => {
+                if (item.isAdmin && !isAdmin) return null;
+                const isActive = pathname === item.href;
+                return (
+                  <Link
+                    key={idx}
+                    href={item.href || "#"}
+                    className={cn(
+                      "flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[12px] font-medium transition-all group",
+                      isActive
+                        ? "bg-gax-blue/5 text-gax-blue"
+                        : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+                    )}
+                  >
+                    <span className={cn(
+                      "transition-colors",
+                      isActive ? "text-gax-blue" : "text-slate-400 group-hover:text-slate-500"
+                    )}>
+                      {item.icon}
+                    </span>
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
 
           {/* Administração - Collapsible Menu (admin only) */}
           {isAdmin && (

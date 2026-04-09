@@ -1790,15 +1790,22 @@ def get_menu_config():
         logger.error(f"Erro ao buscar menu config: {e}")
         return copy.deepcopy(MENU_DEFAULTS)
 
-def save_menu_config(config: dict):
-    """Saves the active menu configuration."""
+def save_menu_config_detailed(config: dict):
+    """Saves the active menu configuration and returns (success, error_message)."""
     try:
-        config['updated_at'] = get_now_br().isoformat()
-        firestore_db.collection('system_config').document('menu_layout').set(config)
-        return True
+        clean_config = {
+            "main_menu": config.get("main_menu", []),
+            "admin_menu": config.get("admin_menu", []),
+            "config_menu": config.get("config_menu", []),
+            "section_labels": config.get("section_labels", {}),
+            "updated_at": get_now_br().isoformat()
+        }
+        firestore_db.collection('system_config').document('menu_layout').set(clean_config)
+        return True, None
     except Exception as e:
-        logger.error(f"Erro ao salvar menu config: {e}")
-        return False
+        err = str(e)
+        logger.error(f"Erro ao salvar menu config no Firestore: {err}")
+        return False, err
 
 def get_menu_default():
     """Returns the custom default, or hardcoded defaults if none set."""

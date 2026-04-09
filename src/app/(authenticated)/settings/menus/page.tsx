@@ -226,8 +226,13 @@ export default function MenusPage() {
     setIsSaving(true);
     try {
       const res = await fetch("/api/menu-config", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(config) });
-      if (res.ok) { showSuccess("Configuração salva com sucesso!"); setHasChanges(false); }
-      else showError("Erro ao salvar.");
+      if (res.ok) { 
+        showSuccess("Configuração salva com sucesso!"); 
+        setHasChanges(false); 
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        showError(errorData.detail || "Erro ao salvar configuração de menus.");
+      }
     } catch { showError("Erro de conexão."); }
     finally { setIsSaving(false); }
   };
