@@ -26,12 +26,12 @@ import {
 import { cn } from "@/lib/utils";
 
 const mainMenuItems: any[] = [
-  { label: "Início", isTitle: true },
-  { label: "Checar APIs", icon: <Puzzle size={20} />, href: "/settings/api-checks", isAdmin: true },
   { label: "Importação", isTitle: true },
   { label: "Enviar ABIs", icon: <CloudUpload size={20} />, href: "/dashboard" },
   { label: "Dados ABIs", icon: <FileText size={20} />, href: "/xml-data" },
   { label: "Checar Importações", icon: <Shield size={20} />, href: "/check-imports" },
+  { label: "Histórico de Importações", icon: <ClipboardList size={20} />, href: "/logs" },
+  { label: "Checar APIs", icon: <Puzzle size={20} />, href: "/settings/api-checks", isAdmin: true },
 ];
 
 const adminSubItems = [
@@ -42,11 +42,10 @@ const adminSubItems = [
 ];
 
 const configSubItems = [
-  { label: "Histórico de Importações", icon: <ClipboardList size={18} />, href: "/logs" },
-  { label: "APIs Integration", icon: <Puzzle size={18} />, href: "/settings/integrations" },
-  { label: "Monitoring", icon: <ScrollText size={18} />, href: "/settings/audit" },
+  { label: "Integrações", icon: <Puzzle size={18} />, href: "/settings/integrations" },
+  { label: "Segurança e Auditoria", icon: <ScrollText size={18} />, href: "/settings/audit" },
+  { label: "Controle de Acessos", icon: <Lock size={18} />, href: "/settings/access-control" },
   { label: "Mensagens", icon: <FileText size={18} />, href: "/settings/messages" },
-  { label: "Segurança", icon: <Lock size={18} />, href: "/settings/access-control" },
   { label: "Identidade Visual", icon: <Palette size={18} />, href: "/settings/branding" },
 ];
 
