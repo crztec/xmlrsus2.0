@@ -1975,7 +1975,7 @@ async def route_set_menu_default(config: dict):
         return {"status": "success", "message": "Configuração salva como padrão."}
     raise HTTPException(status_code=500, detail="Erro ao salvar padrão de menus.")
 
-@app.post("/api/menu-config/restore-default")
+@app.post("/menu-config/restore-default")
 async def route_restore_menu_default():
     """Restaura a configuração de menus ao padrão."""
     success = db.restore_menu_default()

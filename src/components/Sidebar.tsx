@@ -357,7 +357,7 @@ export default function Sidebar({ onOpenProfile }: SidebarProps) {
                   "transition-colors",
                   adminMenuOpen ? "text-gax-blue" : "text-slate-400 group-hover:text-slate-600"
                 )}>
-                  <Settings size={20} />
+                  <Users size={20} />
                 </span>
                 {sectionLabels.admin_title}
                 <ChevronDown 
