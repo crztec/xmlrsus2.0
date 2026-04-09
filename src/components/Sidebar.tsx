@@ -484,7 +484,10 @@ export default function Sidebar({ onOpenProfile }: SidebarProps) {
             onClick={(e) => {
               e.stopPropagation();
               if (confirm("Deseja realmente sair?")) {
-                localStorage.clear();
+                localStorage.removeItem("gax_user_name");
+                localStorage.removeItem("gax_user_email");
+                localStorage.removeItem("gax_user_role");
+                localStorage.removeItem("gax_branding");
                 window.location.href = "/login";
               }
             }}
