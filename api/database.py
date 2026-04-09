@@ -383,6 +383,7 @@ def get_clients_paginated(page=1, limit=10, search=""):
                 'whatsapp_numbers': data.get('whatsapp_numbers', []),
                 'group_id': data.get('group_id'),
                 'group_name': data.get('group_name'),
+                'ultima_importacao': abi_last_check, # Adiciona compatibilidade com o front
             })
             
         clients.sort(key=lambda x: x['name'])
@@ -1612,6 +1613,9 @@ def recalculate_client_abis(client_id):
         
         if last_abi:
             update_payload['abi_current'] = last_abi
+        
+        if last_date:
+            update_payload['abi_last_check'] = last_date
             
         client_ref.update(update_payload)
         logger.info(f"Contagem do cliente '{name}' atualizada: {count} ABIs.")

@@ -340,21 +340,21 @@ export default function ClientsPage() {
           <p className="text-sm font-medium text-slate-400">Carregando base de clientes...</p>
         </div>
       ) : viewMode === "grid" ? (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
-          {paginatedClients.map((client: Client, idx: number) => (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
+          {filteredClients.map((client: Client, idx: number) => (
             <div 
               key={client.id} 
               className={cn(
-                "group relative flex flex-col rounded-3xl border p-6 shadow-sm backdrop-blur-sm transition-all animate-in fade-in slide-in-from-bottom-4 duration-500",
+                "group relative flex flex-col rounded-2xl border p-4 transition-all duration-300 animate-in fade-in slide-in-from-bottom-2",
                 selectedClients.has(client.id) 
-                  ? "border-gax-blue bg-gax-blue-light/30 shadow-gax-blue/10" 
-                  : "border-slate-200/60 bg-white/70 hover:border-gax-blue/30 hover:shadow-xl hover:shadow-slate-200/50"
+                  ? "border-gax-blue bg-gax-blue-light/20 shadow-gax-blue/10" 
+                  : "border-slate-200/50 bg-white/60 hover:border-gax-blue/30 hover:shadow-lg hover:shadow-slate-200/40"
               )}
-              style={{ animationDelay: `${(idx % 5) * 50}ms`, animationFillMode: 'both' }}
+              style={{ animationDelay: `${(idx % 5) * 40}ms`, animationFillMode: 'both' }}
             >
-              <div className="mb-6 flex items-start justify-between">
+              <div className="mb-4 flex items-start justify-between">
                 <div 
-                  className="flex h-12 w-12 cursor-pointer items-center justify-center rounded-2xl bg-gradient-to-br from-gax-blue/20 to-gax-blue/5 text-gax-blue shadow-inner group-hover:scale-110 transition-transform duration-500"
+                  className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl bg-slate-50 text-slate-400 group-hover:bg-gax-blue/10 group-hover:text-gax-blue transition-all duration-300 shadow-sm"
                   onClick={() => toggleSelect(client.id)}
                 >
                   {selectedClients.has(client.id) ? (
@@ -362,84 +362,58 @@ export default function ClientsPage() {
                       <Plus className="rotate-45" size={14} />
                     </div>
                   ) : (
-                    <Building2 size={24} aria-hidden="true" />
+                    <Building2 size={20} aria-hidden="true" />
                   )}
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex flex-col items-end gap-1">
-                    <span className="rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-600 border border-emerald-100/50">Ativo</span>
-                    {client.group_name && (
-                      <span className="rounded-full bg-gax-blue/10 px-3 py-1 text-[9px] font-bold uppercase tracking-wider text-gax-blue border border-gax-blue/20 shadow-sm animate-in fade-in duration-300">
-                        {client.group_name}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <button 
-                      onClick={() => handleEditClick(client)}
-                      className="flex h-8 w-8 items-center justify-center rounded-xl bg-slate-50 text-slate-400 opacity-0 group-hover:opacity-100 hover:bg-gax-blue hover:text-white transition-all shadow-sm"
-                      title="Editar"
-                    >
-                      <Pencil size={14} />
-                    </button>
-                    <button 
-                      onClick={() => handleDeleteSingle(client.id, client.name)}
-                      className="flex h-8 w-8 items-center justify-center rounded-xl bg-slate-50 text-rose-400 opacity-0 group-hover:opacity-100 hover:bg-rose-500 hover:text-white transition-all shadow-sm"
-                      title="Excluir"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
+                <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button 
+                    onClick={() => handleEditClick(client)}
+                    className="flex h-7 w-7 items-center justify-center rounded-lg bg-white border border-slate-100 text-slate-400 hover:text-gax-blue hover:border-gax-blue/30 transition-all shadow-sm"
+                    title="Editar"
+                  >
+                    <Pencil size={12} />
+                  </button>
+                  <button 
+                    onClick={() => handleDeleteSingle(client.id, client.name)}
+                    className="flex h-7 w-7 items-center justify-center rounded-lg bg-white border border-slate-100 text-rose-400 hover:bg-rose-50 hover:border-rose-100 transition-all shadow-sm"
+                    title="Excluir"
+                  >
+                    <Trash2 size={12} />
+                  </button>
                 </div>
               </div>
 
-              {client.url_sistema ? (
-                <a 
-                  href={client.url_sistema} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="group/link mb-2 flex items-center gap-2 text-lg font-bold text-slate-800 transition-colors hover:text-gax-blue leading-tight"
-                >
-                  {client.name}
-                  <ExternalLink size={16} className="opacity-0 group-hover/link:opacity-100 transition-all -translate-x-2 group-hover/link:translate-x-0" />
-                </a>
-              ) : (
-                <h3 className="mb-2 text-lg font-bold text-slate-800 transition-colors group-hover:text-gax-blue leading-tight">{client.name}</h3>
-              )}
-              <div className="mb-6 space-y-2">
-                {client.group_name && (
-                  <div className="flex items-center gap-2.5 text-xs text-slate-500">
-                    <div className="flex h-5 w-5 items-center justify-center rounded-lg bg-gax-blue/5 text-gax-blue shadow-sm border border-gax-blue/20">
-                      <LayoutGrid size={12} />
-                    </div>
-                    <span className="font-bold text-slate-800" title={client.group_name}>{client.group_name}</span>
-                  </div>
-                )}
-                {client.registro_ans && (
-                  <div className="flex items-center gap-2.5 text-xs text-slate-500">
-                    <div className="flex h-5 w-5 items-center justify-center rounded-lg bg-slate-100 text-slate-400 shadow-sm border border-slate-200/50">
-                      <FileCheck size={12} />
-                    </div>
-                    <span className="font-medium">ANS: {client.registro_ans}</span>
-                  </div>
-                )}
-                {client.endereco && (
-                  <div className="flex items-center gap-2.5 text-xs text-slate-500">
-                    <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400 shadow-sm border border-slate-200/50">
-                      <MapPin size={12} />
-                    </div>
-                    <span className="font-medium truncate leading-tight" title={client.endereco}>{client.endereco}</span>
-                  </div>
+              <div className="flex flex-col mb-4">
+                <div className="flex items-center gap-2 mb-1">
+                  {client.url_sistema ? (
+                    <a 
+                      href={client.url_sistema} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-sm font-bold text-slate-800 hover:text-gax-blue transition-colors truncate"
+                    >
+                      {client.name}
+                    </a>
+                  ) : (
+                    <h3 className="text-sm font-bold text-slate-800 truncate">{client.name}</h3>
+                  )}
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" title="Ativo"></span>
+                </div>
+                
+                {client.group_name ? (
+                  <span className="text-[10px] font-bold text-gax-blue uppercase tracking-tight">{client.group_name}</span>
+                ) : (
+                  <span className="text-[10px] font-medium text-slate-400 italic">Sem grupo</span>
                 )}
               </div>
 
-              <div className="grid grid-cols-1 gap-4 border-t border-slate-100/50 pt-5 mt-auto">
-                <div className="space-y-1">
-                  <p className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-slate-400">
-                    <Calendar size={10} aria-hidden="true" />
-                    Última Importação
-                  </p>
-                  <p className="text-xs font-bold text-slate-600">{client.ultima_importacao || "-"}</p>
+              <div className="space-y-1.5 border-t border-slate-50 pt-4 mt-auto">
+                {client.registro_ans && (
+                  <p className="text-[10px] font-medium text-slate-500">ANS: <span className="text-slate-700 font-bold">{client.registro_ans}</span></p>
+                )}
+                <div className="flex flex-col">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-slate-300">Última Importação</span>
+                  <span className="text-[11px] font-bold text-slate-600">{client.ultima_importacao || "-"}</span>
                 </div>
               </div>
             </div>
@@ -462,7 +436,7 @@ export default function ClientsPage() {
                   <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">Cliente</th>
                   <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">Grupo</th>
                   <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">CNPJ / ANS</th>
-                  <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">Última Atividade</th>
+                  <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400 w-48">Última Atividade</th>
                   <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400 text-right">Ações</th>
                 </tr>
               </thead>
@@ -524,7 +498,6 @@ export default function ClientsPage() {
                     <td className="px-6 py-4">
                       <div className="flex flex-col gap-0.5">
                         <span className="text-xs font-bold text-slate-600">{client.ultima_importacao || "Sem registros"}</span>
-                        <span className="text-[10px] font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full w-fit border border-emerald-100/50">{client.total_abis} XMLs</span>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right">
