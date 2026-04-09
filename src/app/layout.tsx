@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Space_Grotesk } from "next/font/google";
 import "./globals.css";
+import CookieBanner from "@/components/CookieBanner";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -37,6 +38,7 @@ export default function RootLayout({
         className={`${inter.variable} ${spaceGrotesk.variable} antialiased`}
       >
         {children}
+        <CookieBanner />
       </body>
     </html>
   );

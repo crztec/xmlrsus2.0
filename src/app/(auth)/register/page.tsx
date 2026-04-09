@@ -195,6 +195,17 @@ export default function RegisterPage() {
                   </>
                 )}
               </button>
+
+              <p className="mt-4 text-center text-[11px] font-medium leading-relaxed text-slate-400 px-4">
+                Ao cadastrar-se, você concorda com nossos{" "}
+                <Link href="/termos-de-uso" target="_blank" className="font-bold text-slate-500 hover:text-gax-blue underline decoration-slate-200 underline-offset-4">
+                  Termos de Uso
+                </Link>{" "}
+                e{" "}
+                <Link href="/politica-de-privacidade" target="_blank" className="font-bold text-slate-500 hover:text-gax-blue underline decoration-slate-200 underline-offset-4">
+                  Política de Privacidade
+                </Link>.
+              </p>
             </form>
           )}
 
