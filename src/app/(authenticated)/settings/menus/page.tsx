@@ -46,11 +46,11 @@ const ICON_MAP: Record<string, React.ReactNode> = {
 
 const HARDCODED_DEFAULTS = {
   main_menu: [
-    { key: "dashboard", label: "Enviar ABIs", icon: "CloudUpload", order: 0 },
-    { key: "xml-data", label: "Dados ABIs", icon: "FileText", order: 1 },
-    { key: "check-imports", label: "Checar Importações", icon: "Shield", order: 2 },
-    { key: "logs", label: "Histórico de Importações", icon: "ClipboardList", order: 3 },
-    { key: "api-checks", label: "Checar APIs", icon: "Puzzle", order: 4 },
+    { key: "dashboard", label: "Enviar ABIs", icon: "CloudUpload", order: 0, isAdmin: false },
+    { key: "xml-data", label: "Dados ABIs", icon: "FileText", order: 1, isAdmin: false },
+    { key: "check-imports", label: "Checar Importações", icon: "Shield", order: 2, isAdmin: false },
+    { key: "logs", label: "Histórico de Importações", icon: "ClipboardList", order: 3, isAdmin: false },
+    { key: "api-checks", label: "Checar APIs", icon: "Puzzle", order: 4, isAdmin: false },
   ],
   admin_menu: [
     { key: "clients", label: "Clientes", icon: "Users", order: 0, isAdmin: true },

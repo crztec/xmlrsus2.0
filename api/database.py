@@ -1747,11 +1747,11 @@ def delete_clients_batch(client_ids):
 
 MENU_DEFAULTS = {
     "main_menu": [
-        {"key": "dashboard", "label": "Enviar ABIs", "icon": "CloudUpload", "order": 0},
-        {"key": "xml-data", "label": "Dados ABIs", "icon": "FileText", "order": 1},
-        {"key": "check-imports", "label": "Checar Importações", "icon": "Shield", "order": 2},
-        {"key": "logs", "label": "Histórico de Importações", "icon": "ClipboardList", "order": 3},
-        {"key": "api-checks", "label": "Checar APIs", "icon": "Puzzle", "order": 4},
+        {"key": "dashboard", "label": "Enviar ABIs", "icon": "CloudUpload", "order": 0, "isAdmin": False},
+        {"key": "xml-data", "label": "Dados ABIs", "icon": "FileText", "order": 1, "isAdmin": False},
+        {"key": "check-imports", "label": "Checar Importações", "icon": "Shield", "order": 2, "isAdmin": False},
+        {"key": "logs", "label": "Histórico de Importações", "icon": "ClipboardList", "order": 3, "isAdmin": False},
+        {"key": "api-checks", "label": "Checar APIs", "icon": "Puzzle", "order": 4, "isAdmin": False},
     ],
     "admin_menu": [
         {"key": "clients", "label": "Clientes", "icon": "Users", "order": 0, "isAdmin": True},
@@ -1835,13 +1835,13 @@ def save_menu_default(config: dict):
         return False
 
 def restore_menu_default():
-    """Restores the active config to the saved default (or hardcoded defaults)."""
+    """Restores the active config to hardcoded defaults by deleting the custom default document."""
     try:
-        default_config = get_menu_default()
-        # Remove metadata fields before saving as active
-        for k in ['saved_as_default_at', 'updated_at']:
-            default_config.pop(k, None)
-        success, _ = save_menu_config_detailed(default_config)
+        # Delete the custom default document to force use of hardcoded defaults next time
+        firestore_db.collection('system_config').document('menu_layout_default').delete()
+        
+        # Save a copy of hardcoded defaults as active current config
+        success, _ = save_menu_config_detailed(copy.deepcopy(MENU_DEFAULTS))
         return success
     except Exception as e:
         logger.error(f"Erro ao restaurar menu default: {e}")
