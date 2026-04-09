@@ -224,15 +224,6 @@ export default function GroupsPage() {
                 </div>
               </div>
               
-              <div className="mt-8 pt-5 border-t border-slate-100/50">
-                 <button 
-                  onClick={() => handleEditGroup(group)}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-50 py-3 text-xs font-bold text-slate-500 hover:bg-gax-blue/5 hover:text-gax-blue transition-all"
-                 >
-                   Gerenciar Clientes
-                   <ArrowRight size={14} />
-                 </button>
-              </div>
             </div>
           ))}
         </div>
@@ -244,111 +235,111 @@ export default function GroupsPage() {
           <div className="w-full max-w-2xl rounded-[2.5rem] bg-white p-10 shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
             <div className="mb-8 flex items-center justify-between">
               <div>
-                <h3 className="text-2xl font-black text-slate-800">
+                <h3 className="text-xl font-black text-slate-800 tracking-tight">
                   {editingGroup ? "Editar Grupo" : "Novo Grupo"}
                 </h3>
-                <p className="text-sm font-medium text-slate-400">Configure o nome e os membros do grupo.</p>
+                <p className="text-[11px] font-medium text-slate-400">Configure o nome e os membros do grupo.</p>
               </div>
               <button 
                 onClick={() => setIsModalOpen(false)}
                 className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                aria-label="Fechar"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
 
-            <form onSubmit={handleSave} className="space-y-8 flex-1 flex flex-col overflow-hidden">
-              <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Nome do Grupo</label>
+            <form onSubmit={handleSave} className="space-y-6 flex-1 flex flex-col overflow-hidden">
+              <div className="space-y-1.5">
+                <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Nome do Grupo</label>
                 <input 
                   type="text" 
                   value={groupName}
                   onChange={(e) => setGroupName(e.target.value)}
                   placeholder="Ex: Unimed Federação Paraná"
-                  className="w-full rounded-2xl border border-slate-200 px-5 py-4 text-sm font-bold text-slate-700 outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all placeholder:text-slate-300"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-700 outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all placeholder:text-slate-200"
                   required
                 />
               </div>
 
               <div className="flex flex-col flex-1 overflow-hidden">
                 <div className="flex items-center justify-between mb-2 px-1">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Selecionar Clientes ({selectedClientIds.size})</label>
-                  <p className="text-[10px] font-bold text-slate-400 italic">Pesquise para encontrar operadoras</p>
+                  <label className="text-[9px] font-black uppercase tracking-widest text-slate-400">Selecionar Clientes ({selectedClientIds.size})</label>
+                  <p className="text-[9px] font-bold text-slate-300 italic">Pesquise para encontrar operadoras</p>
                 </div>
                 
                 <div className="mb-4 relative">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={16} />
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={14} />
                   <input 
                     type="text" 
-                    placeholder="Filtrar clientes por nome ou CNPJ..." 
-                    className="w-full rounded-xl border border-slate-100 bg-slate-50 px-12 py-3 text-xs outline-none focus:border-gax-blue transition-all"
+                    placeholder="Filtrar clientes..." 
+                    className="w-full rounded-xl border border-slate-100 bg-slate-50/50 px-10 py-2.5 text-xs outline-none focus:border-gax-blue focus:bg-white transition-all"
                     onChange={(e) => {
-                      // Local filtering logic within the list
                       const val = e.target.value.toLowerCase();
                       const items = document.querySelectorAll('.client-select-item');
                       items.forEach((item: any) => {
                         const name = item.getAttribute('data-name')?.toLowerCase() || "";
-                        if (name.includes(val)) item.classList.remove('hidden');
-                        else item.classList.add('hidden');
+                        if (name.includes(val)) item.style.display = 'flex';
+                        else item.style.display = 'none';
                       });
                     }}
                   />
                 </div>
 
-                <div className="flex-1 overflow-y-auto pr-2 space-y-2 custom-scrollbar">
+                <div className="flex-1 overflow-y-auto pr-2 space-y-2 custom-scrollbar lg:max-h-60">
                   {allClients.map(client => (
                     <div 
                       key={client.id}
                       data-name={client.name}
                       onClick={() => toggleClientSelection(client.id)}
                       className={cn(
-                        "client-select-item flex items-center justify-between p-4 rounded-2xl border cursor-pointer transition-all active:scale-[0.98]",
+                        "client-select-item flex items-center justify-between p-3.5 rounded-xl border cursor-pointer transition-all active:scale-[0.98]",
                         selectedClientIds.has(client.id)
-                          ? "border-gax-blue bg-gax-blue-light/30 shadow-md shadow-gax-blue/10"
+                          ? "border-gax-blue bg-gax-blue/5 shadow-sm"
                           : "border-slate-100 bg-white hover:bg-slate-50"
                       )}
                     >
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-3">
                         <div className={cn(
-                          "flex h-9 w-9 items-center justify-center rounded-xl transition-all",
+                          "flex h-8 w-8 items-center justify-center rounded-lg transition-all",
                           selectedClientIds.has(client.id) ? "bg-gax-blue text-white" : "bg-slate-100 text-slate-400"
                         )}>
-                          <Building size={18} />
+                          <Building size={16} />
                         </div>
                         <div className="flex flex-col">
                           <span className={cn(
-                            "text-sm font-bold transition-all",
+                            "text-xs font-bold transition-all leading-tight",
                             selectedClientIds.has(client.id) ? "text-gax-blue" : "text-slate-700"
                           )}>{client.name}</span>
-                          <span className="text-[10px] font-medium text-slate-400">{client.cnpj}</span>
+                          <span className="text-[9px] font-medium text-slate-400 uppercase tracking-tighter">{client.cnpj}</span>
                         </div>
                       </div>
                       <div className={cn(
-                        "h-6 w-6 rounded-full border-2 flex items-center justify-center transition-all",
-                        selectedClientIds.has(client.id) ? "bg-gax-blue border-gax-blue shadow-lg shadow-gax-blue/40" : "border-slate-200 bg-white"
+                        "h-5 w-5 rounded-full border-2 flex items-center justify-center transition-all scale-90",
+                        selectedClientIds.has(client.id) ? "bg-gax-blue border-gax-blue shadow-lg shadow-gax-blue/40" : "border-slate-200 bg-white shadow-inner"
                       )}>
-                        {selectedClientIds.has(client.id) && <ArrowRight size={14} className="text-white rotate-[-45deg]" />}
+                        {selectedClientIds.has(client.id) && <ArrowRight size={10} className="text-white rotate-[-45deg]" />}
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="flex gap-4 pt-6 border-t border-slate-100">
+              <div className="flex gap-3 pt-6 border-t border-slate-100">
                 <button 
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="flex-1 rounded-2xl bg-slate-100 py-4 text-xs font-bold text-slate-600 transition-all hover:bg-slate-200 active:scale-95"
+                  className="flex-1 rounded-xl bg-slate-50 py-3 text-[11px] font-bold text-slate-400 transition-all hover:bg-slate-100 hover:text-slate-600 active:scale-95"
                 >
-                  Descartar
+                  Cancelar
                 </button>
                 <button 
                   type="submit"
                   disabled={isSaving}
-                  className="flex-[2] flex items-center justify-center gap-2 rounded-2xl bg-gax-blue py-4 text-xs font-bold text-white shadow-xl shadow-gax-blue/30 transition-all hover:bg-gax-blue-hover disabled:opacity-50 active:scale-95"
+                  className="flex-[2] flex items-center justify-center gap-2 rounded-xl bg-gax-blue py-3 text-[11px] font-bold text-white shadow-xl shadow-gax-blue/20 transition-all hover:bg-gax-blue-hover disabled:opacity-50 active:scale-95 translate-y-[-1px]"
                 >
-                  {isSaving ? <Loader2 size={18} className="animate-spin" /> : null}
-                  {isSaving ? "Salvando Grupo..." : editingGroup ? "Atualizar Grupo" : "Criar Grupo Premium"}
+                  {isSaving ? <Loader2 size={16} className="animate-spin" /> : null}
+                  {isSaving ? "Salvando..." : editingGroup ? "Salvar Alterações" : "Criar Grupo"}
                 </button>
               </div>
             </form>

@@ -8,74 +8,103 @@ interface MainLayoutProps {
   children: React.ReactNode;
 }
 
-const PAGE_METADATA: Record<string, { title: string; subtitle: string }> = {
+import { 
+  CloudUpload, 
+  FileText, 
+  ClipboardList, 
+  Users, 
+  UserPlus, 
+  Settings, 
+  Puzzle, 
+  Shield, 
+  Palette, 
+  Wrench, 
+  ScrollText, 
+  Lock,
+  LayoutDashboard
+} from "lucide-react";
+
+interface PageMeta {
+  title: string;
+  subtitle: string;
+  icon?: React.ReactNode;
+}
+
+const PAGE_METADATA: Record<string, PageMeta> = {
   "/dashboard": {
     title: "Nova Importação",
-    subtitle: "Selecione arquivos XML para processamento (Limite: 5MB por arquivo)"
+    subtitle: "Selecione arquivos XML para processamento (Limite: 5MB por arquivo)",
+    icon: <CloudUpload size={24} className="text-gax-blue" />
   },
   "/xml-data": {
     title: "Dados ABIs",
-    subtitle: "Selecione um cliente para visualizar os dados contidos nos ABIs"
+    subtitle: "Selecione um cliente para visualizar os dados contidos nos ABIs",
+    icon: <FileText size={24} className="text-gax-blue" />
   },
   "/logs": {
     title: "Histórico de Importações",
-    subtitle: "Logs de cada processamento realizado"
+    subtitle: "Logs de cada processamento realizado",
+    icon: <ClipboardList size={24} className="text-gax-blue" />
   },
   "/clients": {
     title: "Clientes Cadastrados",
-    subtitle: "Lista de clientes detectados nos XMLs processados"
+    subtitle: "Lista de clientes detectados nos XMLs processados",
+    icon: <Users size={24} className="text-gax-blue" />
   },
   "/users": {
     title: "Gerenciamento de Usuários",
-    subtitle: "Visualize e edite as permissões dos usuários do sistema"
+    subtitle: "Visualize e edite as permissões dos usuários do sistema",
+    icon: <Users size={24} className="text-gax-blue" />
   },
   "/pending": {
     title: "Usuários Pendentes",
-    subtitle: "Novos cadastros aguardando aprovação administrativa"
+    subtitle: "Novos cadastros aguardando aprovação administrativa",
+    icon: <UserPlus size={24} className="text-gax-blue" />
   },
   "/settings": {
     title: "Configurações do Sistema",
-    subtitle: "Personalize a aparência e gerencie os dados do GAX"
+    subtitle: "Personalize a aparência e gerencie os dados do GAX",
+    icon: <Settings size={24} className="text-gax-blue" />
   },
   "/settings/api-checks": {
     title: "Monitoramento de APIs",
-    subtitle: "Verificação automática de conexões com os portais RSUS"
-  },
-  "/settings/rsus": {
-    title: "Configuração de Login RSUS",
-    subtitle: "Credenciais globais para automação de importação e checagem"
+    subtitle: "Verificação automática de conexões com os portais RSUS",
+    icon: <Puzzle size={24} className="text-gax-blue" />
   },
   "/check-imports": {
     title: "Checar Importações",
-    subtitle: "Monitoramento em tempo real do processamento de ABIs no RSUS"
+    subtitle: "Monitoramento em tempo real do processamento de ABIs no RSUS",
+    icon: <Shield size={24} className="text-gax-blue" />
   },
   "/settings/branding": {
     title: "Identidade Visual",
-    subtitle: "Personalize o nome e o logotipo do sistema"
-  },
-  "/settings/maintenance": {
-    title: "Manutenção",
-    subtitle: "Ações administrativas permanentes de limpeza e reinicialização"
+    subtitle: "Personalize o nome e o logotipo do sistema",
+    icon: <Palette size={24} className="text-gax-blue" />
   },
   "/settings/audit": {
     title: "Logs do Sistema",
-    subtitle: "Rastreabilidade de ações administrativas no sistema"
+    subtitle: "Rastreabilidade de ações administrativas no sistema",
+    icon: <ScrollText size={24} className="text-gax-blue" />
   },
   "/admin/groups": {
     title: "Gestão de Grupos",
-    subtitle: "Agrupe operadoras e federações para melhor organização"
+    subtitle: "Agrupe operadoras e federações para melhor organização",
+    icon: <LayoutDashboard size={24} className="text-gax-blue" />
   },
   "/settings/access-control": {
     title: "Controle de Acessos",
-    subtitle: "Credenciais dos sistemas RSUS e CubeTI Gestão Comercial"
+    subtitle: "Credenciais dos sistemas RSUS e CubeTI Gestão Comercial",
+    icon: <Lock size={24} className="text-gax-blue" />
   },
   "/settings/integrations": {
     title: "Integrações",
-    subtitle: "Configurações de conectores externos (WhatsApp, Evolution API)"
+    subtitle: "Configurações de conectores externos (WhatsApp, Evolution API)",
+    icon: <Puzzle size={24} className="text-gax-blue" />
   },
   "/settings/messages": {
     title: "Mensagens & Broadcast",
-    subtitle: "Envio de comunicados em massa via WhatsApp"
+    subtitle: "Envio de comunicados em massa via WhatsApp",
+    icon: <FileText size={24} className="text-gax-blue" />
   }
 };
 
@@ -83,16 +112,24 @@ export default function MainLayout({ children }: MainLayoutProps) {
   const pathname = usePathname();
   const metadata = PAGE_METADATA[pathname] || {
     title: "GAX",
-    subtitle: "Gestão de Arquivos XML"
+    subtitle: "Gestão de Arquivos XML",
+    icon: <CloudUpload size={24} className="text-gax-blue" />
   };
 
   return (
     <div className="flex h-screen flex-1 flex-col overflow-hidden bg-slate-50">
       {/* Dynamic Header */}
       <header className="flex h-20 items-center justify-between border-b border-slate-200/60 bg-white/50 backdrop-blur-md px-8 sticky top-0 z-20">
-        <div className="flex flex-col">
-          <h1 className="text-xl font-display font-bold tracking-tight text-slate-900 leading-tight">{metadata.title}</h1>
-          <p className="text-[13px] font-medium text-slate-400">{metadata.subtitle}</p>
+        <div className="flex items-center gap-4">
+          {metadata.icon && (
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-sm border border-slate-100 flex-shrink-0">
+              {metadata.icon}
+            </div>
+          )}
+          <div className="flex flex-col">
+            <h1 className="text-xl font-display font-bold tracking-tight text-slate-900 leading-tight">{metadata.title}</h1>
+            <p className="text-[13px] font-medium text-slate-400">{metadata.subtitle}</p>
+          </div>
         </div>
 
         <div className="flex items-center gap-4">
