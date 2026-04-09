@@ -407,12 +407,14 @@ export default function ClientsPage() {
                 <h3 className="mb-2 text-lg font-bold text-slate-800 transition-colors group-hover:text-gax-blue leading-tight">{client.name}</h3>
               )}
               <div className="mb-6 space-y-2">
-                <div className="flex items-center gap-2.5 text-xs text-slate-500">
-                  <div className="flex h-5 w-5 items-center justify-center rounded-lg bg-slate-100 text-slate-400 shadow-sm border border-slate-200/50">
-                    <CreditCard size={12} />
+                {client.group_name && (
+                  <div className="flex items-center gap-2.5 text-xs text-slate-500">
+                    <div className="flex h-5 w-5 items-center justify-center rounded-lg bg-gax-blue/5 text-gax-blue shadow-sm border border-gax-blue/20">
+                      <LayoutGrid size={12} />
+                    </div>
+                    <span className="font-bold text-slate-800" title={client.group_name}>{client.group_name}</span>
                   </div>
-                  <span className="font-bold text-slate-600">{client.cnpj || "CNPJ não informado"}</span>
-                </div>
+                )}
                 {client.registro_ans && (
                   <div className="flex items-center gap-2.5 text-xs text-slate-500">
                     <div className="flex h-5 w-5 items-center justify-center rounded-lg bg-slate-100 text-slate-400 shadow-sm border border-slate-200/50">

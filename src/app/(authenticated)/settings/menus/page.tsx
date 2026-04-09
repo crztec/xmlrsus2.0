@@ -143,10 +143,13 @@ export default function MenusPage() {
       const data = await res.json();
       delete data.updated_at;
       delete data.saved_as_default_at;
-      setConfig(normalize(data));
+      const normalized = normalize(data);
+      setConfig(normalized);
       setHasChanges(false);
+      return normalized;
     } catch {
       showError("Erro ao carregar configuração de menus.");
+      return null;
     } finally {
       setIsLoading(false);
     }
@@ -244,7 +247,12 @@ export default function MenusPage() {
     try {
       await fetch("/api/menu-config", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(config) });
       const res = await fetch("/api/menu-config/set-default", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(config) });
-      if (res.ok) { showSuccess("Configuração salva como padrão!"); setHasChanges(false); }
+      if (res.ok) { 
+        showSuccess("Configuração salva como padrão!"); 
+        setHasChanges(false);
+        // Sincroniza o menu lateral imediatamente
+        window.dispatchEvent(new CustomEvent('gax-menu-updated', { detail: config }));
+      }
       else showError("Erro ao salvar padrão.");
     } catch { showError("Erro de conexão."); }
     finally { setIsSavingDefault(false); }
@@ -255,7 +263,13 @@ export default function MenusPage() {
     setIsRestoring(true);
     try {
       const res = await fetch("/api/menu-config/restore-default", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
-      if (res.ok) { showSuccess("Menus restaurados!"); await fetchConfig(); }
+      if (res.ok) { 
+        showSuccess("Menus restaurados!"); 
+        const newConfig = await fetchConfig();
+        if (newConfig) {
+          window.dispatchEvent(new CustomEvent('gax-menu-updated', { detail: newConfig }));
+        }
+      }
       else showError("Erro ao restaurar.");
     } catch { showError("Erro de conexão."); }
     finally { setIsRestoring(false); }
