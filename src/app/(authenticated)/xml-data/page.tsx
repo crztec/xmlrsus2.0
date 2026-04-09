@@ -116,7 +116,8 @@ export default function XmlDataPage() {
   // Filter clients locally for better UX (no flicker)
   const filteredClients = clients.filter((c: any) => 
     c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    (c.cnpj && c.cnpj.includes(searchTerm))
+    (c.cnpj && c.cnpj.includes(searchTerm)) ||
+    (c.group_name && c.group_name.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const totalClientsPages = Math.ceil(filteredClients.length / clientsPerPage);
@@ -177,11 +178,22 @@ export default function XmlDataPage() {
               <Building2 size={24} />
             </div>
             <h3 className="text-lg font-bold text-slate-800 transition-colors group-hover:text-gax-blue">{client.name}</h3>
-            <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-slate-100/50 px-3 py-1">
-              <div className="h-1.5 w-1.5 rounded-full bg-gax-blue"></div>
-              <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-500">
-                {client.total_abis || "0"} ABIs Detectadas
-              </span>
+            
+            <div className="flex flex-wrap gap-2 mt-2">
+              <div className="inline-flex items-center gap-2 rounded-full bg-slate-100/50 px-3 py-1">
+                <div className="h-1.5 w-1.5 rounded-full bg-gax-blue"></div>
+                <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-500">
+                  {client.total_abis || "0"} ABIs Detectadas
+                </span>
+              </div>
+              
+              {client.group_name && (
+                <div className="inline-flex items-center gap-2 rounded-full bg-gax-blue/5 px-3 py-1 border border-gax-blue/10">
+                  <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-gax-blue">
+                    {client.group_name}
+                  </span>
+                </div>
+              )}
             </div>
             <div className="absolute bottom-6 right-6 h-8 w-8 flex items-center justify-center rounded-full bg-slate-50 text-slate-300 group-hover:bg-gax-blue group-hover:text-white transition-all transform translate-x-2 opacity-0 group-hover:translate-x-0 group-hover:opacity-100">
               <ChevronRight size={16} />

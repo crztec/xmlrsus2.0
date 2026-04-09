@@ -25,26 +25,29 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const mainMenuItems = [
+const mainMenuItems: any[] = [
+  { label: "Início", isTitle: true },
+  { label: "Checar APIs", icon: <Puzzle size={20} />, href: "/settings/api-checks", isAdmin: true },
   { label: "Importação", isTitle: true },
   { label: "Enviar ABIs", icon: <CloudUpload size={20} />, href: "/dashboard" },
   { label: "Dados ABIs", icon: <FileText size={20} />, href: "/xml-data" },
   { label: "Checar Importações", icon: <Shield size={20} />, href: "/check-imports" },
-  { label: "Histórico de Importações", icon: <ClipboardList size={20} />, href: "/logs" },
-  { label: "Configurações", isTitle: true, isAdmin: true },
-  { label: "Clientes", icon: <Users size={20} />, href: "/clients", isAdmin: true },
-  { label: "Usuários", icon: <Users size={20} />, href: "/users", isAdmin: true },
-  { label: "Pendentes", icon: <UserPlus size={20} />, href: "/pending", isAdmin: true },
-  { label: "Checar APIs", icon: <Shield size={20} />, href: "/settings/api-checks", isAdmin: true },
 ];
 
-const systemSubItems = [
-  { label: "Identidade Visual", icon: <Palette size={18} />, href: "/settings/branding" },
-  { label: "Manutenção", icon: <Wrench size={18} />, href: "/settings/maintenance" },
-  { label: "Segurança e Auditoria", icon: <ScrollText size={18} />, href: "/settings/audit" },
-  { label: "Controle de Acessos", icon: <Lock size={18} />, href: "/settings/access-control" },
-  { label: "Integrações", icon: <Puzzle size={18} />, href: "/settings/integrations" },
+const adminSubItems = [
+  { label: "Clientes", icon: <Users size={18} />, href: "/clients" },
+  { label: "Usuários", icon: <Users size={18} />, href: "/users" },
+  { label: "Grupos", icon: <LayoutDashboard size={18} />, href: "/admin/groups" },
+  { label: "Pendentes", icon: <UserPlus size={18} />, href: "/pending" },
+];
+
+const configSubItems = [
+  { label: "Histórico de Importações", icon: <ClipboardList size={18} />, href: "/logs" },
+  { label: "APIs Integration", icon: <Puzzle size={18} />, href: "/settings/integrations" },
+  { label: "Monitoring", icon: <ScrollText size={18} />, href: "/settings/audit" },
   { label: "Mensagens", icon: <FileText size={18} />, href: "/settings/messages" },
+  { label: "Segurança", icon: <Lock size={18} />, href: "/settings/access-control" },
+  { label: "Identidade Visual", icon: <Palette size={18} />, href: "/settings/branding" },
 ];
 
 interface SidebarProps {
@@ -55,9 +58,15 @@ export default function Sidebar({ onOpenProfile }: SidebarProps) {
   const pathname = usePathname();
   const [isAdmin, setIsAdmin] = React.useState(false);
   const [systemMenuOpen, setSystemMenuOpen] = useState(() => {
-    // Auto-open if current path is under /settings
     if (typeof window !== "undefined") {
       return window.location.pathname.startsWith("/settings");
+    }
+    return false;
+  });
+  const [adminMenuOpen, setAdminMenuOpen] = useState(() => {
+    if (typeof window !== "undefined") {
+      const p = window.location.pathname;
+      return p.startsWith("/clients") || p.startsWith("/users") || p.startsWith("/admin/groups") || p.startsWith("/pending");
     }
     return false;
   });
@@ -127,13 +136,8 @@ export default function Sidebar({ onOpenProfile }: SidebarProps) {
   }, []);
 
   // Auto-open system menu when navigating to a settings sub-route
-  React.useEffect(() => {
-    if (pathname.startsWith("/settings")) {
-      setSystemMenuOpen(true);
-    }
-  }, [pathname]);
-
   const isSettingsActive = pathname.startsWith("/settings") && !pathname.includes("api-checks");
+  const isAdminActive = pathname.startsWith("/clients") || pathname.startsWith("/users") || pathname.startsWith("/admin/groups") || pathname.startsWith("/pending");
 
   return (
     <aside className="flex h-screen w-64 flex-col border-r border-slate-200/60 bg-white/80 backdrop-blur-xl">
@@ -210,7 +214,71 @@ export default function Sidebar({ onOpenProfile }: SidebarProps) {
             );
           })}
 
-          {/* Sistema - Collapsible Menu (admin only) */}
+          {/* Administração - Collapsible Menu (admin only) */}
+          {isAdmin && (
+            <>
+              <button
+                onClick={() => setAdminMenuOpen(!adminMenuOpen)}
+                className={cn(
+                  "flex w-full items-center gap-3 rounded-xl px-3 py-2 text-[13px] font-medium transition-all outline-none focus-visible:ring-2 focus-visible:ring-gax-blue/20 group",
+                  isAdminActive
+                    ? "bg-gax-blue-light/50 text-gax-blue shadow-sm border border-gax-blue/10"
+                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 border border-transparent"
+                )}
+              >
+                <span className={cn(
+                  "transition-colors",
+                  adminMenuOpen ? "text-gax-blue" : "text-slate-400 group-hover:text-slate-600"
+                )}>
+                  <Settings size={20} />
+                </span>
+                Administração
+                <ChevronDown 
+                  size={14} 
+                  className={cn(
+                    "ml-auto transition-transform duration-200",
+                    adminMenuOpen ? "rotate-180" : ""
+                  )} 
+                />
+              </button>
+
+              <div className={cn(
+                "overflow-hidden transition-all duration-300 ease-in-out",
+                adminMenuOpen ? "max-h-[300px] opacity-100" : "max-h-0 opacity-0"
+              )}>
+                <div className="ml-3 space-y-0.5 border-l-2 border-slate-100 pl-3 py-1">
+                  {adminSubItems.map((sub, idx) => {
+                    const isSubActive = pathname === sub.href;
+                    return (
+                      <Link
+                        key={idx}
+                        href={sub.href}
+                        className={cn(
+                          "flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[12px] font-medium transition-all group",
+                          isSubActive
+                            ? "bg-gax-blue/5 text-gax-blue"
+                            : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+                        )}
+                      >
+                        <span className={cn(
+                          "transition-colors",
+                          isSubActive ? "text-gax-blue" : "text-slate-400 group-hover:text-slate-500"
+                        )}>
+                          {sub.icon}
+                        </span>
+                        {sub.label}
+                        {isSubActive && (
+                          <div className="ml-auto h-4 w-0.5 rounded-full bg-gax-blue" />
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Configuração - Collapsible Menu (admin only) */}
           {isAdmin && (
             <>
               <button
@@ -228,7 +296,7 @@ export default function Sidebar({ onOpenProfile }: SidebarProps) {
                 )}>
                   <Settings size={20} />
                 </span>
-                Sistema
+                Configuração
                 <ChevronDown 
                   size={14} 
                   className={cn(
@@ -243,7 +311,7 @@ export default function Sidebar({ onOpenProfile }: SidebarProps) {
                 systemMenuOpen ? "max-h-[300px] opacity-100" : "max-h-0 opacity-0"
               )}>
                 <div className="ml-3 space-y-0.5 border-l-2 border-slate-100 pl-3 py-1">
-                  {systemSubItems.map((sub, idx) => {
+                  {configSubItems.map((sub: any, idx: number) => {
                     const isSubActive = pathname === sub.href;
                     return (
                       <Link

@@ -554,6 +554,43 @@ async def update_client(client_id: str, data: dict):
         raise HTTPException(status_code=500, detail="Failed to update client")
     return {"status": "success"}
 
+@app.post("/clients/delete-batch")
+async def delete_clients_batch_route(data: dict):
+    client_ids = data.get('client_ids', [])
+    if not client_ids:
+        raise HTTPException(status_code=400, detail="No client IDs provided")
+    success = db.delete_clients_batch(client_ids)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to delete clients")
+    return {"status": "success"}
+
+# --- ROTAS DE GRUPOS ---
+
+@app.get("/groups")
+async def get_groups():
+    return db.get_groups()
+
+@app.post("/groups")
+async def create_group(data: dict):
+    group_id = db.create_group(data)
+    if not group_id:
+        raise HTTPException(status_code=500, detail="Failed to create group")
+    return {"status": "success", "id": group_id}
+
+@app.post("/groups/{group_id}")
+async def update_group(group_id: str, data: dict):
+    success = db.update_group(group_id, data)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to update group")
+    return {"status": "success"}
+
+@app.delete("/groups/{group_id}")
+async def delete_group(group_id: str):
+    success = db.delete_group(group_id)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to delete group")
+    return {"status": "success"}
+
 @app.get("/xml-data")
 async def get_xml_data(page: int = 1, limit: int = 10, search: str = "", client: str = ""):
     xml_data, total = db.get_xml_data_paginated(page, limit, search, client)

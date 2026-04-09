@@ -339,8 +339,11 @@ def get_clients_paginated(page=1, limit=10, search=""):
             if key in seen_keys: continue
             seen_keys.add(key)
             
-            if search and search.lower() not in name.lower() and search not in cnpj:
-                continue
+            if search:
+                s = search.lower()
+                g_name = data.get('group_name', '') or ''
+                if s not in name.lower() and s not in cnpj and s not in g_name.lower():
+                    continue
                 
             # Formatação de data robusta para o front
             last_check = data.get('api_last_check', '-')
@@ -730,6 +733,10 @@ def get_message_logs_paginated(page=1, limit=10):
 def get_xml_data_paginated(page=1, limit=10, search="", client_filter=""):
     """Recupera metadados de XML com paginação e busca, com deduplicação por ABI."""
     try:
+        # Cache de mapeamento de clientes para grupos para busca por grupo
+        clients_ref = firestore_db.collection('client_configs').get()
+        client_to_group = {c.to_dict().get('name'): c.to_dict().get('group_name') for c in clients_ref if c.to_dict().get('name')}
+
         query = firestore_db.collection('task_files').order_by('data_processamento', direction=firestore.Query.DESCENDING)
         
         # Se houver filtro por cliente, aplicamos na consulta
@@ -774,7 +781,8 @@ def get_xml_data_paginated(page=1, limit=10, search="", client_filter=""):
             
             if search:
                 s = search.lower()
-                if s not in str(abi).lower() and s not in file_name.lower() and s not in client.lower():
+                g_name = client_to_group.get(client, "") or ""
+                if s not in str(abi).lower() and s not in file_name.lower() and s not in client.lower() and s not in g_name.lower():
                     continue
             
             xml_list.append({
@@ -1606,4 +1614,124 @@ def recalculate_client_abis(client_id):
         return True
     except Exception as e:
         logger.error(f"Erro ao recalcular estatísticas para {client_id}: {e}")
+        return False
+
+# --- GESTÃO DE GRUPOS ---
+
+def get_groups():
+    """Retorna todos os grupos cadastrados."""
+    try:
+        docs = firestore_db.collection('groups').order_by('name').get()
+        groups = []
+        for doc in docs:
+            d = doc.to_dict()
+            d['id'] = doc.id
+            groups.append(d)
+        return groups
+    except Exception as e:
+        logger.error(f"Erro ao buscar grupos: {e}")
+        return []
+
+def create_group(data):
+    """Cria um novo grupo e associa os clientes listados."""
+    try:
+        group_ref = firestore_db.collection('groups').document()
+        group_id = group_ref.id
+        
+        group_payload = {
+            'name': data.get('name'),
+            'client_ids': data.get('client_ids', []),
+            'created_at': get_now_br().strftime("%Y-%m-%d %H:%M:%S")
+        }
+        group_ref.set(group_payload)
+        
+        # Atualiza a referência de grupo em cada cliente associado
+        for client_id in data.get('client_ids', []):
+            firestore_db.collection('client_configs').document(client_id).update({
+                'group_id': group_id,
+                'group_name': data.get('name')
+            })
+            
+        return group_id
+    except Exception as e:
+        logger.error(f"Erro ao criar grupo: {e}")
+        return None
+
+def update_group(group_id, data):
+    """Atualiza um grupo e as associações de clientes."""
+    try:
+        group_ref = firestore_db.collection('groups').document(group_id)
+        old_group = group_ref.get().to_dict()
+        old_clients = set(old_group.get('client_ids', []))
+        new_clients = set(data.get('client_ids', []))
+        
+        # 1. Atualiza o documento do grupo
+        group_ref.update({
+            'name': data.get('name'),
+            'client_ids': list(new_clients),
+            'updated_at': get_now_br().strftime("%Y-%m-%d %H:%M:%S")
+        })
+        
+        # 2. Clientes removidos do grupo: limpa a ref no cliente
+        removed = old_clients - new_clients
+        for cid in removed:
+            firestore_db.collection('client_configs').document(cid).update({
+                'group_id': None,
+                'group_name': None
+            })
+            
+        # 3. Clientes novos ou existentes: garante grupo_id/group_name correto
+        for cid in new_clients:
+            firestore_db.collection('client_configs').document(cid).update({
+                'group_id': group_id,
+                'group_name': data.get('name')
+            })
+            
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao atualizar grupo {group_id}: {e}")
+        return False
+
+def delete_group(group_id):
+    """Remove um grupo e limpa as referências nos clientes."""
+    try:
+        group_ref = firestore_db.collection('groups').document(group_id)
+        group_data = group_ref.get().to_dict()
+        if group_data:
+            client_ids = group_data.get('client_ids', [])
+            for cid in client_ids:
+                firestore_db.collection('client_configs').document(cid).update({
+                    'group_id': None,
+                    'group_name': None
+                })
+        group_ref.delete()
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao excluir grupo {group_id}: {e}")
+        return False
+
+def delete_clients_batch(client_ids):
+    """Exclui vários clientes e os remove de qualquer grupo associado."""
+    try:
+        batch = firestore_db.batch()
+        for cid in client_ids:
+            # Pega o cliente para ver se ele pertence a um grupo
+            cref = firestore_db.collection('client_configs').document(cid)
+            cdat = cref.get().to_dict()
+            if cdat and cdat.get('group_id'):
+                gid = cdat.get('group_id')
+                # Remove o cid da lista de client_ids do grupo
+                gref = firestore_db.collection('groups').document(gid)
+                gdat = gref.get().to_dict()
+                if gdat:
+                    new_g_clients = [x for x in gdat.get('client_ids', []) if x != cid]
+                    batch.update(gref, {'client_ids': new_g_clients})
+            
+            # Deleta o cliente
+            batch.delete(cref)
+            
+        batch.commit()
+        return True
+    except Exception as e:
+        logger.error(f"Erro na exclusão em massa de clientes: {e}")
         return False
