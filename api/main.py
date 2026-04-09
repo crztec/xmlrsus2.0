@@ -1949,6 +1949,41 @@ async def route_save_rsus_credentials(
         return {"status": "success"}
     raise HTTPException(status_code=500, detail="Erro ao salvar credenciais")
 
+
+# ============================================================================
+# MENU CONFIGURATION ENDPOINTS
+# ============================================================================
+
+@app.get("/api/menu-config")
+async def route_get_menu_config():
+    """Retorna a configuração atual de menus."""
+    return db.get_menu_config()
+
+@app.post("/api/menu-config")
+async def route_save_menu_config(config: dict):
+    """Salva a configuração ativa de menus."""
+    success = db.save_menu_config(config)
+    if success:
+        return {"status": "success", "message": "Configuração de menus salva."}
+    raise HTTPException(status_code=500, detail="Erro ao salvar configuração de menus.")
+
+@app.post("/api/menu-config/set-default")
+async def route_set_menu_default(config: dict):
+    """Salva a configuração atual como padrão customizado."""
+    success = db.save_menu_default(config)
+    if success:
+        return {"status": "success", "message": "Configuração salva como padrão."}
+    raise HTTPException(status_code=500, detail="Erro ao salvar padrão de menus.")
+
+@app.post("/api/menu-config/restore-default")
+async def route_restore_menu_default():
+    """Restaura a configuração de menus ao padrão."""
+    success = db.restore_menu_default()
+    if success:
+        return {"status": "success", "message": "Menus restaurados ao padrão."}
+    raise HTTPException(status_code=500, detail="Erro ao restaurar padrão de menus.")
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("api.main:app", host="0.0.0.0", port=8000, reload=False)

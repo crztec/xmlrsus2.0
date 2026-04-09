@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -11,6 +11,7 @@ import {
   Settings,
   LogOut,
   LayoutDashboard,
+  LayoutGrid,
   FileText,
   User,
   Key,
@@ -25,8 +26,59 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const mainMenuItems: any[] = [
-  { label: "Importação", isTitle: true },
+// Icon registry for dynamic menus
+const ICON_MAP: Record<string, React.ReactNode> = {
+  CloudUpload: <CloudUpload size={20} />,
+  FileText: <FileText size={20} />,
+  ClipboardList: <ClipboardList size={20} />,
+  Users: <Users size={20} />,
+  UserPlus: <UserPlus size={20} />,
+  Settings: <Settings size={20} />,
+  Puzzle: <Puzzle size={20} />,
+  Shield: <Shield size={20} />,
+  Palette: <Palette size={20} />,
+  ScrollText: <ScrollText size={20} />,
+  Lock: <Lock size={20} />,
+  LayoutDashboard: <LayoutDashboard size={20} />,
+  LayoutGrid: <LayoutGrid size={20} />,
+};
+
+const ICON_MAP_SM: Record<string, React.ReactNode> = {
+  CloudUpload: <CloudUpload size={18} />,
+  FileText: <FileText size={18} />,
+  ClipboardList: <ClipboardList size={18} />,
+  Users: <Users size={18} />,
+  UserPlus: <UserPlus size={18} />,
+  Settings: <Settings size={18} />,
+  Puzzle: <Puzzle size={18} />,
+  Shield: <Shield size={18} />,
+  Palette: <Palette size={18} />,
+  ScrollText: <ScrollText size={18} />,
+  Lock: <Lock size={18} />,
+  LayoutDashboard: <LayoutDashboard size={18} />,
+  LayoutGrid: <LayoutGrid size={18} />,
+};
+
+// Route mapping by key
+const ROUTE_MAP: Record<string, string> = {
+  dashboard: "/dashboard",
+  "xml-data": "/xml-data",
+  "check-imports": "/check-imports",
+  logs: "/logs",
+  "api-checks": "/settings/api-checks",
+  clients: "/clients",
+  users: "/users",
+  groups: "/admin/groups",
+  pending: "/pending",
+  integrations: "/settings/integrations",
+  audit: "/settings/audit",
+  "access-control": "/settings/access-control",
+  messages: "/settings/messages",
+  branding: "/settings/branding",
+  menus: "/settings/menus",
+};
+
+const DEFAULT_MAIN_MENU = [
   { label: "Enviar ABIs", icon: <CloudUpload size={20} />, href: "/dashboard" },
   { label: "Dados ABIs", icon: <FileText size={20} />, href: "/xml-data" },
   { label: "Checar Importações", icon: <Shield size={20} />, href: "/check-imports" },
@@ -34,19 +86,20 @@ const mainMenuItems: any[] = [
   { label: "Checar APIs", icon: <Puzzle size={20} />, href: "/settings/api-checks", isAdmin: true },
 ];
 
-const adminSubItems = [
+const DEFAULT_ADMIN_SUB = [
   { label: "Clientes", icon: <Users size={18} />, href: "/clients" },
   { label: "Usuários", icon: <Users size={18} />, href: "/users" },
   { label: "Grupos", icon: <LayoutDashboard size={18} />, href: "/admin/groups" },
   { label: "Pendentes", icon: <UserPlus size={18} />, href: "/pending" },
 ];
 
-const configSubItems = [
+const DEFAULT_CONFIG_SUB = [
   { label: "Integrações", icon: <Puzzle size={18} />, href: "/settings/integrations" },
   { label: "Logs do Sistema", icon: <ScrollText size={18} />, href: "/settings/audit" },
   { label: "Controle de Acessos", icon: <Lock size={18} />, href: "/settings/access-control" },
   { label: "Mensagens", icon: <FileText size={18} />, href: "/settings/messages" },
   { label: "Identidade Visual", icon: <Palette size={18} />, href: "/settings/branding" },
+  { label: "Gerenciar Menus", icon: <LayoutGrid size={18} />, href: "/settings/menus" },
 ];
 
 interface SidebarProps {
@@ -69,6 +122,12 @@ export default function Sidebar({ onOpenProfile }: SidebarProps) {
     }
     return false;
   });
+
+  // Dynamic menu state
+  const [mainMenuItems, setMainMenuItems] = useState<any[]>([{ label: "Importação", isTitle: true }, ...DEFAULT_MAIN_MENU]);
+  const [adminSubItems, setAdminSubItems] = useState<any[]>(DEFAULT_ADMIN_SUB);
+  const [configSubItems, setConfigSubItems] = useState<any[]>(DEFAULT_CONFIG_SUB);
+  const [sectionLabels, setSectionLabels] = useState({ main_title: "Importação", admin_title: "Administração", config_title: "Configuração" });
   const [branding, setBranding] = React.useState(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("gax_branding");
@@ -137,6 +196,55 @@ export default function Sidebar({ onOpenProfile }: SidebarProps) {
   // Auto-open system menu when navigating to a settings sub-route
   const isSettingsActive = pathname.startsWith("/settings") && !pathname.includes("api-checks");
   const isAdminActive = pathname.startsWith("/clients") || pathname.startsWith("/users") || pathname.startsWith("/admin/groups") || pathname.startsWith("/pending");
+
+  // Load dynamic menu config
+  useEffect(() => {
+    fetch("/api/menu-config")
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.main_menu) {
+          // Build main menu from config
+          const titleLabel = data.section_labels?.main_title || "Importação";
+          const dynamicMain: any[] = [{ label: titleLabel, isTitle: true }];
+          const sortedMain = [...data.main_menu].sort((a: any, b: any) => a.order - b.order);
+          sortedMain.forEach((item: any) => {
+            dynamicMain.push({
+              label: item.label,
+              icon: ICON_MAP[item.icon] || <Settings size={20} />,
+              href: ROUTE_MAP[item.key] || "/dashboard",
+              isAdmin: item.isAdmin || false,
+            });
+          });
+          setMainMenuItems(dynamicMain);
+
+          // Build admin sub-items
+          if (data.admin_menu) {
+            const sortedAdmin = [...data.admin_menu].sort((a: any, b: any) => a.order - b.order);
+            setAdminSubItems(sortedAdmin.map((item: any) => ({
+              label: item.label,
+              icon: ICON_MAP_SM[item.icon] || <Settings size={18} />,
+              href: ROUTE_MAP[item.key] || "/clients",
+            })));
+          }
+
+          // Build config sub-items
+          if (data.config_menu) {
+            const sortedConfig = [...data.config_menu].sort((a: any, b: any) => a.order - b.order);
+            setConfigSubItems(sortedConfig.map((item: any) => ({
+              label: item.label,
+              icon: ICON_MAP_SM[item.icon] || <Settings size={18} />,
+              href: ROUTE_MAP[item.key] || "/settings",
+            })));
+          }
+
+          // Section labels
+          if (data.section_labels) {
+            setSectionLabels(data.section_labels);
+          }
+        }
+      })
+      .catch(err => console.error("Erro ao carregar menu config:", err));
+  }, []);
 
   return (
     <aside className="flex h-screen w-64 flex-col border-r border-slate-200/60 bg-white/80 backdrop-blur-xl">
@@ -231,7 +339,7 @@ export default function Sidebar({ onOpenProfile }: SidebarProps) {
                 )}>
                   <Settings size={20} />
                 </span>
-                Administração
+                {sectionLabels.admin_title}
                 <ChevronDown 
                   size={14} 
                   className={cn(
@@ -295,7 +403,7 @@ export default function Sidebar({ onOpenProfile }: SidebarProps) {
                 )}>
                   <Settings size={20} />
                 </span>
-                Configuração
+                {sectionLabels.config_title}
                 <ChevronDown 
                   size={14} 
                   className={cn(

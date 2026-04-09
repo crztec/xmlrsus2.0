@@ -21,7 +21,8 @@ import {
   Wrench, 
   ScrollText, 
   Lock,
-  LayoutDashboard
+  LayoutDashboard,
+  LayoutGrid
 } from "lucide-react";
 
 interface PageMeta {
@@ -105,12 +106,59 @@ const PAGE_METADATA: Record<string, PageMeta> = {
     title: "Mensagens & Broadcast",
     subtitle: "Envio de comunicados em massa via WhatsApp",
     icon: <FileText size={24} className="text-gax-blue" />
+  },
+  "/settings/menus": {
+    title: "Gerenciar Menus",
+    subtitle: "Personalize a ordem e os nomes dos menus do sistema",
+    icon: <LayoutGrid size={24} className="text-gax-blue" />
   }
 };
 
 export default function MainLayout({ children }: MainLayoutProps) {
   const pathname = usePathname();
-  const metadata = PAGE_METADATA[pathname] || {
+  const [dynamicMetadata, setDynamicMetadata] = React.useState<Record<string, PageMeta>>({});
+
+  // Load dynamic menu labels once
+  React.useEffect(() => {
+    fetch("/api/menu-config")
+      .then(res => res.json())
+      .then(data => {
+        if (!data?.main_menu) return;
+        const overrides: Record<string, PageMeta> = {};
+        // Build a route->key map for looking up the correct PAGE_METADATA entry
+        const ROUTE_MAP: Record<string, string> = {
+          dashboard: "/dashboard",
+          "xml-data": "/xml-data",
+          "check-imports": "/check-imports",
+          logs: "/logs",
+          "api-checks": "/settings/api-checks",
+          clients: "/clients",
+          users: "/users",
+          groups: "/admin/groups",
+          pending: "/pending",
+          integrations: "/settings/integrations",
+          audit: "/settings/audit",
+          "access-control": "/settings/access-control",
+          messages: "/settings/messages",
+          branding: "/settings/branding",
+          menus: "/settings/menus",
+        };
+        const allItems = [...(data.main_menu || []), ...(data.admin_menu || []), ...(data.config_menu || [])];
+        allItems.forEach((item: any) => {
+          const route = ROUTE_MAP[item.key];
+          if (route && PAGE_METADATA[route]) {
+            overrides[route] = {
+              ...PAGE_METADATA[route],
+              title: item.label,
+            };
+          }
+        });
+        setDynamicMetadata(overrides);
+      })
+      .catch(() => {});
+  }, []);
+
+  const metadata = dynamicMetadata[pathname] || PAGE_METADATA[pathname] || {
     title: "GAX",
     subtitle: "Gestão de Arquivos XML",
     icon: <CloudUpload size={24} className="text-gax-blue" />

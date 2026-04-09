@@ -1737,3 +1737,91 @@ def delete_clients_batch(client_ids):
     except Exception as e:
         logger.error(f"Erro na exclusão em massa de clientes: {e}")
         return False
+
+
+# ============================================================================
+# MENU CONFIGURATION
+# ============================================================================
+
+MENU_DEFAULTS = {
+    "main_menu": [
+        {"key": "dashboard", "label": "Enviar ABIs", "icon": "CloudUpload", "order": 0},
+        {"key": "xml-data", "label": "Dados ABIs", "icon": "FileText", "order": 1},
+        {"key": "check-imports", "label": "Checar Importações", "icon": "Shield", "order": 2},
+        {"key": "logs", "label": "Histórico de Importações", "icon": "ClipboardList", "order": 3},
+        {"key": "api-checks", "label": "Checar APIs", "icon": "Puzzle", "order": 4, "isAdmin": True},
+    ],
+    "admin_menu": [
+        {"key": "clients", "label": "Clientes", "icon": "Users", "order": 0},
+        {"key": "users", "label": "Usuários", "icon": "Users", "order": 1},
+        {"key": "groups", "label": "Grupos", "icon": "LayoutDashboard", "order": 2},
+        {"key": "pending", "label": "Pendentes", "icon": "UserPlus", "order": 3},
+    ],
+    "config_menu": [
+        {"key": "integrations", "label": "Integrações", "icon": "Puzzle", "order": 0},
+        {"key": "audit", "label": "Logs do Sistema", "icon": "ScrollText", "order": 1},
+        {"key": "access-control", "label": "Controle de Acessos", "icon": "Lock", "order": 2},
+        {"key": "messages", "label": "Mensagens", "icon": "FileText", "order": 3},
+        {"key": "branding", "label": "Identidade Visual", "icon": "Palette", "order": 4},
+        {"key": "menus", "label": "Gerenciar Menus", "icon": "LayoutGrid", "order": 5},
+    ],
+    "section_labels": {
+        "main_title": "Importação",
+        "admin_title": "Administração",
+        "config_title": "Configuração"
+    }
+}
+
+def get_menu_config():
+    """Returns the active menu configuration, falling back to defaults."""
+    try:
+        doc = firestore_db.collection('system_config').document('menu_layout').get()
+        if doc.exists:
+            return doc.to_dict()
+        return MENU_DEFAULTS.copy()
+    except Exception as e:
+        logger.error(f"Erro ao buscar menu config: {e}")
+        return MENU_DEFAULTS.copy()
+
+def save_menu_config(config: dict):
+    """Saves the active menu configuration."""
+    try:
+        config['updated_at'] = get_now_br().isoformat()
+        firestore_db.collection('system_config').document('menu_layout').set(config)
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao salvar menu config: {e}")
+        return False
+
+def get_menu_default():
+    """Returns the custom default, or hardcoded defaults if none set."""
+    try:
+        doc = firestore_db.collection('system_config').document('menu_layout_default').get()
+        if doc.exists:
+            return doc.to_dict()
+        return MENU_DEFAULTS.copy()
+    except Exception as e:
+        logger.error(f"Erro ao buscar menu default: {e}")
+        return MENU_DEFAULTS.copy()
+
+def save_menu_default(config: dict):
+    """Saves the current config as the new custom default."""
+    try:
+        config['saved_as_default_at'] = get_now_br().isoformat()
+        firestore_db.collection('system_config').document('menu_layout_default').set(config)
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao salvar menu default: {e}")
+        return False
+
+def restore_menu_default():
+    """Restores the active config to the saved default (or hardcoded defaults)."""
+    try:
+        default_config = get_menu_default()
+        # Remove metadata fields before saving as active
+        for k in ['saved_as_default_at', 'updated_at']:
+            default_config.pop(k, None)
+        return save_menu_config(default_config)
+    except Exception as e:
+        logger.error(f"Erro ao restaurar menu default: {e}")
+        return False
