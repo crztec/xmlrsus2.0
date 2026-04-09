@@ -311,12 +311,6 @@ export default function Sidebar({ onOpenProfile }: SidebarProps) {
                   {item.icon}
                 </span>
                 {item.label}
-                {isActive && (
-                  <div 
-                    className="ml-auto h-5 w-1 rounded-full bg-gax-blue animate-in slide-in-from-right-1 duration-300" 
-                    aria-hidden="true" 
-                  />
-                )}
               </Link>
             );
           })}
@@ -374,9 +368,6 @@ export default function Sidebar({ onOpenProfile }: SidebarProps) {
                           {sub.icon}
                         </span>
                         {sub.label}
-                        {isSubActive && (
-                          <div className="ml-auto h-4 w-0.5 rounded-full bg-gax-blue" />
-                        )}
                       </Link>
                     );
                   })}
@@ -410,6 +401,7 @@ export default function Sidebar({ onOpenProfile }: SidebarProps) {
                     "ml-auto transition-transform duration-200",
                     systemMenuOpen ? "rotate-180" : ""
                   )} 
+                  aria-hidden="true"
                 />
               </button>
 
@@ -438,9 +430,6 @@ export default function Sidebar({ onOpenProfile }: SidebarProps) {
                           {sub.icon}
                         </span>
                         {sub.label}
-                        {isSubActive && (
-                          <div className="ml-auto h-4 w-0.5 rounded-full bg-gax-blue" />
-                        )}
                       </Link>
                     );
                   })}
@@ -450,17 +439,6 @@ export default function Sidebar({ onOpenProfile }: SidebarProps) {
           )}
         </div>
       </nav>
-
-      {/* Legal Links */}
-      <div className="px-6 py-2 flex items-center justify-center gap-4 border-t border-slate-100/30">
-        <Link href="/politica-de-privacidade" className="text-[10px] font-bold text-slate-400 hover:text-gax-blue transition-colors">
-          Privacidade
-        </Link>
-        <div className="h-1 w-1 rounded-full bg-slate-200" />
-        <Link href="/termos-de-uso" className="text-[10px] font-bold text-slate-400 hover:text-gax-blue transition-colors">
-          Termos
-        </Link>
-      </div>
 
       {/* Footer / User Profile Trigger */}
       <div className="border-t border-slate-100/50 p-4">
@@ -492,6 +470,16 @@ export default function Sidebar({ onOpenProfile }: SidebarProps) {
         </button>
       </div>
 
+      {/* Legal Links (Below profile as requested) */}
+      <div className="px-6 pb-6 pt-2 flex items-center justify-center gap-4">
+        <Link href="/politica-de-privacidade" className="text-[10px] font-bold text-slate-400 hover:text-gax-blue transition-colors">
+          Privacidade
+        </Link>
+        <div className="h-1 w-1 rounded-full bg-slate-200" />
+        <Link href="/termos-de-uso" className="text-[10px] font-bold text-slate-400 hover:text-gax-blue transition-colors">
+          Termos
+        </Link>
+      </div>
     </aside>
   );
 }

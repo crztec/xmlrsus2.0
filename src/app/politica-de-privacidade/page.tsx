@@ -5,17 +5,25 @@ import Link from "next/link";
 import { ChevronLeft, ScrollText } from "lucide-react";
 
 export default function PoliticaPrivacidadePage() {
+  const [isLoggedIn, setIsLoggedIn] = React.useState(false);
+
+  React.useEffect(() => {
+    if (typeof window !== "undefined") {
+      setIsLoggedIn(!!localStorage.getItem("gax_user_email"));
+    }
+  }, []);
+
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 selection:bg-gax-blue/10 selection:text-gax-blue">
       {/* Header Fixo de Navegação */}
       <header className="sticky top-0 z-50 border-b border-slate-200/60 bg-white/80 backdrop-blur-md">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
           <Link 
-            href="/login" 
+            href={isLoggedIn ? "/dashboard" : "/login"} 
             className="flex items-center gap-2 text-sm font-bold text-slate-500 transition-colors hover:text-gax-blue"
           >
             <ChevronLeft size={18} />
-            Voltar para o Login
+            {isLoggedIn ? "Voltar ao Sistema" : "Voltar para o Login"}
           </Link>
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gax-blue p-1 shadow-lg shadow-gax-blue/20">
