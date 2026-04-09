@@ -229,6 +229,7 @@ export default function MenusPage() {
       if (res.ok) { 
         showSuccess("Configuração salva com sucesso!"); 
         setHasChanges(false); 
+        window.dispatchEvent(new CustomEvent("gax-menu-updated"));
       } else {
         const errorData = await res.json().catch(() => ({}));
         showError(errorData.detail || "Erro ao salvar configuração de menus.");

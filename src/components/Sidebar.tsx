@@ -125,9 +125,9 @@ export default function Sidebar({ onOpenProfile }: SidebarProps) {
   });
  
   // Dynamic menu state
-  const [mainMenuItems, setMainMenuItems] = useState<any[]>(DEFAULT_MAIN_MENU);
-  const [adminSubItems, setAdminSubItems] = useState<any[]>(DEFAULT_ADMIN_SUB);
-  const [configSubItems, setConfigSubItems] = useState<any[]>(DEFAULT_CONFIG_SUB);
+  const [mainMenuItems, setMainMenuItems] = useState<any[]>([]);
+  const [adminSubItems, setAdminSubItems] = useState<any[]>([]);
+  const [configSubItems, setConfigSubItems] = useState<any[]>([]);
   const [sectionLabels, setSectionLabels] = useState({ main_title: "Importação", admin_title: "Administração", config_title: "Configuração" });
   const [branding, setBranding] = React.useState(() => {
     if (typeof window !== "undefined") {
@@ -199,7 +199,7 @@ export default function Sidebar({ onOpenProfile }: SidebarProps) {
   }, []);
 
   // Load dynamic menu config
-  useEffect(() => {
+  const fetchMenuConfig = React.useCallback(() => {
     fetch("/api/menu-config")
       .then(res => res.json())
       .then(data => {
@@ -236,7 +236,7 @@ export default function Sidebar({ onOpenProfile }: SidebarProps) {
             })));
           }
 
-          // Section labels
+          // Section labels again for safety
           if (data.section_labels) {
             setSectionLabels(data.section_labels);
           }
@@ -244,6 +244,12 @@ export default function Sidebar({ onOpenProfile }: SidebarProps) {
       })
       .catch(err => console.error("Erro ao carregar menu config:", err));
   }, []);
+
+  useEffect(() => {
+    fetchMenuConfig();
+    window.addEventListener("gax-menu-updated", fetchMenuConfig);
+    return () => window.removeEventListener("gax-menu-updated", fetchMenuConfig);
+  }, [fetchMenuConfig]);
 
   return (
     <aside className="flex h-screen w-64 flex-col border-r border-slate-200/60 bg-white/80 backdrop-blur-xl">
