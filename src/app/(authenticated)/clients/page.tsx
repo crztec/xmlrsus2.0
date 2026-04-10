@@ -353,17 +353,8 @@ export default function ClientsPage() {
               style={{ animationDelay: `${(idx % 5) * 40}ms`, animationFillMode: 'both' }}
             >
               <div className="mb-4 flex items-start justify-between">
-                <div 
-                  className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl bg-slate-50 text-slate-400 group-hover:bg-gax-blue/10 group-hover:text-gax-blue transition-all duration-300 shadow-sm"
-                  onClick={() => toggleSelect(client.id)}
-                >
-                  {selectedClients.has(client.id) ? (
-                    <div className="h-5 w-5 rounded-md bg-gax-blue flex items-center justify-center text-white">
-                      <Plus className="rotate-45" size={14} />
-                    </div>
-                  ) : (
-                    <Building2 size={20} aria-hidden="true" />
-                  )}
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50 text-slate-400 group-hover:bg-gax-blue/10 group-hover:text-gax-blue transition-all duration-300 shadow-sm">
+                  <Building2 size={20} aria-hidden="true" />
                 </div>
                 <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button 
