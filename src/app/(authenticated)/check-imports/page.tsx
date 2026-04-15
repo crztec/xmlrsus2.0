@@ -656,7 +656,7 @@ export default function CheckImportsPage() {
                                 className="w-full flex items-center gap-2.5 px-4 py-3 text-[11px] font-bold text-amber-700 hover:bg-amber-50 transition-colors disabled:opacity-30 border-t border-slate-50"
                                 title={client.abi_status !== 'Importado e Analisado' ? 'Disponível apenas para clientes que já analisaram o ABI' : ''}
                               >
-                                <Scale size={14} /> Checar Impugnação
+                                <Scale size={14} /> Checar Impugnações
                               </button>
                               
                               {client.abi_last_task_id ? (

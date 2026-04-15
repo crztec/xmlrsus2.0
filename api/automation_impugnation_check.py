@@ -109,7 +109,17 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None):
                     log_task(f"Status '{target_status}' selecionado.")
                     await asyncio.sleep(2)
                 else:
-                    log_task(f"Opção '{target_status}' não disponível no dropdown.", "WARNING")
+                    # Fallback por texto visível
+                    log_task(f"Popover não detectado via regex, tentando fallback literal...", "WARNING")
+                    option_fallback = page.locator(f"button:has-text('{target_status}'), a:has-text('{target_status}')").filter(visible=True).first
+                    if await option_fallback.count() > 0:
+                        await option_fallback.click(force=True)
+                        log_task(f"Status '{target_status}' selecionado via fallback.")
+                    else:
+                        log_task("Menu de status não reconheceu a opção, tentando teclado...", "WARNING")
+                        await page.keyboard.press("ArrowDown")
+                        await asyncio.sleep(1)
+                        await page.keyboard.press("Enter")
             else:
                 log_task("Dropdown de status não encontrado.", "WARNING")
         
@@ -117,7 +127,8 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None):
             log_task("Registrando contato: 'Cliente impugnando o ABI'...")
             btn_add = target_row.locator("button, a").filter(has_text=re.compile(r"^\+$")).first
             if await btn_add.count() == 0:
-                btn_add = target_row.locator("[title*='ontato'], .text-green-500").first
+                # Fallback idêntico ao robô de ABI Check (incluindo seletor de ícone SVG)
+                btn_add = target_row.locator("[title*='ontato'], .text-green-500, svg:has(path[d*='M12 5'])").first
 
             if await btn_add.count() > 0:
                 await btn_add.click(force=True)
@@ -555,7 +566,6 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
                         impugnation_count = int(total_match.group(1))
                         if impugnation_count > 0:
                             has_impugnation = True
-                    log_task(f"Rodapé: {footer_text.strip()}")
             except: pass
 
             update_progress(95)
