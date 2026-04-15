@@ -512,176 +512,121 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
                 log_task("Campo de pesquisa não encontrado na tela de Atendimentos.", "WARNING")
                 if browser: await browser.close()
                 return "Não Verificado", "Campo de pesquisa não encontrado."
-            
-            log_task("Campo de pesquisa localizado. Digitando 'Impugnado'...")
-            await search_field.click()
-            await page.keyboard.press("Control+A")
-            await page.keyboard.press("Backspace")
-            await search_field.type("Impugnado", delay=40)
-            await asyncio.sleep(1)
-            await page.keyboard.press("Enter")
-            
-            # Aguarda a grid filtrar com loop de resiliência
-            log_task("Aguardando resultado da busca...")
-            has_impugnation = False
-            impugnation_count = 0
-            
-            impugnation_keywords = ['impugnado', 'impugnação', 'não impugnado'] # removido 'aguardando impugnação' para evitar falso positivo na fase 1
-            no_results_keywords = ['nenhum registro', 'sem resultados', '0 registros', 'no records', 'nenhum resultado']
-            
-            for _ in range(12):  # Aguarda até 24 segundos pelo filtro
-                await asyncio.sleep(2)
-                try:
-                    grid_text = await page.evaluate("document.body.innerText")
-                    for frame in page.frames:
-                        try: grid_text += " " + await frame.evaluate("document.body.innerText")
-                        except: pass
-                except: grid_text = ""
-                
-                grid_lower = grid_text.lower()
-                has_no_results = any(k in grid_lower for k in no_results_keywords)
-                
-                visible_rows = page.locator("table tbody tr")
-                row_count = await visible_rows.count()
-                
-                if row_count > 0 and not has_no_results:
-                    for r_idx in range(min(row_count, 5)):
-                        try:
-                            row_text = (await visible_rows.nth(r_idx).inner_text()).strip().lower()
-                            if any(k in row_text for k in impugnation_keywords):
-                                has_impugnation = True
-                                impugnation_count += 1
-                        except: continue
-                    
-                    if has_impugnation:
-                        # Achou ao menos 1 linha validada
-                        if impugnation_count < row_count:
-                            impugnation_count = row_count
-                        break
-                    
-                elif has_no_results:
-                    # Garantia de que a pesquisa terminou e não retornou nada
-                    break
-            
-            # Tenta pegar contagem do rodapé
-            try:
-                footer_text = await page.evaluate("""
-                    () => {
-                        const els = document.querySelectorAll('span, div, p');
-                        for (const el of els) {
-                            const t = el.innerText;
-                            if (t && /de\\s+\\d+\\s+registros/i.test(t)) return t;
-                            if (t && /\\d+\\s+registros/i.test(t)) return t;
-                        }
-                        return '';
-                    }
-                """)
-                if footer_text:
-                    total_match = re.search(r'de\s+(\d+)\s+registros', footer_text, re.I)
-                    if total_match:
-                        impugnation_count = int(total_match.group(1))
-                        if impugnation_count > 0:
-                            has_impugnation = True
-            except: pass
 
-            if has_impugnation:
-                log_task(f"⚖️ IMPUGNAÇÕES DETECTADAS! {impugnation_count} atendimentos encontrados.", "SUCCESS")
-            else:
-                log_task("Nenhuma impugnação encontrada para este cliente.", "INFO")
-            
-            # ─── 6. BUSCAR "AGUARDANDO IMPUGNAÇÃO" ───
-            update_progress(88)
-            log_task("Verificando atendimentos 'Aguardando Impugnação'...")
-            
-            # Limpa o campo de busca e pesquisa por "Aguardando Impugnação"
-            if search_field:
+            # ─── 5. DEFINIR FUNÇÃO DE PESQUISA NA GRID ───
+            async def search_grid(term, target_keywords):
+                if not search_field: return False, 0
+                log_task(f"Pesquisando por '{term}' na grid...")
                 await search_field.click()
                 await page.keyboard.press("Control+A")
                 await page.keyboard.press("Backspace")
-                await search_field.type("Aguardando", delay=40)
+                await search_field.type(term, delay=40)
                 await asyncio.sleep(1)
                 await page.keyboard.press("Enter")
                 
-                # Resiliência no carregamento (ex: pode ter 700+ registros, demorando +10s)
-                has_aguardando = False
-                aguardando_count = 0
+                has_match = False
+                match_count = 0
+                no_results_keywords = ['nenhum registro', 'sem resultados', '0 registros', 'no records', 'nenhum resultado']
                 
-                for _ in range(12):  # Aguarda até 24 segundos
+                for _ in range(10):  # Aguarda até 20 segundos
                     await asyncio.sleep(2)
                     try:
-                        grid_text2 = await page.evaluate("document.body.innerText")
+                        g_text = await page.evaluate("document.body.innerText")
                         for frame in page.frames:
-                            try: grid_text2 += " " + await frame.evaluate("document.body.innerText")
+                            try: g_text += " " + await frame.evaluate("document.body.innerText")
                             except: pass
-                    except: grid_text2 = ""
+                    except: g_text = ""
                     
-                    grid_lower2 = grid_text2.lower()
-                    has_no_results2 = any(k in grid_lower2 for k in no_results_keywords)
+                    g_lower = g_text.lower()
+                    has_no = any(k in g_lower for k in no_results_keywords)
                     
-                    visible_rows2 = page.locator("table tbody tr")
-                    row_count2 = await visible_rows2.count()
+                    visible_rows = page.locator("table tbody tr")
+                    try: r_count = await visible_rows.count()
+                    except: r_count = 0
                     
-                    if row_count2 > 0 and not has_no_results2:
-                        for r_idx in range(min(row_count2, 5)):
+                    if r_count > 0 and not has_no:
+                        for r_idx in range(min(r_count, 5)):
                             try:
-                                row_text2 = (await visible_rows2.nth(r_idx).inner_text()).strip().lower()
-                                if 'aguardando' in row_text2:
-                                    has_aguardando = True
-                                    aguardando_count += 1
+                                r_text = (await visible_rows.nth(r_idx).inner_text()).strip().lower()
+                                if any(k in r_text for k in target_keywords):
+                                    has_match = True
+                                    match_count += 1
                             except: continue
                         
-                        if has_aguardando:
-                            if aguardando_count < row_count2:
-                                aguardando_count = row_count2
+                        if has_match:
+                            if match_count < r_count:
+                                match_count = r_count
                             break
-                    elif has_no_results2:
-                        # Confirmação de que está vazio de fato
+                    elif has_no:
                         break
-            
-            # Tenta pegar contagem do rodapé para "Aguardando"
-            try:
-                footer_text2 = await page.evaluate("""
-                    () => {
-                        const els = document.querySelectorAll('span, div, p');
-                        for (const el of els) {
-                            const t = el.innerText;
-                            if (t && /de\\s+\\d+\\s+registros/i.test(t)) return t;
-                            if (t && /\\d+\\s+registros/i.test(t)) return t;
-                        }
-                        return '';
-                    }
-                """)
-                if footer_text2:
-                    total_match2 = re.search(r'de\s+(\d+)\s+registros', footer_text2, re.I)
-                    if total_match2:
-                        aguardando_count = int(total_match2.group(1))
-                        if aguardando_count > 0:
-                            has_aguardando = True
-            except: pass
+                        
+                # Tenta pegar contagem do rodapé se encontrou algo
+                if has_match:
+                    try:
+                        ft_text = await page.evaluate("""
+                            () => {
+                                const els = document.querySelectorAll('span, div, p');
+                                for (const el of els) {
+                                    const t = el.innerText;
+                                    if (t && /de\\s+\\d+\\s+registros/i.test(t)) return t;
+                                }
+                                return '';
+                            }
+                        """)
+                        if ft_text:
+                            mtch = re.search(r'de\s+(\d+)\s+registros', ft_text, re.I)
+                            if mtch: match_count = int(mtch.group(1))
+                    except: pass
+                    
+                return has_match, match_count
 
+            # ─── 6. EXECUTAR PESQUISAS SEQUENCIAIS E VALIDAR REGRAS ───
+            update_progress(80)
+            
+            # 1. Pesquisa "Impugnado" (abrange 'Impugnado' e 'Não Impugnado')
+            has_imp, count_imp = await search_grid("Impugnado", ['impugnado', 'não impugnado'])
+            if has_imp:
+                log_task(f"Encontrados {count_imp} registros Impugnados/Não Impugnados.", "INFO")
+                
+            update_progress(85)
+            # 2. Pesquisa "Apto" (Para incluir Apto Para Impugnação)
+            has_apto, count_apto = await search_grid("Apto", ['apto'])
+            if has_apto:
+                log_task(f"Encontrados {count_apto} registros Aptos para Impugnação.", "INFO")
+                
+            update_progress(90)
+            # 3. Pesquisa "Aguardando"
+            has_ag, count_ag = await search_grid("Aguardando", ['aguardando'])
+            if has_ag:
+                log_task(f"Encontrados {count_ag} registros Aguardando Impugnação.", "INFO")
+                
             update_progress(95)
             
             # ─── 7. DETERMINAR STATUS FINAL ───
-            if has_impugnation and not has_aguardando:
-                # Tem impugnações feitas MAS não tem mais nada aguardando → Finalizou
-                log_task(f"✅ FINALIZOU O ABI! {impugnation_count} impugnações realizadas, 0 aguardando.", "SUCCESS")
+            if not has_imp and not has_apto and has_ag:
+                # Nao tem impasse, só "aguardando"
+                log_task(f"⏳ NÃO INICIOU IMPUGNAÇÃO! {count_ag} atendimentos aguardando.", "SUCCESS")
                 if browser: await browser.close()
-                return "Finalizou", f"Cliente finalizou o ABI. {impugnation_count} impugnações realizadas, nenhuma aguardando."
-            elif has_impugnation and has_aguardando:
-                # Tem impugnações E ainda tem atendimentos aguardando → Impugnando
-                log_task(f"⚖️ IMPUGNANDO! {impugnation_count} impugnações, {aguardando_count} aguardando.", "SUCCESS")
+                return "Não Iniciou", f"Cliente ainda não iniciou impugnação. {count_ag} atendimentos aguardando."
+
+            elif (has_imp or has_apto) and has_ag:
+                # Tem impugnados ou aptos, E também tem aguardando. Ou seja: ainda está no meio do processo
+                total = count_imp + count_apto
+                log_task(f"⚖️ IMPUGNANDO! {total} resolvidos/aptos, {count_ag} aguardando.", "SUCCESS")
                 if browser: await browser.close()
-                return "Impugnando", f"{impugnation_count} impugnações detectadas, {aguardando_count} aguardando."
-            elif not has_impugnation and has_aguardando:
-                # Sem impugnações feitas, mas com aguardando → Não iniciou
-                log_task(f"⏳ NÃO INICIOU IMPUGNAÇÃO! {aguardando_count} atendimentos aguardando.", "SUCCESS")
+                return "Impugnando", f"{total} registros impugnados/aptos, e {count_ag} ainda aguardando."
+
+            elif (has_imp or has_apto) and not has_ag:
+                # Não tem mais nada "aguardando", então tudo foi impugnado (ou apto/não impugnado)
+                log_task(f"✅ FINALIZOU O ABI! 0 aguardando.", "SUCCESS")
                 if browser: await browser.close()
-                return "Não Iniciou", f"Cliente ainda não iniciou impugnação. {aguardando_count} atendimentos aguardando."
-            else:
-                # Sem impugnação e sem aguardando
-                log_task("Nenhuma impugnação e nenhum aguardando encontrado.", "SUCCESS")
+                return "Finalizou", f"Cliente finalizou o ABI. Nenhum atendimento aguardando impugnação."
+            
+            elif not has_imp and not has_apto and not has_ag:
+                log_task("Nenhum registro encontrado nas três pesquisas (Impugnado, Apto, Aguardando).", "WARNING")
                 if browser: await browser.close()
-                return "Sem Impugnação", "Nenhum atendimento com impugnação detectado."
+                return "Sem Impugnação", "Nenhum atendimento relevante detectado."
+
 
     except Exception as e:
         import traceback
