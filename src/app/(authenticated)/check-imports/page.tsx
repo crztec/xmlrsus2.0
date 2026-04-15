@@ -84,6 +84,7 @@ export default function CheckImportsPage() {
   const [isLoading, setIsLoading] = React.useState(true);
   const [isUploading, setIsUploading] = React.useState(false);
   const [search, setSearch] = React.useState("");
+  const [filterStatus, setFilterStatus] = React.useState<string | null>(null);
   
   // States para Logs e Tarefas
   const [activeTaskId, setActiveTaskId] = React.useState<string | null>(null);
@@ -436,10 +437,30 @@ export default function CheckImportsPage() {
     }
   };
 
-  const filteredClients = clients.filter(c => 
-    c.name.toLowerCase().includes(search.toLowerCase()) || 
-    c.cnpj.includes(search)
-  );
+  const filteredClients = clients.filter(c => {
+    const matchesSearch = 
+      c.name.toLowerCase().includes(search.toLowerCase()) || 
+      c.cnpj.includes(search) ||
+      (c.abi_status || "").toLowerCase().includes(search.toLowerCase()) ||
+      (c.impugnation_status || "").toLowerCase().includes(search.toLowerCase());
+      
+    if (!filterStatus) return matchesSearch;
+    
+    // Lógica de mapeamento entre Card Label e Status Interno
+    const sABI = (c.abi_status || "");
+    const sIMP = (c.impugnation_status || "");
+    
+    if (filterStatus === "Importados") return matchesSearch && (sABI === "Importado e Analisado" || sABI === "Importado, falta analisar");
+    if (filterStatus === "Analisados") return matchesSearch && sABI === "Importado e Analisado";
+    if (filterStatus === "Não Inic. Impug.") return matchesSearch && sIMP === "Não Iniciou";
+    if (filterStatus === "Impugnando") return matchesSearch && sIMP === "Impugnando";
+    if (filterStatus === "Finalizou") return matchesSearch && sIMP === "Finalizou";
+    if (filterStatus === "Falta Analisar") return matchesSearch && sABI === "Importado, falta analisar";
+    if (filterStatus === "Falhas") return matchesSearch && (sABI === "Falha" || sABI === "Falha na Análise");
+    if (filterStatus === "Não Import.") return matchesSearch && sABI === "Nao Importado";
+    
+    return matchesSearch;
+  });
 
   return (
     <div className="flex flex-col gap-6 p-8 pt-2 max-w-7xl mx-auto animate-in fade-in duration-500">
@@ -581,7 +602,15 @@ export default function CheckImportsPage() {
           { label: "Falhas", value: stats?.failure || 0, color: "bg-red-50", text: "text-red-700", icon: <XCircle size={16} className="text-red-500" /> },
           { label: "Não Import.", value: stats?.not_imported || 0, color: "bg-slate-100", text: "text-slate-600", icon: <FileX size={16} className="text-slate-400" /> },
         ].map((stat, i) => (
-          <div key={i} className="rounded-2xl bg-white border border-slate-200 p-2 xl:p-3 flex items-center gap-2 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500" style={{ animationDelay: `${i * 60}ms`, animationFillMode: 'both' }}>
+          <button 
+            key={i} 
+            onClick={() => setFilterStatus(filterStatus === stat.label ? null : stat.label)}
+            className={cn(
+              "rounded-2xl bg-white border p-2 xl:p-3 flex items-center gap-2 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500 transition-all hover:scale-[1.03] active:scale-95 text-left",
+              filterStatus === stat.label ? "ring-2 ring-gax-blue border-gax-blue shadow-gax-blue/10" : "border-slate-200"
+            )} 
+            style={{ animationDelay: `${i * 60}ms`, animationFillMode: 'both' }}
+          >
             <div className={cn("flex h-7 w-7 xl:h-9 xl:w-9 items-center justify-center rounded-xl shrink-0 font-display", stat.color)}>
               {stat.icon}
             </div>
@@ -591,7 +620,10 @@ export default function CheckImportsPage() {
               </p>
               <p className={cn("text-lg xl:text-xl font-black font-display tracking-tight", stat.text)}>{stat.value}</p>
             </div>
-          </div>
+            {filterStatus === stat.label && (
+              <div className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-gax-blue" />
+            )}
+          </button>
         ))}
       </div>
 
@@ -610,10 +642,10 @@ export default function CheckImportsPage() {
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-gax-blue transition-colors" size={14} />
                 <input 
                   type="text" 
-                  placeholder="Filtrar por nome..." 
+                  placeholder="Nome, status..." 
                   className="w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 py-2 text-xs font-medium text-slate-700 outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all placeholder:text-slate-300"
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={(e) => { setSearch(e.target.value); setFilterStatus(null); }}
                 />
               </div>
             </div>
@@ -622,7 +654,7 @@ export default function CheckImportsPage() {
                 <thead className="bg-slate-50/50 text-slate-400 font-bold uppercase tracking-widest text-[10px] border-b border-slate-100">
                   <tr>
                     <th className="px-5 py-3.5">Operadora</th>
-                    <th className="px-5 py-3.5 text-center">ABI Atual</th>
+                    <th className="px-5 py-3.5">Última Checagem</th>
                     <th className="px-5 py-3.5">Status</th>
                     <th className="px-5 py-3.5 text-right">Ação</th>
                   </tr>
@@ -640,15 +672,28 @@ export default function CheckImportsPage() {
                   ) : filteredClients.map((client, idx) => (
                     <tr key={client.id} className="group hover:bg-gax-blue/[0.02] transition-colors animate-in fade-in duration-300" style={{ animationDelay: `${(idx % 10) * 30}ms` }}>
                       <td className="px-5 py-3.5">
-                        <div className="flex flex-col">
-                          <span className="font-bold text-slate-800 text-sm font-display">{client.name}</span>
-                          <span className="text-[10px] text-slate-400 font-medium truncate max-w-[240px]">
-                              {client.abi_last_check ? `Última checagem: ${formatDistanceToNow(new Date(client.abi_last_check), { addSuffix: true, locale: ptBR })}` : client.cnpj}
-                          </span>
+                        <div className="flex flex-col gap-1">
+                          <span className="font-bold text-slate-800 text-sm font-display leading-tight">{client.name}</span>
+                          {(client as any).group_name ? (
+                            <span className="inline-flex items-center rounded-full bg-gax-blue/5 px-2 py-0.5 text-[9px] font-bold text-gax-blue border border-gax-blue/10 w-fit">
+                              {(client as any).group_name}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-slate-300 font-medium italic">Sem grupo</span>
+                          )}
                         </div>
                       </td>
-                      <td className="px-5 py-3.5 text-center font-bold text-slate-500">
-                        {client.abi_current || "-"}
+                      <td className="px-5 py-3.5">
+                        <div className="flex flex-col">
+                           <span className="text-[11px] font-bold text-slate-600">
+                             {client.abi_last_check ? formatDistanceToNow(new Date(client.abi_last_check), { addSuffix: true, locale: ptBR }) : "-"}
+                           </span>
+                           {client.abi_last_check && (
+                             <span className="text-[9px] text-slate-400 font-medium">
+                               {new Date(client.abi_last_check).toLocaleDateString('pt-BR')} às {new Date(client.abi_last_check).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                             </span>
+                           )}
+                        </div>
                       </td>
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-2">

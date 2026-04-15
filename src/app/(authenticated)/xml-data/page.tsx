@@ -184,7 +184,7 @@ export default function XmlDataPage() {
                 {client.name}
               </h3>
               {client.group_name && (
-                <span className="text-[10px] font-bold text-gax-blue uppercase tracking-tight">
+                <span className="inline-flex items-center rounded-full bg-gax-blue/5 px-2.5 py-0.5 text-[10px] font-bold text-gax-blue border border-gax-blue/10 w-fit">
                   {client.group_name}
                 </span>
               )}
