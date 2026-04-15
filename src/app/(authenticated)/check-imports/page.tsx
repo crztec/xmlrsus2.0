@@ -704,14 +704,25 @@ export default function CheckImportsPage() {
                       </td>
                       <td className="px-5 py-3.5">
                         <div className="flex flex-col">
-                           <span className="text-[11px] font-bold text-slate-600">
-                             {client.abi_last_check ? formatDistanceToNow(new Date(client.abi_last_check), { addSuffix: true, locale: ptBR }) : "-"}
-                           </span>
-                           {client.abi_last_check && (
-                             <span className="text-[9px] text-slate-400 font-medium font-display">
-                               {new Date(client.abi_last_check).toLocaleDateString('pt-BR')} às {new Date(client.abi_last_check).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                             </span>
-                           )}
+                           {(() => {
+                             const lastCheck = [client.abi_last_check, (client as any).impugnation_last_check]
+                               .filter(Boolean)
+                               .map(d => new Date(d as string))
+                               .sort((a, b) => b.getTime() - a.getTime())[0];
+
+                             if (!lastCheck) return <span className="text-[11px] font-bold text-slate-300 italic">Nunca checado</span>;
+
+                             return (
+                               <>
+                                 <span className="text-[11px] font-bold text-slate-600">
+                                   {formatDistanceToNow(lastCheck, { addSuffix: true, locale: ptBR })}
+                                 </span>
+                                 <span className="text-[9px] text-slate-400 font-medium font-display">
+                                   {lastCheck.toLocaleDateString('pt-BR')} às {lastCheck.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                 </span>
+                               </>
+                             );
+                           })()}
                         </div>
                       </td>
                       <td className="px-5 py-3.5 text-right">
