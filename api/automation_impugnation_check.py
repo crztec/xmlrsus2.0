@@ -92,7 +92,7 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None):
             log_task(f"Atualizando status para '{target_status}'")
             
             status_trigger = target_row.locator("button, [role='combobox'], .cursor-pointer, span.inline-flex, span[aria-haspopup='dialog']").filter(
-                has_text=re.compile(r"Não iniciou|Importou|Impugnado|Finalizou|Agendou|Erro|Analisou", re.IGNORECASE)
+                has_text=re.compile(r"Não iniciou|Importou|Impugnando|Impugnado|Finalizou|Agendou|Erro|Analisou", re.IGNORECASE)
             ).first
             
             if await status_trigger.count() > 0:
@@ -146,11 +146,8 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None):
                 log_task("Busca secundária por botão '+' em andamento...", "WARNING")
                 btn_add = page.locator("button[title='Registrar contato']").filter(visible=True).first
             
-            if await btn_add.count() > 0:
-                await btn_add.click(force=True)
-                await asyncio.sleep(2)
 
-            if await btn_add.count() > 0:
+            if btn_add and await btn_add.count() > 0:
                 await btn_add.click(force=True)
                 await asyncio.sleep(2)
                 

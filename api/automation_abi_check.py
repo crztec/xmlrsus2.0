@@ -100,7 +100,7 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
             log_task(f"Atualizando status para '{target_status}'")
             # Gatilho de status independe da coluna exata. Procura por botões/comboboxes na linha atual.
             # Baseado na foto, é text "Não Iniciou", "Importou e Analisou", etc.
-            status_trigger = target_row.locator("button, [role='combobox'], .cursor-pointer, span.inline-flex, span[aria-haspopup='dialog']").filter(has_text=re.compile(r"Não iniciou|Importou|Impugnado|Finalizou|Agendou|Erro", re.IGNORECASE)).first
+            status_trigger = target_row.locator("button, [role='combobox'], .cursor-pointer, span.inline-flex, span[aria-haspopup='dialog']").filter(has_text=re.compile(r"Não iniciou|Importou|Impugnando|Impugnado|Finalizou|Agendou|Erro", re.IGNORECASE)).first
             
             if await status_trigger.count() > 0:
                 await status_trigger.scroll_into_view_if_needed()
@@ -155,11 +155,8 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
                 log_task("Busca secundária por botão '+' em andamento...", "WARNING")
                 btn_add = page.locator("button[title='Registrar contato']").filter(visible=True).first
             
-            if await btn_add.count() > 0:
-                await btn_add.click(force=True)
-                await asyncio.sleep(2)
 
-            if await btn_add.count() > 0:
+            if btn_add and await btn_add.count() > 0:
                 await btn_add.click(force=True)
                 await asyncio.sleep(2)
                 
