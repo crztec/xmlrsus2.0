@@ -1576,13 +1576,14 @@ def get_impugnation_dashboard_stats():
             if abi_status == 'Importado e Analisado' or imp_status in ['Impugnando', 'Finalizou', 'Não Iniciou']:
                 stats['total_eligible'] += 1
                 
-                if imp_status == 'Impugnando':
+                if imp_status == 'Impugnando' or imp_status == 'Não Iniciou':
                     stats['impugnating'] += 1
                 elif imp_status == 'Finalizou':
                     stats['finalized'] += 1
                 elif imp_status == 'Sem Impugnação':
                     stats['no_impugnation'] += 1
                 elif imp_status == 'Não Iniciou':
+                    # Mantém o contador específico se o frontend precisar no futuro
                     stats['not_started'] += 1
                 elif imp_status == 'Erro':
                     stats['errors'] += 1

@@ -646,11 +646,10 @@ async def run_batch_impugnation_check(task_id, client_ids=None):
         if client_ids:
             clients = [c for c in all_clients if c['id'] in client_ids]
         else:
-            # Filtra clientes "Importado e Analisado" ignorando quem já "Finalizou"
             clients = [
                 c for c in all_clients 
                 if c.get('abi_status') == 'Importado e Analisado' 
-                and c.get('impugnation_status') != 'Finalizou'
+                and c.get('impugnation_status') not in ['Finalizou', 'Impugnando']
             ]
         
         total = len(clients)
