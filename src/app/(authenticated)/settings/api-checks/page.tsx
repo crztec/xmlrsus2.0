@@ -597,8 +597,7 @@ export default function ApiChecksPage() {
               ) : paginatedClients.map((client, idx) => (
                 <tr
                   key={client.id}
-                  className="group hover:bg-gax-blue/[0.02] transition-colors animate-in fade-in duration-300"
-                  style={{ animationDelay: `${(idx % 10) * 30}ms` }}
+                  className="group hover:bg-gax-blue/[0.02] transition-colors"
                 >
                   {/* Cliente */}
                   <td className="px-5 py-3.5">
@@ -616,9 +615,13 @@ export default function ApiChecksPage() {
                       ) : (
                         <span className="font-bold text-slate-800 text-sm">{client.name}</span>
                       )}
-                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
-                        {client.group_name || "Sem Grupo"}
-                      </span>
+                      {client.group_name ? (
+                        <span className="inline-flex items-center rounded-full bg-gax-blue/5 px-2 py-0.5 text-[9px] font-bold text-gax-blue border border-gax-blue/10 w-fit mt-1">
+                          {client.group_name}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-slate-300 font-medium italic mt-0.5">Sem grupo</span>
+                      )}
                     </div>
                   </td>
 
@@ -662,11 +665,18 @@ export default function ApiChecksPage() {
 
                   {/* Última Verificação */}
                   <td className="px-5 py-3.5">
-                    <span className="text-xs font-semibold text-slate-500">
-                      {client.api_last_check && client.api_last_check !== '-'
-                        ? formatDistanceToNow(new Date(client.api_last_check), { addSuffix: true, locale: ptBR })
-                        : "Nunca checado"}
-                    </span>
+                    <div className="flex flex-col">
+                       <span className="text-[11px] font-bold text-slate-600">
+                         {client.api_last_check && client.api_last_check !== '-'
+                           ? formatDistanceToNow(new Date(client.api_last_check), { addSuffix: true, locale: ptBR })
+                           : "Nunca checado"}
+                       </span>
+                       {client.api_last_check && client.api_last_check !== '-' && (
+                         <span className="text-[9px] text-slate-400 font-medium font-display">
+                           {new Date(client.api_last_check).toLocaleDateString('pt-BR')} às {new Date(client.api_last_check).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                         </span>
+                       )}
+                    </div>
                   </td>
 
                   {/* Ações */}
