@@ -127,22 +127,20 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen bg-slate-50 font-sans text-slate-900">
       {/* Lado Esquerdo: Formulário de Login */}
-      <div className="flex w-full flex-col justify-center px-8 sm:px-16 lg:w-[45%] bg-white shadow-2xl z-10 border-r border-slate-200/50">
-        <div className="mx-auto w-full max-w-md animate-in fade-in slide-in-from-left-4 duration-700">
-          {/* Logo Section */}
-          <div className="mb-12 flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-gax-blue to-gax-blue-hover p-1.5 shadow-xl shadow-gax-blue/30">
-              <img src="/Imagens/Glogo.png" alt="GAX Logo" className="h-full w-full object-contain brightness-0 invert" width={48} height={48} />
+      <div className="relative flex w-full flex-col justify-center px-8 sm:px-16 lg:w-[45%] bg-white shadow-2xl z-10 border-r border-slate-200/50">
+        {/* Subtle Decorative Background for Login Side */}
+        <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, #0f172a 1px, transparent 0)', backgroundSize: '32px 32px' }}></div>
+        
+        <div className="mx-auto w-full max-w-md animate-in fade-in slide-in-from-left-4 duration-700 relative z-10">
+          {/* Logo Section - Centralized */}
+          <div className="mb-12 flex flex-col items-center justify-center text-center animate-in fade-in slide-in-from-top-4 duration-1000">
+            <div className="mb-6 flex h-24 w-24 items-center justify-center rounded-[2.5rem] bg-gradient-to-br from-gax-blue to-gax-blue-hover p-4 shadow-[0_20px_50px_rgba(59,130,246,0.3)] ring-offset-4 ring-1 ring-gax-blue/20">
+              <img src="/Imagens/Glogo.png" alt="GAX Logo" className="h-full w-full object-contain brightness-0 invert" width={96} height={96} />
             </div>
-            <div>
-              <span className="text-2xl font-display font-bold tracking-tight text-slate-800 block leading-none">GAX</span>
-              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Gestão de Arquivos XML</span>
+            <div className="flex flex-col items-center">
+              <h1 className="text-6xl font-display font-black tracking-tighter text-slate-900 mb-1">GAX</h1>
+              <p className="text-[11px] font-bold uppercase tracking-[0.5em] text-slate-400 pl-[0.5em]">Gestão de Arquivos XML</p>
             </div>
-          </div>
-
-          <div className="mb-10">
-            <h1 className="text-4xl font-display font-bold tracking-tight text-slate-900">Entrar</h1>
-            <p className="mt-3 text-slate-500 font-medium tracking-tight">Bem-vindo de volta! Faça login na sua conta.</p>
           </div>
 
           {/* Botão Google */}
@@ -221,15 +219,16 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="relative flex w-full items-center justify-center overflow-hidden rounded-2xl bg-gax-blue py-4 font-bold text-white shadow-xl shadow-gax-blue/30 transition-all hover:bg-gax-blue-hover active:scale-[0.98] disabled:opacity-50"
+              className="relative flex w-full items-center justify-center overflow-hidden rounded-2xl bg-gax-blue py-4 font-bold text-white shadow-[0_10px_25px_rgba(59,130,246,0.4)] transition-all hover:bg-gax-blue-hover hover:shadow-[0_15px_35px_rgba(59,130,246,0.5)] active:scale-[0.98] disabled:opacity-50 group/btn"
             >
+              <div className="absolute inset-0 bg-white/10 opacity-0 group-hover/btn:opacity-100 transition-opacity"></div>
               {isLoading ? (
                 <div className="flex items-center gap-3">
                   <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"></div>
                   <span>Iniciando Sessão...</span>
                 </div>
               ) : (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 group-hover/btn:scale-105 transition-transform">
                   <LogIn size={20} />
                   <span>Acessar Painel</span>
                 </div>
@@ -267,10 +266,7 @@ export default function LoginPage() {
         <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, #ffffff 1px, transparent 0)', backgroundSize: '40px 40px' }}></div>
 
         <div className="relative z-10 max-w-xl animate-in fade-in zoom-in-95 duration-1000">
-          <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 backdrop-blur-md px-4 py-2">
-            <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-gax-blue shadow-[0_0_8px_#3B82F6]"></div>
-            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/60">Plataforma Integração RSUS</span>
-          </div>
+
 
           <h2 className="text-5xl font-display font-black leading-tight text-white mb-8">
             Gestão de <span className="text-gax-blue">ponta a ponta</span> para Arquivos XML.

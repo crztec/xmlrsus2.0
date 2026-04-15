@@ -180,10 +180,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          <div className="h-2 w-2 animate-pulse rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]"></div>
-          <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400/80">Sistema Online</span>
-        </div>
+
       </header>
 
       {/* Main Content Area */}
