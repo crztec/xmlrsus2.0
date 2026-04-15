@@ -136,10 +136,19 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
         
             # 4. REGISTRO DE CONTATOS (BOTÃO + VERDE)
             log_task("Atualizando registro de contatos (botão + verde)...")
-            btn_add = target_row.locator("button, a").filter(has_text=re.compile(r"^\+$")).first
-            if await btn_add.count() == 0:
-                # Fallback mais abrangente
-                btn_add = target_row.locator("[title*='Contato'], .text-green-500, svg:has(path[d*='M12 5'])").first
+            
+            # Re-localiza a operadora para evitar staling após mudar o status
+            target_row = page.locator("table tbody tr").filter(has_text=re.compile(re.escape(client_name), re.IGNORECASE)).first
+            
+            btn_add = None
+            for _ in range(3):
+                btn_add = target_row.locator("button, a").filter(has_text=re.compile(r"^\+$")).first
+                if await btn_add.count() == 0:
+                    btn_add = target_row.locator("[title*='Contato'], .text-green-500, svg:has(path[d*='M12 5'])").first
+                
+                if await btn_add.count() > 0:
+                    break
+                await asyncio.sleep(2)
 
             if await btn_add.count() > 0:
                 await btn_add.click(force=True)

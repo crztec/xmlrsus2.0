@@ -125,10 +125,19 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None):
         
             # Registro de Contatos (botão + verde)
             log_task("Registrando contato: 'Cliente impugnando o ABI'...")
-            btn_add = target_row.locator("button, a").filter(has_text=re.compile(r"^\+$")).first
-            if await btn_add.count() == 0:
-                # Fallback idêntico ao robô de ABI Check (incluindo seletor de ícone SVG)
-                btn_add = target_row.locator("[title*='Contato'], .text-green-500, svg:has(path[d*='M12 5'])").first
+            
+            # Re-localiza a operadora para evitar staling após mudar o status
+            target_row = page.locator("table tbody tr").filter(has_text=re.compile(re.escape(client_name), re.IGNORECASE)).first
+            
+            btn_add = None
+            for _ in range(3):
+                btn_add = target_row.locator("button, a").filter(has_text=re.compile(r"^\+$")).first
+                if await btn_add.count() == 0:
+                    btn_add = target_row.locator("[title*='Contato'], .text-green-500, svg:has(path[d*='M12 5'])").first
+                
+                if await btn_add.count() > 0:
+                    break
+                await asyncio.sleep(2)
 
             if await btn_add.count() > 0:
                 await btn_add.click(force=True)
