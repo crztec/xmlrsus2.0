@@ -100,7 +100,7 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
             log_task(f"Atualizando status para '{target_status}'")
             # Gatilho de status independe da coluna exata. Procura por botões/comboboxes na linha atual.
             # Baseado na foto, é text "Não Iniciou", "Importou e Analisou", etc.
-            status_trigger = target_row.locator("button, [role='combobox'], .cursor-pointer, span.inline-flex").filter(has_text=re.compile(r"Não iniciou|Importou|Impugnado|Finalizou|Agendou|Erro", re.IGNORECASE)).first
+            status_trigger = target_row.locator("button, [role='combobox'], .cursor-pointer, span.inline-flex, span[aria-haspopup='dialog']").filter(has_text=re.compile(r"Não iniciou|Importou|Impugnado|Finalizou|Agendou|Erro", re.IGNORECASE)).first
             
             if await status_trigger.count() > 0:
                 await status_trigger.scroll_into_view_if_needed()
@@ -144,7 +144,7 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
             for _ in range(3):
                 btn_add = target_row.locator("button, a").filter(has_text=re.compile(r"^\+$")).first
                 if await btn_add.count() == 0:
-                    btn_add = target_row.locator("[title*='Contato'], .text-green-500, svg:has(path[d*='M12 5'])").first
+                    btn_add = target_row.locator("button[title='Registrar contato'], [title*='contato'], .text-green-500, svg:has(path[d*='M12 5'])").first
                 
                 if await btn_add.count() > 0:
                     break
