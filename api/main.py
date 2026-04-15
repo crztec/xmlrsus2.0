@@ -525,6 +525,37 @@ async def start_abi_check(request: ABICheckRequest, background_tasks: Background
         
     return {"status": "pending", "task_id": task_id}
 
+# --- IMPUGNATION CHECK ENDPOINTS ---
+@app.post("/start-impugnation-check")
+async def start_impugnation_check(request: ABICheckRequest, background_tasks: BackgroundTasks):
+    """Inicia a checagem de impugnações (lote ou individual)."""
+    import api.automation_impugnation_check as imp_auto
+    
+    active_abi = db.get_active_abi()
+    if not active_abi:
+        raise HTTPException(status_code=400, detail="Nenhuma ABI ativa identificada.")
+    
+    abi_label = active_abi.get('ABI', 'Desconhecido') or 'Desconhecido'
+    client_id = request.client_id
+    client_ids = request.client_ids
+    
+    if client_id:
+        task_id = db.create_task("impugnation_check_single", f"Checagem Impugnação {abi_label}: {client_id}")
+        background_tasks.add_task(imp_auto.run_single_impugnation_check, client_id, task_id)
+    elif client_ids:
+        task_id = db.create_task("impugnation_check_batch", f"Checagem Impugnação {abi_label} (Parcial: {len(client_ids)} operadoras)")
+        background_tasks.add_task(imp_auto.run_batch_impugnation_check, task_id, client_ids)
+    else:
+        task_id = db.create_task("impugnation_check_batch", f"Checagem Impugnação {abi_label} em Lote")
+        background_tasks.add_task(imp_auto.run_batch_impugnation_check, task_id)
+        
+    return {"status": "pending", "task_id": task_id}
+
+@app.get("/impugnation-dashboard-stats")
+async def get_impugnation_stats():
+    return db.get_impugnation_dashboard_stats()
+
+
 @app.post("/check-integration/{client_id}")
 async def check_single_integration(client_id: str, background_tasks: BackgroundTasks):
     """Dispara a automação de checagem para um único cliente."""

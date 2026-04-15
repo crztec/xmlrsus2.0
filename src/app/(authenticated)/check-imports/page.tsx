@@ -23,7 +23,8 @@ import {
   Calendar,
   Clock,
   RotateCcw,
-  FileX
+  FileX,
+  Scale
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
@@ -37,6 +38,7 @@ interface ABIStats {
   failure: number;
   pending: number;
   not_imported: number;
+  impugnating: number;
 }
 
 interface ABISchedule {
@@ -60,6 +62,9 @@ interface ClientABI {
   abi_last_message?: string;
   abi_last_task_id?: string;
   url_sistema: string;
+  impugnation_status?: string;
+  impugnation_last_message?: string;
+  impugnation_last_task_id?: string;
 }
 
 interface TaskLog {
@@ -156,14 +161,23 @@ export default function CheckImportsPage() {
   React.useEffect(() => {
     fetchData();
     
-    // Verifica se há alguma tarefa de ABI já em execução no backend (Persistência pós-refresh)
+    // Verifica se há alguma tarefa de ABI ou impugnação já em execução no backend (Persistência pós-refresh)
     const checkActiveTask = async () => {
       try {
+        // Verifica ABI tasks
         const res = await fetch("/api/active-task/abi");
         const data = await res.json();
         if (data.id && data.status === 'running') {
           setActiveTaskId(data.id);
           setCurrentTaskStatus(data);
+          return;
+        }
+        // Verifica impugnation tasks
+        const resImp = await fetch("/api/active-task/impugnation");
+        const dataImp = await resImp.json();
+        if (dataImp.id && dataImp.status === 'running') {
+          setActiveTaskId(dataImp.id);
+          setCurrentTaskStatus(dataImp);
         }
       } catch (err) {
         console.error("Erro ao recuperar tarefa ativa:", err);
@@ -363,6 +377,32 @@ export default function CheckImportsPage() {
     }
   };
 
+  const startImpugnationCheck = async (clientId?: string) => {
+    try {
+      const res = await fetch("/api/start-impugnation-check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ client_id: clientId || null }),
+      });
+      
+      if (!res.ok) {
+        const error = await res.json();
+        alert(error.detail || "Erro ao iniciar checagem de impugnações.");
+        return;
+      }
+
+      const data = await res.json();
+      if (data.task_id) {
+        setActiveTaskId(data.task_id);
+        setCurrentTaskStatus(null);
+        setRealtimeLogs([]);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Erro de conexão com o servidor.");
+    }
+  };
+
   const handleCancel = async () => {
     if (!activeTaskId) return;
     if (!confirm("Deseja realmente parar o processamento atual?")) return;
@@ -479,6 +519,14 @@ export default function CheckImportsPage() {
                 <input type="file" className="hidden" accept=".xlsx,.xls" onChange={handleUpload} />
               </label>
               <button 
+                onClick={() => startImpugnationCheck()}
+                disabled={!!activeTaskId}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-200 text-amber-700 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-amber-100 transition-all disabled:opacity-40 font-display shadow-sm"
+              >
+                <Scale size={12} />
+                Checar Impugnações
+              </button>
+              <button 
                 onClick={() => startCheck()}
                 disabled={!!activeTaskId}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-gax-blue text-white rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-gax-blue-hover transition-all shadow-md shadow-gax-blue/20 disabled:opacity-40 font-display"
@@ -492,10 +540,11 @@ export default function CheckImportsPage() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         {[
           { label: "Importados", value: stats?.imported || 0, color: "bg-blue-50", text: "text-blue-700", icon: <FileSpreadsheet className="text-blue-500" /> },
           { label: "Importados e Analisados", value: stats?.imported_analyzed || 0, color: "bg-green-50", text: "text-green-700", icon: <ShieldCheck className="text-green-500" /> },
+          { label: "Impugnando o ABI", value: stats?.impugnating || 0, color: "bg-amber-50 border-amber-200", text: "text-amber-700", icon: <Scale className="text-amber-600" /> },
           { label: "Falta Analisar", value: stats?.imported_not_analyzed || 0, color: "bg-amber-50", text: "text-amber-700", icon: <AlertCircle className="text-amber-500" /> },
           { label: "Falhas na Análise", value: stats?.failure || 0, color: "bg-red-50", text: "text-red-700", icon: <XCircle className="text-red-500" /> },
           { label: "Não Importados", value: stats?.not_imported || 0, color: "bg-slate-100", text: "text-slate-600", icon: <FileX className="text-slate-400" /> },
@@ -593,13 +642,21 @@ export default function CheckImportsPage() {
                           </button>
 
                           {openMenuId === client.id && (
-                            <div className="absolute right-0 mt-1.5 w-48 bg-white rounded-2xl shadow-2xl shadow-slate-200/80 border border-slate-100 z-50 overflow-hidden animate-in zoom-in-95 duration-150 origin-top-right">
+                            <div className="absolute right-0 mt-1.5 w-52 bg-white rounded-2xl shadow-2xl shadow-slate-200/80 border border-slate-100 z-50 overflow-hidden animate-in zoom-in-95 duration-150 origin-top-right">
                               <button 
                                 onClick={() => { startCheck(client.id); setOpenMenuId(null); }}
                                 disabled={!!activeTaskId}
                                 className="w-full flex items-center gap-2.5 px-4 py-3 text-[11px] font-bold text-slate-700 hover:bg-gax-blue hover:text-white transition-colors disabled:opacity-40"
                               >
-                                <Play size={14} /> Iniciar Checagem
+                                <Play size={14} /> Checar Importação
+                              </button>
+                              <button 
+                                onClick={() => { startImpugnationCheck(client.id); setOpenMenuId(null); }}
+                                disabled={!!activeTaskId || client.abi_status !== 'Importado e Analisado'}
+                                className="w-full flex items-center gap-2.5 px-4 py-3 text-[11px] font-bold text-amber-700 hover:bg-amber-50 transition-colors disabled:opacity-30 border-t border-slate-50"
+                                title={client.abi_status !== 'Importado e Analisado' ? 'Disponível apenas para clientes que já analisaram o ABI' : ''}
+                              >
+                                <Scale size={14} /> Checar Impugnação
                               </button>
                               
                               {client.abi_last_task_id ? (

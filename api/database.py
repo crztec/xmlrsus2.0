@@ -1484,14 +1484,19 @@ def get_abi_dashboard_stats():
             'imported_not_analyzed': 0,
             'failure': 0,
             'pending': 0,
-            'not_imported': 0
+            'not_imported': 0,
+            'impugnating': 0
         }
         
         for c in clients:
             status = c.get('abi_status', 'Pendente')
             msg = c.get('abi_last_message', '')
+            impugnation = c.get('impugnation_status', '')
             
-            if status == 'Importado e Analisado':
+            # Se o cliente está impugnando, conta como impugnando (e NÃO como analisado)
+            if impugnation == 'Impugnando':
+                stats['impugnating'] += 1
+            elif status == 'Importado e Analisado':
                 stats['imported_analyzed'] += 1
             elif status == 'Importado':
                 # Se o cliente não realiza análise, ele já está "concluído" (Importado e Analisado)
@@ -1515,6 +1520,62 @@ def get_abi_dashboard_stats():
     except Exception as e:
         logger.error(f"Erro ao calcular estatísticas ABI: {e}")
         return {}
+
+def update_client_impugnation_status(client_id, status, message, task_id=None):
+    """Updates impugnation check status for a client."""
+    if not client_id: return False
+    try:
+        client_ref = firestore_db.collection('client_configs').document(client_id)
+        
+        update_data = {
+            'impugnation_status': status,
+            'impugnation_last_message': message,
+            'impugnation_last_check': firestore.SERVER_TIMESTAMP
+        }
+        
+        if task_id:
+            update_data['impugnation_last_task_id'] = task_id
+            
+        client_ref.update(update_data)
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao atualizar status de impugnação do cliente {client_id}: {e}")
+        return False
+
+def get_impugnation_dashboard_stats():
+    """Calculates stats for impugnation checks."""
+    try:
+        clients = get_all_clients()
+        stats = {
+            'total_eligible': 0,
+            'impugnating': 0,
+            'no_impugnation': 0,
+            'not_checked': 0,
+            'errors': 0
+        }
+        
+        for c in clients:
+            abi_status = c.get('abi_status', 'Pendente')
+            imp_status = c.get('impugnation_status', '')
+            
+            # Só conta clientes que já analisaram o ABI
+            if abi_status == 'Importado e Analisado' or imp_status == 'Impugnando':
+                stats['total_eligible'] += 1
+                
+                if imp_status == 'Impugnando':
+                    stats['impugnating'] += 1
+                elif imp_status == 'Sem Impugnação':
+                    stats['no_impugnation'] += 1
+                elif imp_status == 'Erro':
+                    stats['errors'] += 1
+                else:
+                    stats['not_checked'] += 1
+                    
+        return stats
+    except Exception as e:
+        logger.error(f"Erro ao calcular estatísticas de impugnação: {e}")
+        return {}
+
 
 def mark_abis_as_substituted(razao_social, abis):
     """
