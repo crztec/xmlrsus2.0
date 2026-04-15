@@ -570,25 +570,26 @@ export default function CheckImportsPage() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-8 gap-2">
         {[
-          { label: "Importados", value: stats?.imported || 0, color: "bg-blue-50", text: "text-blue-700", icon: <FileSpreadsheet className="text-blue-500" /> },
-          { label: "Importados e Analisados", value: stats?.imported_analyzed || 0, color: "bg-emerald-50", text: "text-emerald-700", icon: <ShieldCheck className="text-emerald-500" /> },
-          { label: "Impugnando o ABI", value: stats?.impugnating || 0, color: "bg-yellow-50 border-yellow-200", text: "text-yellow-700", icon: <Scale className="text-yellow-600" /> },
-          { label: "Finalizou o ABI", value: stats?.finalized || 0, color: "bg-green-50 border-green-200", text: "text-green-700", icon: <CheckCircle2 className="text-green-600" /> },
-          { label: "Falta Analisar", value: stats?.imported_not_analyzed || 0, color: "bg-orange-50", text: "text-orange-700", icon: <AlertCircle className="text-orange-500" /> },
-          { label: "Falhas na Análise", value: stats?.failure || 0, color: "bg-red-50", text: "text-red-700", icon: <XCircle className="text-red-500" /> },
-          { label: "Não Importados", value: stats?.not_imported || 0, color: "bg-slate-100", text: "text-slate-600", icon: <FileX className="text-slate-400" /> },
+          { label: "Importados", value: stats?.imported || 0, color: "bg-blue-50", text: "text-blue-700", icon: <FileSpreadsheet size={16} className="text-blue-500" /> },
+          { label: "Analisados", value: stats?.imported_analyzed || 0, color: "bg-emerald-50", text: "text-emerald-700", icon: <ShieldCheck size={16} className="text-emerald-500" /> },
+          { label: "Não Inic. Impug.", value: stats?.not_started || 0, color: "bg-purple-50 border-purple-200", text: "text-purple-700", icon: <Clock size={16} className="text-purple-600" /> },
+          { label: "Impugnando", value: stats?.impugnating || 0, color: "bg-yellow-50 border-yellow-200", text: "text-yellow-700", icon: <Scale size={16} className="text-yellow-600" /> },
+          { label: "Finalizou", value: stats?.finalized || 0, color: "bg-green-50 border-green-200", text: "text-green-700", icon: <CheckCircle2 size={16} className="text-green-600" /> },
+          { label: "Falta Analisar", value: stats?.imported_not_analyzed || 0, color: "bg-orange-50", text: "text-orange-700", icon: <AlertCircle size={16} className="text-orange-500" /> },
+          { label: "Falhas", value: stats?.failure || 0, color: "bg-red-50", text: "text-red-700", icon: <XCircle size={16} className="text-red-500" /> },
+          { label: "Não Import.", value: stats?.not_imported || 0, color: "bg-slate-100", text: "text-slate-600", icon: <FileX size={16} className="text-slate-400" /> },
         ].map((stat, i) => (
-          <div key={i} className="rounded-2xl bg-white border border-slate-200 p-3 2xl:p-4 flex items-center gap-2.5 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500" style={{ animationDelay: `${i * 60}ms`, animationFillMode: 'both' }}>
-            <div className={cn("flex h-8 w-8 2xl:h-10 2xl:w-10 items-center justify-center rounded-xl shrink-0 font-display", stat.color)}>
+          <div key={i} className="rounded-2xl bg-white border border-slate-200 p-2 xl:p-3 flex items-center gap-2 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500" style={{ animationDelay: `${i * 60}ms`, animationFillMode: 'both' }}>
+            <div className={cn("flex h-7 w-7 xl:h-9 xl:w-9 items-center justify-center rounded-xl shrink-0 font-display", stat.color)}>
               {stat.icon}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-[9px] 2xl:text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5 line-clamp-2 leading-tight" title={stat.label}>
+              <p className="text-[8px] xl:text-[9px] font-bold uppercase tracking-wide text-slate-400 mb-0.5 line-clamp-2 leading-none flex items-center h-5" title={stat.label}>
                 {stat.label}
               </p>
-              <p className={cn("text-xl 2xl:text-2xl font-black font-display font-bold tracking-tight", stat.text)}>{stat.value}</p>
+              <p className={cn("text-lg xl:text-xl font-black font-display tracking-tight", stat.text)}>{stat.value}</p>
             </div>
           </div>
         ))}

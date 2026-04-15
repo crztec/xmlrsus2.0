@@ -1494,7 +1494,8 @@ def get_abi_dashboard_stats():
             'pending': 0,
             'not_imported': 0,
             'impugnating': 0,
-            'finalized': 0
+            'finalized': 0,
+            'not_started': 0
         }
         
         for c in clients:
@@ -1508,6 +1509,8 @@ def get_abi_dashboard_stats():
             # Se o cliente está impugnando, conta como impugnando (e NÃO como analisado)
             elif impugnation == 'Impugnando':
                 stats['impugnating'] += 1
+            elif impugnation == 'Não Iniciou':
+                stats['not_started'] += 1
             elif status == 'Importado e Analisado':
                 stats['imported_analyzed'] += 1
             elif status == 'Importado':
@@ -1576,7 +1579,7 @@ def get_impugnation_dashboard_stats():
             if abi_status == 'Importado e Analisado' or imp_status in ['Impugnando', 'Finalizou', 'Não Iniciou']:
                 stats['total_eligible'] += 1
                 
-                if imp_status == 'Impugnando' or imp_status == 'Não Iniciou':
+                if imp_status == 'Impugnando':
                     stats['impugnating'] += 1
                 elif imp_status == 'Finalizou':
                     stats['finalized'] += 1
