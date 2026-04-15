@@ -174,18 +174,18 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
                     # target_status pode ser "Nao iniciou", "Importou o ABI", "Importou e Analisou"
                     # Usamos regex ignorando case e espaços para ser resiliente
                     option_regex = re.compile(f"^{target_status}$".replace(" ", ".*"), re.I)
-                    option = page.locator("[role='menuitem'], [role='option'], .dropdown-item, button").filter(has_text=option_regex).first
+                    option = page.locator("button, a, li, [role='menuitem'], [role='option'], .dropdown-item").filter(has_text=option_regex).filter(visible=True).first
                     
                     if await option.count() > 0:
-                        await option.click(force=True)
+                        await option.click()
                         log_task(f"Status '{target_status}' selecionado.")
                         await asyncio.sleep(2)
                     else:
                         # Fallback por texto exato se regex falhar
                         log_task(f"Popover não detectado via regex '{target_status}', tentando fallback literal...", "WARNING")
-                        option_fallback = page.locator(f"button:has-text('{target_status}'), a:has-text('{target_status}')").filter(visible=True).first
+                        option_fallback = page.locator(f"button:has-text('{target_status}'), a:has-text('{target_status}'), li:has-text('{target_status}')").filter(visible=True).first
                         if await option_fallback.count() > 0:
-                            await option_fallback.click(force=True)
+                            await option_fallback.click()
                             log_task(f"Status '{target_status}' selecionado via fallback.")
                         else:
                             log_task("Menu de status não reconheceu a opção, tentando teclado...", "WARNING")

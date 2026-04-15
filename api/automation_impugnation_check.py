@@ -161,18 +161,18 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
                     await asyncio.sleep(2)
                     
                     option_regex = re.compile(re.escape(target_status), re.I)
-                    option = page.locator("[role='menuitem'], [role='option'], .dropdown-item, button").filter(has_text=option_regex).first
+                    option = page.locator("button, a, li, [role='menuitem'], [role='option'], .dropdown-item").filter(has_text=option_regex).filter(visible=True).first
                     
                     if await option.count() > 0:
-                        await option.click(force=True)
+                        await option.click()
                         log_task(f"Status '{target_status}' selecionado.")
                         await asyncio.sleep(2)
                     else:
                         # Fallback por texto visível
                         log_task(f"Popover não detectado via regex, tentando fallback literal...", "WARNING")
-                        option_fallback = page.locator(f"button:has-text('{target_status}'), a:has-text('{target_status}')").filter(visible=True).first
+                        option_fallback = page.locator(f"button:has-text('{target_status}'), a:has-text('{target_status}'), li:has-text('{target_status}')").filter(visible=True).first
                         if await option_fallback.count() > 0:
-                            await option_fallback.click(force=True)
+                            await option_fallback.click()
                             log_task(f"Status '{target_status}' selecionado via fallback.")
                         else:
                             log_task("Menu de status não reconheceu a opção, tentando teclado...", "WARNING")
@@ -214,8 +214,8 @@ async def run_impugnation_check_for_client(client_id, task_id=None, pre_fetched_
         elif status == "Finalizou":
             await _sync_impugnation_to_cubeti(client_name, task_id, target_status="Finalizou o ABI", contact_message="Cliente Finalizou o ABI")
         elif status == "Não Iniciou":
-            # Mantém status "Importou e Analisou" no dropdown, só preenche contato
-            await _sync_impugnation_to_cubeti(client_name, task_id, target_status=None, contact_message="Cliente ainda não iniciou Impugnação")
+            # Altera status para refletir o estagio atual de Não Iniciou
+            await _sync_impugnation_to_cubeti(client_name, task_id, target_status="Importou, Analisou e Não Iniciou", contact_message="Cliente ainda não iniciou Impugnação")
         
         # Alerta WhatsApp individual
         if not is_batch_run:
