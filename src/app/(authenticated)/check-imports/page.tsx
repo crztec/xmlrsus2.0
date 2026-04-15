@@ -39,6 +39,7 @@ interface ABIStats {
   pending: number;
   not_imported: number;
   impugnating: number;
+  finalized: number;
 }
 
 interface ABISchedule {
@@ -396,6 +397,11 @@ export default function CheckImportsPage() {
         setActiveTaskId(data.task_id);
         setCurrentTaskStatus(null);
         setRealtimeLogs([]);
+        if (clientId) {
+          setClients(prev => prev.map(c => 
+            c.id === clientId ? { ...c, impugnation_last_task_id: data.task_id } : c
+          ));
+        }
       }
     } catch (err) {
       console.error(err);
@@ -415,6 +421,7 @@ export default function CheckImportsPage() {
   };
 
   const getStatusIcon = (status?: string, impugnationStatus?: string) => {
+    if (impugnationStatus === 'Finalizou') return <CheckCircle2 className="text-green-600" size={16} />;
     if (impugnationStatus === 'Impugnando') return <Scale className="text-yellow-600" size={16} />;
     
     switch (status) {
@@ -505,7 +512,26 @@ export default function CheckImportsPage() {
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-white transition-all font-display"
               >
                 <Terminal size={12} />
-                Histórico
+                Histórico ABI
+              </button>
+              <button 
+                onClick={async () => {
+                  setModalTitle("Histórico de Impugnações");
+                  setLogFilterClient(null);
+                  setDetailedLogs([]);
+                  setViewingTaskId("history");
+                  setShowLogsModal(true);
+                  setIsLoadingLogs(true);
+                  try {
+                    const res = await fetch("/api/tasks/history-logs?type=impugnation&limit=5");
+                    const logsData = await res.json();
+                    setDetailedLogs(logsData?.length > 0 ? logsData : [{ timestamp: "", message: "Nenhum histórico de impugnações encontrado.", level: "INFO" }]);
+                  } catch (err) { console.error(err); } finally { setIsLoadingLogs(false); }
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-yellow-100 transition-all font-display"
+              >
+                <History size={12} />
+                Histórico Impugn.
               </button>
               <button 
                 onClick={handleRunFailedChecks}
@@ -542,11 +568,12 @@ export default function CheckImportsPage() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-7 gap-4">
         {[
           { label: "Importados", value: stats?.imported || 0, color: "bg-blue-50", text: "text-blue-700", icon: <FileSpreadsheet className="text-blue-500" /> },
-          { label: "Importados e Analisados", value: stats?.imported_analyzed || 0, color: "bg-green-50", text: "text-green-700", icon: <ShieldCheck className="text-green-500" /> },
+          { label: "Importados e Analisados", value: stats?.imported_analyzed || 0, color: "bg-emerald-50", text: "text-emerald-700", icon: <ShieldCheck className="text-emerald-500" /> },
           { label: "Impugnando o ABI", value: stats?.impugnating || 0, color: "bg-yellow-50 border-yellow-200", text: "text-yellow-700", icon: <Scale className="text-yellow-600" /> },
+          { label: "Finalizou o ABI", value: stats?.finalized || 0, color: "bg-green-50 border-green-200", text: "text-green-700", icon: <CheckCircle2 className="text-green-600" /> },
           { label: "Falta Analisar", value: stats?.imported_not_analyzed || 0, color: "bg-orange-50", text: "text-orange-700", icon: <AlertCircle className="text-orange-500" /> },
           { label: "Falhas na Análise", value: stats?.failure || 0, color: "bg-red-50", text: "text-red-700", icon: <XCircle className="text-red-500" /> },
           { label: "Não Importados", value: stats?.not_imported || 0, color: "bg-slate-100", text: "text-slate-600", icon: <FileX className="text-slate-400" /> },
@@ -623,6 +650,7 @@ export default function CheckImportsPage() {
                           {getStatusIcon(client.abi_status, client.impugnation_status)}
                           <span className={cn(
                             "font-bold text-[10px] uppercase border px-2.5 py-1 rounded-full whitespace-nowrap",
+                            client.impugnation_status === "Finalizou" ? "bg-green-50 text-green-700 border-green-200" :
                             client.impugnation_status === "Impugnando" ? "bg-yellow-50 text-yellow-700 border-yellow-200" :
                             client.abi_status === "Importado e Analisado" ? "bg-emerald-50 text-emerald-700 border-emerald-100" : 
                             client.abi_status === "Importado, falta analisar" ? "bg-orange-50 text-orange-700 border-orange-100" :
@@ -631,7 +659,9 @@ export default function CheckImportsPage() {
                             client.abi_status === "Nao Importado" ? "bg-slate-50 text-slate-500 border-slate-200" :
                             "bg-slate-100 text-slate-500 border-slate-200"
                           )}>
-                            {client.impugnation_status === "Impugnando" ? "Impugnando o ABI" : (client.abi_status || "Não Checado")}
+                            {client.impugnation_status === "Finalizou" ? "Finalizou o ABI" :
+                             client.impugnation_status === "Impugnando" ? "Impugnando o ABI" : 
+                             (client.abi_status || "Não Checado")}
                           </span>
                         </div>
                       </td>
@@ -655,7 +685,7 @@ export default function CheckImportsPage() {
                               </button>
                               <button 
                                 onClick={() => { startImpugnationCheck(client.id); setOpenMenuId(null); }}
-                                disabled={!!activeTaskId || client.abi_status !== 'Importado e Analisado'}
+                                disabled={!!activeTaskId || !['Importado e Analisado'].includes(client.abi_status || '') && !['Impugnando', 'Finalizou'].includes(client.impugnation_status || '')}
                                 className="w-full flex items-center gap-2.5 px-4 py-3 text-[11px] font-bold text-amber-700 hover:bg-amber-50 transition-colors disabled:opacity-30 border-t border-slate-50"
                                 title={client.abi_status !== 'Importado e Analisado' ? 'Disponível apenas para clientes que já analisaram o ABI' : ''}
                               >
@@ -667,14 +697,22 @@ export default function CheckImportsPage() {
                                   onClick={() => { openDetailedLogs(client.abi_last_task_id!, `Log da ABI: ${client.name}`, client.name); setOpenMenuId(null); }}
                                   className="w-full flex items-center gap-2.5 px-4 py-3 text-[11px] font-bold text-slate-700 hover:bg-gax-blue hover:text-white transition-colors border-t border-slate-50"
                                 >
-                                  <FileText size={14} /> Ver Log Individual
+                                  <FileText size={14} /> Ver Log ABI
                                 </button>
                               ) : (
                                 <button 
                                   onClick={handleViewGlobalLog}
                                   className="w-full flex items-center gap-2.5 px-4 py-3 text-[11px] font-bold text-slate-400 hover:bg-slate-50 transition-colors border-t border-slate-50"
                                 >
-                                  <History size={14} /> Sem Log Individual
+                                  <History size={14} /> Sem Log ABI
+                                </button>
+                              )}
+                              {client.impugnation_last_task_id && (
+                                <button 
+                                  onClick={() => { openDetailedLogs(client.impugnation_last_task_id!, `Log Impugnação: ${client.name}`, client.name); setOpenMenuId(null); }}
+                                  className="w-full flex items-center gap-2.5 px-4 py-3 text-[11px] font-bold text-yellow-700 hover:bg-yellow-50 transition-colors border-t border-slate-50"
+                                >
+                                  <Scale size={14} /> Ver Log Impugnação
                                 </button>
                               )}
                             </div>

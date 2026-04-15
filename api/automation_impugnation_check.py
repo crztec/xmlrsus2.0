@@ -11,10 +11,10 @@ from api.utils import send_whatsapp_alert
 logger = logging.getLogger(__name__)
 
 
-async def _sync_impugnation_to_cubeti(client_name, task_id=None):
+async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="Impugnando o ABI", contact_message="Cliente impugnando o ABI"):
     """Sincroniza status de impugnação com gestaocomercial.cubeti.com.br/ABITracker."""
     def log_task(msg, level="INFO"):
-        full_msg = f"[{client_name}] [SYNC CUBETI IMPUGN] {msg}"
+        full_msg = f"[{client_name}] [SYNC CUBETI {'IMPUGN' if 'Impugnando' in target_status else 'FINAL'}] {msg}"
         if task_id:
             db.add_log(task_id, full_msg, level)
         logger.info(full_msg)
@@ -34,7 +34,7 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None):
         if await is_cancelled(): return False
 
         async with async_playwright() as p:
-            log_task("Iniciando sincronização de impugnação com CubeTI...")
+            log_task(f"Iniciando sincronização ({target_status}) com CubeTI...")
             browser = await p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
             
             if await is_cancelled():
@@ -87,8 +87,7 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None):
                 
             log_task("Operadora localizada!")
             
-            # Selecionar status "Impugnando o ABI"
-            target_status = "Impugnando o ABI"
+            # Selecionar status no dropdown do CubeTI
             log_task(f"Atualizando status para '{target_status}'")
             
             status_trigger = target_row.locator("button, [role='combobox'], .cursor-pointer, span.inline-flex, span[aria-haspopup='dialog']").filter(
@@ -123,7 +122,7 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None):
             else:
                 log_task("Dropdown de status não encontrado.", "WARNING")
         
-            log_task("Registrando contato: 'Cliente impugnando o ABI'...")
+            log_task(f"Registrando contato: '{contact_message}'...")
             
             # Seletores ultra-robustos que ancoram no link com o nome do cliente
             # Tenta CSS robusto e XPath como fallback imediato
@@ -158,7 +157,7 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None):
                 textbox = modal_area.locator("textarea, input:not([type='hidden']):not([type='checkbox']):not([type='radio'])").filter(visible=True).first
                 if await textbox.count() > 0:
                     await textbox.fill("")
-                    await textbox.fill("Cliente impugnando o ABI")
+                    await textbox.fill(contact_message)
                     await asyncio.sleep(1)
 
                 save_btn = page.locator("button:has-text('Salvar'), button:has-text('Confirmar'), .btn-primary, button[type='submit']").filter(visible=True).first
@@ -192,13 +191,16 @@ async def run_impugnation_check_for_client(client_id, task_id=None, pre_fetched_
         # Salva o status de impugnação no cliente
         db.update_client_impugnation_status(client_id, status, message, task_id)
         
-        # Se encontrou impugnações, sincroniza com Cubeti
+        # Sincroniza com Cubeti conforme o status
         if status == "Impugnando":
-            await _sync_impugnation_to_cubeti(client_name, task_id)
+            await _sync_impugnation_to_cubeti(client_name, task_id, target_status="Impugnando o ABI", contact_message="Cliente impugnando o ABI")
+        elif status == "Finalizou":
+            await _sync_impugnation_to_cubeti(client_name, task_id, target_status="Finalizou o ABI", contact_message="Cliente Finalizou o ABI")
         
         # Alerta WhatsApp individual
         if not is_batch_run:
-            emoji = "⚖️" if status == "Impugnando" else "✅"
+            emoji_map = {"Impugnando": "⚖️", "Finalizou": "🏁", "Sem Impugnação": "✅"}
+            emoji = emoji_map.get(status, "ℹ️")
             msg = (
                 f"{emoji} *GAX RSUS - Checagem de Impugnações*\n\n"
                 f"Operadora: {client_name}\n"
@@ -516,8 +518,8 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
             log_task("Aguardando resultado da busca...")
             await asyncio.sleep(4)
             
-            # ─── 5. VERIFICAR RESULTADOS ───
-            update_progress(85)
+            # ─── 5. VERIFICAR RESULTADOS DE IMPUGNAÇÃO ───
+            update_progress(80)
             
             # Verifica se existem linhas com "Impugnado" ou "Não Impugnado" na grid
             has_impugnation = False
@@ -526,7 +528,6 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
             # Analisa texto visível na grid/page
             try:
                 grid_text = await page.evaluate("document.body.innerText")
-                # Também checa iframes
                 for frame in page.frames:
                     try:
                         grid_text += " " + await frame.evaluate("document.body.innerText")
@@ -534,22 +535,17 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
             except:
                 grid_text = ""
             
-            # Verifica se há resultados (presença de "Impugnado" ou "Aguardando Impugnação")
             impugnation_keywords = ['impugnado', 'impugnação', 'aguardando impugnação', 'não impugnado']
             no_results_keywords = ['nenhum registro', 'sem resultados', '0 registros', 'no records', 'nenhum resultado']
             
             grid_lower = grid_text.lower()
-            
-            # Se encontrou indicativo de "sem resultados", não tem impugnação
             has_no_results = any(k in grid_lower for k in no_results_keywords)
             
             if not has_no_results:
-                # Conta linhas visíveis na tabela
                 visible_rows = page.locator("table tbody tr")
                 row_count = await visible_rows.count()
                 
                 if row_count > 0:
-                    # Verifica se as linhas contêm texto relevante
                     for r_idx in range(min(row_count, 5)):
                         try:
                             row_text = (await visible_rows.nth(r_idx).inner_text()).strip().lower()
@@ -558,13 +554,11 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
                                 impugnation_count += 1
                         except: continue
                     
-                    # Se tiver linhas mas nenhuma falou de impugnação, verifica contagem geral
                     if not has_impugnation and row_count > 0:
-                        # A busca por "Impugnado" já filtrou, se tem linhas é porque contém
                         has_impugnation = True
                         impugnation_count = row_count
             
-            # Tenta pegar contagem do rodapé (ex: "1 - 10 de 1250 registros")
+            # Tenta pegar contagem do rodapé
             try:
                 footer_text = await page.evaluate("""
                     () => {
@@ -585,14 +579,99 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
                             has_impugnation = True
             except: pass
 
-            update_progress(95)
-            
             if has_impugnation:
                 log_task(f"⚖️ IMPUGNAÇÕES DETECTADAS! {impugnation_count} atendimentos encontrados.", "SUCCESS")
-                if browser: await browser.close()
-                return "Impugnando", f"{impugnation_count} atendimentos com impugnação detectados."
             else:
-                log_task("Nenhuma impugnação encontrada para este cliente.", "SUCCESS")
+                log_task("Nenhuma impugnação encontrada para este cliente.", "INFO")
+            
+            # ─── 6. BUSCAR "AGUARDANDO IMPUGNAÇÃO" ───
+            update_progress(88)
+            log_task("Verificando atendimentos 'Aguardando Impugnação'...")
+            
+            # Limpa o campo de busca e pesquisa por "Aguardando Impugnação"
+            if search_field:
+                await search_field.click()
+                await search_field.fill("")
+                await search_field.type("Aguardando", delay=60)
+                await asyncio.sleep(1)
+                await page.keyboard.press("Enter")
+                await asyncio.sleep(4)
+            
+            has_aguardando = False
+            aguardando_count = 0
+            
+            try:
+                grid_text2 = await page.evaluate("document.body.innerText")
+                for frame in page.frames:
+                    try:
+                        grid_text2 += " " + await frame.evaluate("document.body.innerText")
+                    except: pass
+            except:
+                grid_text2 = ""
+            
+            grid_lower2 = grid_text2.lower()
+            has_no_results2 = any(k in grid_lower2 for k in no_results_keywords)
+            
+            if not has_no_results2:
+                visible_rows2 = page.locator("table tbody tr")
+                row_count2 = await visible_rows2.count()
+                
+                if row_count2 > 0:
+                    for r_idx in range(min(row_count2, 5)):
+                        try:
+                            row_text2 = (await visible_rows2.nth(r_idx).inner_text()).strip().lower()
+                            if 'aguardando' in row_text2:
+                                has_aguardando = True
+                                aguardando_count += 1
+                        except: continue
+                    
+                    if not has_aguardando and row_count2 > 0:
+                        # A busca por "Aguardando" já filtrou
+                        has_aguardando = True
+                        aguardando_count = row_count2
+            
+            # Tenta pegar contagem do rodapé para "Aguardando"
+            try:
+                footer_text2 = await page.evaluate("""
+                    () => {
+                        const els = document.querySelectorAll('span, div, p');
+                        for (const el of els) {
+                            const t = el.innerText;
+                            if (t && /de\\s+\\d+\\s+registros/i.test(t)) return t;
+                            if (t && /\\d+\\s+registros/i.test(t)) return t;
+                        }
+                        return '';
+                    }
+                """)
+                if footer_text2:
+                    total_match2 = re.search(r'de\s+(\d+)\s+registros', footer_text2, re.I)
+                    if total_match2:
+                        aguardando_count = int(total_match2.group(1))
+                        if aguardando_count > 0:
+                            has_aguardando = True
+            except: pass
+
+            update_progress(95)
+            
+            # ─── 7. DETERMINAR STATUS FINAL ───
+            if has_impugnation and not has_aguardando:
+                # Tem impugnações feitas MAS não tem mais nada aguardando → Finalizou
+                log_task(f"✅ FINALIZOU O ABI! {impugnation_count} impugnações realizadas, 0 aguardando.", "SUCCESS")
+                if browser: await browser.close()
+                return "Finalizou", f"Cliente finalizou o ABI. {impugnation_count} impugnações realizadas, nenhuma aguardando."
+            elif has_impugnation and has_aguardando:
+                # Tem impugnações E ainda tem atendimentos aguardando → Impugnando
+                log_task(f"⚖️ IMPUGNANDO! {impugnation_count} impugnações, {aguardando_count} aguardando.", "SUCCESS")
+                if browser: await browser.close()
+                return "Impugnando", f"{impugnation_count} impugnações detectadas, {aguardando_count} aguardando."
+            elif not has_impugnation and has_aguardando:
+                # Sem impugnações mas com aguardando → Impugnando (ainda vai impugnar)
+                log_task(f"⏳ AGUARDANDO IMPUGNAÇÃO! {aguardando_count} atendimentos aguardando.", "SUCCESS")
+                if browser: await browser.close()
+                return "Impugnando", f"{aguardando_count} atendimentos aguardando impugnação."
+            else:
+                # Sem impugnação e sem aguardando
+                log_task("Nenhuma impugnação e nenhum aguardando encontrado.", "SUCCESS")
                 if browser: await browser.close()
                 return "Sem Impugnação", "Nenhum atendimento com impugnação detectado."
 
@@ -633,6 +712,7 @@ async def run_batch_impugnation_check(task_id, client_ids=None):
         creds_vitoria = db.get_rsus_credentials('unimed_vitoria')
 
         impugnating = 0
+        finalized = 0
         sem_impugnacao = 0
         erros = 0
 
@@ -654,18 +734,21 @@ async def run_batch_impugnation_check(task_id, client_ids=None):
             
             if status == "Impugnando":
                 impugnating += 1
+            elif status == "Finalizou":
+                finalized += 1
             elif status == "Sem Impugnação":
                 sem_impugnacao += 1
             else:
                 erros += 1
 
         db.update_task(task_id, {"status": "completed", "current_client": "Finalizado"})
-        db.add_log(task_id, f"Checagem de impugnações finalizada. Impugnando: {impugnating} | Sem impugnação: {sem_impugnacao} | Erros: {erros}")
+        db.add_log(task_id, f"Checagem de impugnações finalizada. Impugnando: {impugnating} | Finalizou: {finalized} | Sem impugnação: {sem_impugnacao} | Erros: {erros}")
         
         msg = (
             f"⚖️ *GAX RSUS - Relatório de Impugnações*\n\n"
             f"Processamento finalizado!\n"
             f"⚖️ Impugnando: {impugnating}\n"
+            f"🏁 Finalizou: {finalized}\n"
             f"✅ Sem impugnação: {sem_impugnacao}\n"
             f"❌ Erros: {erros}"
         )

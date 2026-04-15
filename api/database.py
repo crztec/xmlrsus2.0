@@ -306,6 +306,7 @@ def get_all_clients():
                 'abi_last_task_id': data.get('abi_last_task_id', ''),
                 'impugnation_status': data.get('impugnation_status', ''),
                 'impugnation_last_message': data.get('impugnation_last_message', ''),
+                'impugnation_last_task_id': data.get('impugnation_last_task_id', ''),
             })
             
         clients.sort(key=lambda x: x['name'])
@@ -388,6 +389,7 @@ def get_clients_paginated(page=1, limit=10, search=""):
                 'ultima_importacao': abi_last_check, # Adiciona compatibilidade com o front
                 'impugnation_status': data.get('impugnation_status', ''),
                 'impugnation_last_message': data.get('impugnation_last_message', ''),
+                'impugnation_last_task_id': data.get('impugnation_last_task_id', ''),
             })
             
         clients.sort(key=lambda x: x['name'])
@@ -1131,6 +1133,8 @@ def get_aggregated_history_logs(task_category="abi", limit_tasks=5):
     try:
         if task_category == "abi":
             target_types = ["abi_check_batch", "abi_check_single"]
+        elif task_category == "impugnation":
+            target_types = ["impugnation_check_batch", "impugnation_check_single"]
         else:
             target_types = ["api_check_batch", "api_check_single", "batch_api_check", "single_api_check"]
 
@@ -1489,7 +1493,8 @@ def get_abi_dashboard_stats():
             'failure': 0,
             'pending': 0,
             'not_imported': 0,
-            'impugnating': 0
+            'impugnating': 0,
+            'finalized': 0
         }
         
         for c in clients:
@@ -1497,8 +1502,11 @@ def get_abi_dashboard_stats():
             msg = c.get('abi_last_message', '')
             impugnation = c.get('impugnation_status', '')
             
+            # Se o cliente finalizou o ABI, conta como finalizado
+            if impugnation == 'Finalizou':
+                stats['finalized'] += 1
             # Se o cliente está impugnando, conta como impugnando (e NÃO como analisado)
-            if impugnation == 'Impugnando':
+            elif impugnation == 'Impugnando':
                 stats['impugnating'] += 1
             elif status == 'Importado e Analisado':
                 stats['imported_analyzed'] += 1
@@ -1554,6 +1562,7 @@ def get_impugnation_dashboard_stats():
             'total_eligible': 0,
             'impugnating': 0,
             'no_impugnation': 0,
+            'finalized': 0,
             'not_checked': 0,
             'errors': 0
         }
@@ -1562,12 +1571,14 @@ def get_impugnation_dashboard_stats():
             abi_status = c.get('abi_status', 'Pendente')
             imp_status = c.get('impugnation_status', '')
             
-            # Só conta clientes que já analisaram o ABI
-            if abi_status == 'Importado e Analisado' or imp_status == 'Impugnando':
+            # Conta clientes que já analisaram ou estão em processo de impugnação
+            if abi_status == 'Importado e Analisado' or imp_status in ['Impugnando', 'Finalizou']:
                 stats['total_eligible'] += 1
                 
                 if imp_status == 'Impugnando':
                     stats['impugnating'] += 1
+                elif imp_status == 'Finalizou':
+                    stats['finalized'] += 1
                 elif imp_status == 'Sem Impugnação':
                     stats['no_impugnation'] += 1
                 elif imp_status == 'Erro':
