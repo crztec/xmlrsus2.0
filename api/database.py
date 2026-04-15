@@ -304,6 +304,8 @@ def get_all_clients():
                 'abi_current': data.get('abi_current', ''),
                 'abi_last_message': data.get('abi_last_message', ''),
                 'abi_last_task_id': data.get('abi_last_task_id', ''),
+                'impugnation_status': data.get('impugnation_status', ''),
+                'impugnation_last_message': data.get('impugnation_last_message', ''),
             })
             
         clients.sort(key=lambda x: x['name'])
@@ -384,6 +386,8 @@ def get_clients_paginated(page=1, limit=10, search=""):
                 'group_id': data.get('group_id'),
                 'group_name': data.get('group_name'),
                 'ultima_importacao': abi_last_check, # Adiciona compatibilidade com o front
+                'impugnation_status': data.get('impugnation_status', ''),
+                'impugnation_last_message': data.get('impugnation_last_message', ''),
             })
             
         clients.sort(key=lambda x: x['name'])

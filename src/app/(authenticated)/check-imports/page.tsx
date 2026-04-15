@@ -414,10 +414,12 @@ export default function CheckImportsPage() {
     }
   };
 
-  const getStatusIcon = (status?: string) => {
+  const getStatusIcon = (status?: string, impugnationStatus?: string) => {
+    if (impugnationStatus === 'Impugnando') return <Scale className="text-yellow-600" size={16} />;
+    
     switch (status) {
       case "Importado e Analisado": return <CheckCircle2 className="text-green-500" size={16} />;
-      case "Importado, falta analisar": return <AlertCircle className="text-blue-500" size={16} />;
+      case "Importado, falta analisar": return <AlertCircle className="text-orange-500" size={16} />;
       case "Falha": return <XCircle className="text-red-500" size={16} />;
       case "Nao Importado": return <XCircle className="text-slate-400" size={16} />;
       case "Pendente": return <Loader2 className="text-amber-500 animate-spin" size={16} />;
@@ -544,8 +546,8 @@ export default function CheckImportsPage() {
         {[
           { label: "Importados", value: stats?.imported || 0, color: "bg-blue-50", text: "text-blue-700", icon: <FileSpreadsheet className="text-blue-500" /> },
           { label: "Importados e Analisados", value: stats?.imported_analyzed || 0, color: "bg-green-50", text: "text-green-700", icon: <ShieldCheck className="text-green-500" /> },
-          { label: "Impugnando o ABI", value: stats?.impugnating || 0, color: "bg-amber-50 border-amber-200", text: "text-amber-700", icon: <Scale className="text-amber-600" /> },
-          { label: "Falta Analisar", value: stats?.imported_not_analyzed || 0, color: "bg-amber-50", text: "text-amber-700", icon: <AlertCircle className="text-amber-500" /> },
+          { label: "Impugnando o ABI", value: stats?.impugnating || 0, color: "bg-yellow-50 border-yellow-200", text: "text-yellow-700", icon: <Scale className="text-yellow-600" /> },
+          { label: "Falta Analisar", value: stats?.imported_not_analyzed || 0, color: "bg-orange-50", text: "text-orange-700", icon: <AlertCircle className="text-orange-500" /> },
           { label: "Falhas na Análise", value: stats?.failure || 0, color: "bg-red-50", text: "text-red-700", icon: <XCircle className="text-red-500" /> },
           { label: "Não Importados", value: stats?.not_imported || 0, color: "bg-slate-100", text: "text-slate-600", icon: <FileX className="text-slate-400" /> },
         ].map((stat, i) => (
@@ -618,17 +620,18 @@ export default function CheckImportsPage() {
                       </td>
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-2">
-                          {getStatusIcon(client.abi_status)}
+                          {getStatusIcon(client.abi_status, client.impugnation_status)}
                           <span className={cn(
-                            "font-bold text-[10px] uppercase border px-2.5 py-1 rounded-full",
+                            "font-bold text-[10px] uppercase border px-2.5 py-1 rounded-full whitespace-nowrap",
+                            client.impugnation_status === "Impugnando" ? "bg-yellow-50 text-yellow-700 border-yellow-200" :
                             client.abi_status === "Importado e Analisado" ? "bg-emerald-50 text-emerald-700 border-emerald-100" : 
-                            client.abi_status === "Importado, falta analisar" ? "bg-blue-50 text-blue-700 border-blue-100" :
+                            client.abi_status === "Importado, falta analisar" ? "bg-orange-50 text-orange-700 border-orange-100" :
                             client.abi_status === "Importado" ? "bg-sky-50 text-sky-700 border-sky-100" :
                             client.abi_status === "Falha na Análise" || client.abi_status === "Falha" ? "bg-rose-50 text-rose-700 border-rose-100" :
                             client.abi_status === "Nao Importado" ? "bg-slate-50 text-slate-500 border-slate-200" :
                             "bg-slate-100 text-slate-500 border-slate-200"
                           )}>
-                            {client.abi_status || "Não Checado"}
+                            {client.impugnation_status === "Impugnando" ? "Impugnando o ABI" : (client.abi_status || "Não Checado")}
                           </span>
                         </div>
                       </td>
