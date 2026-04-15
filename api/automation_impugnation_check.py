@@ -515,43 +515,36 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
             
             log_task("Campo de pesquisa localizado. Digitando 'Impugnado'...")
             await search_field.click()
-            await search_field.fill("")
-            await search_field.type("Impugnado", delay=60)
+            await page.keyboard.press("Control+A")
+            await page.keyboard.press("Backspace")
+            await search_field.type("Impugnado", delay=40)
             await asyncio.sleep(1)
             await page.keyboard.press("Enter")
             
-            # Aguarda a grid filtrar
+            # Aguarda a grid filtrar com loop de resiliência
             log_task("Aguardando resultado da busca...")
-            await asyncio.sleep(4)
-            
-            # ─── 5. VERIFICAR RESULTADOS DE IMPUGNAÇÃO ───
-            update_progress(80)
-            
-            # Verifica se existem linhas com "Impugnado" ou "Não Impugnado" na grid
             has_impugnation = False
             impugnation_count = 0
             
-            # Analisa texto visível na grid/page
-            try:
-                grid_text = await page.evaluate("document.body.innerText")
-                for frame in page.frames:
-                    try:
-                        grid_text += " " + await frame.evaluate("document.body.innerText")
-                    except: pass
-            except:
-                grid_text = ""
-            
-            impugnation_keywords = ['impugnado', 'impugnação', 'aguardando impugnação', 'não impugnado']
+            impugnation_keywords = ['impugnado', 'impugnação', 'não impugnado'] # removido 'aguardando impugnação' para evitar falso positivo na fase 1
             no_results_keywords = ['nenhum registro', 'sem resultados', '0 registros', 'no records', 'nenhum resultado']
             
-            grid_lower = grid_text.lower()
-            has_no_results = any(k in grid_lower for k in no_results_keywords)
-            
-            if not has_no_results:
+            for _ in range(12):  # Aguarda até 24 segundos pelo filtro
+                await asyncio.sleep(2)
+                try:
+                    grid_text = await page.evaluate("document.body.innerText")
+                    for frame in page.frames:
+                        try: grid_text += " " + await frame.evaluate("document.body.innerText")
+                        except: pass
+                except: grid_text = ""
+                
+                grid_lower = grid_text.lower()
+                has_no_results = any(k in grid_lower for k in no_results_keywords)
+                
                 visible_rows = page.locator("table tbody tr")
                 row_count = await visible_rows.count()
                 
-                if row_count > 0:
+                if row_count > 0 and not has_no_results:
                     for r_idx in range(min(row_count, 5)):
                         try:
                             row_text = (await visible_rows.nth(r_idx).inner_text()).strip().lower()
@@ -560,9 +553,15 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
                                 impugnation_count += 1
                         except: continue
                     
-                    if not has_impugnation and row_count > 0:
-                        has_impugnation = True
-                        impugnation_count = row_count
+                    if has_impugnation:
+                        # Achou ao menos 1 linha validada
+                        if impugnation_count < row_count:
+                            impugnation_count = row_count
+                        break
+                    
+                elif has_no_results:
+                    # Garantia de que a pesquisa terminou e não retornou nada
+                    break
             
             # Tenta pegar contagem do rodapé
             try:
@@ -597,44 +596,47 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
             # Limpa o campo de busca e pesquisa por "Aguardando Impugnação"
             if search_field:
                 await search_field.click()
-                await search_field.fill("")
-                await search_field.type("Aguardando", delay=60)
+                await page.keyboard.press("Control+A")
+                await page.keyboard.press("Backspace")
+                await search_field.type("Aguardando", delay=40)
                 await asyncio.sleep(1)
                 await page.keyboard.press("Enter")
-                await asyncio.sleep(4)
-            
-            has_aguardando = False
-            aguardando_count = 0
-            
-            try:
-                grid_text2 = await page.evaluate("document.body.innerText")
-                for frame in page.frames:
-                    try:
-                        grid_text2 += " " + await frame.evaluate("document.body.innerText")
-                    except: pass
-            except:
-                grid_text2 = ""
-            
-            grid_lower2 = grid_text2.lower()
-            has_no_results2 = any(k in grid_lower2 for k in no_results_keywords)
-            
-            if not has_no_results2:
-                visible_rows2 = page.locator("table tbody tr")
-                row_count2 = await visible_rows2.count()
                 
-                if row_count2 > 0:
-                    for r_idx in range(min(row_count2, 5)):
-                        try:
-                            row_text2 = (await visible_rows2.nth(r_idx).inner_text()).strip().lower()
-                            if 'aguardando' in row_text2:
-                                has_aguardando = True
-                                aguardando_count += 1
-                        except: continue
+                # Resiliência no carregamento (ex: pode ter 700+ registros, demorando +10s)
+                has_aguardando = False
+                aguardando_count = 0
+                
+                for _ in range(12):  # Aguarda até 24 segundos
+                    await asyncio.sleep(2)
+                    try:
+                        grid_text2 = await page.evaluate("document.body.innerText")
+                        for frame in page.frames:
+                            try: grid_text2 += " " + await frame.evaluate("document.body.innerText")
+                            except: pass
+                    except: grid_text2 = ""
                     
-                    if not has_aguardando and row_count2 > 0:
-                        # A busca por "Aguardando" já filtrou
-                        has_aguardando = True
-                        aguardando_count = row_count2
+                    grid_lower2 = grid_text2.lower()
+                    has_no_results2 = any(k in grid_lower2 for k in no_results_keywords)
+                    
+                    visible_rows2 = page.locator("table tbody tr")
+                    row_count2 = await visible_rows2.count()
+                    
+                    if row_count2 > 0 and not has_no_results2:
+                        for r_idx in range(min(row_count2, 5)):
+                            try:
+                                row_text2 = (await visible_rows2.nth(r_idx).inner_text()).strip().lower()
+                                if 'aguardando' in row_text2:
+                                    has_aguardando = True
+                                    aguardando_count += 1
+                            except: continue
+                        
+                        if has_aguardando:
+                            if aguardando_count < row_count2:
+                                aguardando_count = row_count2
+                            break
+                    elif has_no_results2:
+                        # Confirmação de que está vazio de fato
+                        break
             
             # Tenta pegar contagem do rodapé para "Aguardando"
             try:
