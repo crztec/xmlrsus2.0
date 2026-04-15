@@ -710,7 +710,14 @@ async def run_batch_abi_check(task_id, client_ids=None):
             all_clients = db.get_all_clients()
             clients = [c for c in all_clients if c['id'] in client_ids]
         else:
-            clients = db.get_all_clients()
+            all_v = db.get_all_clients()
+            # Filtro Inteligente: Processa apenas quem ainda não terminou a importação/análise
+            # e ignora quem já está em fase de monitoramento de impugnação
+            clients = [
+                c for c in all_v 
+                if c.get('abi_status') != 'Importado e Analisado'
+                and c.get('impugnation_status') not in ['Finalizou', 'Impugnando']
+            ]
             
         total = len(clients)
         
