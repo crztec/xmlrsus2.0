@@ -55,15 +55,27 @@ export default function LoginPage() {
     }
   };
 
-  const handleLogin = async (e: React.FormEvent) => {
+const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
     setError("");
 
+    // Captura valores diretamente do formulário (resolve bug de autofill do browser)
+    const dataForm = new FormData(e.currentTarget);
+    const emailValue = dataForm.get("email")?.toString() || "";
+    const passwordValue = dataForm.get("password")?.toString() || "";
+
+    // Validação de Frontend
+    if (!emailValue.trim() || !passwordValue.trim()) {
+      setError("Por favor, preencha seu e-mail e senha para continuar.");
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const formData = new FormData();
-      formData.append("email", email);
-      formData.append("password", password);
+      formData.append("email", emailValue);
+      formData.append("password", passwordValue);
 
       const res = await fetch("/api/login", {
         method: "POST",
@@ -72,17 +84,26 @@ export default function LoginPage() {
 
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        localStorage.setItem("gax_user_email", email);
-        localStorage.setItem("gax_user_name", data?.first_name || email.split('@')[0]);
+        localStorage.setItem("gax_user_email", emailValue);
+        localStorage.setItem("gax_user_name", data?.first_name || emailValue.split('@')[0]);
         localStorage.setItem("gax_user_role", data?.role || "user");
         window.location.href = "/";
       } else {
+        // Tratamento de Erro Amigável
         const errorDetail = data.detail;
-        const msg = typeof errorDetail === 'string' ? errorDetail : JSON.stringify(errorDetail);
-        setError(msg || "Falha no login. Verifique suas credenciais.");
+        let msg = "";
+        
+        if (Array.isArray(errorDetail)) {
+          // Erro de validação do FastAPI (422)
+          msg = "Dados incompletos. Verifique se preencheu o e-mail e a senha.";
+        } else {
+          msg = typeof errorDetail === 'string' ? errorDetail : "E-mail ou senha incorretos.";
+        }
+        
+        setError(msg);
       }
     } catch (_err: any) {
-      setError("Erro de conexão com o servidor.");
+      setError("Erro de conexão com o servidor. Verifique sua internet.");
     } finally {
       setIsLoading(false);
     }
@@ -230,7 +251,7 @@ export default function LoginPage() {
               ) : (
                 <div className="flex items-center gap-2 group-hover/btn:scale-105 transition-transform">
                   <LogIn size={20} />
-                  <span>Acessar Painel</span>
+                  <span>Entrar</span>
                 </div>
               )}
             </button>
