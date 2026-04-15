@@ -14,7 +14,8 @@ logger = logging.getLogger(__name__)
 async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="Impugnando o ABI", contact_message="Cliente impugnando o ABI"):
     """Sincroniza status de impugnação com gestaocomercial.cubeti.com.br/ABITracker."""
     def log_task(msg, level="INFO"):
-        full_msg = f"[{client_name}] [SYNC CUBETI {'IMPUGN' if 'Impugnando' in target_status else 'FINAL'}] {msg}"
+        sync_label = 'IMPUGN' if target_status and 'Impugnando' in target_status else 'FINAL'
+        full_msg = f"[{client_name}] [SYNC CUBETI {sync_label}] {msg}"
         if task_id:
             db.add_log(task_id, full_msg, level)
         logger.info(full_msg)
