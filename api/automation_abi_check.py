@@ -139,7 +139,7 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
             btn_add = target_row.locator("button, a").filter(has_text=re.compile(r"^\+$")).first
             if await btn_add.count() == 0:
                 # Fallback mais abrangente
-                btn_add = target_row.locator("[title*='ontato'], .text-green-500, svg:has(path[d*='M12 5'])").first
+                btn_add = target_row.locator("[title*='Contato'], .text-green-500, svg:has(path[d*='M12 5'])").first
 
             if await btn_add.count() > 0:
                 await btn_add.click(force=True)

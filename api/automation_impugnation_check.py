@@ -128,7 +128,7 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None):
             btn_add = target_row.locator("button, a").filter(has_text=re.compile(r"^\+$")).first
             if await btn_add.count() == 0:
                 # Fallback idêntico ao robô de ABI Check (incluindo seletor de ícone SVG)
-                btn_add = target_row.locator("[title*='ontato'], .text-green-500, svg:has(path[d*='M12 5'])").first
+                btn_add = target_row.locator("[title*='Contato'], .text-green-500, svg:has(path[d*='M12 5'])").first
 
             if await btn_add.count() > 0:
                 await btn_add.click(force=True)
