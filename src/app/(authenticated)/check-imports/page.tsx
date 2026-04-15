@@ -431,7 +431,8 @@ export default function CheckImportsPage() {
       case "Importado e Analisado": return <CheckCircle2 className="text-green-500" size={16} />;
       case "Importado, falta analisar": return <AlertCircle className="text-orange-500" size={16} />;
       case "Falha": return <XCircle className="text-red-500" size={16} />;
-      case "Nao Importado": return <XCircle className="text-slate-400" size={16} />;
+      case "Nao Importado":
+      case "Não Importado": return <XCircle className="text-slate-400" size={16} />;
       case "Pendente": return <Loader2 className="text-amber-500 animate-spin" size={16} />;
       default: return <Activity className="text-slate-300" size={16} />;
     }
@@ -457,7 +458,7 @@ export default function CheckImportsPage() {
     if (filterStatus === "Finalizou") return matchesSearch && sIMP === "Finalizou";
     if (filterStatus === "Falta Analisar") return matchesSearch && sABI === "Importado, falta analisar";
     if (filterStatus === "Falhas") return matchesSearch && (sABI === "Falha" || sABI === "Falha na Análise");
-    if (filterStatus === "Não Import.") return matchesSearch && sABI === "Nao Importado";
+    if (filterStatus === "Não Import.") return matchesSearch && (sABI === "Nao Importado" || sABI === "Não Importado");
     
     return matchesSearch;
   });
@@ -606,10 +607,9 @@ export default function CheckImportsPage() {
             key={i} 
             onClick={() => setFilterStatus(filterStatus === stat.label ? null : stat.label)}
             className={cn(
-              "rounded-2xl bg-white border p-2 xl:p-3 flex items-center gap-2 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500 transition-all hover:scale-[1.03] active:scale-95 text-left",
-              filterStatus === stat.label ? "ring-2 ring-gax-blue border-gax-blue shadow-gax-blue/10" : "border-slate-200"
+              "rounded-2xl bg-white border p-2 xl:p-3 flex items-center gap-2 shadow-sm duration-500 transition-all hover:scale-[1.03] active:scale-95 text-left",
+              filterStatus === stat.label ? "border-gax-blue shadow-gax-blue/10" : "border-slate-200"
             )} 
-            style={{ animationDelay: `${i * 60}ms`, animationFillMode: 'both' }}
           >
             <div className={cn("flex h-7 w-7 xl:h-9 xl:w-9 items-center justify-center rounded-xl shrink-0 font-display", stat.color)}>
               {stat.icon}
@@ -620,9 +620,6 @@ export default function CheckImportsPage() {
               </p>
               <p className={cn("text-lg xl:text-xl font-black font-display tracking-tight", stat.text)}>{stat.value}</p>
             </div>
-            {filterStatus === stat.label && (
-              <div className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-gax-blue" />
-            )}
           </button>
         ))}
       </div>
@@ -654,8 +651,8 @@ export default function CheckImportsPage() {
                 <thead className="bg-slate-50/50 text-slate-400 font-bold uppercase tracking-widest text-[10px] border-b border-slate-100">
                   <tr>
                     <th className="px-5 py-3.5">Operadora</th>
-                    <th className="px-5 py-3.5">Última Checagem</th>
                     <th className="px-5 py-3.5">Status</th>
+                    <th className="px-5 py-3.5">Última Checagem</th>
                     <th className="px-5 py-3.5 text-right">Ação</th>
                   </tr>
                 </thead>
@@ -670,7 +667,7 @@ export default function CheckImportsPage() {
                       </td>
                     </tr>
                   ) : filteredClients.map((client, idx) => (
-                    <tr key={client.id} className="group hover:bg-gax-blue/[0.02] transition-colors animate-in fade-in duration-300" style={{ animationDelay: `${(idx % 10) * 30}ms` }}>
+                    <tr key={client.id} className="group hover:bg-gax-blue/[0.02] transition-colors">
                       <td className="px-5 py-3.5">
                         <div className="flex flex-col gap-1">
                           <span className="font-bold text-slate-800 text-sm font-display leading-tight">{client.name}</span>
@@ -681,18 +678,6 @@ export default function CheckImportsPage() {
                           ) : (
                             <span className="text-[10px] text-slate-300 font-medium italic">Sem grupo</span>
                           )}
-                        </div>
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <div className="flex flex-col">
-                           <span className="text-[11px] font-bold text-slate-600">
-                             {client.abi_last_check ? formatDistanceToNow(new Date(client.abi_last_check), { addSuffix: true, locale: ptBR }) : "-"}
-                           </span>
-                           {client.abi_last_check && (
-                             <span className="text-[9px] text-slate-400 font-medium">
-                               {new Date(client.abi_last_check).toLocaleDateString('pt-BR')} às {new Date(client.abi_last_check).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                             </span>
-                           )}
                         </div>
                       </td>
                       <td className="px-5 py-3.5">
@@ -707,14 +692,26 @@ export default function CheckImportsPage() {
                             client.abi_status === "Importado, falta analisar" ? "bg-orange-50 text-orange-700 border-orange-100" :
                             client.abi_status === "Importado" ? "bg-sky-50 text-sky-700 border-sky-100" :
                             client.abi_status === "Falha na Análise" || client.abi_status === "Falha" ? "bg-rose-50 text-rose-700 border-rose-100" :
-                            client.abi_status === "Nao Importado" ? "bg-slate-50 text-slate-500 border-slate-200" :
+                            client.abi_status === "Nao Importado" || client.abi_status === "Não Importado" ? "bg-slate-50 text-slate-500 border-slate-200" :
                             "bg-slate-100 text-slate-500 border-slate-200"
                           )}>
                             {client.impugnation_status === "Finalizou" ? "Finalizou o ABI" :
                              client.impugnation_status === "Impugnando" ? "Impugnando o ABI" : 
                              client.impugnation_status === "Não Iniciou" ? "Não iniciou Impugnação" :
-                             (client.abi_status || "Não Checado")}
+                             (client.abi_status === "Nao Importado" || client.abi_status === "Não Importado" ? "Não Importado" : (client.abi_status || "Não Checado"))}
                           </span>
+                        </div>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <div className="flex flex-col">
+                           <span className="text-[11px] font-bold text-slate-600">
+                             {client.abi_last_check ? formatDistanceToNow(new Date(client.abi_last_check), { addSuffix: true, locale: ptBR }) : "-"}
+                           </span>
+                           {client.abi_last_check && (
+                             <span className="text-[9px] text-slate-400 font-medium font-display">
+                               {new Date(client.abi_last_check).toLocaleDateString('pt-BR')} às {new Date(client.abi_last_check).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                             </span>
+                           )}
                         </div>
                       </td>
                       <td className="px-5 py-3.5 text-right">
