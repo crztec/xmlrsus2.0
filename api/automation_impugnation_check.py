@@ -557,8 +557,6 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
                             if match_count < r_count:
                                 match_count = r_count
                             break
-                    elif has_no:
-                        break
                         
                 # Tenta pegar contagem do rodapé se encontrou algo
                 if has_match:
