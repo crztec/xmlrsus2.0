@@ -568,7 +568,7 @@ export default function CheckImportsPage() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-7 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
         {[
           { label: "Importados", value: stats?.imported || 0, color: "bg-blue-50", text: "text-blue-700", icon: <FileSpreadsheet className="text-blue-500" /> },
           { label: "Importados e Analisados", value: stats?.imported_analyzed || 0, color: "bg-emerald-50", text: "text-emerald-700", icon: <ShieldCheck className="text-emerald-500" /> },
@@ -578,13 +578,15 @@ export default function CheckImportsPage() {
           { label: "Falhas na Análise", value: stats?.failure || 0, color: "bg-red-50", text: "text-red-700", icon: <XCircle className="text-red-500" /> },
           { label: "Não Importados", value: stats?.not_imported || 0, color: "bg-slate-100", text: "text-slate-600", icon: <FileX className="text-slate-400" /> },
         ].map((stat, i) => (
-          <div key={i} className="rounded-2xl bg-white border border-slate-200 p-5 flex items-center gap-4 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500" style={{ animationDelay: `${i * 60}ms`, animationFillMode: 'both' }}>
-            <div className={cn("flex h-10 w-10 items-center justify-center rounded-xl shrink-0", stat.color)}>
+          <div key={i} className="rounded-2xl bg-white border border-slate-200 p-3 2xl:p-4 flex items-center gap-2.5 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500" style={{ animationDelay: `${i * 60}ms`, animationFillMode: 'both' }}>
+            <div className={cn("flex h-8 w-8 2xl:h-10 2xl:w-10 items-center justify-center rounded-xl shrink-0 font-display", stat.color)}>
               {stat.icon}
             </div>
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{stat.label}</p>
-              <p className={cn("text-2xl font-bold text-slate-800", stat.text)}>{stat.value}</p>
+            <div className="min-w-0 flex-1">
+              <p className="text-[9px] 2xl:text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5 line-clamp-2 leading-tight" title={stat.label}>
+                {stat.label}
+              </p>
+              <p className={cn("text-xl 2xl:text-2xl font-black font-display font-bold tracking-tight", stat.text)}>{stat.value}</p>
             </div>
           </div>
         ))}
