@@ -134,20 +134,29 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
             else:
                 log_task("Dropdown de status não encontrado.", "WARNING")
         
-            # 4. REGISTRO DE CONTATOS (BOTÃO + VERDE)
-            log_task("Atualizando registro de contatos (botão + verde)...")
-            
-            # Re-localiza a operadora para evitar staling após mudar o status
-            target_row = page.locator("table tbody tr").filter(has_text=re.compile(re.escape(client_name), re.IGNORECASE)).first
+            # Seletores ultra-robustos que ancoram no link com o nome do cliente
+            # Tenta CSS robusto e XPath como fallback imediato
+            selectors = [
+                f"tr:has(a:has-text('{client_name}')) button[title='Registrar contato']",
+                f"//tr[.//a[contains(text(), '{client_name}')]]//button[@title='Registrar contato']",
+                f"tr:has-text('{client_name}') button[title='Registrar contato']"
+            ]
             
             btn_add = None
-            for _ in range(3):
-                btn_add = target_row.locator("button, a").filter(has_text=re.compile(r"^\+$")).first
-                if await btn_add.count() == 0:
-                    btn_add = target_row.locator("button[title='Registrar contato'], [title*='contato'], .text-green-500, svg:has(path[d*='M12 5'])").first
+            for sel in selectors:
+                try:
+                    btn_add = page.locator(sel).first
+                    if await btn_add.count() > 0:
+                        log_task(f"Botão '+' localizado via seletor: {sel}")
+                        break
+                except: continue
                 
-                if await btn_add.count() > 0:
-                    break
+            if not btn_add or await btn_add.count() == 0:
+                log_task("Busca secundária por botão '+' em andamento...", "WARNING")
+                btn_add = page.locator("button[title='Registrar contato']").filter(visible=True).first
+            
+            if await btn_add.count() > 0:
+                await btn_add.click(force=True)
                 await asyncio.sleep(2)
 
             if await btn_add.count() > 0:
