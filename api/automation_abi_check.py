@@ -97,63 +97,38 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
             elif status_gax in ["Importado e Analisado", "Falha na Análise", "Falha"]:
                 target_status = "Importou e Analisou"
                 
-            log_task(f"Atualizando status para '{target_status}'")
-            # Gatilho de status independe da coluna exata. Procura por botões/comboboxes na linha atual.
-            # Baseado na foto, é text "Não Iniciou", "Importou e Analisou", etc.
-            status_trigger = target_row.locator("button, [role='combobox'], .cursor-pointer, span.inline-flex, span[aria-haspopup='dialog']").filter(has_text=re.compile(r"Não iniciou|Importou|Impugnando|Impugnado|Finalizou|Agendou|Erro", re.IGNORECASE)).first
-            
-            if await status_trigger.count() > 0:
-                await status_trigger.scroll_into_view_if_needed()
-                # Dispara mousedown para componentes que dependem dele (Radix/Angular)
-                await status_trigger.dispatch_event("mousedown")
-                await status_trigger.click(force=True)
-                await asyncio.sleep(2)
-                
-                # Procura a opção pelo texto dinâmico (não mais fixo)
-                # target_status pode ser "Nao iniciou", "Importou o ABI", "Importou e Analisou"
-                # Usamos regex ignorando case e espaços para ser resiliente
-                option_regex = re.compile(f"^{target_status}$".replace(" ", ".*"), re.I)
-                option = page.locator("[role='menuitem'], [role='option'], .dropdown-item, button").filter(has_text=option_regex).first
-                
-                if await option.count() > 0:
-                    await option.click(force=True)
-                    log_task(f"Status '{target_status}' selecionado.")
-                    await asyncio.sleep(2)
-                else:
-                    # Fallback por texto exato se regex falhar
-                    log_task(f"Popover não detectado via regex '{target_status}', tentando fallback literal...", "WARNING")
-                    option_fallback = page.locator(f"button:has-text('{target_status}'), a:has-text('{target_status}')").filter(visible=True).first
-                    if await option_fallback.count() > 0:
-                        await option_fallback.click(force=True)
-                        log_task(f"Status '{target_status}' selecionado via fallback.")
-                    else:
-                        log_task("Menu de status não reconheceu a opção, tentando teclado...", "WARNING")
-                        await page.keyboard.press("ArrowDown")
-                        await asyncio.sleep(1)
-                        await page.keyboard.press("Enter")
-            else:
-                log_task("Dropdown de status não encontrado.", "WARNING")
-        
-            # Seletores ultra-robustos que ancoram no link com o nome do cliente
-            # Tenta CSS robusto e XPath como fallback imediato
-            selectors = [
-                f"tr:has(a:has-text('{client_name}')) button[title='Registrar contato']",
-                f"//tr[.//a[contains(text(), '{client_name}')]]//button[@title='Registrar contato']",
-                f"tr:has-text('{client_name}') button[title='Registrar contato']"
+            # Seletores ultra-robustos para o botão + (Lida com variações de DOM no CubeTI)
+            possible_btn_selectors = [
+                "button[title*='Registrar']",
+                "a[title*='Registrar']",
+                "button[data-original-title*='Registrar']",
+                "a[data-original-title*='Registrar']",
+                "a.btn-success i.fa-plus",
+                "button.btn-success i.fa-plus",
+                ".btn-success"
             ]
             
             btn_add = None
-            for sel in selectors:
+            for btn_sel in possible_btn_selectors:
                 try:
+                    # Primeiro tenta restringir à linha do cliente
+                    sel = f"tr:has-text('{client_name}') {btn_sel}"
                     btn_add = page.locator(sel).first
-                    if await btn_add.count() > 0:
-                        log_task(f"Botão '+' localizado via seletor: {sel}")
+                    if await btn_add.count() > 0 and await btn_add.is_visible():
+                        log_task(f"Botão '+' localizado via seletor específico: {sel}")
                         break
-                except: continue
-                
-            if not btn_add or await btn_add.count() == 0:
+                except: pass
+
+            if not btn_add or await btn_add.count() == 0 or not await btn_add.is_visible():
                 log_task("Busca secundária por botão '+' em andamento...", "WARNING")
-                btn_add = page.locator("button[title='Registrar contato']").filter(visible=True).first
+                # Fallback genérico na página inteira
+                for btn_sel in possible_btn_selectors:
+                    try:
+                        btn_add = page.locator(btn_sel).filter(visible=True).first
+                        if await btn_add.count() > 0:
+                            log_task(f"Botão '+' encontrado no fallback via: {btn_sel}", "WARNING")
+                            break
+                    except: pass
             
 
             if btn_add and await btn_add.count() > 0:
@@ -181,6 +156,44 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
                 log_task("Registro de contato processado.")
             else:
                 log_task("Botão '+' não encontrado.", "WARNING")
+
+            if target_status:
+                log_task(f"Atualizando status para '{target_status}'")
+                # Gatilho de status independe da coluna exata. Procura por botões/comboboxes na linha atual.
+                # Baseado na foto, é text "Não Iniciou", "Importou e Analisou", etc.
+                status_trigger = target_row.locator("button, [role='combobox'], .cursor-pointer, span.inline-flex, span[aria-haspopup='dialog']").filter(has_text=re.compile(r"Não iniciou|Importou|Impugnando|Impugnado|Finalizou|Agendou|Erro", re.IGNORECASE)).first
+                
+                if await status_trigger.count() > 0:
+                    await status_trigger.scroll_into_view_if_needed()
+                    # Dispara mousedown para componentes que dependem dele (Radix/Angular)
+                    await status_trigger.dispatch_event("mousedown")
+                    await status_trigger.click(force=True)
+                    await asyncio.sleep(2)
+                    
+                    # Procura a opção pelo texto dinâmico (não mais fixo)
+                    # target_status pode ser "Nao iniciou", "Importou o ABI", "Importou e Analisou"
+                    # Usamos regex ignorando case e espaços para ser resiliente
+                    option_regex = re.compile(f"^{target_status}$".replace(" ", ".*"), re.I)
+                    option = page.locator("[role='menuitem'], [role='option'], .dropdown-item, button").filter(has_text=option_regex).first
+                    
+                    if await option.count() > 0:
+                        await option.click(force=True)
+                        log_task(f"Status '{target_status}' selecionado.")
+                        await asyncio.sleep(2)
+                    else:
+                        # Fallback por texto exato se regex falhar
+                        log_task(f"Popover não detectado via regex '{target_status}', tentando fallback literal...", "WARNING")
+                        option_fallback = page.locator(f"button:has-text('{target_status}'), a:has-text('{target_status}')").filter(visible=True).first
+                        if await option_fallback.count() > 0:
+                            await option_fallback.click(force=True)
+                            log_task(f"Status '{target_status}' selecionado via fallback.")
+                        else:
+                            log_task("Menu de status não reconheceu a opção, tentando teclado...", "WARNING")
+                            await page.keyboard.press("ArrowDown")
+                            await asyncio.sleep(1)
+                            await page.keyboard.press("Enter")
+                else:
+                    log_task("Dropdown de status não encontrado.", "WARNING")
 
             await browser.close()
             return True
