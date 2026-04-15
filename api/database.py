@@ -1563,6 +1563,7 @@ def get_impugnation_dashboard_stats():
             'impugnating': 0,
             'no_impugnation': 0,
             'finalized': 0,
+            'not_started': 0,
             'not_checked': 0,
             'errors': 0
         }
@@ -1572,7 +1573,7 @@ def get_impugnation_dashboard_stats():
             imp_status = c.get('impugnation_status', '')
             
             # Conta clientes que já analisaram ou estão em processo de impugnação
-            if abi_status == 'Importado e Analisado' or imp_status in ['Impugnando', 'Finalizou']:
+            if abi_status == 'Importado e Analisado' or imp_status in ['Impugnando', 'Finalizou', 'Não Iniciou']:
                 stats['total_eligible'] += 1
                 
                 if imp_status == 'Impugnando':
@@ -1581,6 +1582,8 @@ def get_impugnation_dashboard_stats():
                     stats['finalized'] += 1
                 elif imp_status == 'Sem Impugnação':
                     stats['no_impugnation'] += 1
+                elif imp_status == 'Não Iniciou':
+                    stats['not_started'] += 1
                 elif imp_status == 'Erro':
                     stats['errors'] += 1
                 else:

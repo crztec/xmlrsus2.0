@@ -87,40 +87,43 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
                 
             log_task("Operadora localizada!")
             
-            # Selecionar status no dropdown do CubeTI
-            log_task(f"Atualizando status para '{target_status}'")
-            
-            status_trigger = target_row.locator("button, [role='combobox'], .cursor-pointer, span.inline-flex, span[aria-haspopup='dialog']").filter(
-                has_text=re.compile(r"Não iniciou|Importou|Impugnando|Impugnado|Finalizou|Agendou|Erro|Analisou", re.IGNORECASE)
-            ).first
-            
-            if await status_trigger.count() > 0:
-                await status_trigger.scroll_into_view_if_needed()
-                await status_trigger.dispatch_event("mousedown")
-                await status_trigger.click(force=True)
-                await asyncio.sleep(2)
+            # Selecionar status no dropdown do CubeTI (pula se target_status for None)
+            if target_status:
+                log_task(f"Atualizando status para '{target_status}'")
                 
-                option_regex = re.compile(r"Impugnando.*ABI", re.I)
-                option = page.locator("[role='menuitem'], [role='option'], .dropdown-item, button").filter(has_text=option_regex).first
+                status_trigger = target_row.locator("button, [role='combobox'], .cursor-pointer, span.inline-flex, span[aria-haspopup='dialog']").filter(
+                    has_text=re.compile(r"Não iniciou|Importou|Impugnando|Impugnado|Finalizou|Agendou|Erro|Analisou", re.IGNORECASE)
+                ).first
                 
-                if await option.count() > 0:
-                    await option.click(force=True)
-                    log_task(f"Status '{target_status}' selecionado.")
+                if await status_trigger.count() > 0:
+                    await status_trigger.scroll_into_view_if_needed()
+                    await status_trigger.dispatch_event("mousedown")
+                    await status_trigger.click(force=True)
                     await asyncio.sleep(2)
-                else:
-                    # Fallback por texto visível
-                    log_task(f"Popover não detectado via regex, tentando fallback literal...", "WARNING")
-                    option_fallback = page.locator(f"button:has-text('{target_status}'), a:has-text('{target_status}')").filter(visible=True).first
-                    if await option_fallback.count() > 0:
-                        await option_fallback.click(force=True)
-                        log_task(f"Status '{target_status}' selecionado via fallback.")
+                    
+                    option_regex = re.compile(re.escape(target_status), re.I)
+                    option = page.locator("[role='menuitem'], [role='option'], .dropdown-item, button").filter(has_text=option_regex).first
+                    
+                    if await option.count() > 0:
+                        await option.click(force=True)
+                        log_task(f"Status '{target_status}' selecionado.")
+                        await asyncio.sleep(2)
                     else:
-                        log_task("Menu de status não reconheceu a opção, tentando teclado...", "WARNING")
-                        await page.keyboard.press("ArrowDown")
-                        await asyncio.sleep(1)
-                        await page.keyboard.press("Enter")
+                        # Fallback por texto visível
+                        log_task(f"Popover não detectado via regex, tentando fallback literal...", "WARNING")
+                        option_fallback = page.locator(f"button:has-text('{target_status}'), a:has-text('{target_status}')").filter(visible=True).first
+                        if await option_fallback.count() > 0:
+                            await option_fallback.click(force=True)
+                            log_task(f"Status '{target_status}' selecionado via fallback.")
+                        else:
+                            log_task("Menu de status não reconheceu a opção, tentando teclado...", "WARNING")
+                            await page.keyboard.press("ArrowDown")
+                            await asyncio.sleep(1)
+                            await page.keyboard.press("Enter")
+                else:
+                    log_task("Dropdown de status não encontrado.", "WARNING")
             else:
-                log_task("Dropdown de status não encontrado.", "WARNING")
+                log_task("Status mantido (sem alteração no dropdown).")
         
             log_task(f"Registrando contato: '{contact_message}'...")
             
@@ -196,10 +199,13 @@ async def run_impugnation_check_for_client(client_id, task_id=None, pre_fetched_
             await _sync_impugnation_to_cubeti(client_name, task_id, target_status="Impugnando o ABI", contact_message="Cliente impugnando o ABI")
         elif status == "Finalizou":
             await _sync_impugnation_to_cubeti(client_name, task_id, target_status="Finalizou o ABI", contact_message="Cliente Finalizou o ABI")
+        elif status == "Não Iniciou":
+            # Mantém status "Importou e Analisou" no dropdown, só preenche contato
+            await _sync_impugnation_to_cubeti(client_name, task_id, target_status=None, contact_message="Cliente ainda não iniciou Impugnação")
         
         # Alerta WhatsApp individual
         if not is_batch_run:
-            emoji_map = {"Impugnando": "⚖️", "Finalizou": "🏁", "Sem Impugnação": "✅"}
+            emoji_map = {"Impugnando": "⚖️", "Finalizou": "🏁", "Sem Impugnação": "✅", "Não Iniciou": "⏳"}
             emoji = emoji_map.get(status, "ℹ️")
             msg = (
                 f"{emoji} *GAX RSUS - Checagem de Impugnações*\n\n"
@@ -665,10 +671,10 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
                 if browser: await browser.close()
                 return "Impugnando", f"{impugnation_count} impugnações detectadas, {aguardando_count} aguardando."
             elif not has_impugnation and has_aguardando:
-                # Sem impugnações mas com aguardando → Impugnando (ainda vai impugnar)
-                log_task(f"⏳ AGUARDANDO IMPUGNAÇÃO! {aguardando_count} atendimentos aguardando.", "SUCCESS")
+                # Sem impugnações feitas, mas com aguardando → Não iniciou
+                log_task(f"⏳ NÃO INICIOU IMPUGNAÇÃO! {aguardando_count} atendimentos aguardando.", "SUCCESS")
                 if browser: await browser.close()
-                return "Impugnando", f"{aguardando_count} atendimentos aguardando impugnação."
+                return "Não Iniciou", f"Cliente ainda não iniciou impugnação. {aguardando_count} atendimentos aguardando."
             else:
                 # Sem impugnação e sem aguardando
                 log_task("Nenhuma impugnação e nenhum aguardando encontrado.", "SUCCESS")
@@ -718,6 +724,7 @@ async def run_batch_impugnation_check(task_id, client_ids=None):
         impugnating = 0
         finalized = 0
         sem_impugnacao = 0
+        nao_iniciou = 0
         erros = 0
 
         for i, client in enumerate(clients):
@@ -742,17 +749,20 @@ async def run_batch_impugnation_check(task_id, client_ids=None):
                 finalized += 1
             elif status == "Sem Impugnação":
                 sem_impugnacao += 1
+            elif status == "Não Iniciou":
+                nao_iniciou += 1
             else:
                 erros += 1
 
         db.update_task(task_id, {"status": "completed", "current_client": "Finalizado"})
-        db.add_log(task_id, f"Checagem de impugnações finalizada. Impugnando: {impugnating} | Finalizou: {finalized} | Sem impugnação: {sem_impugnacao} | Erros: {erros}")
+        db.add_log(task_id, f"Checagem de impugnações finalizada. Impugnando: {impugnating} | Finalizou: {finalized} | Não iniciou: {nao_iniciou} | Sem impugnação: {sem_impugnacao} | Erros: {erros}")
         
         msg = (
             f"⚖️ *GAX RSUS - Relatório de Impugnações*\n\n"
             f"Processamento finalizado!\n"
             f"⚖️ Impugnando: {impugnating}\n"
             f"🏁 Finalizou: {finalized}\n"
+            f"⏳ Não iniciou: {nao_iniciou}\n"
             f"✅ Sem impugnação: {sem_impugnacao}\n"
             f"❌ Erros: {erros}"
         )
