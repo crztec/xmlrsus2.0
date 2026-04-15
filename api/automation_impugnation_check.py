@@ -160,7 +160,7 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
                     await status_trigger.click(force=True)
                     await asyncio.sleep(2)
                     
-                    option_regex = re.compile(re.escape(target_status), re.I)
+                    option_regex = re.compile(rf"^\s*{re.escape(target_status)}\s*$", re.I)
                     option = page.locator("button, a, li, [role='menuitem'], [role='option'], .dropdown-item").filter(has_text=option_regex).filter(visible=True).first
                     
                     if await option.count() > 0:

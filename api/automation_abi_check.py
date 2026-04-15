@@ -171,9 +171,8 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
                     await asyncio.sleep(2)
                     
                     # Procura a opção pelo texto dinâmico (não mais fixo)
-                    # target_status pode ser "Nao iniciou", "Importou o ABI", "Importou e Analisou"
-                    # Usamos regex ignorando case e espaços para ser resiliente
-                    option_regex = re.compile(f"^{target_status}$".replace(" ", ".*"), re.I)
+                    # Usamos regex com bordas (ignorando espaços laterais) para ser resiliente e não clicar em texto perdido na tela
+                    option_regex = re.compile(rf"^\s*{re.escape(target_status)}\s*$", re.I)
                     option = page.locator("button, a, li, [role='menuitem'], [role='option'], .dropdown-item").filter(has_text=option_regex).filter(visible=True).first
                     
                     if await option.count() > 0:
