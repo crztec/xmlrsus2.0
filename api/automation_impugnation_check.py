@@ -207,7 +207,11 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
 async def run_impugnation_check_for_client(client_id, task_id=None, pre_fetched_creds=None, is_batch_run=False):
     """Checa impugnações para um único cliente no RSUS."""
     client = db.get_client_config(client_id)
-    client_name = client.get('name', client_id) if client else client_id
+    if not client: return "Erro", "Cliente não encontrado"
+    client_name = client.get('name', client_id)
+    
+    # Resgata status atual para saber se houve mudança
+    old_status = client.get('impugnation_status')
 
     active_abi_doc = db.get_active_abi()
     active_abi = active_abi_doc.get('ABI', 'Desconhecido') if active_abi_doc else 'Desconhecido'
@@ -218,14 +222,20 @@ async def run_impugnation_check_for_client(client_id, task_id=None, pre_fetched_
         # Salva o status de impugnação no cliente
         db.update_client_impugnation_status(client_id, status, message, task_id)
         
-        # Sincroniza com Cubeti conforme o status
-        if status == "Impugnando":
-            await _sync_impugnation_to_cubeti(client_name, task_id, target_status="Impugnando o ABI", contact_message="Cliente impugnando o ABI")
-        elif status == "Finalizou":
-            await _sync_impugnation_to_cubeti(client_name, task_id, target_status="Finalizou o ABI", contact_message="Cliente Finalizou o ABI")
-        elif status == "Não Iniciou":
-            # Altera status para refletir o estagio atual de Não Iniciou
-            await _sync_impugnation_to_cubeti(client_name, task_id, target_status="Importou, Analisou e Não Iniciou", contact_message="Cliente ainda não iniciou Impugnação")
+        # Sincroniza com Cubeti APENAS SE o status mudou ou se for a primeira vez
+        if status != old_status:
+            if status == "Impugnando":
+                await _sync_impugnation_to_cubeti(client_name, task_id, target_status="Impugnando o ABI", contact_message="Cliente impugnando o ABI")
+            elif status == "Finalizou":
+                await _sync_impugnation_to_cubeti(client_name, task_id, target_status="Finalizou o ABI", contact_message="Cliente Finalizou o ABI")
+            elif status == "Não Iniciou":
+                await _sync_impugnation_to_cubeti(client_name, task_id, target_status="Importou, Analisou e Não Iniciou", contact_message="Cliente ainda não iniciou Impugnação")
+            
+            if task_id:
+                db.add_log(task_id, f"[{client_name}] Status alterado de '{old_status}' para '{status}'. Sincronização CubeTI realizada.")
+        else:
+            if task_id:
+                db.add_log(task_id, f"[{client_name}] Status mantido como '{status}'. Sincronização CubeTI pulada.")
         
         # Alerta WhatsApp individual
         if not is_batch_run:
@@ -677,10 +687,10 @@ async def run_batch_impugnation_check(task_id, client_ids=None):
         if client_ids:
             clients = [c for c in all_clients if c['id'] in client_ids]
         else:
+            # Seleciona TODAS que estão como 'Importado e Analisado' (os 39 que o usuário mencionou)
             clients = [
                 c for c in all_clients 
-                if c.get('abi_status') == 'Importado e Analisado' 
-                and c.get('impugnation_status') not in ['Finalizou', 'Impugnando']
+                if c.get('abi_status') == 'Importado e Analisado'
             ]
         
         total = len(clients)
