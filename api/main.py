@@ -100,31 +100,53 @@ app.add_middleware(
 # ── CLOUD RUN JOB TRIGGER ────────────────────────────────────────────────────
 def trigger_cloud_run_job(task_id: str):
     """
-    Dispara o Cloud Run Job 'gax-worker-job' passando o TASK_ID via env override.
-    O Job executa api/worker.py de forma isolada, zerando CPU ociosa no servidor.
+    Dispara o Cloud Run Job usando a API REST direta (mais estável que o SDK).
     """
+    import requests
+    import google.auth
+    import google.auth.transport.requests
+
     try:
-        from google.cloud import run_v2
         project = os.environ.get("GCP_PROJECT", "xmlrsus")
         region  = os.environ.get("GCP_REGION", "us-central1")
-        job_name = f"projects/{project}/locations/{region}/jobs/gax-worker-job"
+        
+        # 1. Obtém as credenciais e o token de autenticação interno do Google
+        creds, _ = google.auth.default()
+        auth_req = google.auth.transport.requests.Request()
+        creds.refresh(auth_req)
 
-        client = run_v2.JobsClient(client_options={"api_endpoint": f"{region}-run.googleapis.com"})
-        request = run_v2.RunJobRequest(
-            name=job_name,
-            overrides=run_v2.RunJobRequest.Overrides(
-                container_overrides=[
-                    run_v2.RunJobRequest.Overrides.ContainerOverride(
-                        env=[run_v2.EnvVar(name="TASK_ID", value=task_id)]
-                    )
+        # 2. Define o URL regional exato da API do Google
+        url = f"https://{region}-run.googleapis.com/v2/projects/{project}/locations/{region}/jobs/gax-worker-job:run"
+        
+        headers = {
+            "Authorization": f"Bearer {creds.token}",
+            "Content-Type": "application/json"
+        }
+        
+        # 3. Define o override do TASK_ID no corpo da requisição
+        data = {
+            "overrides": {
+                "containerOverrides": [
+                    {
+                        "env": [
+                            {"name": "TASK_ID", "value": task_id}
+                        ]
+                    }
                 ]
-            )
-        )
-        operation = client.run_job(request=request)
-        logger.info(f"[TRIGGER] Job disparado para task_id={task_id}. Operation: {operation.operation.name}")
+            }
+        }
+
+        # 4. Faz o disparo
+        response = requests.post(url, headers=headers, json=data, timeout=30)
+        
+        if response.status_code == 200:
+            logger.info(f"[TRIGGER] Job disparado com sucesso via REST para task_id={task_id}")
+        else:
+            logger.error(f"[TRIGGER] Erro ao disparar Job via REST ({response.status_code}): {response.text}")
+            raise Exception(f"Erro {response.status_code}: {response.text}")
+
     except Exception as e:
-        logger.error(f"[TRIGGER] Falha ao disparar Cloud Run Job para task_id={task_id}: {e}")
-        # Marca a task como falha para que o frontend possa reagir
+        logger.error(f"[TRIGGER] Falha crítica no disparo: {e}")
         db.update_task(task_id, {"status": "failed", "last_log": f"Falha ao enfileirar o job: {str(e)[:120]}"})
         raise HTTPException(status_code=500, detail=f"Erro ao enfileirar o job: {str(e)[:120]}")
 
