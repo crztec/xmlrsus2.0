@@ -5,57 +5,51 @@ O **GAX** é uma plataforma robusta de monitoramento e automação para o ecossi
 ## 🚀 Principais Funcionalidades
 
 ### 1. Monitoramento de APIs RSUS
-- **Dashboards em Tempo Real**: Visualize o status "Online/Offline" de diversos portais de clientes (CASSEMS, FSFX, etc).
+- **Dashboards em Tempo Real**: Visualize o status "Online/Offline" de diversos portais de clientes.
 - **Robô de Verificação (API Check)**: Automação baseada em Playwright que realiza login end-to-end e navegação profunda para validar a saúde da conexão.
-- **Resiliência Avançada**: Implementação de técnicas como "Triple Jump" (salto de navegação direta) e execução *frame-aware* para superar instabilidades nos portais governamentais.
+- **Resiliência Avançada**: Técnicas como "Triple Jump" e execução *frame-aware* para superar instabilidades.
 
 ### 2. Automação de Importação XML
-- Processamento automático de arquivos XML para o portal RSUS.
-- Sincronização de dados ABI e Atendimentos.
+- Processamento automático e em massa de arquivos XML para o portal RSUS.
+- Sincronização inteligente de dados ABI e Atendimentos.
+- **Pre-check de Duplicidade**: Evita o re-upload de ABIs já processadas.
 
-### 3. Console Técnico
-- Logs detalhados e em tempo real exibidos diretamente no dashboard.
-- Diferenciação inteligente de status: Identifique se uma falha é de navegação (Erro) ou indisponibilidade real do portal (Offline).
+### 3. Console Técnico & Auditoria
+- Logs detalhados em tempo real diretamente no dashboard.
+- **Audit Logs**: Registro completo de todas as ações administrativas para conformidade e segurança.
 
-### 4. Configuração e Segurança
-- Gestão centralizada de credenciais RSUS por cliente.
-- Integração nativa com auditoria de logs de acesso.
+### 4. Segurança Zero Trust (JWT)
+- **Autenticação Robusta**: Integração com Firebase Auth (E-mail/Senha e Google).
+- **Autorização Granular**: Middleware `require_admin` no backend que valida tokens JWT e permissões de administrador.
+- **Persistence Fallback**: O `apiClient` sincroniza tokens entre o SDK do Firebase e o `localStorage` para garantir persistência total da sessão.
 
 ## 🛠️ Tecnologias Utilizadas
 
 ### Frontend
 - **Framework**: [Next.js 15+](https://nextjs.org/) (App Router)
+- **Comunicação**: `apiClient.ts` (Wrapper autenticado para chamadas backend)
 - **Linguagem**: [TypeScript](https://www.typescriptlang.org/)
-- **Estilização**: [Tailwind CSS](https://tailwindcss.com/)
-- **Componentes**: [Lucide React](https://lucide.dev/) para iconografia.
-- **Estado/Dados**: [Firebase SDK](https://firebase.google.com/docs/web/setup)
+- **Estilização**: Modern Vanilla CSS & Tailwind.
 
 ### Backend & Automação
 - **API**: [FastAPI](https://fastapi.tiangolo.com/) (Python)
-- **Engine de Automação**: [Playwright](https://playwright.dev/python/) (Modo Async)
-- **Banco de Dados**: [Google Cloud Firestore](https://firebase.google.com/docs/firestore) NoSQL.
-- **Infraestrutura**: [Google Cloud Run](https://cloud.google.com/run) & [Cloud Build](https://cloud.google.com/build).
+- **Performance**: `TTLCache` para caching de autorização e otimização de consultas Firestore.
+- **Engine**: [Playwright](https://playwright.dev/python/) (Modo Operação Assíncrona).
+- **Banco de Dados**: Google Cloud Firestore.
+
+## 📐 Regras de Roteamento (Importante!)
+
+O projeto utiliza uma arquitetura de proxy via Next.js:
+1. Todas as chamadas do frontend usam o prefixo `/api/` (Ex: `apiClient("/api/clients")`).
+2. O Next.js (`next.config.ts`) **remove** o prefixo `/api/` ao encaminhar para o Python.
+3. **Regra de Ouro**: No `main.py`, os decorators **NUNCA** devem usar o prefixo `/api/`. Use apenas `@app.get("/clients")`.
 
 ## 📦 Estrutura do Projeto
 
-- `/api`: Servidor backend FastAPI e lógica de automação dos robôs.
-- `/src`: Frontend Next.js organizado por componentes e rotas autenticadas.
-- `/scripts`: Utilitários de diagnóstico, auditoria e limpeza de tarefas.
+- `/api`: Servidor backend FastAPI e lógica de automação.
+- `/src`: Frontend Next.js (Componentes, Hooks e Libs).
+- `/src/lib/apiClient.ts`: Ponto central de comunicação autenticada.
 - `/public`: Ativos estáticos e recursos visuais.
-
-## 🛠️ Configuração de Desenvolvimento
-
-1. **Frontend**:
-   ```bash
-   npm install
-   npm run dev
-   ```
-
-2. **Backend**:
-   ```bash
-   pip install -r api/requirements.txt
-   uvicorn api.main:app --reload
-   ```
 
 ---
 *GAX - Automação inteligente para o Ressarcimento ao SUS.*
