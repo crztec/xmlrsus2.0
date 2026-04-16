@@ -192,6 +192,7 @@ const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
                 </div>
                 <input
                   id="email"
+                  name="email"
                   type="email"
                   placeholder="seu.email@exemplo.com"
                   className="w-full rounded-2xl border border-slate-200/60 bg-slate-50/50 py-4 pl-12 pr-4 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-300 focus:border-gax-blue focus:bg-white focus:ring-4 focus:ring-gax-blue/10 font-medium"
@@ -221,6 +222,7 @@ const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
                 </div>
                 <input
                   id="password"
+                  name="password"
                   type="password"
                   placeholder="••••••••••••"
                   className="w-full rounded-2xl border border-slate-200/60 bg-slate-50/50 py-4 pl-12 pr-4 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-300 focus:border-gax-blue focus:bg-white focus:ring-4 focus:ring-gax-blue/10 font-medium"
