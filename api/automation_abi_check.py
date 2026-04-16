@@ -220,12 +220,21 @@ async def run_abi_check_for_client(client_id, task_id=None, pre_fetched_creds=No
     active_abi_doc = db.get_active_abi()
     active_abi = active_abi_doc.get('ABI', 'Desconhecido') if active_abi_doc else 'Desconhecido'
 
+    # Resgata status atual para saber se houve mudança real
+    old_status = client.get('abi_status')
+
     try:
         status, message, snap_url = await _run_abi_check_logic(client_id, active_abi, task_id, pre_fetched_creds)
         db.update_client_abi_status(client_id, active_abi, status, message, task_id, is_batch=is_batch_run)
         
-        # Sincroniza status final com Gestaocomercial Cubeti
-        await sync_to_cubeti_management(client_name, status, message, task_id)
+        # Sincroniza status final com Gestaocomercial Cubeti APENAS SE mudou
+        if status != old_status:
+            await sync_to_cubeti_management(client_name, status, message, task_id)
+            if task_id:
+                db.add_log(task_id, f"[{client_name}] ABI status alterado de '{old_status}' para '{status}'. Sincronizando CubeTI...")
+        else:
+            if task_id:
+                db.add_log(task_id, f"[{client_name}] ABI status mantido como '{status}'. Sincronização CubeTI pulada.")
         
         # Alerta individual de WhatsApp se não for lote
         if not is_batch_run:
