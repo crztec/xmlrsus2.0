@@ -359,7 +359,7 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
             log_task("Credenciais obtidas. Abrindo navegador...")
             browser = await p.chromium.launch(headless=True, args=browser_args)
             update_progress(15)
-            log_task("Navegador aberto com sucesso.")
+            log_task("Navegador aberto com sucesso.", "DEBUG")
 
             usuario = creds['username']
             senha = creds['password']
@@ -428,7 +428,7 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                             break
                 
                 await email_field.wait_for(state="visible", timeout=25000)
-                log_task("Preenchendo credenciais...")
+                log_task("Preenchendo credenciais...", "DEBUG")
                 
                 await email_field.click(force=True)
                 await email_field.type(usuario, delay=40)
@@ -453,7 +453,7 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
 
                 # Estabilização pós-login
                 update_progress(45)
-                log_task("Aguardando carregamento da interface...")
+                log_task("Aguardando carregamento da interface...", "DEBUG")
                 try:
                     await page.wait_for_selector(".navbar, .main-sidebar, .content-header, #wrapper", timeout=60000)
                 except:
@@ -477,12 +477,12 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
 
             # 2. Navegação para Importações
             update_progress(60)
-            log_task("Navegando para 'Importações'...")
+            log_task("Navegando para 'Importações'...", "DEBUG")
             base_url = url_sistema.split('/Account')[0] if '/Account' in url_sistema else url_sistema.rsplit('/', 1)[0]
             import_url = f"{base_url.rstrip('/')}/importacao"
             await page.goto(import_url, wait_until="domcontentloaded", timeout=45000)
             
-            log_task(f"Buscando ABI {active_abi} na grid...")
+            log_task(f"Buscando ABI {active_abi} na grid...", "DEBUG")
             # Aguarda a table carregar e o texto do ABI aparecer em qualquer célula (ajuda no loading assíncrono)
             try:
                 # O abi_clean já foi definido no início da função
@@ -534,12 +534,12 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                 if browser: await browser.close()
                 return "Falha", "Cancelado", None
 
-            log_task("ABI Importado. Abrindo menu de ações...")
+            log_task("ABI Importado. Abrindo menu de ações...", "DEBUG")
             hamburger = target_row.locator("td").last.locator("button, a, .fa-bars").first
             await hamburger.click(force=True)
             await asyncio.sleep(1.5)
             
-            log_task("Clicando em 'Logs Análise'...")
+            log_task("Clicando em 'Logs Análise'...", "DEBUG")
             logs_btn = page.locator(".dropdown-menu a:has-text('Logs Análise'), a:has-text('Logs Análise')").first
             
             # Verifica se o botão existe e é visível rapidamente
@@ -552,7 +552,7 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                 if browser: await browser.close()
                 return "Importado", "Cliente não realiza análise.", None
             
-            log_task("Aguardando carregamento da tabela de logs...")
+            log_task("Aguardando carregamento da tabela de logs...", "DEBUG")
             try:
                 # Aguarda a tabela ter pelo menos uma linha
                 await page.wait_for_selector("table tbody tr", timeout=45000)
@@ -603,7 +603,7 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                             # Aguarda o modal abrir (identificado por 'Detalhes' ou 'ATENDIMENTOS')
                             try:
                                 await page.wait_for_selector(".modal-content:has-text('Detalhes'), .modal-content:has-text('ATENDIMENTOS')", state="visible", timeout=12000)
-                                log_task("Modal de Detalhes aberto com sucesso.")
+                                log_task("Modal de Detalhes aberto com sucesso.", "DEBUG")
                             except:
                                 # Se o clique abriu um dropdown em vez do modal direto, clica em Detalhes
                                 item_detalhe = page.locator("a:has-text('Detalhes'), .dropdown-menu :text('Detalhes')").filter(visible=True).first

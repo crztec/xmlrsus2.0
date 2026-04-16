@@ -467,7 +467,16 @@ def update_task(task_id, data):
     firestore_db.collection('tasks').document(task_id).set(data, merge=True)
 
 def add_log(task_id, message, level="INFO"):
-    """Adiciona um log a uma tarefa e atualiza o log resumido."""
+    """Adiciona um log a uma tarefa e atualiza o log resumido.
+    
+    Níveis aceitos no Firestore: INFO, SUCCESS, WARNING, ERROR.
+    DEBUG: apenas impresso no terminal (Cloud Logging), não persiste no banco.
+    """
+    # ── DEBUG: sem escrita no Firestore ─────────────────────────────────────
+    if level.upper() == "DEBUG":
+        logger.info(f"[DEBUG Task {task_id}] {message}")
+        return True
+    # ────────────────────────────────────────────────────────────────────────
     try:
         now = get_now_br()
         timestamp = now.strftime("%H:%M:%S")
@@ -496,6 +505,7 @@ def add_log(task_id, message, level="INFO"):
     except Exception as e:
         logger.error(f"Erro ao adicionar log à tarefa {task_id}: {e}")
         return False
+
 
 def get_task_logs(task_id, client_filter=None):
     """Recupera todos os logs de uma tarefa específica, com filtro opcional por cliente."""

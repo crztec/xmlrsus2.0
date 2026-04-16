@@ -411,7 +411,7 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
                     return "Erro", "Cancelado."
 
                 update_progress(40)
-                log_task("Aguardando carregamento pós-login...")
+                log_task("Aguardando carregamento pós-login...", "DEBUG")
                 try:
                     await page.wait_for_selector(".navbar, .main-sidebar, .content-header, #wrapper", timeout=60000)
                 except:
@@ -430,12 +430,12 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
 
             # ─── 2. NAVEGAÇÃO PARA IMPORTAÇÕES → ABI ATUAL ───
             update_progress(50)
-            log_task("Navegando para Importações...")
+            log_task("Navegando para Importações...", "DEBUG")
             base_url = url_sistema.split('/Account')[0] if '/Account' in url_sistema else url_sistema.rsplit('/', 1)[0]
             import_url = f"{base_url.rstrip('/')}/importacao"
             await page.goto(import_url, wait_until="domcontentloaded", timeout=45000)
             
-            log_task(f"Buscando ABI {active_abi} na grid...")
+            log_task(f"Buscando ABI {active_abi} na grid...", "DEBUG")
             try:
                 await page.wait_for_selector(f"table td:has-text('{active_abi}'), table td:has-text('{abi_clean}')", timeout=35000)
             except: pass
@@ -478,12 +478,12 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
 
             # ─── 3. ABRIR ATENDIMENTOS ───
             update_progress(60)
-            log_task("ABI Importado. Abrindo menu de ações...")
+            log_task("ABI Importado. Abrindo menu de ações...", "DEBUG")
             hamburger = target_row.locator("td").last.locator("button, a, .fa-bars").first
             await hamburger.click(force=True)
             await asyncio.sleep(1.5)
             
-            log_task("Clicando em 'Atendimentos'...")
+            log_task("Clicando em 'Atendimentos'...", "DEBUG")
             atend_btn = page.locator(".dropdown-menu a:has-text('Atendimentos'), a:has-text('Atendimentos'), a[title='Atendimentos']").first
             try:
                 await atend_btn.wait_for(state="visible", timeout=7000)
@@ -493,7 +493,7 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
                 if browser: await browser.close()
                 return "Erro", "Link Atendimentos não encontrado."
             
-            log_task("Aguardando carregamento da tela de Atendimentos...")
+            log_task("Aguardando carregamento da tela de Atendimentos...", "DEBUG")
             await asyncio.sleep(4)
             
             # Aguarda a grid de atendimentos carregar
@@ -509,7 +509,7 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
 
             # ─── 4. BUSCAR "IMPUGNADO" NO CAMPO DE PESQUISA ───
             update_progress(75)
-            log_task("Buscando campo de pesquisa para filtrar 'Impugnado'...")
+            log_task("Buscando campo de pesquisa para filtrar 'Impugnado'...", "DEBUG")
             
             # O campo de pesquisa fica no canto superior direito da grid de atendimentos
             search_field = None
@@ -550,7 +550,7 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
             # ─── 5. DEFINIR FUNÇÃO DE PESQUISA NA GRID ───
             async def search_grid(term, target_keywords):
                 if not search_field: return False, 0
-                log_task(f"Pesquisando por '{term}' na grid...")
+                log_task(f"Pesquisando por '{term}' na grid...", "DEBUG")
                 await search_field.fill("")
                 await search_field.fill(term)
                 await asyncio.sleep(0.5)
