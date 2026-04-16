@@ -367,6 +367,15 @@ def get_clients_paginated(page=1, limit=10, search=""):
                 abi_last_check = abi_last_check.isoformat()
             else:
                 abi_last_check = None
+                
+            # Formatação de data robusta para impugnation_last_check
+            impugnation_last_check = data.get('impugnation_last_check')
+            if hasattr(impugnation_last_check, 'isoformat'):
+                impugnation_last_check = impugnation_last_check.isoformat()
+            elif isinstance(impugnation_last_check, datetime):
+                impugnation_last_check = impugnation_last_check.isoformat()
+            else:
+                impugnation_last_check = None
 
             clients.append({
                 'id': doc.id,
@@ -391,6 +400,7 @@ def get_clients_paginated(page=1, limit=10, search=""):
                 'group_name': data.get('group_name'),
                 'ultima_importacao': abi_last_check, # Adiciona compatibilidade com o front
                 'impugnation_status': data.get('impugnation_status', ''),
+                'impugnation_last_check': impugnation_last_check,
                 'impugnation_last_message': data.get('impugnation_last_message', ''),
                 'impugnation_last_task_id': data.get('impugnation_last_task_id', ''),
             })
