@@ -9,3 +9,4 @@ playwright
 openpyxl
 defusedxml
 cachetools
+google-cloud-run

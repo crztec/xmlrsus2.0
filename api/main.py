@@ -23,7 +23,7 @@ from email.mime.text import MIMEText
 from typing import List, Optional
 from urllib.parse import urlparse
 
-from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from playwright.async_api import async_playwright
@@ -96,6 +96,37 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+# ── CLOUD RUN JOB TRIGGER ────────────────────────────────────────────────────
+def trigger_cloud_run_job(task_id: str):
+    """
+    Dispara o Cloud Run Job 'gax-worker-job' passando o TASK_ID via env override.
+    O Job executa api/worker.py de forma isolada, zerando CPU ociosa no servidor.
+    """
+    try:
+        from google.cloud import run_v2
+        project = os.environ.get("GCP_PROJECT", "xmlrsus")
+        region  = os.environ.get("GCP_REGION", "us-central1")
+        job_name = f"projects/{project}/locations/{region}/jobs/gax-worker-job"
+
+        client = run_v2.JobsClient()
+        request = run_v2.RunJobRequest(
+            name=job_name,
+            overrides=run_v2.RunJobRequest.Overrides(
+                container_overrides=[
+                    run_v2.RunJobRequest.Overrides.ContainerOverride(
+                        env=[run_v2.EnvVar(name="TASK_ID", value=task_id)]
+                    )
+                ]
+            )
+        )
+        operation = client.run_job(request=request)
+        logger.info(f"[TRIGGER] Job disparado para task_id={task_id}. Operation: {operation.operation.name}")
+    except Exception as e:
+        logger.error(f"[TRIGGER] Falha ao disparar Cloud Run Job para task_id={task_id}: {e}")
+        # Marca a task como falha para que o frontend possa reagir
+        db.update_task(task_id, {"status": "failed", "last_log": f"Falha ao enfileirar o job: {str(e)[:120]}"})
+        raise HTTPException(status_code=500, detail=f"Erro ao enfileirar o job: {str(e)[:120]}")
 
 # @app.middleware("http")
 # async def log_requests(request, call_next):
@@ -443,11 +474,10 @@ async def cancel_task(task_id: str, user = Depends(require_admin)):
     return {"status": "success"}
 
 @app.post("/check-integrations")
-async def check_integrations(background_tasks: BackgroundTasks, user = Depends(require_admin)):
-    """Dispara a automação de checagem em lote em background."""
-    import api.automation_api_check as auto_check
+async def check_integrations(user = Depends(require_admin)):
+    """Dispara a automação de checagem em lote via Cloud Run Job."""
     task_id = db.create_task("api_check_batch", "Checagem de APIs em Lote")
-    background_tasks.add_task(auto_check.run_batch_api_check, task_id)
+    trigger_cloud_run_job(task_id)
     return {"status": "pending", "task_id": task_id}
 
 # --- ABI CHECK ENDPOINTS ---
@@ -566,10 +596,8 @@ async def get_abi_dashboard_stats(user = Depends(require_admin)):
     return db.get_abi_dashboard_stats()
 
 @app.post("/start-abi-check")
-async def start_abi_check(request: ABICheckRequest, background_tasks: BackgroundTasks, user = Depends(require_admin)):
-    """Inicia a checagem de ABIs (lote ou individual)."""
-    import api.automation_abi_check as abi_auto
-    
+async def start_abi_check(request: ABICheckRequest, user = Depends(require_admin)):
+    """Inicia a checagem de ABIs (lote ou individual) via Cloud Run Job."""
     active_abi = db.get_active_abi()
     if not active_abi:
         raise HTTPException(status_code=400, detail="Nenhuma ABI ativa identificada. Faça upload do cronograma (.xlsx) antes de checar.")
@@ -580,22 +608,20 @@ async def start_abi_check(request: ABICheckRequest, background_tasks: Background
     
     if client_id:
         task_id = db.create_task("abi_check_single", f"Checagem ABI {abi_label}: {client_id}")
-        background_tasks.add_task(abi_auto.run_single_abi_check, client_id, task_id)
+        db.update_task(task_id, {"client_id": client_id})
     elif client_ids:
         task_id = db.create_task("abi_check_batch", f"Checagem ABI {abi_label} (Parcial: {len(client_ids)} operadoras)")
-        background_tasks.add_task(abi_auto.run_batch_abi_check, task_id, client_ids)
+        db.update_task(task_id, {"client_ids": client_ids})
     else:
         task_id = db.create_task("abi_check_batch", f"Checagem ABI {abi_label} em Lote")
-        background_tasks.add_task(abi_auto.run_batch_abi_check, task_id)
-        
+
+    trigger_cloud_run_job(task_id)
     return {"status": "pending", "task_id": task_id}
 
 # --- IMPUGNATION CHECK ENDPOINTS ---
 @app.post("/start-impugnation-check")
-async def start_impugnation_check(request: ABICheckRequest, background_tasks: BackgroundTasks, user = Depends(require_admin)):
-    """Inicia a checagem de impugnações (lote ou individual)."""
-    import api.automation_impugnation_check as imp_auto
-    
+async def start_impugnation_check(request: ABICheckRequest, user = Depends(require_admin)):
+    """Inicia a checagem de impugnações (lote ou individual) via Cloud Run Job."""
     active_abi = db.get_active_abi()
     if not active_abi:
         raise HTTPException(status_code=400, detail="Nenhuma ABI ativa identificada.")
@@ -606,14 +632,14 @@ async def start_impugnation_check(request: ABICheckRequest, background_tasks: Ba
     
     if client_id:
         task_id = db.create_task("impugnation_check_single", f"Checagem Impugnação {abi_label}: {client_id}")
-        background_tasks.add_task(imp_auto.run_single_impugnation_check, client_id, task_id)
+        db.update_task(task_id, {"client_id": client_id})
     elif client_ids:
         task_id = db.create_task("impugnation_check_batch", f"Checagem Impugnação {abi_label} (Parcial: {len(client_ids)} operadoras)")
-        background_tasks.add_task(imp_auto.run_batch_impugnation_check, task_id, client_ids)
+        db.update_task(task_id, {"client_ids": client_ids})
     else:
         task_id = db.create_task("impugnation_check_batch", f"Checagem Impugnação {abi_label} em Lote")
-        background_tasks.add_task(imp_auto.run_batch_impugnation_check, task_id)
-        
+
+    trigger_cloud_run_job(task_id)
     return {"status": "pending", "task_id": task_id}
 
 @app.get("/impugnation-dashboard-stats")
@@ -1790,16 +1816,21 @@ class BatchCheckRequest(BaseModel):
     client_ids: Optional[List[str]] = None
 
 @app.post("/check-integrations")
-async def route_run_batch_api_check(request: BatchCheckRequest, background_tasks: BackgroundTasks, user = Depends(require_admin)):
+async def route_run_batch_api_check(request: BatchCheckRequest, user = Depends(require_admin)):
+    """Dispara checagem de APIs em lote via Cloud Run Job."""
     desc = "Checagem geral de APIs RSUS" if not request.client_ids else f"Checagem parcial ({len(request.client_ids)} clientes)"
     task_id = db.create_task(task_type="batch_api_check", description=desc)
-    background_tasks.add_task(run_batch_api_check, task_id, request.client_ids)
+    if request.client_ids:
+        db.update_task(task_id, {"client_ids": request.client_ids})
+    trigger_cloud_run_job(task_id)
     return {"status": "success", "task_id": task_id}
 
 @app.post("/check-integration/{client_id}")
-async def route_run_single_api_check(client_id: str, background_tasks: BackgroundTasks, user = Depends(require_admin)):
+async def route_run_single_api_check(client_id: str, user = Depends(require_admin)):
+    """Dispara checagem de API individual via Cloud Run Job."""
     task_id = db.create_task(task_type="single_api_check", description=f"Checagem individual: {client_id}", razao_social=client_id)
-    background_tasks.add_task(run_single_api_check, client_id, task_id)
+    db.update_task(task_id, {"client_id": client_id})
+    trigger_cloud_run_job(task_id)
     return {"status": "success", "task_id": task_id}
 
 # --- RSUS SETTINGS ENDPOINTS ---
@@ -1868,7 +1899,8 @@ async def pre_check_duplicates(files: List[UploadFile] = File(...)):
         return {"duplicates": [], "error": str(e), "client_exists": False}
 
 @app.post("/upload")
-async def upload_xmls(background_tasks: BackgroundTasks, files: List[UploadFile] = File(...), url_sistema: Optional[str] = Form(None), usuario: Optional[str] = Form(None), senha: Optional[str] = Form(None), gax_user_email: str = Form("Admin/Sistema"), force: bool = Form(False)):
+async def upload_xmls(files: List[UploadFile] = File(...), url_sistema: Optional[str] = Form(None), usuario: Optional[str] = Form(None), senha: Optional[str] = Form(None), gax_user_email: str = Form("Admin/Sistema"), force: bool = Form(False)):
+    """Recebe XMLs, persiste no Firestore/Storage e dispara processamento via Cloud Run Job."""
     if not files: return {"error": "Nenhum arquivo enviado."}
     arquivos_upload_data = []
     for file in files:
@@ -1887,6 +1919,8 @@ async def upload_xmls(background_tasks: BackgroundTasks, files: List[UploadFile]
     if not usuario or not senha: return {"error": "Credenciais RSUS não encontradas."}
     if not db.get_last_url_for_client(razao_social): db.save_client_config(razao_social, url_sistema)
     task_id = db.create_task(task_type="xml_import", url_sistema=url_sistema, usuario=usuario, senha=senha, razao_social=razao_social)
+    # Persiste force e url_sistema para que o worker.py possa ler do Firestore
+    db.update_task(task_id, {"force": force, "url_sistema": url_sistema})
     files_info = []
     for filename, content in arquivos_upload_data:
         storage_path = db.upload_xml_to_storage(task_id, filename, content)
@@ -1898,7 +1932,7 @@ async def upload_xmls(background_tasks: BackgroundTasks, files: List[UploadFile]
             files_info.append(row)
     db.add_files_to_task_bulk(task_id, files_info)
     db.update_task_total_files(task_id, len(files_info))
-    background_tasks.add_task(background_worker_task, task_id, url_sistema, force)
+    trigger_cloud_run_job(task_id)
     db.add_audit_log(gax_user_email, "Upload e Importação", f"Iniciou a fila de importação para '{razao_social}'", "INFO")
     return {"message": "Arquivos recebidos.", "task_id": task_id, "razao_social": razao_social, "total_files": len(files_info), "status": "Iniciado"}
 
