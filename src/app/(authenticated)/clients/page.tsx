@@ -198,7 +198,7 @@ export default function ClientsPage() {
     setIsEditModalOpen(true);
   };
 
-  const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSave = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!editingClient) return;
 

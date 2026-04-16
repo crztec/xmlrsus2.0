@@ -29,7 +29,7 @@ export default function LoginPage() {
   const [resetStatus, setResetStatus] = useState<{ type: 'success' | 'error', msg: string } | null>(null);
   const [isResetting, setIsResetting] = useState(false);
 
-  const handleResetPassword = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleResetPassword = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsResetting(true);
     setResetStatus(null);
@@ -55,7 +55,7 @@ export default function LoginPage() {
     }
   };
 
-const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
+const handleLogin = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
     setError("");

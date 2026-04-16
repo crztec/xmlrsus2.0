@@ -84,7 +84,7 @@ export default function GroupsPage() {
     setIsModalOpen(true);
   };
 
-  const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSave = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!groupName.trim()) return;
 

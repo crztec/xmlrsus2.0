@@ -70,7 +70,7 @@ export default function UsersPage() {
     }
   };
 
-  const handleUpdateUser = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleUpdateUser = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!selectedUser) return;
     setIsUpdating(true);
