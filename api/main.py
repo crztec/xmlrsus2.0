@@ -104,10 +104,15 @@ app.add_middleware(
 #     return response
 
 from fastapi.responses import JSONResponse
-
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
+    # Se for um erro HTTP intencional (ex: 401 Login Inválido, 400 Regra Violada, 404 N/A)
+    if isinstance(exc, (HTTPException, StarletteHTTPException)):
+        # Retorna a mensagem original inalterada para o Frontend parser ler
+        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
     import traceback
     error_msg = traceback.format_exc()
     logging.error(f"CRITICAL ERROR on {request.url}: {error_msg}")
