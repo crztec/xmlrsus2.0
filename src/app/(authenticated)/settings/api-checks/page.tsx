@@ -152,7 +152,7 @@ export default function ApiChecksPage() {
         } catch (err) {
           console.error("Erro polling status API:", err);
         }
-      }, 2000);
+      }, 10000);
     }
     return () => clearInterval(interval);
   }, [activeTaskId, showLogs, viewingTaskId]);
@@ -161,7 +161,7 @@ export default function ApiChecksPage() {
     if (showLogs && (activeTaskId || viewingTaskId)) {
       const targetId = viewingTaskId || activeTaskId;
       if (!targetId) return;
-      const logInterval = setInterval(() => fetchTaskLogs(targetId), 3000);
+      const logInterval = setInterval(() => fetchTaskLogs(targetId), 10000);
       return () => clearInterval(logInterval);
     }
   }, [showLogs, activeTaskId, viewingTaskId]);

@@ -100,7 +100,7 @@ export default function DashboardPage() {
         } catch (e) {
           console.error("Erro polling", e);
         }
-      }, 3000);
+      }, 10000);
     }
     return () => clearInterval(interval);
   }, [activeTaskId]);

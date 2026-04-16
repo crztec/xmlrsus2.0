@@ -232,7 +232,7 @@ export default function CheckImportsPage() {
         } catch (err) {
           console.error("Erro polling status:", err);
         }
-      }, 2000);
+      }, 10000);
     }
     return () => clearInterval(interval);
   }, [activeTaskId]);
