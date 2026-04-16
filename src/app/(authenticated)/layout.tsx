@@ -13,6 +13,7 @@ export default function AuthenticatedLayout({
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [userInfo, setUserInfo] = useState({ name: "", email: "" });
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -49,9 +50,22 @@ export default function AuthenticatedLayout({
   }
 
   return (
-    <div className="flex bg-white relative">
-      <Sidebar onOpenProfile={() => setIsProfileOpen(true)} />
-      <MainLayout>
+    <div className="flex bg-white relative overflow-hidden">
+      {/* Mobile Overlay */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 md:hidden animate-in fade-in duration-300" 
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
+      <Sidebar 
+        onOpenProfile={() => setIsProfileOpen(true)} 
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
+      />
+      
+      <MainLayout onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}>
         {children}
       </MainLayout>
       

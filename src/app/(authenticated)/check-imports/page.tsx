@@ -470,7 +470,7 @@ export default function CheckImportsPage() {
       
       {/* Actions Toolbar (Real-time Status Bar) */}
       <div className={cn(
-        "rounded-2xl border bg-white px-5 py-3 flex items-center justify-between gap-4 shadow-sm transition-all",
+        "rounded-2xl border bg-white px-5 py-3 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm transition-all",
         activeTaskId ? "border-gax-blue/30 bg-gax-blue/[0.02]" : "border-slate-200"
       )}>
         {activeTaskId ? (
@@ -525,17 +525,17 @@ export default function CheckImportsPage() {
               <ShieldCheck size={14} className="text-emerald-500" />
               <span className="text-xs font-medium text-slate-500">Sistema pronto para nova checagem</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 overflow-x-auto w-full pb-2 hide-scrollbar whitespace-nowrap">
               <button 
                 onClick={fetchData}
-                className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 transition-colors"
+                className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 transition-colors shrink-0"
                 title="Atualizar"
               >
                 <RefreshCw size={14} />
               </button>
               <button 
                 onClick={handleViewGlobalLog}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-white transition-all font-display"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-white transition-all font-display shrink-0"
               >
                 <Terminal size={12} />
                 Histórico ABI
@@ -554,7 +554,7 @@ export default function CheckImportsPage() {
                     setDetailedLogs(logsData?.length > 0 ? logsData : [{ timestamp: "", message: "Nenhum histórico de impugnações encontrado.", level: "INFO" }]);
                   } catch (err) { console.error(err); } finally { setIsLoadingLogs(false); }
                 }}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-yellow-100 transition-all font-display"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-yellow-100 transition-all font-display shrink-0"
               >
                 <History size={12} />
                 Histórico Impugn.
@@ -562,12 +562,12 @@ export default function CheckImportsPage() {
               <button 
                 onClick={handleRunFailedChecks}
                 disabled={!!activeTaskId}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-white transition-all disabled:opacity-40 font-display"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-white transition-all disabled:opacity-40 font-display shrink-0"
               >
                 <RotateCcw size={12} />
                 Re-testar Falhas
               </button>
-              <label className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-white transition-all cursor-pointer font-display">
+              <label className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-white transition-all cursor-pointer font-display shrink-0">
                 <CloudUpload size={12} />
                 {isUploading ? "..." : "Cronograma"}
                 <input type="file" className="hidden" accept=".xlsx,.xls" onChange={handleUpload} />
@@ -575,7 +575,7 @@ export default function CheckImportsPage() {
               <button 
                 onClick={() => startImpugnationCheck()}
                 disabled={!!activeTaskId}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-200 text-amber-700 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-amber-100 transition-all disabled:opacity-40 font-display shadow-sm"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-200 text-amber-700 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-amber-100 transition-all disabled:opacity-40 font-display shadow-sm shrink-0"
               >
                 <Scale size={12} />
                 Checar Impugnações
@@ -583,7 +583,7 @@ export default function CheckImportsPage() {
               <button 
                 onClick={() => startCheck()}
                 disabled={!!activeTaskId}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-gax-blue text-white rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-gax-blue-hover transition-all shadow-md shadow-gax-blue/20 disabled:opacity-40 font-display"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-gax-blue text-white rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-gax-blue-hover transition-all shadow-md shadow-gax-blue/20 disabled:opacity-40 font-display shrink-0"
               >
                 <Play size={12} className={activeTaskId ? 'animate-pulse' : ''} />
                 Executar Lote
@@ -650,7 +650,7 @@ export default function CheckImportsPage() {
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50/50 text-slate-400 font-bold uppercase tracking-widest text-[10px] border-b border-slate-100">
+                <thead className="bg-slate-50/50 text-slate-400 font-bold uppercase tracking-widest text-[10px] border-b border-slate-100 whitespace-nowrap">
                   <tr>
                     <th className="px-5 py-3.5">Operadora</th>
                     <th className="px-5 py-3.5">Status</th>
@@ -670,7 +670,7 @@ export default function CheckImportsPage() {
                     </tr>
                   ) : filteredClients.map((client, idx) => (
                     <tr key={client.id} className="group hover:bg-gax-blue/[0.02] transition-colors">
-                      <td className="px-5 py-3.5">
+                      <td className="px-5 py-3.5 whitespace-nowrap">
                         <div className="flex flex-col gap-1">
                           <span className="font-bold text-slate-800 text-sm font-display leading-tight">{client.name}</span>
                           {(client as any).group_name ? (
@@ -704,7 +704,7 @@ export default function CheckImportsPage() {
                           </span>
                         </div>
                       </td>
-                      <td className="px-5 py-3.5">
+                      <td className="px-5 py-3.5 whitespace-nowrap">
                         <div className="flex flex-col">
                            {(() => {
                              const lastCheck = [client.abi_last_check, (client as any).impugnation_last_check]

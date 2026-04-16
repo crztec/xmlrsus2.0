@@ -150,7 +150,7 @@ const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
   return (
     <div className="flex min-h-screen bg-slate-50 font-sans text-slate-900">
       {/* Lado Esquerdo: Formulário de Login */}
-      <div className="relative flex w-full flex-col justify-center px-8 sm:px-16 lg:w-[45%] bg-white shadow-2xl z-10 border-r border-slate-200/50">
+      <div className="relative flex w-full flex-col justify-center px-6 sm:px-16 lg:w-[45%] bg-white shadow-2xl z-10 lg:border-r border-slate-200/50">
         {/* Subtle Decorative Background for Login Side */}
         <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, #0f172a 1px, transparent 0)', backgroundSize: '32px 32px' }}></div>
         

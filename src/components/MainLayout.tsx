@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 
 interface MainLayoutProps {
   children: React.ReactNode;
+  onToggleSidebar?: () => void;
 }
 
 import { 
@@ -22,7 +23,8 @@ import {
   ScrollText, 
   Lock,
   LayoutDashboard,
-  LayoutGrid
+  LayoutGrid,
+  Menu
 } from "lucide-react";
 
 interface PageMeta {
@@ -114,7 +116,7 @@ const PAGE_METADATA: Record<string, PageMeta> = {
   }
 };
 
-export default function MainLayout({ children }: MainLayoutProps) {
+export default function MainLayout({ children, onToggleSidebar }: MainLayoutProps) {
   const pathname = usePathname();
   const [dynamicMetadata, setDynamicMetadata] = React.useState<Record<string, PageMeta>>({});
 
@@ -167,16 +169,24 @@ export default function MainLayout({ children }: MainLayoutProps) {
   return (
     <div className="flex h-screen flex-1 flex-col overflow-hidden bg-slate-50">
       {/* Dynamic Header */}
-      <header className="flex h-20 items-center justify-between border-b border-slate-200/60 bg-white/50 backdrop-blur-md px-8 sticky top-0 z-20">
-        <div className="flex items-center gap-4">
+      <header className="flex h-20 items-center justify-between border-b border-slate-200/60 bg-white/50 backdrop-blur-md px-4 md:px-8 sticky top-0 z-20">
+        <div className="flex items-center gap-3 md:gap-4">
+          {/* Burger Button - Mobile Only */}
+          <button 
+            onClick={onToggleSidebar}
+            className="flex h-10 w-10 items-center justify-center rounded-xl bg-white border border-slate-200 md:hidden text-slate-600 active:scale-95 transition-all shadow-sm"
+          >
+            <Menu size={20} />
+          </button>
+
           {metadata.icon && (
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-sm border border-slate-100 flex-shrink-0">
+            <div className="flex h-10 w-10 md:h-12 md:w-12 items-center justify-center rounded-xl md:rounded-2xl bg-white shadow-sm border border-slate-100 flex-shrink-0">
               {metadata.icon}
             </div>
           )}
           <div className="flex flex-col">
-            <h1 className="text-xl font-display font-bold tracking-tight text-slate-900 leading-tight">{metadata.title}</h1>
-            <p className="text-[13px] font-medium text-slate-400">{metadata.subtitle}</p>
+            <h1 className="text-lg md:text-xl font-display font-bold tracking-tight text-slate-900 leading-tight">{metadata.title}</h1>
+            <p className="text-[11px] md:text-[13px] font-medium text-slate-400 line-clamp-1">{metadata.subtitle}</p>
           </div>
         </div>
 
@@ -184,7 +194,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 overflow-y-auto p-8">
+      <main className="flex-1 overflow-y-auto p-4 md:p-8">
         <div className="mx-auto max-w-7xl">
           {children}
         </div>

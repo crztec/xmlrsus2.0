@@ -108,9 +108,11 @@ const DEFAULT_CONFIG_SUB = [
 
 interface SidebarProps {
   onOpenProfile: () => void;
+  isOpen: boolean;
+  onClose: () => void;
 }
 
-export default function Sidebar({ onOpenProfile }: SidebarProps) {
+export default function Sidebar({ onOpenProfile, isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
   const [isAdmin, setIsAdmin] = React.useState(false);
   const [importMenuOpen, setImportMenuOpen] = useState(true);
@@ -256,7 +258,11 @@ export default function Sidebar({ onOpenProfile }: SidebarProps) {
   }, [fetchMenuConfig]);
 
   return (
-    <aside className="flex h-screen w-64 flex-col border-r border-slate-200/60 bg-white/80 backdrop-blur-xl">
+    <aside className={cn(
+      "flex h-screen w-64 flex-col border-r border-slate-200/60 bg-white/80 backdrop-blur-xl transition-transform duration-300 ease-in-out z-50",
+      "fixed inset-y-0 left-0 md:relative md:translate-x-0",
+      isOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"
+    )}>
       {/* Header Sidebar */}
       <div className="flex h-16 items-center border-b border-slate-100/50 px-6">
         <div className="flex items-center gap-2 overflow-hidden w-full">
