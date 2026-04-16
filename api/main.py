@@ -28,6 +28,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from playwright.async_api import async_playwright
 from cachetools import TTLCache, cached
+from firebase_admin import firestore
 
 import api.auth as auth
 import api.database as db
@@ -1735,6 +1736,184 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
             'error_message': friendly_gen_err,
             'updated_at': db.get_now_br().strftime("%Y-%m-%d %H:%M:%S")
         })
+
+# --- USER PROFILE ENDPOINTS ---
+@app.get("/profile")
+async def route_get_profile(email: str):
+    profile = db.get_user_profile(email)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Perfil não encontrado.")
+    return profile
+
+@app.post("/profile/request-code")
+async def route_request_verification_code(email: str = Form(...), action_type: str = Form(...)):
+    """Gera e envia um código de 6 dígitos para o e-mail do usuário."""
+    import secrets
+    code = secrets.randbelow(900000) + 100000
+    if db.save_verification_code(email, code, action_type):
+        from api.email_utils import send_verification_email # Usando utilitário centralizado
+        send_verification_email(email, code, action_type)
+        return {"status": "success", "message": "Código enviado para seu e-mail."}
+    raise HTTPException(status_code=500, detail="Erro ao gerar código de verificação.")
+
+@app.post("/profile/update")
+async def route_update_profile(
+    current_email: str = Form(...),
+    first_name: str = Form(...),
+    last_name: str = Form(...),
+    new_email: Optional[str] = Form(None),
+    new_password: Optional[str] = Form(None),
+    current_password: Optional[str] = Form(None),
+    code: Optional[str] = Form(None)
+):
+    """Atualiza dados do perfil no Firebase e Firestore."""
+    is_changing_email = new_email and new_email != current_email
+    if is_changing_email:
+        if not code:
+            raise HTTPException(status_code=400, detail="O código de verificação é obrigatório para alterar o e-mail.")
+        if not db.verify_code(current_email, code, 'email_change'):
+            raise HTTPException(status_code=400, detail="Código inválido ou expirado.")
+
+    is_changing_password = new_password and len(str(new_password).strip()) > 0
+    if is_changing_password:
+        if not current_password:
+            raise HTTPException(status_code=400, detail="A senha atual é obrigatória.")
+        try:
+            auth.sign_in_with_email_and_password(current_email, current_password)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Senha atual incorreta.")
+
+    try:
+        if is_changing_email or is_changing_password:
+            auth.update_user_credentials(current_email, new_email, new_password)
+        success = db.update_user_profile(current_email, new_email or current_email, first_name, last_name)
+        if success:
+            return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    raise HTTPException(status_code=500, detail="Erro ao atualizar perfil.")
+
+# --- API MONITORING ENDPOINTS ---
+class BatchCheckRequest(BaseModel):
+    client_ids: Optional[List[str]] = None
+
+@app.post("/check-integrations")
+async def route_run_batch_api_check(request: BatchCheckRequest, background_tasks: BackgroundTasks, user = Depends(require_admin)):
+    desc = "Checagem geral de APIs RSUS" if not request.client_ids else f"Checagem parcial ({len(request.client_ids)} clientes)"
+    task_id = db.create_task(task_type="batch_api_check", description=desc)
+    background_tasks.add_task(run_batch_api_check, task_id, request.client_ids)
+    return {"status": "success", "task_id": task_id}
+
+@app.post("/check-integration/{client_id}")
+async def route_run_single_api_check(client_id: str, background_tasks: BackgroundTasks, user = Depends(require_admin)):
+    task_id = db.create_task(task_type="single_api_check", description=f"Checagem individual: {client_id}", razao_social=client_id)
+    background_tasks.add_task(run_single_api_check, client_id, task_id)
+    return {"status": "success", "task_id": task_id}
+
+# --- RSUS SETTINGS ENDPOINTS ---
+@app.get("/settings/rsus-credentials")
+async def route_get_rsus_credentials(type: str = "general", user = Depends(require_admin)):
+    creds = db.get_rsus_credentials(type)
+    return creds or {"username": "", "password": ""}
+
+@app.post("/settings/rsus-credentials")
+async def route_save_rsus_credentials(type: str = Form(...), username: str = Form(...), password: str = Form(...), user = Depends(require_admin)):
+    if db.save_rsus_credentials(type, username, password):
+        return {"status": "success"}
+    raise HTTPException(status_code=500, detail="Erro ao salvar credenciais")
+
+# --- MENU CONFIGURATION ENDPOINTS ---
+@app.get("/menu-config")
+async def route_get_menu_config():
+    return db.get_menu_config()
+
+@app.post("/menu-config")
+async def route_save_menu_config(config: dict, user = Depends(require_admin)):
+    success, error_msg = db.save_menu_config_detailed(config)
+    if success: return {"status": "success"}
+    raise HTTPException(status_code=500, detail=error_msg)
+
+@app.post("/menu-config/set-default")
+async def route_set_menu_default(config: dict, user = Depends(require_admin)):
+    if db.save_menu_default(config): return {"status": "success"}
+    raise HTTPException(status_code=500, detail="Erro ao salvar padrão.")
+
+@app.post("/menu-config/restore-default")
+async def route_restore_menu_default(user = Depends(require_admin)):
+    if db.restore_menu_default(): return {"status": "success"}
+    raise HTTPException(status_code=500, detail="Erro ao restaurar.")
+
+# --- ADDITIONAL CORE ENDPOINTS ---
+
+@app.post("/pre-check")
+async def pre_check_duplicates(files: List[UploadFile] = File(...)):
+    if not files: return {"duplicates": []}
+    arquivos_upload_data = []
+    for file in files:
+        content = await file.read()
+        arquivos_upload_data.append((file.filename, content))
+    try:
+        extracted = parser.extrair_dados_xml(arquivos_upload_data)
+        if extracted.empty: return {"duplicates": [], "client_exists": False, "razao_social": ""}
+        razao_social = parser.extract_razao_social(arquivos_upload_data[0][1])
+        url_sistema = db.get_last_url_for_client(razao_social)
+        duplicates = []
+        for _, row in extracted.iterrows():
+            abi = str(row.get('Número ABI', row.get('numero_abi', '')))
+            if db.check_abi_already_imported(razao_social.strip(), abi):
+                duplicates.append(abi)
+        return {"duplicates": duplicates, "razao_social": razao_social, "client_exists": bool(url_sistema), "url_sistema": url_sistema}
+    except Exception as e:
+        logger.error(f"Erro no pre-check: {e}")
+        return {"duplicates": [], "error": str(e), "client_exists": False}
+
+@app.post("/upload")
+async def upload_xmls(background_tasks: BackgroundTasks, files: List[UploadFile] = File(...), url_sistema: Optional[str] = Form(None), usuario: Optional[str] = Form(None), senha: Optional[str] = Form(None), gax_user_email: str = Form("Admin/Sistema"), force: bool = Form(False)):
+    if not files: return {"error": "Nenhum arquivo enviado."}
+    arquivos_upload_data = []
+    for file in files:
+        content = await file.read()
+        if len(content) > 5 * 1024 * 1024: return {"error": f"Arquivo {file.filename} excede 5MB."}
+        arquivos_upload_data.append((file.filename, content))
+    razao_social = parser.extract_razao_social(arquivos_upload_data[0][1])
+    if not razao_social: return {"error": "Razão Social não identificada."}
+    if not url_sistema: url_sistema = db.get_last_url_for_client(razao_social)
+    if not usuario or not senha:
+        cred_type = "unimed_vitoria" if "vitoria" in url_sistema.lower() else "general"
+        stored = db.get_rsus_credentials(cred_type)
+        if stored:
+            usuario = stored.get('username', usuario)
+            senha = stored.get('password', senha)
+    if not usuario or not senha: return {"error": "Credenciais RSUS não encontradas."}
+    if not db.get_last_url_for_client(razao_social): db.save_client_config(razao_social, url_sistema)
+    task_id = db.create_task(task_type="xml_import", url_sistema=url_sistema, usuario=usuario, senha=senha, razao_social=razao_social)
+    files_info = []
+    for filename, content in arquivos_upload_data:
+        storage_path = db.upload_xml_to_storage(task_id, filename, content)
+        extracted = parser.extrair_dados_xml([(filename, content)])
+        if not extracted.empty:
+            row = extracted.iloc[0].to_dict()
+            row['storage_path'] = storage_path
+            row['razao_social'] = razao_social
+            files_info.append(row)
+    db.add_files_to_task_bulk(task_id, files_info)
+    db.update_task_total_files(task_id, len(files_info))
+    background_tasks.add_task(background_worker_task, task_id, url_sistema, force)
+    db.add_audit_log(gax_user_email, "Upload e Importação", f"Iniciou a fila de importação para '{razao_social}'", "INFO")
+    return {"message": "Arquivos recebidos.", "task_id": task_id, "razao_social": razao_social, "total_files": len(files_info), "status": "Iniciado"}
+
+@app.get("/audit")
+async def route_get_audit_logs(user = Depends(require_admin)):
+    db.auto_delete_old_audit_logs()
+    return {"status": "success", "logs": db.get_audit_logs(limit=1000)}
+
+@app.delete("/audit")
+async def route_clear_audit_logs(user = Depends(require_admin)):
+    success, count = db.clear_audit_logs()
+    if success:
+        db.add_audit_log("Admin/Sistema", "Limpar Logs de Auditoria", f"{count} registros excluídos.", "WARNING")
+        return {"status": "success", "message": f"{count} logs deletados."}
+    raise HTTPException(status_code=500, detail="Erro ao deletar auditoria")
 
 if __name__ == "__main__":
     import uvicorn
