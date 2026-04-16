@@ -111,7 +111,7 @@ def trigger_cloud_run_job(task_id: str):
         region  = os.environ.get("GCP_REGION", "us-central1")
         
         # 1. Obtém as credenciais e o token de autenticação interno do Google
-        creds, _ = google.auth.default()
+        creds, _ = google.auth.default(scopes=['https://www.googleapis.com/auth/cloud-platform'])
         auth_req = google.auth.transport.requests.Request()
         creds.refresh(auth_req)
 
