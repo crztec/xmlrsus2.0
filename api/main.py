@@ -475,13 +475,6 @@ async def cancel_task(task_id: str, user = Depends(require_admin)):
     db.add_log(task_id, "Interrompendo processamento (solicitação do usuário)...", "WARNING")
     return {"status": "success"}
 
-@app.post("/check-integrations")
-async def check_integrations(user = Depends(require_admin)):
-    """Dispara a automação de checagem em lote via Cloud Run Job."""
-    task_id = db.create_task("api_check_batch", "Checagem de APIs em Lote")
-    trigger_cloud_run_job(task_id)
-    return {"status": "pending", "task_id": task_id}
-
 # --- ABI CHECK ENDPOINTS ---
 @app.post("/upload-abi-schedule")
 async def upload_abi_schedule(file: UploadFile = File(...), user = Depends(require_admin)):
@@ -958,6 +951,70 @@ async def route_get_task_logs(task_id: str, client_name: str = None, user = Depe
 async def get_history_logs(type: str = "abi", limit: int = 5, user = Depends(require_admin)):
     """Retorna logs agregados das últimas N tarefas de uma categoria."""
     return db.get_aggregated_history_logs(task_category=type, limit_tasks=limit)
+
+
+# --- API MONITORING ENDPOINTS ---
+class BatchCheckRequest(BaseModel):
+    client_ids: Optional[List[str]] = None
+
+@app.post("/check-integrations")
+async def route_run_batch_api_check(request: BatchCheckRequest, user = Depends(require_admin)):
+    """Dispara checagem de APIs em lote via Cloud Run Job."""
+    desc = "Checagem geral de APIs RSUS" if not request.client_ids else f"Checagem parcial ({len(request.client_ids)} clientes)"
+    task_id = db.create_task(task_type="batch_api_check", description=desc)
+    if request.client_ids:
+        db.update_task(task_id, {"client_ids": request.client_ids})
+    trigger_cloud_run_job(task_id)
+    return {"status": "success", "task_id": task_id}
+
+@app.post("/check-integration/{client_id}")
+async def route_run_single_api_check(client_id: str, user = Depends(require_admin)):
+    """Dispara checagem de API individual via Cloud Run Job."""
+    task_id = db.create_task(task_type="api_check_single", description=f"Checagem individual: {client_id}", razao_social=client_id)
+    db.update_task(task_id, {"client_id": client_id})
+    trigger_cloud_run_job(task_id)
+    return {"status": "success", "task_id": task_id}
+
+# --- RSUS SETTINGS ENDPOINTS ---
+@app.get("/settings/rsus-credentials")
+async def route_get_rsus_credentials(type: str = "general", user = Depends(require_admin)):
+    creds = db.get_rsus_credentials(type)
+    if creds and creds.get("password"):
+        creds["password"] = "********"
+    return creds or {"username": "", "password": ""}
+
+@app.post("/settings/rsus-credentials")
+async def route_save_rsus_credentials(type: str = Form(...), username: str = Form(...), password: str = Form(...), user = Depends(require_admin)):
+    # Se a senha for a mascarada, não atualiza ela no banco
+    if password.startswith("***") or password == "********":
+        current = db.get_rsus_credentials(type)
+        if current:
+            password = current.get("password", "")
+
+    if db.save_rsus_credentials(type, username, password):
+        return {"status": "success"}
+    raise HTTPException(status_code=500, detail="Erro ao salvar credenciais")
+
+# --- MENU CONFIGURATION ENDPOINTS ---
+@app.get("/menu-config")
+async def route_get_menu_config():
+    return db.get_menu_config()
+
+@app.post("/menu-config")
+async def route_save_menu_config(config: dict, user = Depends(require_admin)):
+    success, error_msg = db.save_menu_config_detailed(config)
+    if success: return {"status": "success"}
+    raise HTTPException(status_code=500, detail=error_msg)
+
+@app.post("/menu-config/set-default")
+async def route_set_menu_default(config: dict, user = Depends(require_admin)):
+    if db.save_menu_default(config): return {"status": "success"}
+    raise HTTPException(status_code=500, detail="Erro ao salvar padrão.")
+
+@app.post("/menu-config/restore-default")
+async def route_restore_menu_default(user = Depends(require_admin)):
+    if db.restore_menu_default(): return {"status": "success"}
+    raise HTTPException(status_code=500, detail="Erro ao restaurar.")
 
 # --- USER PROFILE ENDPOINTS ---
 @app.get("/profile")
