@@ -29,7 +29,7 @@ export default function LoginPage() {
   const [resetStatus, setResetStatus] = useState<{ type: 'success' | 'error', msg: string } | null>(null);
   const [isResetting, setIsResetting] = useState(false);
 
-  const handleResetPassword = async (e: React.FormEvent) => {
+  const handleResetPassword = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsResetting(true);
     setResetStatus(null);
