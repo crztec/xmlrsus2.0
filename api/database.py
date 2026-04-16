@@ -298,13 +298,16 @@ def get_all_clients():
                 'cnpj': cnpj,
                 'url_sistema': data.get('url_sistema', ''),
                 'api_status': data.get('api_status', 'unknown'),
+                'api_last_check': data.get('api_last_check', ''),
                 'total_abis': data.get('total_abis', 0),
                 # Campos ABI
                 'abi_status': data.get('abi_status', ''),
                 'abi_current': data.get('abi_current', ''),
+                'abi_last_check': data.get('abi_last_check', ''),
                 'abi_last_message': data.get('abi_last_message', ''),
                 'abi_last_task_id': data.get('abi_last_task_id', ''),
                 'impugnation_status': data.get('impugnation_status', ''),
+                'impugnation_last_check': data.get('impugnation_last_check', ''),
                 'impugnation_last_message': data.get('impugnation_last_message', ''),
                 'impugnation_last_task_id': data.get('impugnation_last_task_id', ''),
             })
