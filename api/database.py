@@ -1404,6 +1404,8 @@ def get_active_task(category="abi"):
         
         if category == "abi":
             target_types = ["abi_check_batch", "abi_check_single"]
+        elif category == "impugnation":
+            target_types = ["impugnation_check_batch", "impugnation_check_single"]
         else:
             target_types = ["api_check_batch", "api_check_single", "batch_api_check", "single_api_check"]
 
