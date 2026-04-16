@@ -87,7 +87,7 @@ const DEFAULT_MAIN_MENU = [
   { label: "Dados ABIs", icon: <FileText size={20} />, href: "/xml-data" },
   { label: "Checar Importações", icon: <Shield size={20} />, href: "/check-imports" },
   { label: "Histórico de Importações", icon: <ClipboardList size={20} />, href: "/logs" },
-  { label: "Checar APIs", icon: <Puzzle size={20} />, href: "/settings/api-checks", isAdmin: true },
+  { label: "Checar APIs", icon: <Puzzle size={20} />, href: "/settings/api-checks" },
 ];
 
 const DEFAULT_ADMIN_SUB = [

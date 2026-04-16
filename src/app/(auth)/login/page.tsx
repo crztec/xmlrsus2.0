@@ -92,19 +92,18 @@ const handleLogin = async (e: React.SyntheticEvent<HTMLFormElement>) => {
       } else {
         // Tratamento de Erro Amigável
         const errorDetail = data.detail;
-        let msg = "";
+        let msg = `Erro (Status: ${res.status}): `;
         
         if (Array.isArray(errorDetail)) {
-          // Erro de validação do FastAPI (422)
-          msg = "Dados incompletos. Verifique se preencheu o e-mail e a senha.";
+          msg += "Dados de validação incorretos.";
         } else {
-          msg = typeof errorDetail === 'string' ? errorDetail : "E-mail ou senha incorretos.";
+          msg += typeof errorDetail === 'string' ? errorDetail : "Credenciais inválidas.";
         }
         
         setError(msg);
       }
     } catch (_err: any) {
-      setError("Erro de conexão com o servidor. Verifique sua internet.");
+      setError(`Falha de Conexão: ${_err.message || "Servidor offline"}`);
     } finally {
       setIsLoading(false);
     }

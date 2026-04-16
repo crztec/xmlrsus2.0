@@ -174,7 +174,14 @@ async def health_check():
 @app.post("/login")
 async def login(email: str = Form(...), password: str = Form(...)):
     """Autentica usuário via Firebase e retorna token/perfil."""
-    logger.info(f"Tentativa de login: {email}")
+    # DETALHES PARA DEPURAÇÃO (Não logue a senha real em produção!)
+    logger.info(f"--- NOVA TENTATIVA DE LOGIN ---")
+    logger.info(f"Email Bruto: '{email}' (Tamanho: {len(email)})")
+    logger.info(f"Senha (Tamanho: {len(password)})")
+    
+    # Tratamento básico
+    email = email.strip()
+    
     try:
         user = auth.sign_in_with_email_and_password(email, password)
 
@@ -469,7 +476,7 @@ class ABICheckRequest(BaseModel):
 
 
 @app.post("/cancel-task/{task_id}")
-async def cancel_task(task_id: str, user = Depends(require_admin)):
+async def cancel_task(task_id: str, user = Depends(get_current_user)):
     """Cancela uma tarefa em andamento."""
     db.update_task(task_id, {"status": "cancelled"})
     db.add_log(task_id, "Interrompendo processamento (solicitação do usuário)...", "WARNING")
@@ -477,7 +484,7 @@ async def cancel_task(task_id: str, user = Depends(require_admin)):
 
 # --- ABI CHECK ENDPOINTS ---
 @app.post("/upload-abi-schedule")
-async def upload_abi_schedule(file: UploadFile = File(...), user = Depends(require_admin)):
+async def upload_abi_schedule(file: UploadFile = File(...), user = Depends(get_current_user)):
     import pandas as pd
     import io
     from datetime import datetime as dt
@@ -580,18 +587,18 @@ async def upload_abi_schedule(file: UploadFile = File(...), user = Depends(requi
         raise HTTPException(status_code=400, detail=f"Erro no arquivo: {str(e)}")
 
 @app.get("/abi-schedule")
-async def get_abi_schedule(user = Depends(require_admin)):
+async def get_abi_schedule(user = Depends(get_current_user)):
     return {
         "active": db.get_active_abi(),
         "all": db.get_abi_schedule()
     }
 
 @app.get("/abi-dashboard-stats")
-async def get_abi_dashboard_stats(user = Depends(require_admin)):
+async def get_abi_dashboard_stats(user = Depends(get_current_user)):
     return db.get_abi_dashboard_stats()
 
 @app.post("/start-abi-check")
-async def start_abi_check(request: ABICheckRequest, user = Depends(require_admin)):
+async def start_abi_check(request: ABICheckRequest, user = Depends(get_current_user)):
     """Inicia a checagem de ABIs (lote ou individual) via Cloud Run Job."""
     active_abi = db.get_active_abi()
     if not active_abi:
@@ -615,7 +622,7 @@ async def start_abi_check(request: ABICheckRequest, user = Depends(require_admin
 
 # --- IMPUGNATION CHECK ENDPOINTS ---
 @app.post("/start-impugnation-check")
-async def start_impugnation_check(request: ABICheckRequest, user = Depends(require_admin)):
+async def start_impugnation_check(request: ABICheckRequest, user = Depends(get_current_user)):
     """Inicia a checagem de impugnações (lote ou individual) via Cloud Run Job."""
     active_abi = db.get_active_abi()
     if not active_abi:
@@ -638,14 +645,14 @@ async def start_impugnation_check(request: ABICheckRequest, user = Depends(requi
     return {"status": "pending", "task_id": task_id}
 
 @app.get("/impugnation-dashboard-stats")
-async def get_impugnation_stats(user = Depends(require_admin)):
+async def get_impugnation_stats(user = Depends(get_current_user)):
     return db.get_impugnation_dashboard_stats()
 
 
 # --- SINGLE API CHECK (Consolidados no fim do arquivo) ---
 
 @app.get("/active-task/{category}")
-async def get_active_task_route(category: str, user = Depends(require_admin)):
+async def get_active_task_route(category: str, user = Depends(get_current_user)):
     """Retorna a tarefa ativa para uma categoria (abi ou api)."""
     task = db.get_active_task(category)
     if task:
@@ -653,7 +660,8 @@ async def get_active_task_route(category: str, user = Depends(require_admin)):
     return {"status": "none"}
 
 @app.get("/clients")
-async def get_clients(page: int = 1, limit: int = 10, search: str = "", user = Depends(require_admin)):
+async def get_clients(page: int = 1, limit: int = 10, search: str = "", user = Depends(get_current_user)):
+    logger.info(f"GET /clients chamado por: {user.get('email') if user else 'ANÔNIMO'}")
     clients, total = db.get_clients_paginated(page, limit, search)
     return {"clients": clients, "total": total}
 
@@ -703,12 +711,12 @@ async def delete_group(group_id: str, user = Depends(require_admin)):
     return {"status": "success"}
 
 @app.get("/xml-data")
-async def get_xml_data(page: int = 1, limit: int = 10, search: str = "", client: str = "", user = Depends(require_admin)):
+async def get_xml_data(page: int = 1, limit: int = 10, search: str = "", client: str = "", user = Depends(get_current_user)):
     xml_data, total = db.get_xml_data_paginated(page, limit, search, client)
     return {"xml_data": xml_data, "total": total}
 
 @app.get("/xml-data/export")
-async def export_xml_data(user = Depends(require_admin)):
+async def export_xml_data(user = Depends(get_current_user)):
     import io
 
     import pandas as pd
@@ -748,7 +756,7 @@ async def export_xml_data(user = Depends(require_admin)):
     )
 
 @app.get("/xml-data/{file_id}/details")
-async def get_xml_details(file_id: str, user = Depends(require_admin)):
+async def get_xml_details(file_id: str, user = Depends(get_current_user)):
     doc = db.firestore_db.collection('task_files').document(file_id).get()
     if not doc.exists:
         raise HTTPException(status_code=404, detail="Arquivo não encontrado")
@@ -776,7 +784,7 @@ async def get_xml_details(file_id: str, user = Depends(require_admin)):
     return details
 
 @app.get("/xml-data/{file_id}/export")
-async def export_single_xml_details(file_id: str, user = Depends(require_admin)):
+async def export_single_xml_details(file_id: str, user = Depends(get_current_user)):
     import io
 
     import pandas as pd
@@ -902,13 +910,13 @@ async def reset_db(user = Depends(require_admin)):
     raise HTTPException(status_code=500, detail="Erro ao resetar banco.")
 
 @app.get("/tasks")
-async def get_tasks(type: Optional[str] = None, exclude_api: bool = False, user = Depends(require_admin)):
+async def get_tasks(type: Optional[str] = None, exclude_api: bool = False, user = Depends(get_current_user)):
     # Retorna o histórico de tarefas para a página de logs, com filtro opcional por tipo
     # Usando o limite de 50 para evitar sobrecarga
     return db.get_tasks_for_dashboard(limit=50, task_type=type, exclude_api_checks=exclude_api)
 
 @app.get("/task/{task_id}")
-async def get_task_status(task_id: str, user = Depends(require_admin)):
+async def get_task_status(task_id: str, user = Depends(get_current_user)):
     """Retorna o status completo, progresso e logs de uma tarefa."""
     task = db.firestore_db.collection('tasks').document(task_id).get()
     if not task.exists:
@@ -943,12 +951,12 @@ async def get_task_status(task_id: str, user = Depends(require_admin)):
     return response
 
 @app.get("/task/{task_id}/logs")
-async def route_get_task_logs(task_id: str, client_name: str = None, user = Depends(require_admin)):
+async def route_get_task_logs(task_id: str, client_name: str = None, user = Depends(get_current_user)):
     """Retorna a lista de logs de uma tarefa específica, opcionalmente filtrada por cliente."""
     return db.get_task_logs(task_id, client_filter=client_name)
 
 @app.get("/tasks/history-logs")
-async def get_history_logs(type: str = "abi", limit: int = 5, user = Depends(require_admin)):
+async def get_history_logs(type: str = "abi", limit: int = 5, user = Depends(get_current_user)):
     """Retorna logs agregados das últimas N tarefas de uma categoria."""
     return db.get_aggregated_history_logs(task_category=type, limit_tasks=limit)
 
@@ -958,7 +966,7 @@ class BatchCheckRequest(BaseModel):
     client_ids: Optional[List[str]] = None
 
 @app.post("/check-integrations")
-async def route_run_batch_api_check(request: BatchCheckRequest, user = Depends(require_admin)):
+async def route_run_batch_api_check(request: BatchCheckRequest, user = Depends(get_current_user)):
     """Dispara checagem de APIs em lote via Cloud Run Job."""
     desc = "Checagem geral de APIs RSUS" if not request.client_ids else f"Checagem parcial ({len(request.client_ids)} clientes)"
     task_id = db.create_task(task_type="batch_api_check", description=desc)
@@ -968,7 +976,7 @@ async def route_run_batch_api_check(request: BatchCheckRequest, user = Depends(r
     return {"status": "success", "task_id": task_id}
 
 @app.post("/check-integration/{client_id}")
-async def route_run_single_api_check(client_id: str, user = Depends(require_admin)):
+async def route_run_single_api_check(client_id: str, user = Depends(get_current_user)):
     """Dispara checagem de API individual via Cloud Run Job."""
     task_id = db.create_task(task_type="api_check_single", description=f"Checagem individual: {client_id}", razao_social=client_id)
     db.update_task(task_id, {"client_id": client_id})
