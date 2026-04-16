@@ -2,6 +2,7 @@
 
 import React from "react";
 import { Trash2, Loader2 } from "lucide-react";
+import { apiClient } from "@/lib/apiClient";
 
 export default function MaintenancePage() {
   const [isLoading, setIsLoading] = React.useState(true);
@@ -23,7 +24,7 @@ export default function MaintenancePage() {
 
     if (confirm(messages[action])) {
       try {
-        const res = await fetch(`/api/maintenance/${action}`, { method: "POST" });
+        const res = await apiClient(`/api/maintenance/${action}`, { method: "POST" });
         const data = await res.json();
         alert(data.message);
       } catch (error) {

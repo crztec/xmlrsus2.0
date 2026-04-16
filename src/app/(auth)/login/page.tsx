@@ -84,6 +84,7 @@ const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
 
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
+        localStorage.setItem("gax_auth_token", data.idToken); // Salva o token JWT
         localStorage.setItem("gax_user_email", emailValue);
         localStorage.setItem("gax_user_name", data?.first_name || emailValue.split('@')[0]);
         localStorage.setItem("gax_user_role", data?.role || "user");
@@ -127,6 +128,7 @@ const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
 
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
+        localStorage.setItem("gax_auth_token", idToken); // Salva o token do Google
         localStorage.setItem("gax_user_email", user.email || "");
         localStorage.setItem("gax_user_name", data?.first_name || user.displayName || user.email?.split('@')[0] || "");
         localStorage.setItem("gax_user_role", data?.role || "user");

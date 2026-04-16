@@ -193,27 +193,7 @@ async def google_auth(id_token: str = Form(...)):
 async def get_branding():
     return db.get_branding()
 
-# --- RSUS CREDENTIALS MANAGEMENT ---
-@app.get("/api/settings/rsus-credentials")
-async def get_rsus_creds(type: str, user = Depends(require_admin)):
-    """Returns stored credentials for RSUS (Masked for security)."""
-    creds = db.get_rsus_credentials(type)
-    if not creds:
-        return {"username": "", "password": ""}
-    
-    # MASCARAMENTO: Nunca retornar a senha real para o frontend
-    safe_creds = {
-        "username": creds.get("username", ""),
-        "password": "****************" if creds.get("password") else ""
-    }
-    return safe_creds
-
-@app.post("/settings/rsus-credentials")
-async def save_rsus_creds(type: str = Form(...), username: str = Form(...), password: str = Form(...), user = Depends(require_admin)):
-    if db.save_rsus_credentials(type, username, password):
-        db.add_audit_log(user.get("email"), "Configuração", f"Atualizou credenciais RSUS do tipo {type}", "WARNING")
-        return {"status": "success"}
-    raise HTTPException(status_code=500, detail="Erro ao salvar credenciais.")
+# --- RSUS SETTINGS ENDPOINTS (Consolidados no fim do arquivo) ---
 
 # --- CUBETI CREDENTIALS MANAGEMENT ---
 @app.get("/settings/cubeti-credentials")
@@ -623,13 +603,7 @@ async def get_impugnation_stats(user = Depends(require_admin)):
     return db.get_impugnation_dashboard_stats()
 
 
-@app.post("/check-integration/{client_id}")
-async def check_single_integration(client_id: str, background_tasks: BackgroundTasks, user = Depends(require_admin)):
-    """Dispara a automação de checagem para um único cliente."""
-    import api.automation_api_check as auto_check
-    task_id = db.create_task("api_check_single", f"Checagem de API: {client_id}")
-    background_tasks.add_task(auto_check.run_single_api_check, client_id, task_id)
-    return {"status": "pending", "task_id": task_id}
+# --- SINGLE API CHECK (Consolidados no fim do arquivo) ---
 
 @app.get("/active-task/{category}")
 async def get_active_task_route(category: str, user = Depends(require_admin)):
