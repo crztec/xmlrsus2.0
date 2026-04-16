@@ -71,16 +71,26 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
                 
             # Busca operadora específica
             search_input = page.locator("input[placeholder*='Buscar cliente'], input[placeholder*='Pesquisar']").first
-            if await search_input.count() > 0:
-                await search_input.click()
-                await search_input.fill("")
-                await search_input.fill(client_name)
-                await asyncio.sleep(2)
-                await page.keyboard.press("Enter")
-                await asyncio.sleep(3)
             
-            target_row = page.locator("table tbody tr").filter(has_text=re.compile(client_name, re.IGNORECASE)).first
+            async def try_search(name_to_search):
+                if await search_input.count() > 0:
+                    await search_input.click()
+                    await search_input.fill("")
+                    await search_input.fill(name_to_search)
+                    await asyncio.sleep(2)
+                    await page.keyboard.press("Enter")
+                    await asyncio.sleep(3)
+                return page.locator("table tbody tr").filter(has_text=re.compile(name_to_search, re.IGNORECASE)).first
+
+            target_row = await try_search(client_name)
             
+            if await target_row.count() == 0:
+                import unicodedata
+                search_name = "".join(c for c in unicodedata.normalize('NFD', client_name) if unicodedata.category(c) != 'Mn')
+                if search_name != client_name:
+                    log_task(f"Operadora não encontrada com nome original '{client_name}'. Tentando sem acento...", "WARNING")
+                    target_row = await try_search(search_name)
+
             if await target_row.count() == 0:
                 log_task("Operadora não encontrada na grid da Cubeti.", "WARNING")
                 await browser.close()
