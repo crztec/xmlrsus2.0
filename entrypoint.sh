@@ -8,8 +8,8 @@ echo "--- Iniciando GAX 2.0 ---"
 echo "Porta alvo do Cloud Run: $PORT"
 
 # Inicia o Backend FastAPI em background
-echo "Iniciando Backend FastAPI na porta 8000..."
-uvicorn api.main:app --host 0.0.0.0 --port 8000 &
+echo "Iniciando Backend FastAPI na porta 8005..."
+uvicorn api.main:app --host 0.0.0.0 --port 8005 &
 
 # Aguarda um momento para o backend subir
 sleep 2
