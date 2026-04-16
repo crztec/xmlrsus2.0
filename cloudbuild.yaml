@@ -6,7 +6,7 @@ steps:
       - '--cache=true'
       - '--cache-ttl=168h' # Guarda o cache das dependências por 7 dias!
 
-  # 2. Deploy para Cloud Run (Blindado com as otimizações de performance)
+  # 2. Deploy para Cloud Run Service (A API Barata e Rápida)
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args:
@@ -19,13 +19,23 @@ steps:
       - '--allow-unauthenticated'
       - '--min-instances=0'
       - '--max-instances=2'
-      - '--memory=2Gi'
+      - '--memory=1Gi' # Reduzido para 1Gi (A API não precisa de mais que isso)
       - '--cpu=1'
       - '--concurrency=80'
       - '--timeout=1800'
-      # -- AS DUAS LINHAS ABAIXO SALVAM A PERFORMANCE DO ROBÔ --
       - '--execution-environment=gen2'
-      - '--no-cpu-throttling'
+      # NOTA: A flag --no-cpu-throttling foi removida definitivamente para zerar o custo ocioso.
+
+  # 3. Deploy para Cloud Run Jobs (O Robô Pesado)
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'jobs'
+      - 'update'
+      - 'gax-worker-job'
+      - '--image=gcr.io/$PROJECT_ID/xmlrsus2:latest'
+      - '--region=us-central1'
 
 options:
   logging: CLOUD_LOGGING_ONLY

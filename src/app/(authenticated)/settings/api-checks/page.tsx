@@ -6,8 +6,6 @@ import {
   ChevronLeft, ChevronRight, Activity, Camera, MoreHorizontal,
   RotateCcw, FileText, Ban, RefreshCw, Loader2, ShieldCheck, History, Play, ExternalLink
 } from "lucide-react";
-import { db } from "@/lib/firebase";
-import { doc, onSnapshot, collection, query, where, orderBy, limit, getDocs, updateDoc } from "firebase/firestore";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -84,28 +82,6 @@ export default function ApiChecksPage() {
 
     const checkActiveTask = async () => {
       try {
-        const q = query(collection(db, "tasks"), where("status", "==", "running"), limit(10));
-        const querySnapshot = await getDocs(q);
-        if (!querySnapshot.empty) {
-          const validTypes = ["api_check_batch", "batch_api_check", "api_check_single", "single_api_check"];
-          const now = new Date();
-          const hardLimitMs = 4 * 60 * 60 * 1000;
-          const activeTasks = querySnapshot.docs
-            .map(d => ({ id: d.id, ...d.data() } as any))
-            .filter(t => {
-              if (!validTypes.includes(t.type)) return false;
-              const createdDate = t.created_at ? new Date(t.created_at.replace(/-/g, "/")) : new Date(0);
-              return (now.getTime() - createdDate.getTime()) < hardLimitMs;
-            })
-            .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
-          if (activeTasks.length > 0) {
-            setActiveTaskId(activeTasks[0].id);
-            setActiveTask(activeTasks[0]);
-            setIsExecuting(true);
-          }
-        }
-
-        // Tenta também via endpoint de persistência dedicada (igual ao ABI)
         const res = await apiClient("/api/active-task/api");
         if (res.ok) {
           const data = await res.json();
@@ -116,7 +92,7 @@ export default function ApiChecksPage() {
           }
         }
       } catch (err) {
-        console.error("Erro ao persistir tarefa:", err);
+        console.error("Erro ao buscar tarefa ativa:", err);
       }
     };
     checkActiveTask();
@@ -200,10 +176,7 @@ export default function ApiChecksPage() {
     if (!activeTaskId) return;
     if (!confirm("Deseja realmente interromper a checagem?")) return;
     try {
-      await updateDoc(doc(db, "tasks", activeTaskId), {
-        status: "cancelled",
-        updated_at: new Date().toISOString()
-      });
+      await apiClient(`/api/cancel-task/${activeTaskId}`, { method: "POST" });
       setIsExecuting(false);
       setActiveTaskId(null);
     } catch (error) {
