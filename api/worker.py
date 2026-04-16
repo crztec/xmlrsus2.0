@@ -57,8 +57,8 @@ def main():
     # ── MAPEAMENTO DE TIPOS → FUNÇÕES ──────────────────────────────────────────
 
     if task_type == "xml_import":
-        # Importa a função do main.py (sem FastAPI, só a lógica pura)
-        from api.main import background_worker_task
+        # Importa a função do arquivo isolado
+        from api.automation_xml_import import background_worker_task
         url_sistema = task.get("url_sistema", "")
         force = task.get("force", False)
         asyncio.run(background_worker_task(task_id, url_sistema, force))
