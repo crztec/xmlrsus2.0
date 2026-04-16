@@ -26,6 +26,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/apiClient";
+import { auth } from "@/lib/firebase";
+import { signOut } from "firebase/auth";
 
 
 // Icon registry for dynamic menus
@@ -490,7 +492,12 @@ export default function Sidebar({ onOpenProfile }: SidebarProps) {
                 localStorage.removeItem("gax_user_email");
                 localStorage.removeItem("gax_user_role");
                 localStorage.removeItem("gax_branding");
-                window.location.href = "/login";
+                localStorage.removeItem("gax_auth_token");
+                signOut(auth).then(() => {
+                  window.location.href = "/login";
+                }).catch(() => {
+                  window.location.href = "/login";
+                });
               }
             }}
             className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all focus-visible:ring-2 focus-visible:ring-red-200 outline-none"

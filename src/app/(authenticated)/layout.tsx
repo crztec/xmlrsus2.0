@@ -15,6 +15,12 @@ export default function AuthenticatedLayout({
 
   useEffect(() => {
     if (typeof window !== "undefined") {
+      const token = localStorage.getItem("gax_auth_token");
+      if (!token) {
+        window.location.href = "/login";
+        return;
+      }
+
       setUserInfo({
         name: localStorage.getItem("gax_user_name") || "Usuário",
         email: localStorage.getItem("gax_user_email") || "..."
