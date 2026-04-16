@@ -531,45 +531,53 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
             async def search_grid(term, target_keywords):
                 if not search_field: return False, 0
                 log_task(f"Pesquisando por '{term}' na grid...")
-                await search_field.click()
-                await page.keyboard.press("Control+A")
-                await page.keyboard.press("Backspace")
-                await search_field.type(term, delay=40)
-                await asyncio.sleep(1)
+                await search_field.fill("")
+                await search_field.fill(term)
+                await asyncio.sleep(0.5)
                 await page.keyboard.press("Enter")
                 
                 has_match = False
                 match_count = 0
                 no_results_keywords = ['nenhum registro', 'sem resultados', '0 registros', 'no records', 'nenhum resultado']
                 
-                for _ in range(10):  # Aguarda até 20 segundos
+                for _ in range(12):  # Aguarda até 24 segundos
                     await asyncio.sleep(2)
-                    try:
-                        g_text = await page.evaluate("document.body.innerText")
-                        for frame in page.frames:
-                            try: g_text += " " + await frame.evaluate("document.body.innerText")
-                            except: pass
-                    except: g_text = ""
                     
-                    g_lower = g_text.lower()
-                    has_no = any(k in g_lower for k in no_results_keywords)
+                    # Aguardar o spinner do Kendo UI sumir se existir
+                    try:
+                        loading_mask = page.locator(".k-loading-mask, .k-loading-image").first
+                        if await loading_mask.count() > 0 and await loading_mask.is_visible():
+                            await loading_mask.wait_for(state="hidden", timeout=10000)
+                    except: pass
                     
                     visible_rows = page.locator("table tbody tr")
                     try: r_count = await visible_rows.count()
                     except: r_count = 0
                     
-                    if r_count > 0 and not has_no:
-                        for r_idx in range(min(r_count, 5)):
-                            try:
-                                r_text = (await visible_rows.nth(r_idx).inner_text()).strip().lower()
-                                if any(k in r_text for k in target_keywords):
-                                    has_match = True
-                                    match_count += 1
-                            except: continue
-                        
-                        if has_match:
-                            if match_count < r_count:
-                                match_count = r_count
+                    if r_count > 0:
+                        # Checa especificamente se a PRIMEIRA LINHA contém a mensagem de sem resultados
+                        try:
+                            # Apenas testa a linha 0 para evitar falsos positivos do document.body
+                            first_row_text = (await visible_rows.nth(0).inner_text()).lower()
+                            is_empty_table_message = any(k in first_row_text for k in no_results_keywords)
+                        except:
+                            is_empty_table_message = False
+
+                        if not is_empty_table_message:
+                            for r_idx in range(min(r_count, 5)):
+                                try:
+                                    r_text = (await visible_rows.nth(r_idx).inner_text()).strip().lower()
+                                    if any(k in r_text for k in target_keywords):
+                                        has_match = True
+                                        match_count += 1
+                                except: continue
+                                
+                            if has_match:
+                                if match_count < r_count:
+                                    match_count = r_count
+                                break
+                        else:
+                            # Se a tabela declarou explícitamente que está vazia no layout dela, paramos aqui e a busca falhou
                             break
                         
                 # Tenta pegar contagem do rodapé se encontrou algo
@@ -577,16 +585,16 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
                     try:
                         ft_text = await page.evaluate("""
                             () => {
-                                const els = document.querySelectorAll('span, div, p');
+                                const els = document.querySelectorAll('span, div, p, .k-pager-info');
                                 for (const el of els) {
                                     const t = el.innerText;
-                                    if (t && /de\\s+\\d+\\s+registros/i.test(t)) return t;
+                                    if (t && /de\\s+\\d+\\s+(?:registros|itens)/i.test(t)) return t;
                                 }
                                 return '';
                             }
                         """)
                         if ft_text:
-                            mtch = re.search(r'de\s+(\d+)\s+registros', ft_text, re.I)
+                            mtch = re.search(r'de\s+(\d+)\s+(?:registros|itens)', ft_text, re.I)
                             if mtch: match_count = int(mtch.group(1))
                     except: pass
                     
