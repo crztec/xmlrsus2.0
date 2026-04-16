@@ -22,6 +22,8 @@ import {
   Smartphone
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { apiClient } from "@/lib/apiClient";
+
 
 interface WhatsAppContact {
   number: string;
@@ -80,7 +82,7 @@ export default function ClientsPage() {
   const fetchClients = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/clients?limit=1000`);
+      const res = await apiClient(`/api/clients?limit=1000`);
       const data = await res.json();
       setClients(data.clients || []);
     } catch (_err) {
@@ -120,7 +122,7 @@ export default function ClientsPage() {
 
     setIsDeleting(true);
     try {
-      const res = await fetch('/api/clients/delete-batch', {
+      const res = await apiClient('/api/clients/delete-batch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ client_ids: Array.from(selectedClients) })
@@ -146,7 +148,7 @@ export default function ClientsPage() {
 
     setIsDeleting(true);
     try {
-      const res = await fetch('/api/clients/delete-batch', {
+      const res = await apiClient('/api/clients/delete-batch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ client_ids: [id] })
@@ -211,7 +213,7 @@ export default function ClientsPage() {
     setSuccessMessage("");
     
     try {
-      const res = await fetch(`/api/clients/${editingClient.id}`, {
+      const res = await apiClient(`/api/clients/${editingClient.id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData)

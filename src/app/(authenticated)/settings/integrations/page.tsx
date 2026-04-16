@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import { Puzzle, Save, Loader2, Plus, Trash2, Wifi, WifiOff, QrCode, Phone, Globe, Key } from "lucide-react";
+import { apiClient } from "@/lib/apiClient";
+
 
 export default function IntegrationsPage() {
   const [evoUrl, setEvoUrl] = useState("");
@@ -27,7 +29,7 @@ export default function IntegrationsPage() {
       return;
     }
 
-    fetch("/api/whatsapp/config")
+    apiClient("/api/whatsapp/config")
       .then(res => res.json())
       .then(data => {
         if (data && !data.detail) {
@@ -46,7 +48,7 @@ export default function IntegrationsPage() {
   const handleSaveServerConfig = async () => {
     setIsSavingServer(true);
     try {
-      const res = await fetch("/api/whatsapp/config", {
+      const res = await apiClient("/api/whatsapp/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
@@ -68,7 +70,7 @@ export default function IntegrationsPage() {
   const handleSaveInstanceConfig = async () => {
     setIsSavingInstance(true);
     try {
-      const res = await fetch("/api/whatsapp/config", {
+      const res = await apiClient("/api/whatsapp/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
@@ -91,7 +93,7 @@ export default function IntegrationsPage() {
     if (!testMessage.trim()) return alert("Digite uma mensagem de teste.");
     setIsTesting(true);
     try {
-      const res = await fetch("/api/whatsapp/send-test", {
+      const res = await apiClient("/api/whatsapp/send-test", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: testMessage }),
@@ -107,7 +109,7 @@ export default function IntegrationsPage() {
     setIsCheckingStatus(true);
     setInstanceStatus(null);
     try {
-      const res = await fetch("/api/whatsapp/instance/status");
+      const res = await apiClient("/api/whatsapp/instance/status");
       const data = await res.json();
       if (!res.ok) {
         setInstanceStatus({ error: data.detail || "Erro ao consultar status." });
@@ -121,7 +123,7 @@ export default function IntegrationsPage() {
   const handleCreateInstance = async () => {
     setIsCreating(true);
     try {
-      const res = await fetch("/api/whatsapp/instance/create", { method: "POST" });
+      const res = await apiClient("/api/whatsapp/instance/create", { method: "POST" });
       const data = await res.json();
       if (res.ok) {
         alert("Instância criada com sucesso!");
@@ -137,7 +139,7 @@ export default function IntegrationsPage() {
     setIsLoadingQR(true);
     setQrCode(null);
     try {
-      const res = await fetch("/api/whatsapp/instance/qrcode");
+      const res = await apiClient("/api/whatsapp/instance/qrcode");
       const data = await res.json();
       if (!res.ok) {
         alert(data.detail || "Erro ao gerar QR Code.");

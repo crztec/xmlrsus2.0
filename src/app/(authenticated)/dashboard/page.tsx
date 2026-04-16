@@ -13,6 +13,8 @@ import {
   AlertTriangle 
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { apiClient } from "@/lib/apiClient";
+
 
 export default function DashboardPage() {
   const [files, setFiles] = useState<File[]>([]);
@@ -68,7 +70,7 @@ export default function DashboardPage() {
       localStorage.setItem("activeTaskId", activeTaskId);
       interval = setInterval(async () => {
         try {
-          const res = await fetch(`/api/task/${activeTaskId}`);
+          const res = await apiClient(`/api/task/${activeTaskId}`);
           if (!res.ok) {
             if (res.status === 404) {
                localStorage.removeItem("activeTaskId");
@@ -110,7 +112,7 @@ export default function DashboardPage() {
       const formData = new FormData();
       files.forEach(f => formData.append("files", f));
       
-      const res = await fetch("/api/pre-check", {
+      const res = await apiClient("/api/pre-check", {
         method: "POST",
         body: formData
       });
@@ -170,7 +172,7 @@ export default function DashboardPage() {
     if (force) formData.append("force", "true");
 
     try {
-      const response = await fetch("/api/upload", {
+      const response = await apiClient("/api/upload", {
         method: "POST",
         body: formData,
       });

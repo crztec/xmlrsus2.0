@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from "react";
 import { User, Mail, Key, Shield, Loader2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { apiClient } from "@/lib/apiClient";
+
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -37,7 +39,7 @@ export default function UserProfileModal({ isOpen, onClose, userEmail, userName 
 
   useEffect(() => {
     if (isOpen && userEmail) {
-      fetch(`/api/profile?email=${userEmail}`)
+      apiClient(`/api/profile?email=${userEmail}`)
         .then(res => res.json())
         .then(data => {
           if (data && !data.detail) {
@@ -179,7 +181,7 @@ export default function UserProfileModal({ isOpen, onClose, userEmail, userName 
                     body.append("email", userEmail);
                     body.append("action_type", 'email_change');
 
-                    const res = await fetch("/api/profile/request-code", { method: "POST", body });
+                    const res = await apiClient("/api/profile/request-code", { method: "POST", body });
                     const data = await res.json();
 
                     if (res.ok) {
@@ -227,7 +229,7 @@ export default function UserProfileModal({ isOpen, onClose, userEmail, userName 
                           const body = new FormData();
                           body.append("email", userEmail);
                           body.append("action_type", type);
-                          const res = await fetch("/api/profile/request-code", { method: "POST", body });
+                          const res = await apiClient("/api/profile/request-code", { method: "POST", body });
                           const data = await res.json();
                           if (res.ok) {
                             setResendTimer(30);
@@ -279,7 +281,7 @@ export default function UserProfileModal({ isOpen, onClose, userEmail, userName 
               if (profileForm.code) body.append("code", profileForm.code);
 
               try {
-                const res = await fetch("/api/profile/update", { method: "POST", body });
+                const res = await apiClient("/api/profile/update", { method: "POST", body });
                 const data = await res.json();
 
                 if (res.ok) {

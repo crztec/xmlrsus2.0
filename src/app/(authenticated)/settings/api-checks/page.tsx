@@ -11,6 +11,8 @@ import { doc, onSnapshot, collection, query, where, orderBy, limit, getDocs, upd
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { apiClient } from "@/lib/apiClient";
+
 
 interface ClientConfig {
   id: string;
@@ -104,7 +106,7 @@ export default function ApiChecksPage() {
         }
 
         // Tenta também via endpoint de persistência dedicada (igual ao ABI)
-        const res = await fetch("/api/active-task/api");
+        const res = await apiClient("/api/active-task/api");
         if (res.ok) {
           const data = await res.json();
           if (data.id && data.status === 'running') {
@@ -128,7 +130,7 @@ export default function ApiChecksPage() {
     if (activeTaskId) {
       interval = setInterval(async () => {
         try {
-          const res = await fetch(`/api/task/${activeTaskId}`);
+          const res = await apiClient(`/api/task/${activeTaskId}`);
           if (res.ok) {
             const data = await res.json() as Task;
             setActiveTask(data);
@@ -173,7 +175,7 @@ export default function ApiChecksPage() {
   const fetchClients = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/clients?limit=100&search=${encodeURIComponent(searchTerm)}`);
+      const res = await apiClient(`/api/clients?limit=100&search=${encodeURIComponent(searchTerm)}`);
       const data = await res.json();
       setClients(data.clients || []);
     } catch (error) {
@@ -186,7 +188,7 @@ export default function ApiChecksPage() {
   const fetchTaskLogs = async (taskId: string) => {
     if (!taskId || taskId === "history") return;
     try {
-      const res = await fetch(`/api/task/${taskId}/logs`);
+      const res = await apiClient(`/api/task/${taskId}/logs`);
       const data = await res.json();
       setTaskLogs(data);
     } catch (error) {
@@ -215,7 +217,7 @@ export default function ApiChecksPage() {
     setActiveTask(null);
     setTaskLogs([]);
     try {
-      const res = await fetch("/api/check-integrations", { method: "POST" });
+      const res = await apiClient("/api/check-integrations", { method: "POST" });
       const data = await res.json();
       if (data.task_id) {
         setActiveTaskId(data.task_id);
@@ -243,7 +245,7 @@ export default function ApiChecksPage() {
     setActiveTask(null);
     setTaskLogs([]);
     try {
-      const res = await fetch("/api/check-integrations", {
+      const res = await apiClient("/api/check-integrations", {
         method: "POST",
         body: JSON.stringify({ client_ids: failedOnes }),
         headers: { 'Content-Type': 'application/json' }
@@ -274,7 +276,7 @@ export default function ApiChecksPage() {
     setTaskLogs([]);
     setOpenMenuId(null);
     try {
-      const res = await fetch(`/api/check-integration/${clientId}`, { method: "POST" });
+      const res = await apiClient(`/api/check-integration/${clientId}`, { method: "POST" });
       const data = await res.json();
       if (data.task_id) {
         setActiveTaskId(data.task_id);
@@ -313,7 +315,7 @@ export default function ApiChecksPage() {
     setSelectedClientMessage("Log Completo do Sistema (Últimos 5)");
     
     try {
-      const res = await fetch("/api/tasks/history-logs?type=api&limit=5");
+      const res = await apiClient("/api/tasks/history-logs?type=api&limit=5");
       const logsData = await res.json();
       if (logsData && logsData.length > 0) {
         setTaskLogs(logsData);

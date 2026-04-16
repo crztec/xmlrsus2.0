@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from "react";
 import { Users, Shield, Mail, Trash2, Edit2, Loader2, CheckCircle, XCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { apiClient } from "@/lib/apiClient";
+
 
 interface User {
   email: string;
@@ -27,7 +29,7 @@ export default function UsersPage() {
   const fetchUsers = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch("/api/users");
+      const res = await apiClient("/api/users");
       const data = await res.json();
       setUsers(data);
     } catch (error: any) {
@@ -56,14 +58,14 @@ export default function UsersPage() {
 
   const handleApprove = async (email: string) => {
     if (confirm(`Aprovar o usuário ${email}?`)) {
-      await fetch(`/api/users/approve/${email}`, { method: "POST" });
+      await apiClient(`/api/users/approve/${email}`, { method: "POST" });
       fetchUsers();
     }
   };
 
   const handleDelete = async (email: string) => {
     if (confirm(`Tem certeza que deseja excluir o usuário ${email}? Esta ação é permanente.`)) {
-      await fetch(`/api/users/${email}`, { method: "DELETE" });
+      await apiClient(`/api/users/${email}`, { method: "DELETE" });
       fetchUsers();
     }
   };
@@ -73,7 +75,7 @@ export default function UsersPage() {
     if (!selectedUser) return;
     setIsUpdating(true);
     try {
-      const res = await fetch(`/api/users/${selectedUser.email}`, {
+      const res = await apiClient(`/api/users/${selectedUser.email}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(selectedUser)

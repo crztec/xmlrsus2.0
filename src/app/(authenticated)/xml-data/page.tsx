@@ -14,6 +14,8 @@ import {
   ChevronLeft,
   ChevronRight
 } from "lucide-react";
+import { apiClient } from "@/lib/apiClient";
+
 
 interface XMLDetails {
   beneficiario_cod: string;
@@ -58,7 +60,7 @@ export default function XmlDataPage() {
         if (clients.length === 0) {
           setIsLoading(true);
           try {
-            const clientRes = await fetch("/api/clients?limit=100");
+            const clientRes = await apiClient("/api/clients?limit=100");
             const cls = await clientRes.json();
             setClients(cls.clients || []);
           } catch (error) {
@@ -74,7 +76,7 @@ export default function XmlDataPage() {
       setIsLoading(true);
       try {
         // Adicionando o parâmetro client na URL para garantir que o backend filtre corretamente
-        const xmlRes = await fetch(`/api/xml-data?page=${currentPage}&limit=${itemsPerPage}&search=${encodeURIComponent(searchTerm)}&client=${encodeURIComponent(selectedClient)}`);
+        const xmlRes = await apiClient(`/api/xml-data?page=${currentPage}&limit=${itemsPerPage}&search=${encodeURIComponent(searchTerm)}&client=${encodeURIComponent(selectedClient)}`);
         const xmls = await xmlRes.json();
         setXmlData(xmls.xml_data || []);
         setTotalXmls(xmls.total || 0);
@@ -103,7 +105,7 @@ export default function XmlDataPage() {
     setFileDetails([]);
     setModalPage(1);
     try {
-      const res = await fetch(`/api/xml-data/${xml.id}/details`);
+      const res = await apiClient(`/api/xml-data/${xml.id}/details`);
       const data = await res.json();
       setFileDetails(data);
     } catch (error) {

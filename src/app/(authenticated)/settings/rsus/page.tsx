@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import { Key, Save, Loader2, ShieldCheck, User, Lock, Building2 } from "lucide-react";
+import { apiClient } from "@/lib/apiClient";
+
 
 export default function SettingsRSUSPage() {
   const [generalUser, setGeneralUser] = useState("");
@@ -20,8 +22,8 @@ export default function SettingsRSUSPage() {
     
     // Carrega credenciais atuais
     Promise.all([
-      fetch("/api/settings/rsus-credentials?type=general").then(res => res.json()),
-      fetch("/api/settings/rsus-credentials?type=unimed_vitoria").then(res => res.json())
+      apiClient("/api/settings/rsus-credentials?type=general").then(res => res.json()),
+      apiClient("/api/settings/rsus-credentials?type=unimed_vitoria").then(res => res.json())
     ]).then(([general, vitoria]) => {
       setGeneralUser(general.username || "");
       setGeneralPass(general.password || "");
@@ -41,7 +43,7 @@ export default function SettingsRSUSPage() {
     params.append("password", type === "general" ? generalPass : vitoriaPass);
 
     try {
-      const res = await fetch("/api/settings/rsus-credentials", {
+      const res = await apiClient("/api/settings/rsus-credentials", {
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",

@@ -16,11 +16,47 @@ from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadF
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from playwright.async_api import async_playwright
+from cachetools import TTLCache, cached
 
 import api.auth as auth
 import api.database as db
 import api.parser as parser
 from api.automation_api_check import run_batch_api_check, run_single_api_check
+from fastapi import Depends
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+
+security = HTTPBearer(auto_error=False)
+
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    if not credentials:
+        return None
+    token = credentials.credentials
+    decoded_token = auth.verify_token(token)
+    if not decoded_token:
+        return None
+    return decoded_token
+
+# Cache in-memory para evitar consultas repetitivas ao Firestore para validar roles (Max 500 usuários, expira em 5min)
+admin_profile_cache = TTLCache(maxsize=500, ttl=300)
+
+@cached(cache=admin_profile_cache)
+def _get_cached_profile(email: str):
+    return db.get_user_profile(email)
+
+async def require_admin(user = Depends(get_current_user)):
+    if not user:
+        raise HTTPException(status_code=401, detail="Autenticação necessária.")
+    
+    # Verifica Role via cache/Firestore para evitar gargalos lendo o DB em 100% das requisições
+    email = user.get("email")
+    if not email:
+        raise HTTPException(status_code=401, detail="Token sem email válido.")
+        
+    profile = _get_cached_profile(email)
+    if not profile or profile.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Acesso negado. Apenas administradores podem realizar esta ação.")
+    return user
+
 
 # Configure standard logging
 logging.basicConfig(level=logging.INFO, stream=sys.stdout, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -37,9 +73,12 @@ except: pass
 app = FastAPI(title="GAX API")
 
 # Configurar CORS para permitir o frontend Next.js
+allowed_origins_raw = os.environ.get("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:3001")
+allowed_origins = [o.strip() for o in allowed_origins_raw.split(",")]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Em produção, especificar a URL do frontend
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -60,10 +99,15 @@ from fastapi.responses import JSONResponse
 async def global_exception_handler(request, exc):
     import traceback
     error_msg = traceback.format_exc()
-    logging.error(f"CRITICAL ERROR: {error_msg}")
+    logging.error(f"CRITICAL ERROR on {request.url}: {error_msg}")
+    
+    # Em produção, ocultamos o erro detalhado do cliente
+    env = os.environ.get("ENV", "development")
+    detail = str(exc) if env == "development" else "Ocorreu um erro interno no servidor."
+    
     return JSONResponse(
         status_code=500,
-        content={"detail": str(exc)}
+        content={"detail": detail}
     )
 
 @app.get("/")
@@ -134,40 +178,46 @@ async def get_branding():
 
 # --- RSUS CREDENTIALS MANAGEMENT ---
 @app.get("/api/settings/rsus-credentials")
-async def get_rsus_creds(type: str):
-    """Returns stored credentials for RSUS."""
+async def get_rsus_creds(type: str, user = Depends(require_admin)):
+    """Returns stored credentials for RSUS (Masked for security)."""
     creds = db.get_rsus_credentials(type)
     if not creds:
         return {"username": "", "password": ""}
-    # Em um cenário real, verificaríamos se o usuário logado é Admin aqui
-    return creds
+    
+    # MASCARAMENTO: Nunca retornar a senha real para o frontend
+    safe_creds = {
+        "username": creds.get("username", ""),
+        "password": "****************" if creds.get("password") else ""
+    }
+    return safe_creds
 
 @app.post("/settings/rsus-credentials")
-async def save_rsus_creds(type: str = Form(...), username: str = Form(...), password: str = Form(...)):
+async def save_rsus_creds(type: str = Form(...), username: str = Form(...), password: str = Form(...), user = Depends(require_admin)):
     if db.save_rsus_credentials(type, username, password):
+        db.add_audit_log(user.get("email"), "Configuração", f"Atualizou credenciais RSUS do tipo {type}", "WARNING")
         return {"status": "success"}
     raise HTTPException(status_code=500, detail="Erro ao salvar credenciais.")
 
 # --- CUBETI CREDENTIALS MANAGEMENT ---
 @app.get("/settings/cubeti-credentials")
-async def get_cubeti_creds():
+async def get_cubeti_creds(user = Depends(require_admin)):
     """Returns stored credentials for CubeTI Gestão Comercial."""
     return db.get_cubeti_credentials()
 
 @app.post("/settings/cubeti-credentials")
-async def save_cubeti_creds(body: dict):
+async def save_cubeti_creds(body: dict, user = Depends(require_admin)):
     if db.save_cubeti_credentials(body.get("email", ""), body.get("password", "")):
         return {"status": "success"}
     raise HTTPException(status_code=500, detail="Erro ao salvar credenciais CubeTI.")
 
 # --- WHATSAPP / EVOLUTION API MANAGEMENT ---
 @app.get("/whatsapp/config")
-async def get_whatsapp_config():
+async def get_whatsapp_config(user = Depends(require_admin)):
     """Returns stored WhatsApp Evolution API configuration."""
     return db.get_whatsapp_config()
 
 @app.post("/whatsapp/config")
-async def save_whatsapp_config(body: dict):
+async def save_whatsapp_config(body: dict, user = Depends(require_admin)):
     if db.save_whatsapp_config(
         body.get("url", ""),
         body.get("api_key", ""),
@@ -178,7 +228,7 @@ async def save_whatsapp_config(body: dict):
     raise HTTPException(status_code=500, detail="Erro ao salvar config WhatsApp.")
 
 @app.get("/whatsapp/instance/status")
-async def whatsapp_instance_status():
+async def whatsapp_instance_status(user = Depends(require_admin)):
     """Proxy: checks Evolution API instance connection state."""
     import requests
     config = db.get_whatsapp_config()
@@ -201,7 +251,7 @@ async def whatsapp_instance_status():
         raise HTTPException(status_code=502, detail=f"Erro ao consultar Evolution API: {str(e)}")
 
 @app.post("/whatsapp/instance/create")
-async def whatsapp_instance_create():
+async def whatsapp_instance_create(user = Depends(require_admin)):
     """Proxy: creates a new Evolution API v1.8.x instance with the configured name."""
     import requests
     config = db.get_whatsapp_config()
@@ -223,7 +273,7 @@ async def whatsapp_instance_create():
         raise HTTPException(status_code=502, detail=f"Erro ao criar instância: {str(e)}")
 
 @app.get("/whatsapp/instance/qrcode")
-async def whatsapp_instance_qrcode():
+async def whatsapp_instance_qrcode(user = Depends(require_admin)):
     """Proxy: fetches QR Code for the configured instance."""
     import requests
     config = db.get_whatsapp_config()
@@ -240,7 +290,7 @@ async def whatsapp_instance_qrcode():
         raise HTTPException(status_code=502, detail=f"Erro ao gerar QR Code: {str(e)}")
 
 @app.post("/whatsapp/send-test")
-async def whatsapp_send_test(body: dict):
+async def whatsapp_send_test(body: dict, user = Depends(require_admin)):
     """Dispara uma mensagem de teste para os números configurados."""
     import api.utils as utils
     message = body.get("message", "🔔 Teste de Conexão GAX - Evolution API está funcionando!")
@@ -254,28 +304,28 @@ async def whatsapp_send_test(body: dict):
 # --- MESSAGE BROADCAST & TEMPLATES ---
 
 @app.get("/messages/templates")
-async def get_templates():
+async def get_templates(user = Depends(require_admin)):
     return db.get_message_templates()
 
 @app.post("/messages/templates")
-async def save_template(body: dict):
+async def save_template(body: dict, user = Depends(require_admin)):
     tid = db.save_message_template(body.get("name"), body.get("content"), body.get("id"))
     if tid: return {"status": "success", "id": tid}
     raise HTTPException(status_code=500, detail="Erro ao salvar template.")
 
 @app.delete("/messages/templates/{template_id}")
-async def delete_template(template_id: str):
+async def delete_template(template_id: str, user = Depends(require_admin)):
     if db.delete_message_template(template_id):
         return {"status": "success"}
     raise HTTPException(status_code=500, detail="Erro ao deletar template.")
 
 @app.get("/messages/logs")
-async def get_message_logs(page: int = 1, limit: int = 10):
+async def get_message_logs(page: int = 1, limit: int = 10, user = Depends(require_admin)):
     logs, total = db.get_message_logs_paginated(page, limit)
     return {"logs": logs, "total": total}
 
 @app.patch("/clients/{client_id}/whatsapp")
-async def update_client_whatsapp(client_id: str, body: dict):
+async def update_client_whatsapp(client_id: str, body: dict, user = Depends(require_admin)):
     """Atualização rápida de contatos de whatsapp."""
     whatsapp_numbers = body.get("whatsapp_numbers", [])
     if db.update_client_config(client_id, {"whatsapp_numbers": whatsapp_numbers}):
@@ -283,7 +333,7 @@ async def update_client_whatsapp(client_id: str, body: dict):
     raise HTTPException(status_code=500, detail="Erro ao atualizar contatos.")
 
 @app.post("/messages/broadcast")
-async def broadcast_message(body: dict, background_tasks: BackgroundTasks):
+async def broadcast_message(body: dict, background_tasks: BackgroundTasks, user = Depends(require_admin)):
     """
     Processa o envio em lote com base em filtros inteligentes.
     """
@@ -371,14 +421,14 @@ class ABICheckRequest(BaseModel):
 
 
 @app.post("/cancel-task/{task_id}")
-async def cancel_task(task_id: str):
+async def cancel_task(task_id: str, user = Depends(require_admin)):
     """Cancela uma tarefa em andamento."""
     db.update_task(task_id, {"status": "cancelled"})
     db.add_log(task_id, "Interrompendo processamento (solicitação do usuário)...", "WARNING")
     return {"status": "success"}
 
 @app.post("/check-integrations")
-async def check_integrations(background_tasks: BackgroundTasks):
+async def check_integrations(background_tasks: BackgroundTasks, user = Depends(require_admin)):
     """Dispara a automação de checagem em lote em background."""
     import api.automation_api_check as auto_check
     task_id = db.create_task("api_check_batch", "Checagem de APIs em Lote")
@@ -387,7 +437,7 @@ async def check_integrations(background_tasks: BackgroundTasks):
 
 # --- ABI CHECK ENDPOINTS ---
 @app.post("/upload-abi-schedule")
-async def upload_abi_schedule(file: UploadFile = File(...)):
+async def upload_abi_schedule(file: UploadFile = File(...), user = Depends(require_admin)):
     import pandas as pd
     import io
     from datetime import datetime as dt
@@ -490,18 +540,18 @@ async def upload_abi_schedule(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail=f"Erro no arquivo: {str(e)}")
 
 @app.get("/abi-schedule")
-async def get_abi_schedule():
+async def get_abi_schedule(user = Depends(require_admin)):
     return {
         "active": db.get_active_abi(),
         "all": db.get_abi_schedule()
     }
 
 @app.get("/abi-dashboard-stats")
-async def get_abi_dashboard_stats():
+async def get_abi_dashboard_stats(user = Depends(require_admin)):
     return db.get_abi_dashboard_stats()
 
 @app.post("/start-abi-check")
-async def start_abi_check(request: ABICheckRequest, background_tasks: BackgroundTasks):
+async def start_abi_check(request: ABICheckRequest, background_tasks: BackgroundTasks, user = Depends(require_admin)):
     """Inicia a checagem de ABIs (lote ou individual)."""
     import api.automation_abi_check as abi_auto
     
@@ -527,7 +577,7 @@ async def start_abi_check(request: ABICheckRequest, background_tasks: Background
 
 # --- IMPUGNATION CHECK ENDPOINTS ---
 @app.post("/start-impugnation-check")
-async def start_impugnation_check(request: ABICheckRequest, background_tasks: BackgroundTasks):
+async def start_impugnation_check(request: ABICheckRequest, background_tasks: BackgroundTasks, user = Depends(require_admin)):
     """Inicia a checagem de impugnações (lote ou individual)."""
     import api.automation_impugnation_check as imp_auto
     
@@ -552,12 +602,12 @@ async def start_impugnation_check(request: ABICheckRequest, background_tasks: Ba
     return {"status": "pending", "task_id": task_id}
 
 @app.get("/impugnation-dashboard-stats")
-async def get_impugnation_stats():
+async def get_impugnation_stats(user = Depends(require_admin)):
     return db.get_impugnation_dashboard_stats()
 
 
 @app.post("/check-integration/{client_id}")
-async def check_single_integration(client_id: str, background_tasks: BackgroundTasks):
+async def check_single_integration(client_id: str, background_tasks: BackgroundTasks, user = Depends(require_admin)):
     """Dispara a automação de checagem para um único cliente."""
     import api.automation_api_check as auto_check
     task_id = db.create_task("api_check_single", f"Checagem de API: {client_id}")
@@ -565,7 +615,7 @@ async def check_single_integration(client_id: str, background_tasks: BackgroundT
     return {"status": "pending", "task_id": task_id}
 
 @app.get("/active-task/{category}")
-async def get_active_task_route(category: str):
+async def get_active_task_route(category: str, user = Depends(require_admin)):
     """Retorna a tarefa ativa para uma categoria (abi ou api)."""
     task = db.get_active_task(category)
     if task:
@@ -573,12 +623,12 @@ async def get_active_task_route(category: str):
     return {"status": "none"}
 
 @app.get("/clients")
-async def get_clients(page: int = 1, limit: int = 10, search: str = ""):
+async def get_clients(page: int = 1, limit: int = 10, search: str = "", user = Depends(require_admin)):
     clients, total = db.get_clients_paginated(page, limit, search)
     return {"clients": clients, "total": total}
 
 @app.post("/clients/{client_id}")
-async def update_client(client_id: str, data: dict):
+async def update_client(client_id: str, data: dict, user = Depends(require_admin)):
     success = db.update_client_config(client_id, data)
     if not success:
         from fastapi import HTTPException
@@ -586,7 +636,7 @@ async def update_client(client_id: str, data: dict):
     return {"status": "success"}
 
 @app.post("/clients/delete-batch")
-async def delete_clients_batch_route(data: dict):
+async def delete_clients_batch_route(data: dict, user = Depends(require_admin)):
     client_ids = data.get('client_ids', [])
     if not client_ids:
         raise HTTPException(status_code=400, detail="No client IDs provided")
@@ -598,37 +648,37 @@ async def delete_clients_batch_route(data: dict):
 # --- ROTAS DE GRUPOS ---
 
 @app.get("/groups")
-async def get_groups():
+async def get_groups(user = Depends(require_admin)):
     return db.get_groups()
 
 @app.post("/groups")
-async def create_group(data: dict):
+async def create_group(data: dict, user = Depends(require_admin)):
     group_id = db.create_group(data)
     if not group_id:
         raise HTTPException(status_code=500, detail="Failed to create group")
     return {"status": "success", "id": group_id}
 
 @app.post("/groups/{group_id}")
-async def update_group(group_id: str, data: dict):
+async def update_group(group_id: str, data: dict, user = Depends(require_admin)):
     success = db.update_group(group_id, data)
     if not success:
         raise HTTPException(status_code=500, detail="Failed to update group")
     return {"status": "success"}
 
 @app.delete("/groups/{group_id}")
-async def delete_group(group_id: str):
+async def delete_group(group_id: str, user = Depends(require_admin)):
     success = db.delete_group(group_id)
     if not success:
         raise HTTPException(status_code=500, detail="Failed to delete group")
     return {"status": "success"}
 
 @app.get("/xml-data")
-async def get_xml_data(page: int = 1, limit: int = 10, search: str = "", client: str = ""):
+async def get_xml_data(page: int = 1, limit: int = 10, search: str = "", client: str = "", user = Depends(require_admin)):
     xml_data, total = db.get_xml_data_paginated(page, limit, search, client)
     return {"xml_data": xml_data, "total": total}
 
 @app.get("/xml-data/export")
-async def export_xml_data():
+async def export_xml_data(user = Depends(require_admin)):
     import io
 
     import pandas as pd
@@ -668,7 +718,7 @@ async def export_xml_data():
     )
 
 @app.get("/xml-data/{file_id}/details")
-async def get_xml_details(file_id: str):
+async def get_xml_details(file_id: str, user = Depends(require_admin)):
     doc = db.firestore_db.collection('task_files').document(file_id).get()
     if not doc.exists:
         raise HTTPException(status_code=404, detail="Arquivo não encontrado")
@@ -696,7 +746,7 @@ async def get_xml_details(file_id: str):
     return details
 
 @app.get("/xml-data/{file_id}/export")
-async def export_single_xml_details(file_id: str):
+async def export_single_xml_details(file_id: str, user = Depends(require_admin)):
     import io
 
     import pandas as pd
@@ -751,31 +801,34 @@ async def export_single_xml_details(file_id: str):
     )
 
 @app.get("/users")
-async def get_users():
+async def get_users(user = Depends(require_admin)):
     return db.get_all_users()
 
 @app.get("/users/pending")
-async def get_pending_users():
+async def get_pending_users(user = Depends(require_admin)):
     return db.get_pending_users()
 
 @app.post("/users/approve/{user_email}")
-async def approve_user(user_email: str):
+async def approve_user(user_email: str, user = Depends(require_admin)):
+    admin_profile_cache.pop(user_email, None)
     db.update_user_status(user_email, "approved")
     return {"message": "Usuário aprovado com sucesso."}
 
 @app.post("/users/reject/{user_email}")
-async def reject_user(user_email: str):
+async def reject_user(user_email: str, user = Depends(require_admin)):
+    admin_profile_cache.pop(user_email, None)
     db.delete_user_profile(user_email)
     return {"message": "Usuário recusado e removido."}
 
 @app.delete("/users/{user_email}")
-async def delete_user(user_email: str):
+async def delete_user(user_email: str, user = Depends(require_admin)):
+    admin_profile_cache.pop(user_email, None)
     db.delete_user_profile(user_email)
     db.add_audit_log("Admin/Sistema", "Exclusão de Usuário", f"Perfil {user_email} excluído.", "WARNING")
     return {"message": "Usuário excluído com sucesso."}
 
 @app.patch("/users/{user_email}")
-async def update_user(user_email: str, data: dict):
+async def update_user(user_email: str, data: dict, user = Depends(require_admin)):
     # Se uma nova senha for fornecida, atualiza no Firebase Auth
     new_password = data.get("password")
     if new_password and len(str(new_password).strip()) > 0:
@@ -795,36 +848,37 @@ async def update_user(user_email: str, data: dict):
         data.get("status")
     )
     if success:
+        admin_profile_cache.pop(user_email, None)
         return {"message": "Usuário atualizado com sucesso."}
     raise HTTPException(status_code=400, detail="Erro ao atualizar usuário.")
 
 @app.post("/branding")
-async def save_branding(data: dict):
+async def save_branding(data: dict, user = Depends(require_admin)):
     db.save_branding(data.get("system_name"), data.get("logo_base64"))
     return {"message": "Identidade visual salva."}
 
 @app.post("/maintenance/clear-logs")
-async def clear_logs():
+async def clear_logs(user = Depends(require_admin)):
     if db.clear_import_logs():
         db.add_audit_log("Admin/Sistema", "Limpar Histórico", "Admin executou a limpeza do histórico de importação do painel principal.", "WARNING")
         return {"message": "Logs limpos com sucesso."}
     raise HTTPException(status_code=500, detail="Erro ao limpar logs.")
 
 @app.post("/maintenance/reset-db")
-async def reset_db():
+async def reset_db(user = Depends(require_admin)):
     if db.reset_system_database():
         db.add_audit_log("Admin/Sistema", "Reset de Banco", "Admin reiniciou completamente o banco de dados (Hard Reset).", "ERROR")
         return {"message": "Banco de dados resetado com sucesso."}
     raise HTTPException(status_code=500, detail="Erro ao resetar banco.")
 
 @app.get("/tasks")
-async def get_tasks(type: Optional[str] = None, exclude_api: bool = False):
+async def get_tasks(type: Optional[str] = None, exclude_api: bool = False, user = Depends(require_admin)):
     # Retorna o histórico de tarefas para a página de logs, com filtro opcional por tipo
     # Usando o limite de 50 para evitar sobrecarga
     return db.get_tasks_for_dashboard(limit=50, task_type=type, exclude_api_checks=exclude_api)
 
 @app.get("/task/{task_id}")
-async def get_task_status(task_id: str):
+async def get_task_status(task_id: str, user = Depends(require_admin)):
     """Retorna o status completo, progresso e logs de uma tarefa."""
     task = db.firestore_db.collection('tasks').document(task_id).get()
     if not task.exists:
@@ -859,12 +913,12 @@ async def get_task_status(task_id: str):
     return response
 
 @app.get("/task/{task_id}/logs")
-async def route_get_task_logs(task_id: str, client_name: str = None):
+async def route_get_task_logs(task_id: str, client_name: str = None, user = Depends(require_admin)):
     """Retorna a lista de logs de uma tarefa específica, opcionalmente filtrada por cliente."""
     return db.get_task_logs(task_id, client_filter=client_name)
 
 @app.get("/tasks/history-logs")
-async def get_history_logs(type: str = "abi", limit: int = 5):
+async def get_history_logs(type: str = "abi", limit: int = 5, user = Depends(require_admin)):
     """Retorna logs agregados das últimas N tarefas de uma categoria."""
     return db.get_aggregated_history_logs(task_category=type, limit_tasks=limit)
 

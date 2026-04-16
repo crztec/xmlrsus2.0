@@ -148,3 +148,14 @@ def send_password_reset_email(email):
     else:
         error_msg = response.json().get("error", {}).get("message", "Unknown error")
         raise Exception(error_msg)
+
+def verify_token(id_token: str):
+    """Verifies a Firebase ID token and returns the decoded claims."""
+    from firebase_admin import auth as admin_auth
+    try:
+        decoded_token = admin_auth.verify_id_token(id_token)
+        return decoded_token
+    except Exception as e:
+        logger.error(f"Token verification failed: {e}")
+        return None
+

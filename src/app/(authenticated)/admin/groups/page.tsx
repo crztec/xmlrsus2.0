@@ -17,6 +17,8 @@ import {
   ArrowRight
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { apiClient } from "@/lib/apiClient";
+
 
 interface Client {
   id: string;
@@ -49,8 +51,8 @@ export default function GroupsPage() {
     setIsLoading(true);
     try {
       const [groupsRes, clientsRes] = await Promise.all([
-        fetch("/api/groups"),
-        fetch("/api/clients?limit=1000")
+        apiClient("/api/groups"),
+        apiClient("/api/clients?limit=1000")
       ]);
       const groupsData = await groupsRes.json();
       const clientsData = await clientsRes.json();
@@ -96,7 +98,7 @@ export default function GroupsPage() {
       const url = editingGroup ? `/api/groups/${editingGroup.id}` : "/api/groups";
       const method = "POST"; // Backend handles both create and update via POST logic (standard for this API)
 
-      const res = await fetch(url, {
+      const res = await apiClient(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
@@ -117,7 +119,7 @@ export default function GroupsPage() {
     if (!confirm(`Deseja realmente excluir o grupo "${name}"? Os clientes não serão excluídos, apenas perderão o vínculo com o grupo.`)) return;
 
     try {
-      const res = await fetch(`/api/groups/${id}`, { method: "DELETE" });
+      const res = await apiClient(`/api/groups/${id}`, { method: "DELETE" });
       if (res.ok) fetchData();
     } catch (err) {
       console.error("Erro ao excluir grupo:", err);

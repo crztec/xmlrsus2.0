@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from "react";
 import { ShieldCheck, AlertTriangle, AlertCircle, Info, Trash2, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { apiClient } from "@/lib/apiClient";
+
 
 interface AuditLog {
   id: string;
@@ -32,7 +34,7 @@ export default function AuditLogsPage() {
   const fetchLogs = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch("/api/audit");
+      const res = await apiClient("/api/audit");
       const data = await res.json();
       if (data.status === "success") {
         setLogs(data.logs);
@@ -48,7 +50,7 @@ export default function AuditLogsPage() {
     if (confirm("ATENÇÃO: Deseja realmente excluir todos os registros de auditoria? Apenas os últimos 30 dias são mantidos por padrão.")) {
       setIsClearing(true);
       try {
-        const res = await fetch("/api/audit", { method: "DELETE" });
+        const res = await apiClient("/api/audit", { method: "DELETE" });
         if (res.ok) {
           alert("Logs de auditoria apagados com sucesso.");
           fetchLogs();

@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import { UserPlus, Check, X, Mail, Clock, Loader2 } from "lucide-react";
+import { apiClient } from "@/lib/apiClient";
+
 
 interface PendingUser {
   email: string;
@@ -17,7 +19,7 @@ export default function PendingUsersPage() {
   const fetchPending = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch("/api/users/pending");
+      const res = await apiClient("/api/users/pending");
       const data = await res.json();
       setUsers(data);
     } catch (error) {
@@ -40,7 +42,7 @@ export default function PendingUsersPage() {
     const confirmMsg = action === 'approve' ? `Aprovar cadastro de ${email}?` : `Recusar cadastro de ${email}?`;
     if (confirm(confirmMsg)) {
       try {
-        const res = await fetch(`/api/users/${action}/${email}`, { method: "POST" });
+        const res = await apiClient(`/api/users/${action}/${email}`, { method: "POST" });
         if (res.ok) {
           fetchPending();
         } else {

@@ -27,6 +27,8 @@ import {
   Scale
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { apiClient } from "@/lib/apiClient";
+
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -125,7 +127,7 @@ export default function CheckImportsPage() {
 
   const fetchStats = async () => {
     try {
-      const res = await fetch("/api/abi-dashboard-stats");
+      const res = await apiClient("/api/abi-dashboard-stats");
       const data = await res.json();
       setStats(data);
     } catch (err) {
@@ -137,8 +139,8 @@ export default function CheckImportsPage() {
     setIsLoading(true);
     try {
       const [schedRes, clientsRes] = await Promise.all([
-        fetch("/api/abi-schedule"),
-        fetch("/api/clients?limit=100") 
+        apiClient("/api/abi-schedule"),
+        apiClient("/api/clients?limit=100") 
       ]);
       
       if (schedRes.ok) {
@@ -168,7 +170,7 @@ export default function CheckImportsPage() {
     const checkActiveTask = async () => {
       try {
         // Verifica ABI tasks
-        const res = await fetch("/api/active-task/abi");
+        const res = await apiClient("/api/active-task/abi");
         const data = await res.json();
         if (data.id && data.status === 'running') {
           setActiveTaskId(data.id);
@@ -176,7 +178,7 @@ export default function CheckImportsPage() {
           return;
         }
         // Verifica impugnation tasks
-        const resImp = await fetch("/api/active-task/impugnation");
+        const resImp = await apiClient("/api/active-task/impugnation");
         const dataImp = await resImp.json();
         if (dataImp.id && dataImp.status === 'running') {
           setActiveTaskId(dataImp.id);
@@ -209,7 +211,7 @@ export default function CheckImportsPage() {
     if (activeTaskId) {
       interval = setInterval(async () => {
         try {
-          const res = await fetch(`/api/task/${activeTaskId}`);
+          const res = await apiClient(`/api/task/${activeTaskId}`);
           const data = await res.json();
           setCurrentTaskStatus(data);
           setRealtimeLogs(data.logs || []);
@@ -247,7 +249,7 @@ export default function CheckImportsPage() {
       const url = clientName 
         ? `/api/task/${taskId}/logs?client_name=${encodeURIComponent(clientName)}`
         : `/api/task/${taskId}/logs`;
-      const res = await fetch(url);
+      const res = await apiClient(url);
       const data = await res.json();
       setDetailedLogs(data);
     } catch (err) {
@@ -268,7 +270,7 @@ export default function CheckImportsPage() {
 
     try {
       // Usa o novo endpoint de histórico agregado (últimos 5 clientes/tasks)
-      const res = await fetch("/api/tasks/history-logs?type=abi&limit=5");
+      const res = await apiClient("/api/tasks/history-logs?type=abi&limit=5");
       const logsData = await res.json();
       
       if (logsData && logsData.length > 0) {
@@ -291,7 +293,7 @@ export default function CheckImportsPage() {
     formData.append("file", e.target.files[0]);
 
     try {
-      const res = await fetch("/api/upload-abi-schedule", {
+      const res = await apiClient("/api/upload-abi-schedule", {
         method: "POST",
         body: formData,
       });
@@ -310,7 +312,7 @@ export default function CheckImportsPage() {
 
   const startCheck = async (clientId?: string) => {
     try {
-      const res = await fetch("/api/start-abi-check", {
+      const res = await apiClient("/api/start-abi-check", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ client_id: clientId || null }),
@@ -356,7 +358,7 @@ export default function CheckImportsPage() {
     }
     
     try {
-      const res = await fetch("/api/start-abi-check", {
+      const res = await apiClient("/api/start-abi-check", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ client_ids: failedOnes }),
@@ -382,7 +384,7 @@ export default function CheckImportsPage() {
 
   const startImpugnationCheck = async (clientId?: string) => {
     try {
-      const res = await fetch("/api/start-impugnation-check", {
+      const res = await apiClient("/api/start-impugnation-check", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ client_id: clientId || null }),
@@ -416,7 +418,7 @@ export default function CheckImportsPage() {
     if (!confirm("Deseja realmente parar o processamento atual?")) return;
 
     try {
-      await fetch(`/api/cancel-task/${activeTaskId}`, { method: "POST" });
+      await apiClient(`/api/cancel-task/${activeTaskId}`, { method: "POST" });
     } catch (err) {
       console.error("Erro ao cancelar:", err);
     }
@@ -547,7 +549,7 @@ export default function CheckImportsPage() {
                   setShowLogsModal(true);
                   setIsLoadingLogs(true);
                   try {
-                    const res = await fetch("/api/tasks/history-logs?type=impugnation&limit=5");
+                    const res = await apiClient("/api/tasks/history-logs?type=impugnation&limit=5");
                     const logsData = await res.json();
                     setDetailedLogs(logsData?.length > 0 ? logsData : [{ timestamp: "", message: "Nenhum histórico de impugnações encontrado.", level: "INFO" }]);
                   } catch (err) { console.error(err); } finally { setIsLoadingLogs(false); }

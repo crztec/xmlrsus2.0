@@ -27,6 +27,8 @@ import {
   AlertCircle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { apiClient } from "@/lib/apiClient";
+
 
 interface Template {
   id: string;
@@ -205,8 +207,8 @@ export default function MessagesPage() {
     setIsLoading(true);
     try {
       const [templRes, clientRes] = await Promise.all([
-        fetch("/api/messages/templates"),
-        fetch("/api/clients?limit=1000")
+        apiClient("/api/messages/templates"),
+        apiClient("/api/clients?limit=1000")
       ]);
       
       const templData = await templRes.json();
@@ -224,7 +226,7 @@ export default function MessagesPage() {
   const fetchLogs = async (page: number) => {
     setIsLogsLoading(true);
     try {
-      const res = await fetch(`/api/messages/logs?page=${page}&limit=${logsPerPage}`);
+      const res = await apiClient(`/api/messages/logs?page=${page}&limit=${logsPerPage}`);
       const data = await res.json();
       setLogs(data.logs || []);
       setTotalLogs(data.total || 0);
@@ -295,7 +297,7 @@ export default function MessagesPage() {
     setIsSending(true);
     setSendResult(null);
     try {
-      const res = await fetch("/api/messages/broadcast", {
+      const res = await apiClient("/api/messages/broadcast", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ filters, message })
@@ -319,7 +321,7 @@ export default function MessagesPage() {
     if (!editingTemplate.name || !editingTemplate.content) return;
     
     try {
-      const res = await fetch("/api/messages/templates", {
+      const res = await apiClient("/api/messages/templates", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(editingTemplate)
@@ -338,7 +340,7 @@ export default function MessagesPage() {
   const handleDeleteTemplate = async (id: string) => {
     if (!confirm("Excluir este template?")) return;
     try {
-      const res = await fetch(`/api/messages/templates/${id}`, { method: "DELETE" });
+      const res = await apiClient(`/api/messages/templates/${id}`, { method: "DELETE" });
       if (res.ok) {
         fetchData();
         if (selectedTemplateId === id) setSelectedTemplateId(null);
@@ -366,7 +368,7 @@ export default function MessagesPage() {
 
       if (modifiedClients.length > 0) {
         await Promise.all(modifiedClients.map(c => 
-          fetch(`/api/clients/${c.id}/whatsapp`, {
+          apiClient(`/api/clients/${c.id}/whatsapp`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ whatsapp_numbers: c.whatsapp_numbers })

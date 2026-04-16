@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import { Settings, Image as ImageIcon, Type, Save, CloudUpload, Loader2 } from "lucide-react";
+import { apiClient } from "@/lib/apiClient";
+
 
 export default function BrandingPage() {
   const [systemName, setSystemName] = useState("");
@@ -15,7 +17,7 @@ export default function BrandingPage() {
       return;
     }
     
-    fetch("/api/branding")
+    apiClient("/api/branding")
       .then(res => res.json())
       .then(data => {
         setSystemName(data.system_name || "GAX | Integração RSUS");
@@ -27,7 +29,7 @@ export default function BrandingPage() {
   const handleSaveBranding = async () => {
     setIsSaving(true);
     try {
-      await fetch("/api/branding", {
+      await apiClient("/api/branding", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ system_name: systemName }),
@@ -53,7 +55,7 @@ export default function BrandingPage() {
       const base64 = reader.result as string;
       setIsSaving(true);
       try {
-        await fetch("/api/branding", {
+        await apiClient("/api/branding", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ system_name: systemName, logo_base64: base64 }),

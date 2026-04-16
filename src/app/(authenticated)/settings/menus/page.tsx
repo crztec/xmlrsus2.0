@@ -27,6 +27,8 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { apiClient } from "@/lib/apiClient";
+
 
 const ICON_MAP: Record<string, React.ReactNode> = {
   CloudUpload: <CloudUpload size={16} />,
@@ -139,7 +141,7 @@ export default function MenusPage() {
   const fetchConfig = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch("/api/menu-config");
+      const res = await apiClient("/api/menu-config");
       const data = await res.json();
       delete data.updated_at;
       delete data.saved_as_default_at;
@@ -228,7 +230,7 @@ export default function MenusPage() {
     if (!config) return;
     setIsSaving(true);
     try {
-      const res = await fetch("/api/menu-config", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(config) });
+      const res = await apiClient("/api/menu-config", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(config) });
       if (res.ok) { 
         showSuccess("Configuração salva com sucesso!"); 
         setHasChanges(false); 
@@ -245,8 +247,8 @@ export default function MenusPage() {
     if (!config || !confirm("Deseja salvar a configuração atual como o novo padrão do sistema?")) return;
     setIsSavingDefault(true);
     try {
-      await fetch("/api/menu-config", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(config) });
-      const res = await fetch("/api/menu-config/set-default", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(config) });
+      await apiClient("/api/menu-config", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(config) });
+      const res = await apiClient("/api/menu-config/set-default", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(config) });
       if (res.ok) { 
         showSuccess("Configuração salva como padrão!"); 
         setHasChanges(false);
@@ -262,7 +264,7 @@ export default function MenusPage() {
     if (!confirm("Restaurar menus ao padrão? Alterações não salvas serão perdidas.")) return;
     setIsRestoring(true);
     try {
-      const res = await fetch("/api/menu-config/restore-default", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
+      const res = await apiClient("/api/menu-config/restore-default", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
       if (res.ok) { 
         showSuccess("Menus restaurados!"); 
         const newConfig = await fetchConfig();

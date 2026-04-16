@@ -25,6 +25,8 @@ import {
   Puzzle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { apiClient } from "@/lib/apiClient";
+
 
 // Icon registry for dynamic menus
 const ICON_MAP: Record<string, React.ReactNode> = {
@@ -163,7 +165,7 @@ export default function Sidebar({ onOpenProfile }: SidebarProps) {
 
     if (storedEmail) {
       setUserEmail(storedEmail);
-      fetch(`/api/profile?email=${storedEmail}`)
+      apiClient(`/api/profile?email=${storedEmail}`)
         .then(res => res.json())
         .then(data => {
           if (data && !data.detail) {
@@ -179,7 +181,7 @@ export default function Sidebar({ onOpenProfile }: SidebarProps) {
   }, []);
 
   React.useEffect(() => {
-    fetch("/api/branding")
+    apiClient("/api/branding")
       .then(res => {
         if (!res.ok) throw new Error("API não retornou ok");
         return res.json();
@@ -200,7 +202,7 @@ export default function Sidebar({ onOpenProfile }: SidebarProps) {
 
   // Load dynamic menu config
   const fetchMenuConfig = React.useCallback(() => {
-    fetch("/api/menu-config")
+    apiClient("/api/menu-config")
       .then(res => res.json())
       .then(data => {
         if (data && data.main_menu) {

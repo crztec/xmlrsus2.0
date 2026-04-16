@@ -20,6 +20,8 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { apiClient } from "@/lib/apiClient";
+
 
 interface Task {
   id: string;
@@ -89,7 +91,7 @@ export default function LogsPage() {
   const fetchTasks = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/tasks?t=${Date.now()}&exclude_api=true`, {
+      const res = await apiClient(`/api/tasks?t=${Date.now()}&exclude_api=true`, {
         cache: "no-store",
         headers: { "Cache-Control": "no-cache" },
       });
@@ -132,7 +134,7 @@ export default function LogsPage() {
   const handleClearLogs = async () => {
     if (confirm("Deseja realmente limpar todos os logs do banco de dados?")) {
       try {
-        await fetch("/api/maintenance/clear-logs", { method: "POST" });
+        await apiClient("/api/maintenance/clear-logs", { method: "POST" });
         fetchTasks();
       } catch {
         alert("Erro ao limpar logs.");

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Key, Save, Loader2, ShieldCheck, User, Lock, Building2, Mail } from "lucide-react";
+import { apiClient } from "@/lib/apiClient";
 
 export default function AccessControlPage() {
   const [generalUser, setGeneralUser] = useState("");
@@ -21,9 +22,9 @@ export default function AccessControlPage() {
     }
     
     Promise.all([
-      fetch("/api/settings/rsus-credentials?type=general").then(res => res.json()),
-      fetch("/api/settings/rsus-credentials?type=unimed_vitoria").then(res => res.json()),
-      fetch("/api/settings/cubeti-credentials").then(res => res.json()).catch(() => ({ email: "", password: "" }))
+      apiClient("/api/settings/rsus-credentials?type=general").then(res => res.json()),
+      apiClient("/api/settings/rsus-credentials?type=unimed_vitoria").then(res => res.json()),
+      apiClient("/api/settings/cubeti-credentials").then(res => res.json()).catch(() => ({ email: "", password: "" }))
     ]).then(([general, vitoria, cubeti]) => {
       setGeneralUser(general.username || "");
       setGeneralPass(general.password || "");
@@ -43,7 +44,7 @@ export default function AccessControlPage() {
     params.append("password", type === "general" ? generalPass : vitoriaPass);
 
     try {
-      const res = await fetch("/api/settings/rsus-credentials", {
+      const res = await apiClient("/api/settings/rsus-credentials", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: params,
@@ -60,7 +61,7 @@ export default function AccessControlPage() {
   const handleSaveCubeti = async () => {
     setIsSaving("cubeti");
     try {
-      const res = await fetch("/api/settings/cubeti-credentials", {
+      const res = await apiClient("/api/settings/cubeti-credentials", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: cubEmail, password: cubPass }),
