@@ -80,8 +80,8 @@ export default function BrandingPage() {
   }
 
   return (
-    <div className="flex flex-col gap-8 p-8 pt-2 max-w-3xl mx-auto animate-in fade-in duration-500">
-      <section className="space-y-6 rounded-3xl border border-slate-200/60 bg-white/70 p-8 shadow-sm backdrop-blur-sm">
+    <div className="flex flex-col gap-8 p-4 md:p-8 pt-2 max-w-3xl mx-auto animate-in fade-in duration-500">
+      <section className="space-y-6 rounded-3xl border border-slate-200/60 bg-white/70 p-6 md:p-8 shadow-sm backdrop-blur-sm">
         <div className="flex items-center gap-4 border-b border-slate-100/50 pb-6">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-gax-blue/10 to-gax-blue/5 text-gax-blue shadow-inner">
             <Settings size={24} />

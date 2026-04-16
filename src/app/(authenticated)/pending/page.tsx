@@ -63,7 +63,7 @@ export default function PendingUsersPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 p-8 pt-2 max-w-7xl mx-auto">
+    <div className="flex flex-col gap-6 p-4 md:p-8 pt-2 max-w-7xl mx-auto animate-in fade-in duration-500">
       <div></div>
 
       {users.length > 0 ? (
@@ -71,7 +71,7 @@ export default function PendingUsersPage() {
           {users.map((user, idx) => (
             <div 
               key={user.email} 
-              className="group flex items-center justify-between rounded-3xl border border-slate-200/60 bg-white/70 p-6 shadow-sm backdrop-blur-sm transition-all hover:border-gax-blue/30 hover:shadow-xl hover:shadow-slate-200/50"
+              className="group flex flex-col sm:flex-row items-start sm:items-center justify-between rounded-3xl border border-slate-200/60 bg-white/70 p-6 shadow-sm backdrop-blur-sm transition-all hover:border-gax-blue/30 hover:shadow-xl hover:shadow-slate-200/50 gap-6"
               style={{ animationDelay: `${idx * 50}ms`, animationFillMode: 'both' }}
             >
               <div className="flex items-center gap-4">
@@ -87,17 +87,17 @@ export default function PendingUsersPage() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 w-full sm:w-auto">
                 <button 
                   onClick={() => handleAction(user.email, 'approve')}
-                  className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500 text-white shadow-xl shadow-emerald-500/20 transition-all hover:bg-emerald-600 active:scale-95"
+                  className="flex-1 sm:flex-none flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500 text-white shadow-xl shadow-emerald-500/20 transition-all hover:bg-emerald-600 active:scale-95"
                   title="Aprovar"
                 >
                   <Check size={24} />
                 </button>
                 <button 
                   onClick={() => handleAction(user.email, 'reject')}
-                  className="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-500 text-white shadow-xl shadow-rose-500/20 transition-all hover:bg-rose-600 active:scale-95"
+                  className="flex-1 sm:flex-none flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-500 text-white shadow-xl shadow-rose-500/20 transition-all hover:bg-rose-600 active:scale-95"
                   title="Recusar"
                 >
                   <X size={24} />

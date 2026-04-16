@@ -381,11 +381,11 @@ export default function ApiChecksPage() {
   };
 
   return (
-    <div className="flex flex-col gap-6 p-8 max-w-7xl mx-auto animate-in fade-in duration-500 pt-2">
+    <div className="flex flex-col gap-6 p-4 md:p-8 max-w-7xl mx-auto animate-in fade-in duration-500 pt-2">
       
       {/* ── REAL-TIME STATUS BAR ── */}
       <div className={cn(
-        "rounded-2xl border bg-white px-5 py-3 flex items-center justify-between gap-4 shadow-sm transition-all",
+        "rounded-2xl border bg-white px-5 py-3 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm transition-all",
         activeTaskId ? "border-gax-blue/30 bg-gax-blue/[0.02]" : "border-slate-200"
       )}>
         {activeTaskId ? (
@@ -448,7 +448,7 @@ export default function ApiChecksPage() {
               <ShieldCheck size={14} className="text-emerald-500" />
               <span className="text-xs font-medium text-slate-500">Sistema pronto para nova checagem</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
               <button
                 onClick={fetchClients}
                 className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 transition-colors"

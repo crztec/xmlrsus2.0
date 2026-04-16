@@ -393,7 +393,7 @@ export default function MessagesPage() {
 
 
   return (
-    <div className="flex flex-col gap-6 p-8 pt-2 max-w-7xl mx-auto animate-in fade-in duration-500">
+    <div className="flex flex-col gap-6 p-4 md:p-8 pt-2 max-w-7xl mx-auto animate-in fade-in duration-500">
       
       {/* Tab Switcher */}
       <div className="flex items-center gap-1.5 rounded-2xl border border-slate-200/60 bg-white/70 backdrop-blur-md p-1.5 shadow-sm w-fit sticky top-0 z-30">

@@ -259,7 +259,7 @@ export default function Sidebar({ onOpenProfile, isOpen, onClose }: SidebarProps
 
   return (
     <aside className={cn(
-      "flex h-screen w-64 flex-col border-r border-slate-200/60 bg-white/80 backdrop-blur-xl transition-transform duration-300 ease-in-out z-50",
+      "flex h-screen w-64 flex-col bg-white/80 backdrop-blur-xl transition-transform duration-300 ease-in-out z-50",
       "fixed inset-y-0 left-0 md:relative md:translate-x-0",
       isOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"
     )}>

@@ -150,7 +150,7 @@ export default function XmlDataPage() {
   // --- RENDERING: CLIENT SELECTION ---
   if (!selectedClient) {
     return (
-      <div className="flex flex-col gap-6 p-8 pt-2 max-w-7xl mx-auto">
+      <div className="flex flex-col gap-6 p-4 md:p-8 pt-2 max-w-7xl mx-auto">
         <div></div>
 
         <div className="relative max-w-md">
@@ -256,23 +256,27 @@ export default function XmlDataPage() {
 
   // --- RENDERING: DATA TABLE ---
   return (
-    <div className="flex flex-col gap-6 p-8 pt-2 max-w-7xl mx-auto">
+    <div className="flex flex-col gap-6 p-4 md:p-8 pt-2 max-w-7xl mx-auto animate-in fade-in duration-500">
       <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-center gap-5">
+        <div className="flex items-center gap-3 md:gap-5">
           <button 
             onClick={() => {
               setSelectedClient(null);
               setSearchTerm("");
             }}
-            className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-400 hover:border-gax-blue/30 hover:text-gax-blue hover:shadow-lg hover:shadow-gax-blue/10 transition-all"
+            className="flex h-10 w-10 md:h-12 md:w-12 items-center justify-center rounded-xl md:rounded-2xl border border-slate-200 bg-white text-slate-400 hover:border-gax-blue/30 hover:text-gax-blue hover:shadow-lg hover:shadow-gax-blue/10 transition-all shrink-0"
             aria-label="Voltar"
           >
             <ArrowLeft size={20} />
           </button>
+          <div className="flex flex-col min-w-0">
+            <h2 className="text-sm md:text-base font-bold text-slate-800 truncate">{selectedClient}</h2>
+            <p className="text-[10px] text-slate-400 font-medium">Dados de Faturamento XML</p>
+          </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          <div className="relative group">
+        <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
+          <div className="relative group w-full sm:w-auto">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-gax-blue transition-colors" size={18} />
             <input 
               id="abi-search"
@@ -288,7 +292,7 @@ export default function XmlDataPage() {
           </div>
           <button 
             onClick={handleExportAll}
-            className="flex items-center gap-2 rounded-2xl bg-gax-blue px-6 py-3.5 text-xs font-bold text-white shadow-xl shadow-gax-blue/20 hover:bg-gax-blue-hover transition-all active:scale-[0.98]"
+            className="flex items-center justify-center gap-2 rounded-2xl bg-gax-blue px-6 py-3.5 text-xs font-bold text-white shadow-xl shadow-gax-blue/20 hover:bg-gax-blue-hover transition-all active:scale-[0.98] w-full sm:w-auto"
           >
             <Download size={18} />
             <span>Exportar Base</span>
@@ -306,7 +310,7 @@ export default function XmlDataPage() {
           ) : (
             <>
               <table className="w-full text-left font-sans text-xs">
-                <thead className="bg-slate-50/30 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">
+                <thead className="bg-slate-50/30 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400 whitespace-nowrap">
                   <tr className="border-b border-slate-100/50">
                     <th className="px-5 py-5 font-bold">Arquivo</th>
                     <th className="px-5 py-5 font-bold">ABI</th>
@@ -320,7 +324,7 @@ export default function XmlDataPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {paginatedData.map((xml) => (
-                    <tr key={xml.id} className="group transition-colors hover:bg-slate-50/50">
+                    <tr key={xml.id} className="group transition-colors hover:bg-slate-50/50 whitespace-nowrap">
                       <td className="px-4 py-3 max-w-[200px] truncate" title={xml.file_name}>
                         <div className="flex items-center gap-2">
                           <FileText size={14} className="text-slate-300 group-hover:text-gax-blue" aria-hidden="true" />
@@ -450,9 +454,9 @@ export default function XmlDataPage() {
                 </div>
               ) : fileDetails.length > 0 ? (
                 <>
-                  <div className="rounded-xl border border-slate-200 overflow-hidden mb-4">
+                  <div className="rounded-xl border border-slate-200 overflow-x-auto mb-4 hide-scrollbar">
                     <table className="w-full text-left text-[11px]">
-                      <thead className="bg-slate-50 text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                      <thead className="bg-slate-50 text-[9px] font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">
                         <tr>
                           <th className="px-4 py-3">Cód. Benef.</th>
                           <th className="px-4 py-3">Beneficiário</th>
@@ -462,7 +466,7 @@ export default function XmlDataPage() {
                           <th className="px-4 py-3 text-right">Valor</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100">
+                      <tbody className="divide-y divide-slate-100 whitespace-nowrap">
                         {paginatedDetails.map((item, idx) => (
                           <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
                             <td className="px-4 py-3 text-slate-500 font-mono">{item.beneficiario_cod}</td>

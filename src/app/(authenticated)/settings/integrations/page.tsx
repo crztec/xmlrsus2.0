@@ -174,10 +174,10 @@ export default function IntegrationsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-8 p-8 pt-2 max-w-7xl mx-auto animate-in fade-in duration-500">
+    <div className="flex flex-col gap-6 md:gap-8 p-4 md:p-8 pt-2 max-w-7xl mx-auto animate-in fade-in duration-500">
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
         {/* Card: WhatsApp Config (Server Config) */}
-        <section className="flex flex-col h-fit space-y-6 rounded-3xl border border-slate-200/60 bg-white/70 p-8 shadow-sm backdrop-blur-sm">
+        <section className="flex flex-col h-fit space-y-6 rounded-3xl border border-slate-200/60 bg-white/70 p-6 md:p-8 shadow-sm backdrop-blur-sm">
           <div className="flex items-center gap-4 border-b border-slate-100/50 pb-6">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-100 to-emerald-50 text-emerald-600 shadow-inner">
               <Globe size={24} />
@@ -261,7 +261,7 @@ export default function IntegrationsPage() {
         </section>
 
         {/* Card: Instance Management (Session Config) */}
-        <section className="space-y-6 rounded-3xl border border-slate-200/60 bg-white/70 p-8 shadow-sm backdrop-blur-sm h-fit">
+        <section className="space-y-6 rounded-3xl border border-slate-200/60 bg-white/70 p-6 md:p-8 shadow-sm backdrop-blur-sm h-fit">
           <div className="flex items-center gap-4 border-b border-slate-100/50 pb-6">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-100 to-violet-50 text-violet-600 shadow-inner">
               <Wifi size={24} />
@@ -340,8 +340,8 @@ export default function IntegrationsPage() {
             {qrCode && (
               <div className="flex flex-col items-center gap-4 rounded-xl border border-violet-100 bg-violet-50/50 p-6 animate-in fade-in zoom-in-95 duration-500">
                 <p className="text-xs font-bold text-violet-800 uppercase tracking-wider">Escaneie o QR Code</p>
-                <div className="bg-white rounded-2xl p-4 shadow-lg ring-1 ring-violet-100">
-                  <img src={qrCode.startsWith("data:") ? qrCode : `data:image/png;base64,${qrCode}`} alt="QR Code WhatsApp" className="w-64 h-64 object-contain" />
+                <div className="bg-white rounded-2xl p-4 shadow-lg ring-1 ring-violet-100 w-full max-w-[280px] aspect-square flex items-center justify-center">
+                  <img src={qrCode.startsWith("data:") ? qrCode : `data:image/png;base64,${qrCode}`} alt="QR Code WhatsApp" className="w-full h-full object-contain" />
                 </div>
                 <p className="text-[10px] text-violet-500 font-medium text-center">O código expira em alguns segundos.<br/>Se necessário, gere um novo código.</p>
               </div>

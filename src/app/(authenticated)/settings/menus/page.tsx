@@ -293,7 +293,7 @@ export default function MenusPage() {
   ];
 
   return (
-    <div className="flex flex-col gap-5 p-8 pt-2 max-w-3xl mx-auto animate-in fade-in duration-500">
+    <div className="flex flex-col gap-5 p-4 md:p-8 pt-2 max-w-3xl mx-auto animate-in fade-in duration-500">
       {/* Feedback Messages */}
       {successMessage && (
         <div className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-100 animate-in fade-in slide-in-from-top-2 duration-300">
@@ -359,7 +359,7 @@ export default function MenusPage() {
                     onDragEnd={handleDragEnd}
                     onDrop={(e) => handleDrop(e, section.key, idx)}
                     className={cn(
-                      "flex items-center gap-3 px-6 py-2.5 border-t border-slate-100/60 transition-all group cursor-grab active:cursor-grabbing",
+                      "flex items-center gap-3 px-4 sm:px-6 py-2.5 border-t border-slate-100/60 transition-all group cursor-grab active:cursor-grabbing",
                       isDragOver && "bg-gax-blue/5 border-l-2 border-l-gax-blue",
                       !isDragOver && "hover:bg-slate-50/50"
                     )}
@@ -409,12 +409,12 @@ export default function MenusPage() {
                         <button onClick={handleEditCancel} className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-200 text-slate-500 hover:bg-slate-300 transition-all"><X size={10} /></button>
                       </div>
                     ) : (
-                      <span className="flex-1 text-xs font-semibold text-slate-600">{item.label}</span>
+                      <span className="flex-1 text-xs font-semibold text-slate-600 truncate">{item.label}</span>
                     )}
 
                     {/* Admin Badge */}
                     {item.isAdmin && (
-                      <span className="text-[7px] font-black uppercase tracking-widest text-amber-500 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100 shrink-0">
+                      <span className="hidden sm:inline-flex text-[7px] font-black uppercase tracking-widest text-amber-500 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100 shrink-0">
                         Admin
                       </span>
                     )}
@@ -437,40 +437,44 @@ export default function MenusPage() {
           })}
 
           {/* Action Bar (integrated at bottom of card) */}
-          <div className="flex items-center justify-end gap-3 bg-slate-50/80 backdrop-blur-sm border-t border-slate-100 px-6 py-4">
-            {hasChanges && (
-              <div className="flex items-center gap-1.5 mr-auto">
-                <div className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
-                <span className="text-[10px] font-bold text-amber-600">Alterações não salvas</span>
-              </div>
-            )}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50/80 backdrop-blur-sm border-t border-slate-100 px-6 py-5">
+            <div className="flex items-center gap-1.5 w-full sm:w-auto">
+              {hasChanges && (
+                <>
+                  <div className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+                  <span className="text-[10px] font-bold text-amber-600 uppercase tracking-tight">Alterações Pendentes</span>
+                </>
+              )}
+            </div>
 
-            <button
-              onClick={handleRestore}
-              disabled={isRestoring}
-              className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-[10px] font-bold text-slate-500 hover:bg-slate-50 transition-all disabled:opacity-50 active:scale-95"
-            >
-              {isRestoring ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />}
-              Restaurar Padrão
-            </button>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <button
+                onClick={handleRestore}
+                disabled={isRestoring}
+                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[10px] font-bold text-slate-500 hover:bg-slate-50 transition-all disabled:opacity-50 active:scale-95"
+              >
+                {isRestoring ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />}
+                Restaurar
+              </button>
 
-            <button
-              onClick={handleSaveDefault}
-              disabled={isSavingDefault || !hasChanges}
-              className="flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-[10px] font-bold text-amber-600 hover:bg-amber-100 transition-all disabled:opacity-50 active:scale-95"
-            >
-              {isSavingDefault ? <Loader2 size={12} className="animate-spin" /> : <Star size={12} />}
-              Salvar como Padrão
-            </button>
+              <button
+                onClick={handleSaveDefault}
+                disabled={isSavingDefault || !hasChanges}
+                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-[10px] font-bold text-amber-600 hover:bg-amber-100 transition-all disabled:opacity-50 active:scale-95"
+              >
+                {isSavingDefault ? <Loader2 size={12} className="animate-spin" /> : <Star size={12} />}
+                Definir Padrão
+              </button>
 
-            <button
-              onClick={handleSave}
-              disabled={isSaving || !hasChanges}
-              className="flex items-center gap-1.5 rounded-xl bg-gax-blue px-5 py-2 text-[10px] font-bold text-white shadow-lg shadow-gax-blue/20 transition-all hover:bg-gax-blue-hover disabled:opacity-50 active:scale-95"
-            >
-              {isSaving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-              Salvar
-            </button>
+              <button
+                onClick={handleSave}
+                disabled={isSaving || !hasChanges}
+                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 rounded-xl bg-gax-blue px-6 py-2.5 text-[10px] font-bold text-white shadow-lg shadow-gax-blue/20 transition-all hover:bg-gax-blue-hover disabled:opacity-50 active:scale-95"
+              >
+                {isSaving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                Salvar
+              </button>
+            </div>
           </div>
         </div>
       </div>

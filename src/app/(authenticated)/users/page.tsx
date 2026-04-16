@@ -102,12 +102,12 @@ export default function UsersPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 p-8 pt-2 max-w-7xl mx-auto">
+    <div className="flex flex-col gap-6 p-4 md:p-8 pt-2 max-w-7xl mx-auto animate-in fade-in duration-500">
       <div></div>
 
       <div className="overflow-hidden rounded-3xl border border-slate-200/60 bg-white/70 shadow-sm backdrop-blur-sm">
         <table className="w-full text-left font-sans text-xs">
-          <thead className="bg-slate-50/30 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">
+          <thead className="bg-slate-50/30 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400 whitespace-nowrap">
             <tr className="border-b border-slate-100/50">
               <th className="px-6 py-4">Usuário</th>
               <th className="px-6 py-4">E-mail</th>
@@ -118,7 +118,7 @@ export default function UsersPage() {
           </thead>
           <tbody className="divide-y divide-slate-100/50">
             {paginatedUsers.map((user) => (
-              <tr key={user.email} className="hover:bg-white transition-colors group">
+              <tr key={user.email} className="hover:bg-white transition-colors group whitespace-nowrap">
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-3">
                     <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-gax-blue/10 to-gax-blue/5 text-gax-blue font-bold shadow-inner">

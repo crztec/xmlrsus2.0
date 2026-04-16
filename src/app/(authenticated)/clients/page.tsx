@@ -255,36 +255,36 @@ export default function ClientsPage() {
   );
 
   return (
-    <div className="flex flex-col gap-6 p-8 pt-2 max-w-7xl mx-auto animate-in fade-in duration-500">
+    <div className="flex flex-col gap-6 p-4 md:p-8 pt-2 max-w-7xl mx-auto animate-in fade-in duration-500">
       
       {/* Floating Action Bar for Selected Items */}
       {selectedClients.size > 0 && (
-        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex items-center gap-6 rounded-2xl bg-slate-900 px-6 py-4 shadow-2xl animate-in slide-in-from-bottom-8 duration-500">
-          <span className="text-sm font-bold text-white">
+        <div className="fixed bottom-8 left-4 right-4 md:left-1/2 md:-translate-x-1/2 md:w-auto z-50 flex flex-col md:flex-row items-center gap-4 md:gap-6 rounded-2xl bg-slate-900 px-6 py-4 shadow-2xl animate-in slide-in-from-bottom-8 duration-500">
+          <span className="text-sm font-bold text-white whitespace-nowrap">
             {selectedClients.size} {selectedClients.size === 1 ? 'cliente selecionado' : 'clientes selecionados'}
           </span>
-          <div className="h-4 w-px bg-slate-700" />
-          <div className="flex items-center gap-3">
+          <div className="hidden md:block h-4 w-px bg-slate-700" />
+          <div className="flex items-center gap-3 w-full md:w-auto">
             <button 
               onClick={() => setSelectedClients(new Set())}
-              className="text-xs font-bold text-slate-400 hover:text-white transition-colors"
+              className="flex-1 md:flex-none text-xs font-bold text-slate-400 hover:text-white transition-colors"
             >
               Cancelar
             </button>
             <button 
               onClick={handleDeleteSelected}
               disabled={isDeleting}
-              className="flex items-center gap-2 rounded-xl bg-rose-500 px-4 py-2 text-xs font-bold text-white hover:bg-rose-600 transition-all disabled:opacity-50 shadow-lg shadow-rose-500/20 active:scale-95"
+              className="flex-1 md:flex-none flex items-center justify-center gap-2 rounded-xl bg-rose-500 px-4 py-2 text-xs font-bold text-white hover:bg-rose-600 transition-all disabled:opacity-50 shadow-lg shadow-rose-500/20 active:scale-95"
             >
               {isDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-              Excluir Selecionados
+              Excluir
             </button>
           </div>
         </div>
       )}
 
       <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between animate-in fade-in duration-500">
-        <div className="relative group max-w-md w-full">
+        <div className="relative group w-full md:max-w-md">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-gax-blue transition-colors" size={18} />
           <input 
             type="text" 
@@ -295,7 +295,7 @@ export default function ClientsPage() {
           />
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
            {successMessage && (
             <div className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-100 animate-in fade-in slide-in-from-right-2 duration-300">
               {successMessage}
@@ -307,11 +307,11 @@ export default function ClientsPage() {
             </div>
            )}
 
-          <div className="flex items-center gap-1.5 rounded-2xl border border-slate-200/60 bg-white p-1.5 shadow-sm">
+          <div className="flex items-center gap-1.5 rounded-2xl border border-slate-200/60 bg-white p-1.5 shadow-sm w-full sm:w-auto overflow-x-auto hide-scrollbar whitespace-nowrap">
             <button
               onClick={() => setViewMode("grid")}
               className={cn(
-                "flex h-9 w-9 items-center justify-center rounded-xl transition-all font-sans",
+                "flex-1 sm:flex-none flex h-9 w-9 min-w-[36px] items-center justify-center rounded-xl transition-all font-sans",
                 viewMode === "grid" 
                   ? "bg-gax-blue text-white shadow-md shadow-gax-blue/20" 
                   : "text-slate-400 hover:bg-slate-50 hover:text-slate-600"
@@ -323,7 +323,7 @@ export default function ClientsPage() {
             <button
               onClick={() => setViewMode("list")}
               className={cn(
-                "flex h-9 w-9 items-center justify-center rounded-xl transition-all font-sans",
+                "flex-1 sm:flex-none flex h-9 w-9 min-w-[36px] items-center justify-center rounded-xl transition-all font-sans",
                 viewMode === "list" 
                   ? "bg-gax-blue text-white shadow-md shadow-gax-blue/20" 
                   : "text-slate-400 hover:bg-slate-50 hover:text-slate-600"
@@ -427,8 +427,8 @@ export default function ClientsPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-slate-100 bg-slate-50/50">
-                  <th className="px-6 py-4 w-12">
+                <tr className="border-b border-slate-100 bg-slate-50/50 whitespace-nowrap">
+                  <th className="px-6 py-4 w-12 text-center">
                     <input 
                       type="checkbox" 
                       checked={selectedClients.size === paginatedClients.length && paginatedClients.length > 0} 
@@ -448,11 +448,11 @@ export default function ClientsPage() {
                   <tr 
                     key={client.id} 
                     className={cn(
-                      "group transition-all duration-200",
+                      "group transition-all duration-200 whitespace-nowrap",
                       selectedClients.has(client.id) ? "bg-gax-blue/[0.04]" : "hover:bg-gax-blue/[0.02]"
                     )}
                   >
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4 text-center">
                       <input 
                         type="checkbox" 
                         checked={selectedClients.has(client.id)} 
@@ -539,33 +539,33 @@ export default function ClientsPage() {
 
       {/* Controles de Paginação (Logs Reference Style) */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500">
           <span className="text-xs font-medium text-slate-500">
             Mostrando {(currentPage - 1) * itemsPerPage + 1} a {Math.min(currentPage * itemsPerPage, totalFiltered)} de {totalFiltered} clientes
           </span>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0 hide-scrollbar justify-center">
             <button 
               onClick={() => setCurrentPage(1)}
               disabled={currentPage === 1}
-              className="px-4 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all font-sans focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
+              className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all font-sans focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none shrink-0"
             >
               Primeira
             </button>
             <button 
               onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
               disabled={currentPage === 1}
-              className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
+              className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none shrink-0"
               aria-label="Anterior"
             >
               <ChevronLeft size={16} />
             </button>
-            <span className="text-xs font-bold text-slate-700 px-2 font-sans">
+            <span className="text-xs font-bold text-slate-700 px-2 font-sans shrink-0">
               {currentPage} / {totalPages || 1}
             </span>
             <button 
               onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
               disabled={currentPage === totalPages || totalFiltered === 0}
-              className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
+              className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none shrink-0"
               aria-label="Próxima"
             >
               <ChevronRight size={16} />
@@ -573,7 +573,7 @@ export default function ClientsPage() {
             <button 
               onClick={() => setCurrentPage(totalPages)}
               disabled={currentPage === totalPages || totalPages === 0}
-              className="px-4 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all font-sans focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
+              className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all font-sans focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none shrink-0"
             >
               Última
             </button>

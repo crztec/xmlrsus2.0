@@ -198,10 +198,10 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="flex flex-col gap-8 p-8 pt-2 max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <div className="flex flex-col gap-6 md:gap-8 p-4 md:p-8 pt-2 max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700">
       {/* Upload Section */}
-      <section className="rounded-3xl border border-slate-200/60 bg-white/70 p-8 shadow-sm backdrop-blur-sm">
-        <div className="mb-6 flex items-center justify-between">
+      <section className="rounded-3xl border border-slate-200/60 bg-white/70 p-4 md:p-8 shadow-sm backdrop-blur-sm">
+        <div className="mb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className={cn(
             "flex items-center gap-2 rounded-full px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider border",
             razaoSocial ? (clientExists ? "bg-emerald-50 text-emerald-600 border-emerald-100/50" : "bg-amber-50 text-amber-600 border-amber-100/50") : "bg-slate-50 text-slate-500 border-slate-100"
@@ -217,7 +217,7 @@ export default function DashboardPage() {
               onClick={() => clientExists ? handleUpload(false) : setShowNewClientModal(true)}
               disabled={isUploading || isChecking}
               className={cn(
-                "flex items-center gap-2 rounded-xl px-6 py-2.5 text-sm font-bold text-white shadow-lg transition-all active:scale-95 disabled:opacity-50",
+                "flex items-center gap-2 rounded-xl px-6 py-2.5 text-sm font-bold text-white shadow-lg transition-all active:scale-95 disabled:opacity-50 w-full md:w-auto justify-center",
                 clientExists ? "bg-gax-blue shadow-gax-blue/20 hover:bg-gax-blue-hover" : "bg-amber-600 shadow-amber-600/20 hover:bg-amber-700"
               )}
             >
@@ -229,14 +229,14 @@ export default function DashboardPage() {
 
         {razaoSocial && (
           <div className="mb-8 p-6 rounded-2xl bg-white border border-slate-100 shadow-sm animate-in slide-in-from-top-2">
-            <div className="flex items-center justify-between">
-              <div>
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+              <div className="w-full md:w-auto">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Empresa no XML</p>
-                <h3 className="text-xl font-bold text-slate-800">{razaoSocial}</h3>
+                <h3 className="text-lg md:text-xl font-bold text-slate-800 break-words">{razaoSocial}</h3>
               </div>
-              <div className="text-right">
+              <div className="w-full md:w-auto md:text-right">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Portal RSUS</p>
-                <p className="text-sm font-medium text-gax-blue truncate max-w-xs transition-all">
+                <p className="text-sm font-medium text-gax-blue break-all md:truncate md:max-w-xs transition-all">
                   {rsusUrl || "URL não cadastrada"}
                 </p>
               </div>
@@ -311,13 +311,13 @@ export default function DashboardPage() {
       </section>
 
       {/* Monitoring Section */}
-      <section className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-        <div className="mb-6 flex items-center justify-between">
-          <h3 className="text-xl font-bold text-slate-800">Acompanhamento da Importação</h3>
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 md:p-8 shadow-sm">
+        <div className="mb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <h3 className="text-lg md:text-xl font-bold text-slate-800">Acompanhamento da Importação</h3>
           {logs.length > 0 && (
             <button 
               onClick={() => setShowDetailedLogs(true)}
-              className="text-xs font-bold text-gax-blue hover:underline"
+              className="text-xs font-bold text-gax-blue hover:underline md:ml-auto"
             >
               Ver Logs Detalhados
             </button>

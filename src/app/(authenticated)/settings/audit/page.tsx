@@ -78,8 +78,8 @@ export default function AuditLogsPage() {
   };
 
   return (
-    <div className="flex flex-col gap-8 p-8 pt-2 max-w-7xl mx-auto animate-in fade-in duration-500">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-end gap-4">
+    <div className="flex flex-col gap-6 md:gap-8 p-4 md:p-8 pt-2 max-w-7xl mx-auto animate-in fade-in duration-500">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between sm:justify-end gap-4">
         <button
           onClick={handleClearLogs}
           disabled={isClearing || logs.length === 0}
@@ -103,7 +103,7 @@ export default function AuditLogsPage() {
       <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm text-slate-600">
-            <thead className="bg-slate-50 text-xs uppercase text-slate-400 border-b border-slate-100">
+            <thead className="bg-slate-50 text-xs uppercase text-slate-400 border-b border-slate-100 whitespace-nowrap">
               <tr>
                 <th className="px-6 py-4 font-bold">Data / Hora</th>
                 <th className="px-6 py-4 font-bold">Nível</th>

@@ -648,14 +648,14 @@ export default function CheckImportsPage() {
                 />
               </div>
             </div>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto min-h-[300px]">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50/50 text-slate-400 font-bold uppercase tracking-widest text-[10px] border-b border-slate-100 whitespace-nowrap">
                   <tr>
                     <th className="px-5 py-3.5">Operadora</th>
                     <th className="px-5 py-3.5">Status</th>
                     <th className="px-5 py-3.5">Última Checagem</th>
-                    <th className="px-5 py-3.5 text-right">Ação</th>
+                    <th className="px-5 py-3.5 text-right">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100/80">
