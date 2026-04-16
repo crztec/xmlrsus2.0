@@ -198,26 +198,44 @@ async def get_branding():
 # --- CUBETI CREDENTIALS MANAGEMENT ---
 @app.get("/settings/cubeti-credentials")
 async def get_cubeti_creds(user = Depends(require_admin)):
-    """Returns stored credentials for CubeTI Gestão Comercial."""
-    return db.get_cubeti_credentials()
+    """Returns stored credentials for CubeTI Gestão Comercial (Masked)."""
+    creds = db.get_cubeti_credentials()
+    if creds.get("password"):
+        creds["password"] = "********"
+    return creds
 
 @app.post("/settings/cubeti-credentials")
 async def save_cubeti_creds(body: dict, user = Depends(require_admin)):
-    if db.save_cubeti_credentials(body.get("email", ""), body.get("password", "")):
+    password = body.get("password", "")
+    # Se a senha for a mascarada, não atualiza ela no banco
+    if password.startswith("***") or password == "********":
+        current = db.get_cubeti_credentials()
+        password = current.get("password", "")
+        
+    if db.save_cubeti_credentials(body.get("email", ""), password):
         return {"status": "success"}
     raise HTTPException(status_code=500, detail="Erro ao salvar credenciais CubeTI.")
 
 # --- WHATSAPP / EVOLUTION API MANAGEMENT ---
 @app.get("/whatsapp/config")
 async def get_whatsapp_config(user = Depends(require_admin)):
-    """Returns stored WhatsApp Evolution API configuration."""
-    return db.get_whatsapp_config()
+    """Returns stored WhatsApp Evolution API configuration (Masked)."""
+    config = db.get_whatsapp_config()
+    if config.get("api_key"):
+        config["api_key"] = "********"
+    return config
 
 @app.post("/whatsapp/config")
 async def save_whatsapp_config(body: dict, user = Depends(require_admin)):
+    api_key = body.get("api_key", "")
+    # Se a chave for mascarada, não atualiza
+    if api_key.startswith("***") or api_key == "********":
+        current = db.get_whatsapp_config()
+        api_key = current.get("api_key", "")
+
     if db.save_whatsapp_config(
         body.get("url", ""),
-        body.get("api_key", ""),
+        api_key,
         body.get("instance_name", "GaxBot"),
         body.get("target_numbers", [])
     ):
@@ -1788,10 +1806,18 @@ async def route_run_single_api_check(client_id: str, background_tasks: Backgroun
 @app.get("/settings/rsus-credentials")
 async def route_get_rsus_credentials(type: str = "general", user = Depends(require_admin)):
     creds = db.get_rsus_credentials(type)
+    if creds and creds.get("password"):
+        creds["password"] = "********"
     return creds or {"username": "", "password": ""}
 
 @app.post("/settings/rsus-credentials")
 async def route_save_rsus_credentials(type: str = Form(...), username: str = Form(...), password: str = Form(...), user = Depends(require_admin)):
+    # Se a senha for a mascarada, não atualiza ela no banco
+    if password.startswith("***") or password == "********":
+        current = db.get_rsus_credentials(type)
+        if current:
+            password = current.get("password", "")
+
     if db.save_rsus_credentials(type, username, password):
         return {"status": "success"}
     raise HTTPException(status_code=500, detail="Erro ao salvar credenciais")
