@@ -109,7 +109,7 @@ def trigger_cloud_run_job(task_id: str):
         region  = os.environ.get("GCP_REGION", "us-central1")
         job_name = f"projects/{project}/locations/{region}/jobs/gax-worker-job"
 
-        client = run_v2.JobsClient()
+        client = run_v2.JobsClient(client_options={"api_endpoint": f"{region}-run.googleapis.com"})
         request = run_v2.RunJobRequest(
             name=job_name,
             overrides=run_v2.RunJobRequest.Overrides(
