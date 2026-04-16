@@ -23,7 +23,7 @@ from email.mime.text import MIMEText
 from typing import List, Optional
 from urllib.parse import urlparse
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from playwright.async_api import async_playwright
