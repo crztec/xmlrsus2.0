@@ -42,13 +42,17 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
                 await browser.close()
                 return False
 
-            context = await browser.new_context(ignore_https_errors=True, viewport={"width": 1920, "height": 1080})
+            context = await browser.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                ignore_https_errors=True, 
+                viewport={"width": 1920, "height": 1080}
+            )
             page = await context.new_page()
             
             # Login
             log_task("Realizando login Gestaocomercial...")
             if await is_cancelled(): return False
-            await page.goto("https://gestaocomercial.cubeti.com.br/ABITracker", wait_until="domcontentloaded", timeout=45000)
+            await page.goto("https://gestaocomercial.cubeti.com.br/ABITracker", wait_until="load", timeout=60000)
             
             if await is_cancelled(): return False
             cubeti_creds = db.get_cubeti_credentials()
@@ -68,7 +72,7 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
             
             if await is_cancelled(): return False
             if "ABITracker" not in page.url:
-                await page.goto("https://gestaocomercial.cubeti.com.br/ABITracker", wait_until="domcontentloaded", timeout=30000)
+                await page.goto("https://gestaocomercial.cubeti.com.br/ABITracker", wait_until="load", timeout=60000)
                 await asyncio.sleep(2)
                 
             # Busca operadora específica (Isolamento de Grid)
