@@ -99,54 +99,44 @@ app.add_middleware(
 
 # ── CLOUD RUN JOB TRIGGER ────────────────────────────────────────────────────
 def trigger_cloud_run_job(task_id: str):
-    """
-    Dispara o Cloud Run Job usando a API REST direta (mais estável que o SDK).
-    """
     import requests
-    import google.auth
-    import google.auth.transport.requests
-
+    import os
     try:
         project = os.environ.get("GCP_PROJECT", "xmlrsus")
         region  = os.environ.get("GCP_REGION", "us-central1")
         
-        # 1. Obtém as credenciais e o token de autenticação interno do Google
-        creds, _ = google.auth.default(scopes=['https://www.googleapis.com/auth/cloud-platform'])
-        auth_req = google.auth.transport.requests.Request()
-        creds.refresh(auth_req)
-
-        # 2. Define o URL regional exato da API do Google
-        url = f"https://{region}-run.googleapis.com/v2/projects/{project}/locations/{region}/jobs/gax-worker-job:run"
+        # 1. Bypass do SDK: Busca o token DIRETO do servidor interno da máquina
+        metadata_url = "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token?scopes=https://www.googleapis.com/auth/cloud-platform"
+        token_resp = requests.get(metadata_url, headers={"Metadata-Flavor": "Google"}, timeout=5)
         
+        if token_resp.status_code != 200:
+            raise Exception(f"Falha ao obter token da máquina: {token_resp.text}")
+            
+        access_token = token_resp.json().get("access_token")
+
+        # 2. Chamada REST para disparar o Job
+        url = f"https://{region}-run.googleapis.com/v2/projects/{project}/locations/{region}/jobs/gax-worker-job:run"
         headers = {
-            "Authorization": f"Bearer {creds.token}",
+            "Authorization": f"Bearer {access_token}",
             "Content-Type": "application/json"
         }
-        
-        # 3. Define o override do TASK_ID no corpo da requisição
         data = {
             "overrides": {
-                "containerOverrides": [
-                    {
-                        "env": [
-                            {"name": "TASK_ID", "value": task_id}
-                        ]
-                    }
-                ]
+                "containerOverrides": [{"env": [{"name": "TASK_ID", "value": task_id}]}]
             }
         }
 
-        # 4. Faz o disparo
         response = requests.post(url, headers=headers, json=data, timeout=30)
         
         if response.status_code == 200:
-            logger.info(f"[TRIGGER] Job disparado com sucesso via REST para task_id={task_id}")
+            logger.info(f"[TRIGGER] Job disparado com sucesso via Metadata Server para task_id={task_id}")
         else:
-            logger.error(f"[TRIGGER] Erro ao disparar Job via REST ({response.status_code}): {response.text}")
             raise Exception(f"Erro {response.status_code}: {response.text}")
 
     except Exception as e:
         logger.error(f"[TRIGGER] Falha crítica no disparo: {e}")
+        from api import database as db
+        from fastapi import HTTPException
         db.update_task(task_id, {"status": "failed", "last_log": f"Falha ao enfileirar o job: {str(e)[:120]}"})
         raise HTTPException(status_code=500, detail=f"Erro ao enfileirar o job: {str(e)[:120]}")
 
