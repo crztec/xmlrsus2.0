@@ -5,6 +5,8 @@ import {
   LogIn,
   Mail,
   Lock,
+  Eye,
+  EyeOff,
   Chrome,
   ChevronRight,
   CloudUpload,
@@ -21,6 +23,8 @@ import { signInWithPopup } from "firebase/auth";
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -28,6 +32,19 @@ export default function LoginPage() {
   const [resetEmail, setResetEmail] = useState("");
   const [resetStatus, setResetStatus] = useState<{ type: 'success' | 'error', msg: string } | null>(null);
   const [isResetting, setIsResetting] = useState(false);
+
+  // Carregar dados salvos ao montar o componente
+  React.useEffect(() => {
+    const savedEmail = localStorage.getItem("gax_remembered_email");
+    const savedPass = localStorage.getItem("gax_remembered_pass");
+    if (savedEmail) {
+      setEmail(savedEmail);
+      setRememberMe(true);
+    }
+    if (savedPass) {
+      setPassword(atob(savedPass)); // Decodifica base64 simples por privacidade visual
+    }
+  }, []);
 
   const handleResetPassword = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -59,6 +76,15 @@ const handleLogin = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
     setError("");
+
+    // Persistência "Lembrar de mim"
+    if (rememberMe) {
+      localStorage.setItem("gax_remembered_email", email);
+      localStorage.setItem("gax_remembered_pass", btoa(password));
+    } else {
+      localStorage.removeItem("gax_remembered_email");
+      localStorage.removeItem("gax_remembered_pass");
+    }
 
     // Captura valores diretamente do formulário (resolve bug de autofill do browser)
     const dataForm = new FormData(e.currentTarget);
@@ -141,101 +167,87 @@ const handleLogin = async (e: React.SyntheticEvent<HTMLFormElement>) => {
       if (_err.code !== "auth/popup-closed-by-user") {
         setError("Erro ao autenticar com o Google.");
       }
-    } finally {
-      setIsLoading(false);
     }
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-50 font-sans text-slate-900">
+    <div className="flex min-h-screen bg-gray-50 font-sans text-gray-900">
       {/* Lado Esquerdo: Formulário de Login */}
-      <div className="relative flex w-full flex-col justify-center px-6 sm:px-16 lg:w-[45%] bg-white shadow-2xl z-10 lg:border-r border-slate-200/50">
-        {/* Subtle Decorative Background for Login Side */}
-        <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, #0f172a 1px, transparent 0)', backgroundSize: '32px 32px' }}></div>
+      <div className="relative flex w-full flex-col justify-center px-6 sm:px-16 lg:w-[40%] bg-white z-10 lg:border-r border-gray-100">
         
-        <div className="mx-auto w-full max-w-md animate-in fade-in slide-in-from-left-4 duration-700 relative z-10">
-          {/* Logo Section - Centralized */}
-          <div className="mb-12 flex flex-col items-center justify-center text-center animate-in fade-in slide-in-from-top-4 duration-1000">
-            <div className="mb-6 flex h-24 w-24 items-center justify-center rounded-[2.5rem] bg-gradient-to-br from-gax-blue to-gax-blue-hover p-4 shadow-[0_20px_50px_rgba(59,130,246,0.3)] ring-offset-4 ring-1 ring-gax-blue/20">
-              <img src="/Imagens/Glogo.png" alt="GAX Logo" className="h-full w-full object-contain brightness-0 invert" width={96} height={96} />
+        <div className="mx-auto w-full max-w-[340px] animate-in fade-in slide-in-from-bottom-4 duration-700 relative z-10">
+          {/* Logo Section */}
+          <div className="mb-10 flex flex-col items-start">
+            <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-xl bg-gax-blue p-2 shadow-sm">
+              <img src="/Imagens/Glogo.png" alt="GAX Logo" className="h-full w-full object-contain brightness-0 invert" width={48} height={48} />
             </div>
-            <div className="flex flex-col items-center">
-              <h1 className="text-6xl font-display font-black tracking-tighter text-slate-900 mb-1">GAX</h1>
-              <p className="text-[11px] font-bold uppercase tracking-[0.5em] text-slate-400 pl-[0.5em]">Gestão de Arquivos XML</p>
-            </div>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900 mb-1">Bem-vindo de volta</h1>
+            <p className="text-sm text-gray-500">Insira suas credenciais para acessar sua conta</p>
           </div>
 
-          {/* Botão Google */}
-          <button 
-            type="button"
-            onClick={handleGoogleLogin}
-            disabled={isLoading}
-            className="group flex w-full items-center justify-center gap-4 rounded-2xl border border-slate-200/60 bg-white py-4 font-bold text-slate-700 transition-all hover:bg-slate-50 hover:border-gax-blue/30 hover:shadow-xl hover:shadow-slate-200/50 focus:outline-none focus:ring-4 focus:ring-gax-blue/10 disabled:opacity-50"
-          >
-            <Chrome size={20} className="text-gax-blue group-hover:scale-110 transition-transform" />
-            Continuar com o Google
-          </button>
 
-          <div className="my-10 flex items-center gap-4 text-slate-300">
-            <div className="h-px flex-1 bg-gradient-to-r from-transparent to-slate-200"></div>
-            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 px-2 text-center">Ou use suas credenciais</span>
-            <div className="h-px flex-1 bg-gradient-to-l from-transparent to-slate-200"></div>
-          </div>
-
-          <form onSubmit={handleLogin} className="space-y-6">
-            <div className="space-y-2">
-              <label className="text-[11px] font-bold uppercase tracking-widest text-slate-500 ml-1" htmlFor="email">
+          <form onSubmit={handleLogin} className="mt-8 space-y-5">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold uppercase tracking-wider text-gray-500" htmlFor="email">
                 E-mail
               </label>
-              <div className="relative group">
-                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-300 group-focus-within:text-gax-blue transition-colors">
-                  <Mail size={18} />
-                </div>
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  placeholder="seu.email@exemplo.com"
-                  className="w-full rounded-2xl border border-slate-200/60 bg-slate-50/50 py-4 pl-12 pr-4 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-300 focus:border-gax-blue focus:bg-white focus:ring-4 focus:ring-gax-blue/10 font-medium"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                placeholder="seu.email@exemplo.com"
+                className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none transition-all placeholder:text-gray-400 focus:border-gax-blue focus:ring-2 focus:ring-gax-blue/10 font-medium autofill:bg-white"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
             </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between ml-1">
-                <label className="text-[11px] font-bold uppercase tracking-widest text-slate-500" htmlFor="password">
-                  Senha
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setShowResetModal(true)}
-                  className="text-[11px] font-bold text-gax-blue hover:text-gax-blue-hover transition-colors"
-                >
-                  Esqueceu?
-                </button>
-              </div>
-              <div className="relative group">
-                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-300 group-focus-within:text-gax-blue transition-colors">
-                  <Lock size={18} />
-                </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold uppercase tracking-wider text-gray-500" htmlFor="password">
+                Senha
+              </label>
+              <div className="relative">
                 <input
                   id="password"
                   name="password"
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   placeholder="••••••••••••"
-                  className="w-full rounded-2xl border border-slate-200/60 bg-slate-50/50 py-4 pl-12 pr-4 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-300 focus:border-gax-blue focus:bg-white focus:ring-4 focus:ring-gax-blue/10 font-medium"
+                  className="h-10 w-full rounded-md border border-gray-200 bg-white pl-3 pr-10 text-sm text-gray-900 outline-none transition-all placeholder:text-gray-400 focus:border-gax-blue focus:ring-2 focus:ring-gax-blue/10 font-medium autofill:bg-white"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+              <div className="flex items-center justify-between pt-1">
+                <label className="flex items-center gap-2 cursor-pointer group">
+                  <input 
+                    type="checkbox" 
+                    className="h-3.5 w-3.5 rounded border-gray-300 text-gax-blue focus:ring-gax-blue"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                  />
+                  <span className="text-xs font-medium text-gray-400 group-hover:text-gray-600 transition-colors">Lembrar de mim</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowResetModal(true)}
+                  className="text-xs font-medium text-gray-400 hover:text-gax-blue transition-colors"
+                >
+                  Esqueceu a senha?
+                </button>
               </div>
             </div>
 
             {error && (
-              <div className="rounded-xl bg-red-50 p-4 text-[13px] font-bold text-red-600 animate-in shake-1 duration-300 border border-red-100/50">
+              <div className="rounded-md bg-red-50 p-3 text-xs font-semibold text-red-600 animate-in fade-in duration-300 border border-red-100">
                 {error}
               </div>
             )}
@@ -243,83 +255,105 @@ const handleLogin = async (e: React.SyntheticEvent<HTMLFormElement>) => {
             <button
               type="submit"
               disabled={isLoading}
-              className="relative flex w-full items-center justify-center overflow-hidden rounded-2xl bg-gax-blue py-4 font-bold text-white shadow-[0_10px_25px_rgba(59,130,246,0.4)] transition-all hover:bg-gax-blue-hover hover:shadow-[0_15px_35px_rgba(59,130,246,0.5)] active:scale-[0.98] disabled:opacity-50 group/btn"
+              className="flex h-10 w-full items-center justify-center rounded-md bg-gax-blue font-bold text-sm text-white transition-all hover:bg-gax-blue-hover active:scale-[0.98] disabled:opacity-50"
             >
-              <div className="absolute inset-0 bg-white/10 opacity-0 group-hover/btn:opacity-100 transition-opacity"></div>
               {isLoading ? (
-                <div className="flex items-center gap-3">
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"></div>
-                  <span>Iniciando Sessão...</span>
+                <div className="flex items-center gap-2">
+                  <div className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white"></div>
+                  <span>Entrando...</span>
                 </div>
               ) : (
-                <div className="flex items-center gap-2 group-hover/btn:scale-105 transition-transform">
-                  <LogIn size={20} />
+                <div className="flex items-center gap-2">
+                  <LogIn size={16} />
                   <span>Entrar</span>
                 </div>
               )}
             </button>
 
-            <p className="mt-4 text-center text-[11px] font-medium leading-relaxed text-slate-400 px-4">
-              Ao entrar no sistema, você concorda com nossos{" "}
-              <Link href="/termos-de-uso" target="_blank" className="font-bold text-slate-500 hover:text-gax-blue underline decoration-slate-200 underline-offset-4">
-                Termos de Uso
+            <div className="relative py-2 mt-2">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-100"></div>
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-white px-2 text-gray-400 font-bold">OU</span>
+              </div>
+            </div>
+
+            {/* Botão Google - Minimalist Outline (Reposicionado) */}
+            <button 
+              type="button"
+              onClick={handleGoogleLogin}
+              disabled={isLoading}
+              className="group flex h-10 w-full items-center justify-center gap-2 rounded-md border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-100 disabled:opacity-50 shadow-sm"
+            >
+              <svg className="h-4 w-4" viewBox="0 0 24 24">
+                <path
+                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                  fill="#4285F4"
+                />
+                <path
+                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                  fill="#34A853"
+                />
+                <path
+                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"
+                  fill="#FBBC05"
+                />
+                <path
+                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                  fill="#EA4335"
+                />
+              </svg>
+              Entrar com Google
+            </button>
+
+            <p className="mt-6 text-center text-[10px] leading-relaxed text-gray-400 px-4">
+              Ao acessar, você concorda com nossos{" "}
+              <Link href="/termos-de-uso" target="_blank" className="hover:text-gray-600 underline underline-offset-2">
+                Termos
               </Link>{" "}
               e{" "}
-              <Link href="/politica-de-privacidade" target="_blank" className="font-bold text-slate-500 hover:text-gax-blue underline decoration-slate-200 underline-offset-4">
-                Política de Privacidade
+              <Link href="/politica-de-privacidade" target="_blank" className="hover:text-gray-600 underline underline-offset-2">
+                Privacidade
               </Link>.
             </p>
           </form>
 
-          <p className="mt-8 text-center text-[13px] font-medium text-slate-500">
+          <p className="mt-8 text-center text-sm font-medium text-gray-500">
             Ainda não possui acesso?{" "}
             <Link href="/register" className="font-bold text-gax-blue transition-colors hover:text-gax-blue-hover">
-              Solicitar Credenciais
+              Cadastre-se
             </Link>
           </p>
         </div>
       </div>
 
-      {/* Lado Direito: Visual Premium Grid */}
-      <div className="relative hidden w-[55%] flex-col justify-center overflow-hidden bg-slate-900 p-20 lg:flex">
-        {/* Background Decorative */}
-        <div className="absolute -right-20 -top-20 h-96 w-96 rounded-full bg-gax-blue/20 blur-3xl opacity-50"></div>
-        <div className="absolute -bottom-40 -left-20 h-96 w-96 rounded-full bg-gax-blue-hover/10 blur-3xl opacity-30"></div>
+      {/* Lado Direito: Visual Premium Grid - Clean SaaS Style */}
+      <div className="relative hidden w-[60%] flex-col justify-center overflow-hidden bg-gray-900 p-20 lg:flex">
+        {/* Modern Shapes Background */}
+        <div className="absolute -right-20 -top-20 h-96 w-96 rounded-full bg-gax-blue/10 blur-3xl opacity-20"></div>
+        <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, #ffffff 1px, transparent 0)', backgroundSize: '40px 40px' }}></div>
         
-        {/* Modern Grid Background */}
-        <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, #ffffff 1px, transparent 0)', backgroundSize: '40px 40px' }}></div>
-
         <div className="relative z-10 max-w-xl animate-in fade-in zoom-in-95 duration-1000">
-
-
-          <h2 className="text-5xl font-display font-black leading-tight text-white mb-8">
-            Gestão de <span className="text-gax-blue">ponta a ponta</span> para Arquivos XML.
+          <h2 className="text-5xl font-bold leading-tight text-white mb-8 tracking-tight">
+            Plataforma completa de <br/>
+            <span className="text-gax-blue">Inteligência e Automação</span> para o Ecossistema RSUS.
           </h2>
 
-          <p className="text-slate-400 text-lg leading-relaxed mb-12 font-medium">
-            Integração nativa com o sistema RSUS, processamento automatizado e relatórios inteligentes em uma única interface profissional.
+          <p className="text-gray-400 text-lg leading-relaxed mb-12 font-medium">
+            Integração nativa, processamento automatizado e relatórios inteligentes em uma única interface profissional e minimalista.
           </p>
 
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-2 gap-4">
             <FeatureCard
-              icon={<CloudUpload size={24} />}
-              title="Upload Inteligente"
-              desc="Processamento individual ou em lote, fácil, rápido e sem complicações."
+              icon={<CloudUpload size={20} />}
+              title="No-code Import"
+              desc="Processamento rápido e sem complicações."
             />
             <FeatureCard
-              icon={<BarChart3 size={24} />}
-              title="Acompanhamento Real"
-              desc="Monitore cada importação com progresso em tempo real."
-            />
-            <FeatureCard
-              icon={<Users size={24} />}
-              title="Gestão de Clientes"
-              desc="Dados organizados e segmentados por cada cliente."
-            />
-            <FeatureCard
-              icon={<ShieldCheck size={24} />}
-              title="Segurança GAX"
-              desc="Tudo o que você precisa em uma plataforma única e segura."
+              icon={<BarChart3 size={20} />}
+              title="Tempo Real"
+              desc="Acompanhe o progresso de cada importação."
             />
           </div>
         </div>
@@ -327,44 +361,40 @@ const handleLogin = async (e: React.SyntheticEvent<HTMLFormElement>) => {
 
       {/* Modal de Reset de Senha */}
       {showResetModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-2xl animate-in zoom-in-95 duration-300">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 p-4 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="w-full max-w-sm rounded-xl bg-white p-8 shadow-2xl animate-in zoom-in-95 duration-300 border border-gray-100">
             <div className="mb-6 flex items-center justify-between">
-              <h3 className="text-xl font-bold text-slate-900">Recuperar Senha</h3>
+              <h3 className="text-lg font-bold text-gray-900">Recuperar Senha</h3>
               <button
                 onClick={() => { setShowResetModal(false); setResetStatus(null); }}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+                title="Fechar"
               >
-                <X size={24} />
+                <X size={20} />
               </button>
             </div>
 
-            <p className="mb-6 text-sm text-slate-500">
-              Digite seu e-mail abaixo. Se houver uma conta associada, enviaremos instruções para redefinir sua senha.
+            <p className="mb-6 text-sm text-gray-500 leading-relaxed">
+              Digite seu e-mail abaixo para receber as instruções de recuperação.
             </p>
 
             <form onSubmit={handleResetPassword} className="space-y-4">
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-700">E-mail</label>
-                <div className="relative">
-                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400">
-                    <Mail size={18} />
-                  </div>
-                  <input
-                    type="email"
-                    placeholder="seu.email@exemplo.com"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-4 text-slate-900 outline-none focus:border-gax-blue focus:bg-white focus:ring-4 focus:ring-gax-blue/10"
-                    value={resetEmail}
-                    onChange={(e) => setResetEmail(e.target.value)}
-                    required
-                  />
-                </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-tight">E-mail</label>
+                <input
+                  type="email"
+                  placeholder="seu.email@exemplo.com"
+                  className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gax-blue focus:ring-2 focus:ring-gax-blue/10 transition-all"
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  required
+                />
               </div>
 
               {resetStatus && (
                 <div className={cn(
-                  "rounded-lg p-3 text-sm font-medium",
-                  resetStatus.type === 'success' ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
+                  "rounded-md p-3 text-xs font-semibold",
+                  resetStatus.type === 'success' ? "bg-green-50 text-green-700 border border-green-100" : "bg-red-50 text-red-700 border border-red-100"
                 )}>
                   {resetStatus.msg}
                 </div>
@@ -373,9 +403,9 @@ const handleLogin = async (e: React.SyntheticEvent<HTMLFormElement>) => {
               <button
                 type="submit"
                 disabled={isResetting}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-gax-blue py-3 font-bold text-white transition-all hover:bg-gax-blue-hover disabled:opacity-50"
+                className="flex h-10 w-full items-center justify-center rounded-md bg-gax-blue font-bold text-sm text-white transition-all hover:bg-gax-blue-hover disabled:opacity-50"
               >
-                {isResetting ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div> : "Enviar E-mail"}
+                {isResetting ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"></div> : "Enviar E-mail"}
               </button>
             </form>
           </div>
@@ -387,12 +417,12 @@ const handleLogin = async (e: React.SyntheticEvent<HTMLFormElement>) => {
 
 function FeatureCard({ icon, title, desc }: { icon: React.ReactNode, title: string, desc: string }) {
   return (
-    <div className="group rounded-2xl bg-white/5 p-6 backdrop-blur-sm transition-all hover:bg-white/10">
-      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 text-white transition-colors group-hover:bg-white group-hover:text-gax-blue">
+    <div className="group rounded-xl border border-white/10 bg-white/[0.03] p-5 backdrop-blur-sm transition-all hover:bg-white/[0.06] hover:border-white/20">
+      <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-gax-blue text-white shadow-lg shadow-gax-blue/20">
         {icon}
       </div>
-      <h3 className="mb-2 text-lg font-bold text-white">{title}</h3>
-      <p className="text-sm leading-relaxed text-gax-blue-light/60">{desc}</p>
+      <h3 className="mb-1 text-base font-bold text-white transition-colors group-hover:text-gax-blue-light">{title}</h3>
+      <p className="text-xs leading-relaxed text-gray-400">{desc}</p>
     </div>
   );
 }
