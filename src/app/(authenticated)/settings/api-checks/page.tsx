@@ -372,7 +372,10 @@ export default function ApiChecksPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-[10px] font-bold uppercase tracking-widest text-gax-blue">
-                      {activeTask.total && activeTask.total > 1 ? "Lote em execução" : "Verificando API"}
+                      {(activeTask.total && activeTask.total > 1) ? "Lote em execução" : "Verificando API"}
+                      {!!activeTask.total && activeTask.total > 0 && (
+                        <span className="ml-2 opacity-60">({activeTask.current || 0}/{activeTask.total})</span>
+                      )}
                     </span>
                     {activeTask.current_client && (
                       <span className="text-[10px] text-slate-400 truncate">— {activeTask.current_client}</span>
@@ -380,8 +383,8 @@ export default function ApiChecksPage() {
                   </div>
                   <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
                     <div 
-                      className="h-full bg-gax-blue transition-all duration-700 ease-in-out shadow-[0_0_10px_rgba(14,165,233,0.4)]"
-                      style={{ width: `${progressPercent}%` }}
+                      className="h-full bg-gax-blue transition-all duration-700 ease-in-out shadow-[0_0_10px_rgba(14,165,233,0.4)]" 
+                      style={{ width: `${progressPercent}%` }} 
                     />
                   </div>
                 </div>
