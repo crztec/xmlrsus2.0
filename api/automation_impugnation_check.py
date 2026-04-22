@@ -259,6 +259,12 @@ async def run_impugnation_check_for_client(client_id, task_id=None, pre_fetched_
     active_abi_doc = db.get_active_abi()
     active_abi = active_abi_doc.get('ABI', 'Desconhecido') if active_abi_doc else 'Desconhecido'
 
+    def log_task(msg, level="INFO"):
+        full_msg = f"[{client_name}] {msg}"
+        if task_id:
+            db.add_log(task_id, full_msg, level)
+        logger.info(full_msg)
+
     try:
         status, message, stats = await _run_impugnation_logic(client_id, active_abi, task_id, pre_fetched_creds)
         
