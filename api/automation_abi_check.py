@@ -567,50 +567,53 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
             
             # Verifica se o botão existe e é visível rapidamente
             try:
-                # Se não aparecer em 5s após clicar no hambúrguer, provavelmente não existe para este cliente
                 await logs_btn.wait_for(state="visible", timeout=7000)
+                # Salva URL atual para detectar navegação
+                url_before = page.url
                 await logs_btn.click(force=True, timeout=5000)
             except:
                 log_task(f"Aviso: Cliente não realiza análise ou opção indisponível.", "WARNING")
                 if browser: await browser.close()
                 return "Importado", "Cliente não realiza análise.", None
             
-            log_task("Aguardando carregamento do modal de Logs Análise...", "DEBUG")
-            
-            # CRITÍCAL: Aguarda o MODAL abrir para não ler a grid de importação por engano
-            modal_container = None
+            # CRÍTICO: 'Logs Análise' NAVEGA para /log-analise/ (página "Análises Realizadas")
+            # Precisamos aguardar a navegação completar antes de ler qualquer tabela
+            log_task("Aguardando navegação para 'Análises Realizadas'...", "DEBUG")
             try:
-                await page.wait_for_selector(".modal-content, .modal.show, .modal.in, [role='dialog']", state="visible", timeout=15000)
-                modal_container = page.locator(".modal-content, .modal.show .modal-body, .modal.in .modal-body, [role='dialog']").first
-                log_task("Modal de Logs Análise detectado.", "DEBUG")
+                # Espera a URL mudar (sai da /importacao para /log-analise)
+                await page.wait_for_url("**/log-analise/**", timeout=30000)
+                log_task(f"Navegação detectada: {page.url}", "DEBUG")
             except:
-                log_task("Modal não detectado após clique em 'Logs Análise'. Verificando se houve navegação de página...", "WARNING")
-                # Fallback: talvez a ação navegou para outra página em vez de abrir modal
+                # Fallback: se wait_for_url falhar, aguarda qualquer mudança de URL
                 await asyncio.sleep(3)
+                if page.url != url_before:
+                    log_task(f"URL mudou para: {page.url}", "DEBUG")
+                else:
+                    log_task(f"URL não mudou ({page.url}). Página pode ter carregado via AJAX.", "WARNING")
             
-            # Define o escopo de busca: modal (se existir) ou página inteira
-            search_scope = modal_container if modal_container and await modal_container.count() > 0 else page
-            scope_name = "modal" if search_scope != page else "página"
-            log_task(f"Escopo de busca: {scope_name}", "DEBUG")
+            # Aguarda a página "Análises Realizadas" carregar completamente
+            try:
+                await page.wait_for_load_state("domcontentloaded", timeout=15000)
+            except: pass
             
             try:
-                # Aguarda a tabela DENTRO DO ESCOPO ter pelo menos uma linha
-                await search_scope.wait_for_selector("table tbody tr", timeout=45000)
+                # Aguarda a tabela de análises ter pelo menos uma linha
+                await page.wait_for_selector("table tbody tr", timeout=45000)
                 
-                # Aguarda o conteúdo estabilizar (evita 'Carregando...' ou grid vazia momentânea)
+                # Aguarda o conteúdo estabilizar
                 for _ in range(15):
-                    first_row = search_scope.locator("table tbody tr").first
+                    first_row = page.locator("table tbody tr").first
                     first_text = (await first_row.inner_text()).strip()
                     if first_text and "carregando" not in first_text.lower():
                         break
                     await asyncio.sleep(1)
             except:
-                log_task("Aviso: Tempo esgotado aguardando linhas na tabela de logs.", "WARNING")
+                log_task("Aviso: Tempo esgotado aguardando linhas na tabela de análises.", "WARNING")
             
-            # Analisa as linhas DENTRO DO ESCOPO (modal ou página)
-            log_rows = search_scope.locator("table tbody tr")
+            # Lê a tabela de "Análises Realizadas" (já navegou para a nova página)
+            log_rows = page.locator("table tbody tr")
             rows_to_check = await log_rows.count()
-            log_task(f"Grid de Logs ({scope_name}) carregada: {rows_to_check} linhas encontradas.", "DEBUG")
+            log_task(f"Grid de Análises Realizadas: {rows_to_check} linhas encontradas.", "DEBUG")
             rows_to_check = min(rows_to_check, 20) 
             
             found_result = False
