@@ -69,11 +69,17 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
             log_task(f"Iniciando navegador e buscando credenciais simultaneamente...")
             
             browser_args = [
-                "--headless=new", "--no-sandbox", "--disable-dev-shm-usage",
-                "--disable-gpu", "--window-size=1920,1080",
-                "--disable-features=SameSiteByDefaultCookies,CookiesWithoutSameSiteMustBeSecure",
-                "--disable-web-security", "--allow-running-insecure-content",
-                "--ignore-certificate-errors", "--disable-blink-features=AutomationControlled"
+                "--headless=new",
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-gpu",
+                "--window-size=1920,1080",
+                "--disable-features=SameSiteByDefaultCookies,CookiesWithoutSameSiteMustBeSecure,SameSiteDefaultChecksMethodRacy",
+                "--disable-web-security",
+                "--allow-running-insecure-content",
+                "--ignore-certificate-errors",
+                "--disable-blink-features=AutomationControlled"
             ]
             
             async def launch_browser():

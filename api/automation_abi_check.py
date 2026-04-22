@@ -37,23 +37,36 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
 
         async with async_playwright() as p:
             log_task("Iniciando sincronização com gestaocomercial.cubeti.com.br/ABITracker...")
-            browser = await p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
+            # Stealth Avançado + Flags de Sandbox
+            browser_args = [
+                "--no-sandbox", 
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-blink-features=AutomationControlled"
+            ]
+            browser = await p.chromium.launch(headless=True, args=browser_args)
             
             if await is_cancelled(): 
                 await browser.close()
                 return False
 
             context = await browser.new_context(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
                 ignore_https_errors=True, 
                 viewport={"width": 1920, "height": 1080}
             )
+            # Desativa navigator.webdriver
+            await context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
             page = await context.new_page()
             
-            # Login
+            # Login com Navegação Defensiva (ERR_ABORTED Mitigation)
             log_task("Realizando login Gestaocomercial...")
             if await is_cancelled(): return False
-            await page.goto("https://gestaocomercial.cubeti.com.br/ABITracker", wait_until="load", timeout=60000)
+            try:
+                await page.goto("https://gestaocomercial.cubeti.com.br/ABITracker", wait_until="domcontentloaded", timeout=60000)
+            except Exception as e_nav:
+                log_task(f"Aviso de navegação inicial (CubeTI): {str(e_nav)}. Verificando se chegou na página...", "WARNING")
+                await asyncio.sleep(2)
             
             if await is_cancelled(): return False
             cubeti_creds = db.get_cubeti_credentials()
@@ -73,7 +86,9 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
             
             if await is_cancelled(): return False
             if "ABITracker" not in page.url:
-                await page.goto("https://gestaocomercial.cubeti.com.br/ABITracker", wait_until="load", timeout=60000)
+                try:
+                    await page.goto("https://gestaocomercial.cubeti.com.br/ABITracker", wait_until="domcontentloaded", timeout=60000)
+                except: pass
                 await asyncio.sleep(2)
                 
             # Busca operadora específica (Isolamento de Grid)
@@ -345,7 +360,8 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
             log_task(f"Iniciando navegador para checar ABI {active_abi}...")
             
             browser_args = [
-                "--headless=new", "--no-sandbox", "--disable-dev-shm-usage",
+                "--headless=new", "--no-sandbox", "--disable-setuid-sandbox", 
+                "--disable-dev-shm-usage",
                 "--disable-gpu", "--window-size=1920,1080",
                 "--disable-features=SameSiteByDefaultCookies,CookiesWithoutSameSiteMustBeSecure",
                 "--disable-web-security", "--allow-running-insecure-content",
@@ -497,14 +513,11 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
             except:
                 pass # Silenciando aviso genérico para unificar adiante
             
-            # Varredura manual de linhas para garantir detecção correta na primeira coluna
-            rows = page.locator("table tbody tr")
-            count = await rows.count()
+            # Varredura dinâmica de linhas para localizar o ABI (evita Timeout .nth() fixo)
+            rows = await page.locator("table tbody tr").all()
             target_row = None
             
-            # log_task(f"Analisando {count} linhas da grid...")
-            for i in range(count):
-                row = rows.nth(i)
+            for row in rows:
                 first_cell = row.locator("td").first
                 if await first_cell.count() > 0:
                     cell_text = (await first_cell.inner_text()).strip()
@@ -665,8 +678,29 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                                     await search_field.type("Falha", delay=50)
                                     await page.keyboard.press("Enter")
                                     try:
-                                        await modal_container.locator("td").filter(has_text=re.compile(r"Falha", re.I)).first.wait_for(state="visible", timeout=3000)
+                                        await modal_container.locator("td").filter(has_text=re.compile(r"Falha", re.I)).first.wait_for(state="visible", timeout=300)
                                     except: pass
+                                    
+                                    if r_count > 0:
+                                        # Varredura dinâmica da grid filtrada
+                                        visible_rows_list = await visible_rows.all()
+                                        
+                                        # Checa se a primeira linha tem mensagem de vazio
+                                        try:
+                                            first_row_text = (await visible_rows_list[0].inner_text()).lower()
+                                            is_empty_table_message = any(k in first_row_text for k in no_results_keywords)
+                                        except:
+                                            is_empty_table_message = False
+                 
+                                        if not is_empty_table_message:
+                                            for r_row in visible_rows_list[:5]:
+                                                try:
+                                                    r_text = (await r_row.inner_text()).strip().lower()
+                                                    if any(k in r_text for k in target_keywords):
+                                                        has_match = True
+                                                        match_count += 1
+                                                except: continue
+                                    
                                     modal_text = await modal_container.inner_text(timeout=3000)
                                     if "Falha" in modal_text or "falha" in modal_text.lower():
                                         has_real_error = True

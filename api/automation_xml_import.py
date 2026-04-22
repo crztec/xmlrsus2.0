@@ -59,6 +59,7 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
             browser_args = [
                 "--headless=new",
                 "--no-sandbox",
+                "--disable-setuid-sandbox",
                 "--disable-dev-shm-usage",
                 "--disable-gpu",
                 "--window-size=1920,1080",
