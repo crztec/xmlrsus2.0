@@ -509,15 +509,14 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
             log_task(f"Grid de importações lida: {len(grid_data)} linhas.", "DEBUG")
             
             target_row_index = -1
-            import re
-            abi_numbers = "".join(re.findall(r'\\d+', active_abi))
+            abi_numbers = "".join(re.findall(r'\d+', active_abi))
             
             for idx, row_data in enumerate(grid_data):
                 cell_text = row_data['firstCell']
                 if not cell_text: continue
                 
                 cell_clean = cell_text.replace('º', '').strip()
-                cell_numbers = "".join(re.findall(r'\\d+', cell_text))
+                cell_numbers = "".join(re.findall(r'\d+', cell_text))
                 
                 if active_abi == cell_text or abi_clean == cell_clean or active_abi in cell_text or (abi_numbers and cell_numbers == abi_numbers):
                     target_row_index = idx
@@ -658,7 +657,6 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
                             }
                         """)
                         if ft_text:
-                            import re
                             mtch = re.search(r'de\s+(\d+)\s+(?:registros|itens)', ft_text, re.I)
                             if mtch: match_count = int(mtch.group(1))
                     except: pass
