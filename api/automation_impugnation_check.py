@@ -39,9 +39,8 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
             log_task(f"Iniciando sincronização ({target_status}) com CubeTI...")
             # Stealth Avançado + Flags de Sandbox para Cloud Run
             browser_args = [
-                "--no-sandbox", 
-                "--disable-setuid-sandbox",
-                "--disable-dev-shm-usage",
+                "--headless=new", "--no-sandbox", "--disable-setuid-sandbox", 
+                "--disable-dev-shm-usage", "--disable-gpu",
                 "--disable-blink-features=AutomationControlled"
             ]
             browser = await p.chromium.launch(headless=True, args=browser_args)
@@ -94,25 +93,49 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
             
             async def try_search(name_to_search):
                 if await search_input.count() > 0:
+                    log_task(f"Searching for: '{name_to_search}'")
                     await search_input.click()
                     await search_input.fill("")
                     await search_input.fill(name_to_search)
                     await asyncio.sleep(2)
                     await page.keyboard.press("Enter")
-                    await asyncio.sleep(3)
-                return page.locator("table tbody tr").filter(has_text=re.compile(name_to_search, re.IGNORECASE)).first
+                    await asyncio.sleep(4) # Espera um pouco mais no Cloud Run
+                
+                # Procura por correspondência exata ou parcial na tabela
+                rows = page.locator("table tbody tr")
+                count = await rows.count()
+                for i in range(count):
+                    row_text = await rows.nth(i).inner_text()
+                    if name_to_search.lower() in row_text.lower():
+                        return rows.nth(i)
+                return page.locator("table tbody tr").filter(has_text=re.compile(re.escape(name_to_search), re.IGNORECASE)).first
 
             target_row = await try_search(client_name)
             
             if await target_row.count() == 0:
                 import unicodedata
+                # Tenta sem acentos
                 search_name = "".join(c for c in unicodedata.normalize('NFD', client_name) if unicodedata.category(c) != 'Mn')
                 if search_name != client_name:
-                    log_task(f"Operadora não encontrada com nome original '{client_name}'. Tentando sem acento...", "WARNING")
+                    log_task(f"Not found as '{client_name}'. Trying without accents: '{search_name}'...")
                     target_row = await try_search(search_name)
+                
+                # Tenta nome parcial (primeira parte significativa) se for nome composto
+                if await target_row.count() == 0 and " " in client_name:
+                    parts = [p for p in client_name.split() if len(p) > 3 and p.lower() not in ['unimed', 'oeste', 'parana']]
+                    if parts:
+                        partial_name = parts[0]
+                        log_task(f"Searching by partial name: '{partial_name}'...")
+                        target_row = await try_search(partial_name)
 
             if await target_row.count() == 0:
-                log_task("Operadora não encontrada na grid da Cubeti.", "WARNING")
+                log_task(f"Operadora '{client_name}' não encontrada na grid da Cubeti após múltiplas tentativas.", "WARNING")
+                # Screenshot de debug se falhar
+                try:
+                    snap_path = f"/tmp/cubeti_search_fail_{int(time.time())}.png"
+                    await page.screenshot(path=snap_path)
+                    log_task(f"Screenshot de falha salvo em: {snap_path}", "DEBUG")
+                except: pass
                 await browser.close()
                 return False
                 
@@ -242,20 +265,28 @@ async def run_impugnation_check_for_client(client_id, task_id=None, pre_fetched_
         # Salva o status de impugnação no cliente
         db.update_client_impugnation_status(client_id, status, message, task_id)
         
-        # Sincroniza com Cubeti APENAS SE o status mudou ou se for a primeira vez
-        if status != old_status:
+        # Sincroniza status final com Gestaocomercial Cubeti APENAS SE mudou E não for erro técnico
+        is_technical_error = status == 'Erro' and any(kw in message.lower() for kw in ['timeout', 'erro técnico', 'targetclosederror', 'cancelado', 'falha no login'])
+        
+        if status != old_status and not is_technical_error:
+            log_task(f"Status alterado de '{old_status}' para '{status}'. Sincronizando CubeTI...", "DEBUG")
+            sync_success = False
             if status == "Impugnando":
-                await _sync_impugnation_to_cubeti(client_name, task_id, target_status="Impugnando o ABI", contact_message="Cliente impugnando o ABI")
+                sync_success = await _sync_impugnation_to_cubeti(client_name, task_id, target_status="Impugnando o ABI", contact_message="Cliente impugnando o ABI")
             elif status == "Finalizou":
-                await _sync_impugnation_to_cubeti(client_name, task_id, target_status="Finalizou o ABI", contact_message="Cliente Finalizou o ABI")
+                sync_success = await _sync_impugnation_to_cubeti(client_name, task_id, target_status="Finalizou o ABI", contact_message="Cliente Finalizou o ABI")
             elif status == "Não Iniciou":
-                await _sync_impugnation_to_cubeti(client_name, task_id, target_status="Importou, Analisou e Não Iniciou", contact_message="Cliente ainda não iniciou Impugnação")
+                sync_success = await _sync_impugnation_to_cubeti(client_name, task_id, target_status="Importou, Analisou e Não Iniciou", contact_message="Cliente ainda não iniciou Impugnação")
             
             if task_id:
-                db.add_log(task_id, f"[{client_name}] Status alterado de '{old_status}' para '{status}'. Sincronização CubeTI realizada.")
+                if sync_success:
+                    db.add_log(task_id, f"[{client_name}] Sincronização CubeTI realizada ({status}).")
+                else:
+                    db.add_log(task_id, f"[{client_name}] Falha ao sincronizar com CubeTI (ver logs internos).", "WARNING")
         else:
+            reason = "erro técnico (sync pulada)" if is_technical_error else "status mantido"
             if task_id:
-                db.add_log(task_id, f"[{client_name}] Status mantido como '{status}'. Sincronização CubeTI pulada.")
+                db.add_log(task_id, f"[{client_name}] Status '{status}' ({reason}). Sincronização CubeTI pulada.")
         
         # Alerta WhatsApp individual
         if not is_batch_run:
@@ -461,30 +492,46 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
                 await page.wait_for_selector(f"table td:has-text('{active_abi}'), table td:has-text('{abi_clean}')", timeout=35000)
             except: pass
             
-            # Varredura dinâmica de linhas para localizar o ABI (evita Timeout .nth() fixo)
-            rows = await page.locator("table tbody tr").all()
-            target_row = None
+            # EXTRAÇÃO VIA JAVASCRIPT: Lê todas as linhas da tabela de uma vez
+            # Isso evita os timeouts individuais de .inner_text() que ocorrem no Cloud Run
+            grid_data = await page.evaluate("""() => {
+                const rows = document.querySelectorAll('table tbody tr');
+                return Array.from(rows).map(row => {
+                    const cells = Array.from(row.querySelectorAll('td'));
+                    return {
+                        cellCount: cells.length,
+                        firstCell: cells[0] ? cells[0].innerText.trim() : '',
+                        secondCell: cells[1] ? cells[1].innerText.trim() : ''
+                    };
+                });
+            }""")
             
-            for row in rows:
-                first_cell = row.locator("td").first
-                if await first_cell.count() > 0:
-                    cell_text = (await first_cell.inner_text()).strip()
-                    cell_clean = cell_text.replace('º', '').strip()
-                    cell_numbers = "".join(re.findall(r'\d+', cell_text))
-                    abi_numbers = "".join(re.findall(r'\d+', active_abi))
-                    
-                    if active_abi == cell_text or abi_clean == cell_clean or active_abi in cell_text or (abi_numbers and cell_numbers == abi_numbers):
-                        target_row = row
-                        break
+            log_task(f"Grid de importações lida: {len(grid_data)} linhas.", "DEBUG")
             
-            if not target_row:
+            target_row_index = -1
+            import re
+            abi_numbers = "".join(re.findall(r'\\d+', active_abi))
+            
+            for idx, row_data in enumerate(grid_data):
+                cell_text = row_data['firstCell']
+                if not cell_text: continue
+                
+                cell_clean = cell_text.replace('º', '').strip()
+                cell_numbers = "".join(re.findall(r'\\d+', cell_text))
+                
+                if active_abi == cell_text or abi_clean == cell_clean or active_abi in cell_text or (abi_numbers and cell_numbers == abi_numbers):
+                    target_row_index = idx
+                    log_task(f"ABI {active_abi} localizado na linha {idx+1}.", "DEBUG")
+                    break
+            
+            if target_row_index == -1:
                 log_task("ABI atual não encontrado na grid de importações.", "WARNING")
                 if browser: await browser.close()
                 return "Não Verificado", "ABI não importado no RSUS."
 
             # Verifica se está importado
-            status_cell = target_row.locator("td").nth(1)
-            status_text = (await status_cell.inner_text()).strip()
+            status_text = grid_data[target_row_index]['secondCell']
+            target_row = page.locator("table tbody tr").nth(target_row_index)
             
             if status_text != "Importado":
                 log_task(f"ABI com status '{status_text}', pulando checagem de impugnação.", "INFO")
@@ -575,50 +622,28 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
                 await asyncio.sleep(0.5)
                 await page.keyboard.press("Enter")
                 
+                # Aguarda um pouco para o AJAX do Kendo UI processar
+                await asyncio.sleep(3)
+                
+                # Extração via JS para evitar pendência/timeout de inner_text()
+                grid_data = await page.evaluate("""() => {
+                    const rows = document.querySelectorAll('table tbody tr');
+                    return Array.from(rows).map(row => row.innerText.trim().toLowerCase());
+                }""")
+                
                 has_match = False
                 match_count = 0
                 no_results_keywords = ['nenhum registro', 'sem resultados', '0 registros', 'no records', 'nenhum resultado']
                 
-                for _ in range(12):  # Aguarda até 24 segundos
-                    await asyncio.sleep(2)
-                    
-                    # Aguardar o spinner do Kendo UI sumir se existir
-                    try:
-                        loading_mask = page.locator(".k-loading-mask, .k-loading-image").first
-                        if await loading_mask.count() > 0 and await loading_mask.is_visible():
-                            await loading_mask.wait_for(state="hidden", timeout=10000)
-                    except: pass
-                    
-                    visible_rows = page.locator("table tbody tr")
-                    try: r_count = await visible_rows.count()
-                    except: r_count = 0
-                    
-                    if r_count > 0:
-                        # Checa especificamente se a PRIMEIRA LINHA contém a mensagem de sem resultados
-                        try:
-                            # Apenas testa a linha 0 para evitar falsos positivos do document.body
-                            first_row_text = (await visible_rows.nth(0).inner_text()).lower()
-                            is_empty_table_message = any(k in first_row_text for k in no_results_keywords)
-                        except:
-                            is_empty_table_message = False
-
-                        if not is_empty_table_message:
-                            for r_idx in range(min(r_count, 5)):
-                                try:
-                                    r_text = (await visible_rows.nth(r_idx).inner_text()).strip().lower()
-                                    if any(k in r_text for k in target_keywords):
-                                        has_match = True
-                                        match_count += 1
-                                except: continue
-                                
-                            if has_match:
-                                if match_count < r_count:
-                                    match_count = r_count
-                                break
-                        else:
-                            # Se a tabela declarou explícitamente que está vazia no layout dela, paramos aqui e a busca falhou
-                            break
-                        
+                # Se a grade está vazia ou contém apenas mensagens de "sem resultados"
+                if not grid_data or any(all(k in row_text for k in no_results_keywords) for row_text in grid_data[:1]):
+                    pass
+                else:
+                    for row_text in grid_data:
+                        if any(k in row_text for k in target_keywords):
+                            has_match = True
+                            match_count += 1
+                
                 # Tenta pegar contagem do rodapé se encontrou algo
                 if has_match:
                     try:
@@ -633,6 +658,7 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
                             }
                         """)
                         if ft_text:
+                            import re
                             mtch = re.search(r'de\s+(\d+)\s+(?:registros|itens)', ft_text, re.I)
                             if mtch: match_count = int(mtch.group(1))
                     except: pass
