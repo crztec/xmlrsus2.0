@@ -590,14 +590,22 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
             # Analisa as linhas para encontrar Sucesso ou Falha para o ABI ESPECÍFICO
             log_rows = page.locator("table tbody tr")
             rows_to_check = await log_rows.count()
-            # No caso da Unimed Resende, pode haver muitos logs. Vamos verificar as primeiras 15 para ser seguro.
-            rows_to_check = min(rows_to_check, 15) 
+            log_task(f"Grid de Logs carregada: {rows_to_check} linhas encontradas.", "DEBUG")
+            # No caso da Unimed Resende, pode haver muitos logs. Vamos verificar as primeiras 20 para ser seguro.
+            rows_to_check = min(rows_to_check, 20) 
             
             found_result = False
+            abi_matched_any_row = False
+            
             for r_idx in range(rows_to_check):
                 row = log_rows.nth(r_idx)
                 cells = row.locator("td")
                 cell_count = await cells.count()
+                
+                # Log diagnóstico para as primeiras 3 linhas
+                if r_idx < 3:
+                    row_preview = (await row.inner_text()).strip()[:120]
+                    log_task(f"Log linha {r_idx+1}/{rows_to_check}: {cell_count} colunas | Preview: '{row_preview}'", "DEBUG")
                 
                 if cell_count >= 7:
                     abi_val_raw = (await cells.nth(0).inner_text()).strip()
@@ -607,11 +615,13 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                     target_abi_clean = re.sub(r'\D', '', str(active_abi))
                     
                     if abi_row_clean != target_abi_clean:
-                        # log_task(f"Log linha {r_idx+1} ignorado (ABI {abi_val_raw} != {active_abi})", "DEBUG")
                         continue
+                    
+                    abi_matched_any_row = True
 
                     result_text = (await cells.nth(6).inner_text()).strip()
                     res_lower = result_text.lower()
+                    log_task(f"ABI {abi_val_raw} encontrado na linha {r_idx+1}. Resultado col.7: '{result_text}'", "DEBUG")
                     
                     if "sucesso" in res_lower:
                         update_progress(100)
@@ -769,8 +779,39 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                         await browser.close()
                         return "Falha na Análise", f"Erro: {log_text[:50]}", None
             
+            # FALLBACK: Se nenhuma linha bateu com o ABI filtrado, tenta varredura genérica
+            if not abi_matched_any_row and rows_to_check > 0:
+                log_task(f"Nenhuma linha bateu com ABI '{active_abi}' (filtro numérico). Tentando varredura genérica em {rows_to_check} linhas...", "WARNING")
+                for r_idx in range(rows_to_check):
+                    row = log_rows.nth(r_idx)
+                    row_text = (await row.inner_text()).strip()
+                    row_lower = row_text.lower()
+                    
+                    if r_idx < 3:
+                        log_task(f"Fallback linha {r_idx+1}: '{row_text[:150]}'", "DEBUG")
+                    
+                    # Busca Sucesso/Parcial/Falha/Erro diretamente no texto da linha
+                    if "sucesso" in row_lower:
+                        update_progress(100)
+                        if "parcial" in row_lower:
+                            log_task(f"Sucesso Parcial detectado (varredura genérica, linha {r_idx+1})", "SUCCESS")
+                            await browser.close()
+                            return "Importado e Analisado", "Análise Sucesso - Parcial", None
+                        log_task(f"Sucesso detectado (varredura genérica, linha {r_idx+1})", "SUCCESS")
+                        await browser.close()
+                        return "Importado e Analisado", "Análise feita com sucesso.", None
+                    
+                    if "falha" in row_lower or "erro" in row_lower:
+                        if "parcial" in row_lower:
+                            log_task(f"Sucesso Parcial detectado (linha com falha+parcial, linha {r_idx+1})", "SUCCESS")
+                            await browser.close()
+                            return "Importado e Analisado", "Análise Sucesso - Parcial", None
+                        log_task(f"Falha detectada (varredura genérica, linha {r_idx+1}): {row_text[:80]}", "ERROR")
+                        await browser.close()
+                        return "Falha na Análise", f"Erro: {row_text[:80]}", None
+            
             # Se chegou aqui, não achou Sucesso nem Falha explícita nas primeiras linhas
-            log_task("Resultado final da análise não localizado (falta processar?).", "WARNING")
+            log_task(f"Resultado final da análise não localizado. Linhas verificadas: {rows_to_check}, ABI match: {abi_matched_any_row}", "WARNING")
             await browser.close()
             return "Importado, falta analisar", "Arquivo importado, análise não concluída ou não localizada.", None
 
