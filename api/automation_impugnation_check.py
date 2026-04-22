@@ -95,20 +95,39 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
                 if await search_input.count() > 0:
                     log_task(f"Searching for: '{name_to_search}'")
                     await search_input.click()
+                    # Limpeza agressiva
+                    await page.keyboard.press("Control+A")
+                    await page.keyboard.press("Backspace")
+                    await asyncio.sleep(0.5)
                     await search_input.fill("")
-                    await search_input.fill(name_to_search)
-                    await asyncio.sleep(2)
+                    
+                    # Digita com delay para disparar eventos AJAX (Kendo UI)
+                    await search_input.type(name_to_search, delay=60)
+                    await asyncio.sleep(1)
                     await page.keyboard.press("Enter")
-                    await asyncio.sleep(4) # Espera um pouco mais no Cloud Run
+                    
+                    # Aguarda o "spinner" se houver ou uma pequena pausa
+                    try:
+                        await page.wait_for_selector(".k-loading-mask, .loading-mask, .spinner", state="hidden", timeout=5000)
+                    except: pass
+                    await asyncio.sleep(3) 
+
+                # Extração via JS para validar se o item apareceu na grid após o filtro
+                grid_results = await page.evaluate("""() => {
+                    const rows = document.querySelectorAll('table tbody tr');
+                    return Array.from(rows).map(row => ({
+                        text: row.innerText.trim().toLowerCase(),
+                        isVisible: row.offsetParent !== null
+                    }));
+                }""")
                 
-                # Procura por correspondência exata ou parcial na tabela
-                rows = page.locator("table tbody tr")
-                count = await rows.count()
-                for i in range(count):
-                    row_text = await rows.nth(i).inner_text()
-                    if name_to_search.lower() in row_text.lower():
-                        return rows.nth(i)
-                return page.locator("table tbody tr").filter(has_text=re.compile(re.escape(name_to_search), re.IGNORECASE)).first
+                for idx, row in enumerate(grid_results):
+                    if not row['isVisible']: continue
+                    if name_to_search.lower() in row['text']:
+                        log_task(f"Match found in grid row {idx+1} for '{name_to_search}'")
+                        return page.locator("table tbody tr").nth(idx)
+                
+                return page.locator("table tbody tr.NOT_FOUND_VIRTUAL").first # Retorna algo que .count() == 0
 
             target_row = await try_search(client_name)
             
