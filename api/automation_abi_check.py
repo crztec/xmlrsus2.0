@@ -509,44 +509,54 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
             await page.goto(import_url, wait_until="domcontentloaded", timeout=45000)
             
             log_task(f"Buscando ABI {active_abi} na grid...", "DEBUG")
-            # Aguarda a table carregar e o texto do ABI aparecer em qualquer célula (ajuda no loading assíncrono)
+            # Aguarda a table carregar e o texto do ABI aparecer em qualquer célula
             try:
-                # O abi_clean já foi definido no início da função
                 await page.wait_for_selector(f"table td:has-text('{active_abi}'), table td:has-text('{abi_clean}')", timeout=35000)
             except:
-                pass # Silenciando aviso genérico para unificar adiante
+                pass
             
-            # Varredura dinâmica de linhas para localizar o ABI (evita Timeout .nth() fixo)
-            rows = await page.locator("table tbody tr").all()
-            target_row = None
+            # EXTRAÇÃO VIA JAVASCRIPT: Lê todas as linhas da tabela de uma vez
+            # Isso evita os timeouts individuais de .inner_text() que ocorrem no Cloud Run
+            grid_data = await page.evaluate("""() => {
+                const rows = document.querySelectorAll('table tbody tr');
+                return Array.from(rows).map(row => {
+                    const cells = Array.from(row.querySelectorAll('td'));
+                    return {
+                        cellCount: cells.length,
+                        firstCell: cells[0] ? cells[0].innerText.trim() : '',
+                        secondCell: cells[1] ? cells[1].innerText.trim() : '',
+                        fullText: row.innerText.trim()
+                    };
+                });
+            }""")
             
-            for row in rows:
-                first_cell = row.locator("td").first
-                if await first_cell.count() > 0:
-                    cell_text = (await first_cell.inner_text()).strip()
-                    # log_task(f"Linha {i+1}: Texto lido = '{cell_text}'")
-                    
-                    # Comparações flexíveis
-                    cell_clean = cell_text.replace('º', '').strip()
-                    
-                    # Se falhar a comparação direta, tentamos extrair apenas números
-                    import re
-                    cell_numbers = "".join(re.findall(r'\d+', cell_text))
-                    abi_numbers = "".join(re.findall(r'\d+', active_abi))
-                    
-                    if active_abi == cell_text or abi_clean == cell_clean or active_abi in cell_text or (abi_numbers and cell_numbers == abi_numbers):
-                        target_row = row
-                        # log_task(f"SUCESSO: ABI {active_abi} localizado na linha {i+1}!")
-                        break
+            log_task(f"Grid carregada via JS: {len(grid_data)} linhas.", "DEBUG")
             
-            if not target_row:
+            target_row_index = -1
+            import re
+            abi_numbers = "".join(re.findall(r'\\d+', active_abi))
+            
+            for idx, row_data in enumerate(grid_data):
+                cell_text = row_data['firstCell']
+                if not cell_text:
+                    continue
+                
+                cell_clean = cell_text.replace('º', '').strip()
+                cell_numbers = "".join(re.findall(r'\\d+', cell_text))
+                
+                if active_abi == cell_text or abi_clean == cell_clean or active_abi in cell_text or (abi_numbers and cell_numbers == abi_numbers):
+                    target_row_index = idx
+                    log_task(f"ABI {active_abi} localizado na linha {idx+1}.", "DEBUG")
+                    break
+            
+            if target_row_index == -1:
                 log_task(f"Aviso: ABI atual ainda não importado no RSUS.", "WARNING")
                 if browser: await browser.close()
                 return "Nao Importado", "ABI atual ainda não importado no RSUS.", None
 
-            # Obtém status direto da segunda coluna (Status Arquivo)
-            status_cell = target_row.locator("td").nth(1)
-            status_text = (await status_cell.inner_text()).strip()
+            # Obtém status direto da segunda coluna (Status Arquivo) via dados já extraídos
+            status_text = grid_data[target_row_index]['secondCell']
+            target_row = page.locator("table tbody tr").nth(target_row_index)
             
             if status_text != "Importado":
                 log_task(f"ABI {active_abi} encontrado com status: {status_text}", "INFO")
@@ -599,62 +609,57 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
             try:
                 # Aguarda a tabela de análises ter pelo menos uma linha
                 await page.wait_for_selector("table tbody tr", timeout=45000)
-                
-                # Aguarda o conteúdo estabilizar
-                for _ in range(15):
-                    first_row = page.locator("table tbody tr").first
-                    first_text = (await first_row.inner_text()).strip()
-                    if first_text and "carregando" not in first_text.lower():
-                        break
-                    await asyncio.sleep(1)
+                await asyncio.sleep(2)  # Pequena pausa para estabilização
             except:
                 log_task("Aviso: Tempo esgotado aguardando linhas na tabela de análises.", "WARNING")
             
-            # Lê a tabela de "Análises Realizadas" (já navegou para a nova página)
-            log_rows = page.locator("table tbody tr")
-            rows_to_check = await log_rows.count()
-            log_task(f"Grid de Análises Realizadas: {rows_to_check} linhas encontradas.", "DEBUG")
-            rows_to_check = min(rows_to_check, 20) 
+            # EXTRAÇÃO VIA JAVASCRIPT: Lê todas as linhas da tabela "Análises Realizadas" de uma vez
+            analysis_data = await page.evaluate("""() => {
+                const rows = document.querySelectorAll('table tbody tr');
+                return Array.from(rows).map(row => {
+                    const cells = Array.from(row.querySelectorAll('td'));
+                    return {
+                        cellCount: cells.length,
+                        abi: cells[0] ? cells[0].innerText.trim() : '',
+                        resultado: cells.length >= 7 ? cells[6].innerText.trim() : '',
+                        fullText: row.innerText.trim()
+                    };
+                });
+            }""")
+            
+            log_task(f"Grid de Análises Realizadas: {len(analysis_data)} linhas (via JS).", "DEBUG")
             
             found_result = False
             abi_matched_any_row = False
+            import re
+            target_abi_numbers = re.sub(r'\D', '', str(active_abi))
             
-            for r_idx in range(rows_to_check):
-                row = log_rows.nth(r_idx)
-                cells = row.locator("td")
-                cell_count = await cells.count()
-                
+            for r_idx, row_data in enumerate(analysis_data):
                 # Log diagnóstico para as primeiras 3 linhas
                 if r_idx < 3:
-                    row_preview = (await row.inner_text()).strip()[:120]
-                    log_task(f"Log linha {r_idx+1}/{rows_to_check}: {cell_count} colunas | Preview: '{row_preview}'", "DEBUG")
+                    log_task(f"Análise linha {r_idx+1}/{len(analysis_data)}: {row_data['cellCount']} colunas | ABI: '{row_data['abi']}' | Resultado: '{row_data['resultado']}' | Full: '{row_data['fullText'][:80]}'", "DEBUG")
                 
-                # Busca genérica no texto da linha inteira (independente de estrutura de colunas)
-                row_full_text = (await row.inner_text()).strip().lower()
-                
-                if cell_count >= 7:
-                    abi_val_raw = (await cells.nth(0).inner_text()).strip()
-                    import re
-                    abi_row_clean = re.sub(r'\D', '', abi_val_raw)
-                    target_abi_clean = re.sub(r'\D', '', str(active_abi))
+                if row_data['cellCount'] >= 7:
+                    abi_row_clean = re.sub(r'\D', '', row_data['abi'])
                     
-                    if abi_row_clean != target_abi_clean:
+                    if abi_row_clean != target_abi_numbers:
                         continue
                     
                     abi_matched_any_row = True
-
-                    result_text = (await cells.nth(6).inner_text()).strip()
+                    result_text = row_data['resultado']
                     res_lower = result_text.lower()
-                    log_task(f"ABI {abi_val_raw} encontrado na linha {r_idx+1}. Resultado col.7: '{result_text}'", "DEBUG")
+                    log_task(f"ABI {row_data['abi']} encontrado na linha {r_idx+1}. Resultado: '{result_text}'", "DEBUG")
                     
                     if "sucesso" in res_lower:
                         update_progress(100)
-                        log_task(f"Sucesso detectado na análise do ABI {abi_val_raw}", "SUCCESS")
+                        log_task(f"Sucesso detectado na análise do ABI {row_data['abi']}", "SUCCESS")
                         await browser.close()
                         return "Importado e Analisado", "Análise feita com sucesso.", None
                     
                     if "falha" in res_lower or "erro" in res_lower:
-                        log_task(f"Evento '{result_text}' detectado para ABI {abi_val_raw}. Iniciando Deep Dive...", "INFO")
+                        log_task(f"Evento '{result_text}' detectado para ABI {row_data['abi']}. Iniciando Deep Dive...", "INFO")
+                        # Obtém o locator real da linha para interagir com o Deep Dive
+                        row = page.locator("table tbody tr").nth(r_idx)
                         try:
                             # 1. Abre o detalhe (Resiliente a 'da' vs 'do' e erro de pt)
                             import re
@@ -790,29 +795,27 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                             await browser.close()
                             return "Falha na Análise", f"ABI {abi_val}: Erro", None
                 else:
-                    # Fallback para estrutura inesperada
-                    log_text = (await row.inner_text()).strip()
+                    # Fallback para estrutura inesperada (< 7 colunas)
+                    log_text = row_data['fullText']
                     if "Sucesso" in log_text:
                         update_progress(100)
-                        log_task(f"Sucesso detectado na análise (fallback)", "SUCCESS")
+                        log_task(f"Sucesso detectado na análise (fallback, linha {r_idx+1})", "SUCCESS")
                         await browser.close()
                         return "Importado e Analisado", "Análise concluída com sucesso.", None
                     
                     if "Falha" in log_text or "Erro" in log_text:
-                        log_task(f"Falha detectada na análise (fallback): {log_text[:50]}.", "ERROR")
+                        log_task(f"Falha detectada na análise (fallback, linha {r_idx+1}): {log_text[:50]}.", "ERROR")
                         await browser.close()
                         return "Falha na Análise", f"Erro: {log_text[:50]}", None
             
-            # FALLBACK: Se nenhuma linha bateu com o ABI filtrado, tenta varredura genérica
-            if not abi_matched_any_row and rows_to_check > 0:
-                log_task(f"Nenhuma linha bateu com ABI '{active_abi}' (filtro numérico). Tentando varredura genérica em {rows_to_check} linhas...", "WARNING")
-                for r_idx in range(rows_to_check):
-                    row = log_rows.nth(r_idx)
-                    row_text = (await row.inner_text()).strip()
-                    row_lower = row_text.lower()
+            # FALLBACK: Se nenhuma linha bateu com o ABI filtrado, tenta varredura genérica nos dados já extraídos
+            if not abi_matched_any_row and len(analysis_data) > 0:
+                log_task(f"Nenhuma linha bateu com ABI '{active_abi}' (filtro numérico). Varredura genérica em {len(analysis_data)} linhas...", "WARNING")
+                for r_idx, row_data in enumerate(analysis_data):
+                    row_lower = row_data['fullText'].lower()
                     
                     if r_idx < 3:
-                        log_task(f"Fallback linha {r_idx+1}: '{row_text[:150]}'", "DEBUG")
+                        log_task(f"Fallback linha {r_idx+1}: '{row_data['fullText'][:150]}'", "DEBUG")
                     
                     # Busca Sucesso/Parcial/Falha/Erro diretamente no texto da linha
                     if "sucesso" in row_lower:
@@ -830,12 +833,12 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                             log_task(f"Sucesso Parcial detectado (linha com falha+parcial, linha {r_idx+1})", "SUCCESS")
                             await browser.close()
                             return "Importado e Analisado", "Análise Sucesso - Parcial", None
-                        log_task(f"Falha detectada (varredura genérica, linha {r_idx+1}): {row_text[:80]}", "ERROR")
+                        log_task(f"Falha detectada (varredura genérica, linha {r_idx+1}): {row_data['fullText'][:80]}", "ERROR")
                         await browser.close()
-                        return "Falha na Análise", f"Erro: {row_text[:80]}", None
+                        return "Falha na Análise", f"Erro: {row_data['fullText'][:80]}", None
             
             # Se chegou aqui, não achou Sucesso nem Falha explícita nas primeiras linhas
-            log_task(f"Resultado final da análise não localizado. Linhas verificadas: {rows_to_check}, ABI match: {abi_matched_any_row}", "WARNING")
+            log_task(f"Resultado final da análise não localizado. Linhas verificadas: {len(analysis_data)}, ABI match: {abi_matched_any_row}", "WARNING")
             await browser.close()
             return "Importado, falta analisar", "Arquivo importado, análise não concluída ou não localizada.", None
 
