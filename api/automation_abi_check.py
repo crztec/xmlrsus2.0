@@ -105,10 +105,12 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
                 
             log_task("Operadora localizada!")
             
-            # Map status
+            # Map status (Iniciado, Importou o ABI, Importou e Analisou, etc.)
             target_status = "Não iniciou"
             if status_gax == "Nao Importado":
                 target_status = "Não iniciou"
+            elif status_gax in ["Importado", "Pendente", "Importado, falta analisar"]:
+                target_status = "Importou o ABI"
             elif status_gax in ["Importado e Analisado", "Falha na Análise", "Falha"]:
                 target_status = "Importou e Analisou"
                 
@@ -572,10 +574,11 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
             except:
                 log_task("Aviso: Tempo esgotado aguardando linhas na tabela de logs.", "WARNING")
             
-            # Analisa as primeiras linhas para encontrar Sucesso ou Falha
+            # Analisa as linhas para encontrar Sucesso ou Falha para o ABI ESPECÍFICO
             log_rows = page.locator("table tbody tr")
             rows_to_check = await log_rows.count()
-            rows_to_check = min(rows_to_check, 3) # Verifica as 3 primeiras para segurança
+            # No caso da Unimed Resende, pode haver muitos logs. Vamos verificar as primeiras 15 para ser seguro.
+            rows_to_check = min(rows_to_check, 15) 
             
             found_result = False
             for r_idx in range(rows_to_check):
@@ -584,17 +587,27 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                 cell_count = await cells.count()
                 
                 if cell_count >= 7:
-                    abi_val = (await cells.nth(0).inner_text()).strip()
-                    result_text = (await cells.nth(6).inner_text()).strip()
+                    abi_val_raw = (await cells.nth(0).inner_text()).strip()
+                    # Compara se o ABI da linha bate com o que estamos procurando (flexível)
+                    import re
+                    abi_row_clean = re.sub(r'\D', '', abi_val_raw)
+                    target_abi_clean = re.sub(r'\D', '', str(active_abi))
                     
-                    if "Sucesso" in result_text:
+                    if abi_row_clean != target_abi_clean:
+                        # log_task(f"Log linha {r_idx+1} ignorado (ABI {abi_val_raw} != {active_abi})", "DEBUG")
+                        continue
+
+                    result_text = (await cells.nth(6).inner_text()).strip()
+                    res_lower = result_text.lower()
+                    
+                    if "sucesso" in res_lower:
                         update_progress(100)
-                        log_task(f"Sucesso detectado na análise do ABI {abi_val}", "SUCCESS")
+                        log_task(f"Sucesso detectado na análise do ABI {abi_val_raw}", "SUCCESS")
                         await browser.close()
                         return "Importado e Analisado", "Análise feita com sucesso.", None
                     
-                    if "Falha" in result_text or "Erro" in result_text:
-                        log_task(f"Falha detectada. Iniciando Deep Dive (Detalhes da Análise)...", "INFO")
+                    if "falha" in res_lower or "erro" in res_lower:
+                        log_task(f"Evento '{result_text}' detectado para ABI {abi_val_raw}. Iniciando Deep Dive...", "INFO")
                         try:
                             # 1. Abre o detalhe (Resiliente a 'da' vs 'do' e erro de pt)
                             import re
