@@ -221,7 +221,7 @@ async def run_impugnation_check_for_client(client_id, task_id=None, pre_fetched_
     active_abi = active_abi_doc.get('ABI', 'Desconhecido') if active_abi_doc else 'Desconhecido'
 
     try:
-        status, message = await _run_impugnation_logic(client_id, active_abi, task_id, pre_fetched_creds)
+        status, message, stats = await _run_impugnation_logic(client_id, active_abi, task_id, pre_fetched_creds)
         
         # Salva o status de impugnação no cliente
         db.update_client_impugnation_status(client_id, status, message, task_id)
@@ -250,11 +250,11 @@ async def run_impugnation_check_for_client(client_id, task_id=None, pre_fetched_
                 f"Operadora: {client_name}\n"
                 f"ABI: {active_abi}\n"
                 f"Resultado: {status}\n\n"
-                f"Detalhes: {message}"
+                f"Detalhes: {stats['impugnados']} impugnados, {stats['aptos']} aptos e {stats['aguardando']} aguardando."
             )
             await send_whatsapp_alert(msg, task_id=task_id)
             
-        return status, message
+        return status, message, stats
     except Exception as e:
         import traceback
         err = f"{type(e).__name__}: {str(e)}"
@@ -262,7 +262,7 @@ async def run_impugnation_check_for_client(client_id, task_id=None, pre_fetched_
         db.update_client_impugnation_status(client_id, "Erro", err, task_id)
         if task_id:
             db.add_log(task_id, f"[{client_name}] Erro crítico: {err}", "ERROR")
-        return "Erro", err
+        return "Erro", err, {"aptos": 0, "aguardando": 0}
 
 
 async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetched_creds=None):
@@ -651,25 +651,26 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
                 # Nao tem impasse, só "aguardando"
                 log_task(f"⏳ NÃO INICIOU IMPUGNAÇÃO! {count_ag} atendimentos aguardando.", "SUCCESS")
                 if browser: await browser.close()
-                return "Não Iniciou", f"Cliente ainda não iniciou impugnação. {count_ag} atendimentos aguardando."
+                return "Não Iniciou", f"Cliente ainda não iniciou impugnação. {count_ag} atendimentos aguardando.", {"impugnados": 0, "aptos": 0, "aguardando": count_ag}
 
             elif (has_imp or has_apto) and has_ag:
                 # Tem impugnados ou aptos, E também tem aguardando. Ou seja: ainda está no meio do processo
-                total = count_imp + count_apto
-                log_task(f"⚖️ IMPUGNANDO! {total} resolvidos/aptos, {count_ag} aguardando.", "SUCCESS")
+                total_resolvidos = count_imp + count_apto
+                log_task(f"⚖️ IMPUGNANDO! {total_resolvidos} resolvidos (imp/apto), {count_ag} aguardando.", "SUCCESS")
                 if browser: await browser.close()
-                return "Impugnando", f"{total} registros impugnados/aptos, e {count_ag} ainda aguardando."
+                return "Impugnando", f"{total_resolvidos} registros impugnados/aptos, e {count_ag} ainda aguardando.", {"impugnados": count_imp, "aptos": count_apto, "aguardando": count_ag}
 
             elif (has_imp or has_apto) and not has_ag:
                 # Não tem mais nada "aguardando", então tudo foi impugnado (ou apto/não impugnado)
+                total_resolvidos = count_imp + count_apto
                 log_task(f"✅ FINALIZOU O ABI! 0 aguardando.", "SUCCESS")
                 if browser: await browser.close()
-                return "Finalizou", f"Cliente finalizou o ABI. Nenhum atendimento aguardando impugnação."
+                return "Finalizou", f"Cliente finalizou o ABI. Nenhum atendimento aguardando impugnação.", {"impugnados": count_imp, "aptos": count_apto, "aguardando": 0}
             
             elif not has_imp and not has_apto and not has_ag:
                 log_task("Nenhum registro encontrado nas três pesquisas (Impugnado, Apto, Aguardando).", "WARNING")
                 if browser: await browser.close()
-                return "Sem Impugnação", "Nenhum atendimento relevante detectado."
+                return "Sem Impugnação", "Nenhum atendimento relevante detectado.", {"impugnados": 0, "aptos": 0, "aguardando": 0}
 
 
     except Exception as e:
@@ -680,7 +681,7 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
         if browser:
             try: await browser.close()
             except: pass
-        return "Erro", f"Erro: {err_msg}"
+        return "Erro", f"Erro: {err_msg}", {"impugnados": 0, "aptos": 0, "aguardando": 0}
 
 
 async def run_batch_impugnation_check(task_id, client_ids=None):
@@ -716,6 +717,7 @@ async def run_batch_impugnation_check(task_id, client_ids=None):
         sem_impugnacao = 0
         nao_iniciou = 0
         erros = 0
+        details_list = []
 
         for i, client in enumerate(clients):
             # Check cancelamento
@@ -729,10 +731,15 @@ async def run_batch_impugnation_check(task_id, client_ids=None):
             
             target_creds = creds_vitoria if "vitoria" in client.get('url_sistema', '').lower() else creds_general
             
-            status, message = await run_impugnation_check_for_client(
+            status, message, stats = await run_impugnation_check_for_client(
                 client['id'], task_id=task_id, pre_fetched_creds=target_creds, is_batch_run=True
             )
             
+            # Adiciona aos detalhes
+            emoji_map = {"Impugnando": "⚖️", "Finalizou": "🏁", "Sem Impugnação": "✅", "Não Iniciou": "⏳", "Erro": "❌"}
+            emoji = emoji_map.get(status, "ℹ️")
+            details_list.append(f"{emoji} *{client_name}*: {stats['impugnados']} imp | {stats['aptos']} aptos | {stats['aguardando']} aguard.")
+
             if status == "Impugnando":
                 impugnating += 1
             elif status == "Finalizou":
@@ -747,14 +754,21 @@ async def run_batch_impugnation_check(task_id, client_ids=None):
         db.update_task(task_id, {"status": "completed", "current_client": "Finalizado"})
         db.add_log(task_id, f"Checagem de impugnações finalizada. Impugnando: {impugnating} | Finalizou: {finalized} | Não iniciou: {nao_iniciou} | Sem impugnação: {sem_impugnacao} | Erros: {erros}")
         
+        details_text = "\n".join(details_list)
+        
         msg = (
             f"⚖️ *GAX RSUS - Relatório de Impugnações*\n\n"
-            f"Processamento finalizado!\n"
+            f"Processamento em lote finalizado!\n\n"
+            f"📋 *DETALHAMENTO POR OPERADORA:*\n"
+            f"--------------------------------\n"
+            f"{details_text}\n\n"
+            f"--------------------------------\n"
+            f"📊 *CONSOLIDADO DO LOTE*\n"
             f"⚖️ Impugnando: {impugnating}\n"
             f"🏁 Finalizou: {finalized}\n"
             f"⏳ Não iniciou: {nao_iniciou}\n"
-            f"✅ Sem impugnação: {sem_impugnacao}\n"
-            f"❌ Erros: {erros}"
+            f"❌ Erros: {erros}\n"
+            f"--------------------------------"
         )
         await send_whatsapp_alert(msg, task_id=task_id)
 
