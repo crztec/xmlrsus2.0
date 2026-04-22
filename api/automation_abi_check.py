@@ -249,14 +249,17 @@ async def run_abi_check_for_client(client_id, task_id=None, pre_fetched_creds=No
         status, message, snap_url = await _run_abi_check_logic(client_id, active_abi, task_id, pre_fetched_creds)
         db.update_client_abi_status(client_id, active_abi, status, message, task_id, is_batch=is_batch_run)
         
-        # Sincroniza status final com Gestaocomercial Cubeti APENAS SE mudou
-        if status != old_status:
+        # Sincroniza status final com Gestaocomercial Cubeti APENAS SE mudou E não for erro técnico
+        # Não sincroniza no caso de falhas técnicas (timeout, navegação, etc)
+        is_technical_error = status == 'Falha' and any(kw in message.lower() for kw in ['timeout', 'erro técnico', 'cancelado', 'falha no login', 'navegação'])
+        if status != old_status and not is_technical_error:
             await sync_to_cubeti_management(client_name, status, message, task_id)
             if task_id:
                 db.add_log(task_id, f"[{client_name}] ABI status alterado de '{old_status}' para '{status}'. Sincronizando CubeTI...")
         else:
+            reason = "erro técnico (sync pulada)" if is_technical_error else "status mantido"
             if task_id:
-                db.add_log(task_id, f"[{client_name}] ABI status mantido como '{status}'. Sincronização CubeTI pulada.")
+                db.add_log(task_id, f"[{client_name}] ABI status '{status}' ({reason}). Sincronização CubeTI pulada.")
         
         # Alerta individual de WhatsApp se não for lote
         if not is_batch_run:
@@ -572,14 +575,31 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                 if browser: await browser.close()
                 return "Importado", "Cliente não realiza análise.", None
             
-            log_task("Aguardando carregamento da tabela de logs...", "DEBUG")
+            log_task("Aguardando carregamento do modal de Logs Análise...", "DEBUG")
+            
+            # CRITÍCAL: Aguarda o MODAL abrir para não ler a grid de importação por engano
+            modal_container = None
             try:
-                # Aguarda a tabela ter pelo menos uma linha
-                await page.wait_for_selector("table tbody tr", timeout=45000)
+                await page.wait_for_selector(".modal-content, .modal.show, .modal.in, [role='dialog']", state="visible", timeout=15000)
+                modal_container = page.locator(".modal-content, .modal.show .modal-body, .modal.in .modal-body, [role='dialog']").first
+                log_task("Modal de Logs Análise detectado.", "DEBUG")
+            except:
+                log_task("Modal não detectado após clique em 'Logs Análise'. Verificando se houve navegação de página...", "WARNING")
+                # Fallback: talvez a ação navegou para outra página em vez de abrir modal
+                await asyncio.sleep(3)
+            
+            # Define o escopo de busca: modal (se existir) ou página inteira
+            search_scope = modal_container if modal_container and await modal_container.count() > 0 else page
+            scope_name = "modal" if search_scope != page else "página"
+            log_task(f"Escopo de busca: {scope_name}", "DEBUG")
+            
+            try:
+                # Aguarda a tabela DENTRO DO ESCOPO ter pelo menos uma linha
+                await search_scope.wait_for_selector("table tbody tr", timeout=45000)
                 
                 # Aguarda o conteúdo estabilizar (evita 'Carregando...' ou grid vazia momentânea)
                 for _ in range(15):
-                    first_row = page.locator("table tbody tr").first
+                    first_row = search_scope.locator("table tbody tr").first
                     first_text = (await first_row.inner_text()).strip()
                     if first_text and "carregando" not in first_text.lower():
                         break
@@ -587,11 +607,10 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
             except:
                 log_task("Aviso: Tempo esgotado aguardando linhas na tabela de logs.", "WARNING")
             
-            # Analisa as linhas para encontrar Sucesso ou Falha para o ABI ESPECÍFICO
-            log_rows = page.locator("table tbody tr")
+            # Analisa as linhas DENTRO DO ESCOPO (modal ou página)
+            log_rows = search_scope.locator("table tbody tr")
             rows_to_check = await log_rows.count()
-            log_task(f"Grid de Logs carregada: {rows_to_check} linhas encontradas.", "DEBUG")
-            # No caso da Unimed Resende, pode haver muitos logs. Vamos verificar as primeiras 20 para ser seguro.
+            log_task(f"Grid de Logs ({scope_name}) carregada: {rows_to_check} linhas encontradas.", "DEBUG")
             rows_to_check = min(rows_to_check, 20) 
             
             found_result = False
@@ -607,9 +626,11 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                     row_preview = (await row.inner_text()).strip()[:120]
                     log_task(f"Log linha {r_idx+1}/{rows_to_check}: {cell_count} colunas | Preview: '{row_preview}'", "DEBUG")
                 
+                # Busca genérica no texto da linha inteira (independente de estrutura de colunas)
+                row_full_text = (await row.inner_text()).strip().lower()
+                
                 if cell_count >= 7:
                     abi_val_raw = (await cells.nth(0).inner_text()).strip()
-                    # Compara se o ABI da linha bate com o que estamos procurando (flexível)
                     import re
                     abi_row_clean = re.sub(r'\D', '', abi_val_raw)
                     target_abi_clean = re.sub(r'\D', '', str(active_abi))
