@@ -1,3 +1,4 @@
+import sys
 import asyncio
 import os
 import tempfile
@@ -209,6 +210,16 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                 except: pass
 
             for i, file in enumerate(files):
+                # 1. Checa cancelamento via Firestore antes de processar cada arquivo
+                try:
+                    task_snap = db.firestore_db.collection('tasks').document(task_id).get()
+                    if task_snap.exists and task_snap.to_dict().get('status') == 'cancelled':
+                        db.add_log(task_id, "WARNING", "⏹️ Processamento interrompido pelo usuário. Encerrando worker.")
+                        if browser_context: await browser_context.close()
+                        sys.exit(0)
+                except Exception as e_cancel:
+                    logger.error(f"Erro ao checar cancelamento: {e_cancel}")
+
                 nome = file.get('nome_arquivo', 'Arquivo')
                 abi = file.get('numero_abi', '')
                 storage_path = file.get('storage_path')

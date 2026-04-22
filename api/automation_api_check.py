@@ -1,3 +1,4 @@
+import sys
 import asyncio
 import logging
 import time
@@ -594,8 +595,8 @@ async def run_batch_api_check(task_id=None, client_ids=None):
                 try:
                     task_doc = db.firestore_db.collection('tasks').document(task_id).get()
                     if task_doc.exists and task_doc.to_dict().get('status') == 'cancelled':
-                        db.add_log(task_id, "Interrupção solicitada pelo usuário. Finalizando processo...", "WARNING")
-                        break
+                        db.add_log(task_id, "⏹️ Interrupção solicitada pelo usuário. Encerrando worker.", "WARNING")
+                        sys.exit(0)
                 except Exception as e_cancel:
                     logger.error(f"Erro ao checar cancelamento: {e_cancel}")
 

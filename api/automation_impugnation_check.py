@@ -1,3 +1,4 @@
+import sys
 import asyncio
 import logging
 import time
@@ -723,8 +724,8 @@ async def run_batch_impugnation_check(task_id, client_ids=None):
             # Check cancelamento
             task_doc = db.get_task(task_id)
             if task_doc and str(task_doc.get('status', '')).upper() in ['STOPPED', 'CANCELLED']:
-                db.add_log(task_id, "⏹️ Processamento interrompido pelo usuário.", "WARNING")
-                break
+                db.add_log(task_id, "⏹️ Processamento interrompido pelo usuário. Encerrando worker.", "WARNING")
+                sys.exit(0)
 
             client_name = client.get('name', 'Desconhecido')
             db.update_task(task_id, {"current": i + 1, "current_client": client_name})
