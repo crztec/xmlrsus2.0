@@ -775,7 +775,7 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
 
                             if success_parcial:
                                 update_progress(100)
-                                log_task(f"Deep Dive: Encontrado Sucesso Parcial no ABI {abi_val}", "SUCCESS")
+                                log_task(f"Deep Dive: Encontrado Sucesso Parcial no ABI {row_data['abi']}", "SUCCESS")
                                 await browser.close()
                                 return "Importado e Analisado", mensagem_analise, None
                             elif has_real_error:
@@ -791,9 +791,9 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                                 
                         except Exception as deep_e:
                             log_task(f"Aviso no Deep Dive: {str(deep_e)[:100]}", "WARNING")
-                            log_task(f"Falha detectada na análise do ABI {abi_val}.", "ERROR")
+                            log_task(f"Falha detectada na análise do ABI {row_data['abi']}.", "ERROR")
                             await browser.close()
-                            return "Falha na Análise", f"ABI {abi_val}: Erro", None
+                            return "Falha na Análise", f"ABI {row_data['abi']}: Erro", None
                 else:
                     # Fallback para estrutura inesperada (< 7 colunas)
                     log_text = row_data['fullText']
