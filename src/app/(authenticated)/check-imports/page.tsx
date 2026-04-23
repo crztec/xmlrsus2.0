@@ -101,6 +101,7 @@ export default function CheckImportsPage() {
   const [detailedLogs, setDetailedLogs] = React.useState<TaskLog[]>([]);
   const [modalTitle, setModalTitle] = React.useState("Console Técnico");
   const [logFilterClient, setLogFilterClient] = React.useState<string | null>(null);
+  const [historyMenuOpen, setHistoryMenuOpen] = React.useState(false);
   const scrollRef = React.useRef<HTMLDivElement>(null);
 
   // Auto-scroll para o final dos logs
@@ -119,6 +120,7 @@ export default function CheckImportsPage() {
     const handleClickOutside = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setOpenMenuId(null);
+        setHistoryMenuOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -525,7 +527,7 @@ export default function CheckImportsPage() {
               <ShieldCheck size={14} className="text-emerald-500" />
               <span className="text-xs font-medium text-slate-500">Sistema pronto para nova checagem</span>
             </div>
-            <div className="flex items-center gap-2 overflow-x-auto w-full pb-2 hide-scrollbar whitespace-nowrap">
+            <div className="flex items-center gap-2 overflow-visible w-full pb-2 md:pb-0 justify-end" ref={dropdownRef}>
               <button 
                 onClick={fetchData}
                 className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 transition-colors shrink-0"
@@ -533,45 +535,22 @@ export default function CheckImportsPage() {
               >
                 <RefreshCw size={14} />
               </button>
-              <button 
-                onClick={handleViewGlobalLog}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-white transition-all font-display shrink-0"
-              >
-                <Terminal size={12} />
-                Histórico ABI
-              </button>
-              <button 
-                onClick={async () => {
-                  setModalTitle("Histórico de Impugnações");
-                  setLogFilterClient(null);
-                  setDetailedLogs([]);
-                  setViewingTaskId("history");
-                  setShowLogsModal(true);
-                  setIsLoadingLogs(true);
-                  try {
-                    const res = await apiClient("/api/tasks/history-logs?type=impugnation&limit=5");
-                    const logsData = await res.json();
-                    setDetailedLogs(logsData?.length > 0 ? logsData : [{ timestamp: "", message: "Nenhum histórico de impugnações encontrado.", level: "INFO" }]);
-                  } catch (err) { console.error(err); } finally { setIsLoadingLogs(false); }
-                }}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-yellow-100 transition-all font-display shrink-0"
-              >
-                <History size={12} />
-                Histórico Impugn.
-              </button>
+              
               <button 
                 onClick={handleRunFailedChecks}
                 disabled={!!activeTaskId}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-white transition-all disabled:opacity-40 font-display shrink-0"
               >
                 <RotateCcw size={12} />
-                Re-testar Falhas
+                Checar Falhas
               </button>
+              
               <label className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-white transition-all cursor-pointer font-display shrink-0">
                 <CloudUpload size={12} />
                 {isUploading ? "..." : "Cronograma"}
                 <input type="file" className="hidden" accept=".xlsx,.xls" onChange={handleUpload} />
               </label>
+              
               <button 
                 onClick={() => startImpugnationCheck()}
                 disabled={!!activeTaskId}
@@ -580,14 +559,63 @@ export default function CheckImportsPage() {
                 <Scale size={12} />
                 Checar Impugnações
               </button>
+              
               <button 
                 onClick={() => startCheck()}
                 disabled={!!activeTaskId}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-gax-blue text-white rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-gax-blue-hover transition-all shadow-md shadow-gax-blue/20 disabled:opacity-40 font-display shrink-0"
               >
                 <Play size={12} className={activeTaskId ? 'animate-pulse' : ''} />
-                Executar Lote
+                Checar ABIs
               </button>
+
+              <div className="relative">
+                <button 
+                  onClick={() => setHistoryMenuOpen(!historyMenuOpen)}
+                  className={cn(
+                    "p-1.5 rounded-lg transition-all shrink-0 border",
+                    historyMenuOpen ? "bg-slate-100 border-slate-300 text-slate-800" : "bg-slate-50 border-slate-200 text-slate-400 hover:bg-slate-100"
+                  )}
+                  title="Mais Opções"
+                >
+                  <MoreHorizontal size={14} />
+                </button>
+
+                {historyMenuOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-52 bg-white rounded-2xl shadow-2xl shadow-slate-200/80 border border-slate-100 z-50 overflow-hidden animate-in zoom-in-95 duration-200 origin-top-right">
+                    <div className="px-4 py-2 border-b border-slate-50 bg-slate-50/50">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Históricos</span>
+                    </div>
+                    <button 
+                      onClick={() => { handleViewGlobalLog(); setHistoryMenuOpen(false); }}
+                      className="w-full flex items-center gap-2.5 px-4 py-3 text-[11px] font-bold text-slate-700 hover:bg-gax-blue hover:text-white transition-colors"
+                    >
+                      <Terminal size={14} className="opacity-70" />
+                      Histórico ABI
+                    </button>
+                    <button 
+                      onClick={async () => {
+                        setHistoryMenuOpen(false);
+                        setModalTitle("Histórico de Impugnações");
+                        setLogFilterClient(null);
+                        setDetailedLogs([]);
+                        setViewingTaskId("history");
+                        setShowLogsModal(true);
+                        setIsLoadingLogs(true);
+                        try {
+                          const res = await apiClient("/api/tasks/history-logs?type=impugnation&limit=5");
+                          const logsData = await res.json();
+                          setDetailedLogs(logsData?.length > 0 ? logsData : [{ timestamp: "", message: "Nenhum histórico de impugnações encontrado.", level: "INFO" }]);
+                        } catch (err) { console.error(err); } finally { setIsLoadingLogs(false); }
+                      }}
+                      className="w-full flex items-center gap-2.5 px-4 py-3 text-[11px] font-bold text-slate-700 hover:bg-gax-blue hover:text-white transition-colors border-t border-slate-50"
+                    >
+                      <History size={14} className="opacity-70" />
+                      Histórico Impugnações
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </>
         )}

@@ -453,7 +453,7 @@ export default function ApiChecksPage() {
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-gax-blue text-white rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-gax-blue-hover transition-all shadow-md shadow-gax-blue/20 disabled:opacity-40 font-display"
               >
                 <Play size={12} className={isExecuting ? 'animate-pulse' : ''} />
-                Executar Lote
+                Checar APIs
               </button>
             </div>
           </>
@@ -673,7 +673,7 @@ export default function ApiChecksPage() {
                             onClick={() => handleRunSingleCheck(client.id)}
                             className="w-full flex items-center gap-2.5 px-4 py-3 text-xs font-semibold text-slate-700 hover:bg-gax-blue hover:text-white transition-colors"
                           >
-                            <Zap size={14} /> Testar Agora
+                            <Zap size={14} /> Checar API
                           </button>
                           {client.api_last_task_id && (
                             <button
