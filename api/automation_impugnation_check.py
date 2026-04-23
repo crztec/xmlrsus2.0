@@ -36,7 +36,7 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
         if await is_cancelled(): return False
 
         async with async_playwright() as p:
-            log_task(f"Iniciando sincronização ({target_status}) com CubeTI...")
+            log_task("Iniciando sincronização com Gestao Comercial...")
             # Stealth Avançado + Flags de Sandbox para Cloud Run
             browser_args = [
                 "--headless=new", "--no-sandbox", "--disable-setuid-sandbox", 
@@ -59,7 +59,7 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
             page = await context.new_page()
             
             # Login com Navegação Defensiva (evita quebra por ERR_ABORTED do Firewall)
-            log_task("Realizando login Gestaocomercial...")
+            log_task("Realizando login no Gestao Comercial...")
             try:
                 await page.goto("https://gestaocomercial.cubeti.com.br/ABITracker", wait_until="domcontentloaded", timeout=60000)
             except Exception as e_nav:
@@ -93,7 +93,7 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
             
             async def try_search(name_to_search):
                 if await search_input.count() > 0:
-                    log_task(f"Searching for: '{name_to_search}'")
+                    log_task(f"Procurando por: {name_to_search}")
                     await search_input.click()
                     # Limpeza agressiva
                     await page.keyboard.press("Control+A")
@@ -124,7 +124,7 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
                 for idx, row in enumerate(grid_results):
                     if not row['isVisible']: continue
                     if name_to_search.lower() in row['text']:
-                        log_task(f"Match found in grid row {idx+1} for '{name_to_search}'")
+                        log_task(f"Match found in grid row {idx+1} for '{name_to_search}'", "DEBUG")
                         return page.locator("table tbody tr").nth(idx)
                 
                 return page.locator("table tbody tr.NOT_FOUND_VIRTUAL").first # Retorna algo que .count() == 0
@@ -161,7 +161,7 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
             log_task("Operadora localizada!")
             
             if contact_message:
-                log_task(f"Registrando contato: '{contact_message}'...")
+                log_task(f"Registrando contato: {contact_message}...")
                 # Seletores ultra-robustos para o botão + (Lida com variações de DOM no CubeTI)
                 possible_btn_selectors = [
                     "button[title*='Registrar']",
@@ -180,7 +180,7 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
                         sel = f"tr:has-text('{client_name}') {btn_sel}"
                         btn_add = page.locator(sel).first
                         if await btn_add.count() > 0 and await btn_add.is_visible():
-                            log_task(f"Botão '+' localizado via seletor específico: {sel}")
+                            log_task(f"Botão '+' localizado via seletor específico: {sel}", "DEBUG")
                             break
                     except: pass
 
@@ -237,17 +237,17 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
                     
                     if await option.count() > 0:
                         await option.click()
-                        log_task(f"Status '{target_status}' selecionado.")
+                        log_task(f"Status '{target_status}' selecionado.", "DEBUG")
                         await asyncio.sleep(2)
                     else:
                         # Fallback por texto visível
-                        log_task(f"Popover não detectado via regex, tentando fallback literal...", "WARNING")
+                        log_task(f"Popover não detectado via regex, tentando fallback literal...", "DEBUG")
                         option_fallback = page.locator(f"button:has-text('{target_status}'), a:has-text('{target_status}'), li:has-text('{target_status}')").filter(visible=True).first
                         if await option_fallback.count() > 0:
                             await option_fallback.click()
-                            log_task(f"Status '{target_status}' selecionado via fallback.")
+                            log_task(f"Status '{target_status}' selecionado via fallback.", "DEBUG")
                         else:
-                            log_task("Menu de status não reconheceu a opção, tentando teclado...", "WARNING")
+                            log_task("Menu de status não reconheceu a opção, tentando teclado...", "DEBUG")
                             await page.keyboard.press("ArrowDown")
                             await asyncio.sleep(1)
                             await page.keyboard.press("Enter")
@@ -305,7 +305,7 @@ async def run_impugnation_check_for_client(client_id, task_id=None, pre_fetched_
             
             if task_id:
                 if sync_success:
-                    db.add_log(task_id, f"[{client_name}] Sincronização CubeTI realizada ({status}).")
+                    db.add_log(task_id, f"[{client_name}] Sincronização realizada.")
                 else:
                     db.add_log(task_id, f"[{client_name}] Falha ao sincronizar com CubeTI (ver logs internos).", "WARNING")
         else:
@@ -322,7 +322,7 @@ async def run_impugnation_check_for_client(client_id, task_id=None, pre_fetched_
                 f"Operadora: {client_name}\n"
                 f"ABI: {active_abi}\n"
                 f"Resultado: {status}\n\n"
-                f"Detalhes: {stats['impugnados']} impugnados, {stats['aptos']} aptos e {stats['aguardando']} aguardando."
+                f"Detalhes: {stats['impugnados']} imp, {stats['nao_impugnando']} não imp, {stats['aptos']} aptos e {stats['aguardando']} aguardando."
             )
             await send_whatsapp_alert(msg, task_id=task_id)
             
@@ -512,7 +512,13 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
             log_task("Navegando para Importações...", "DEBUG")
             base_url = url_sistema.split('/Account')[0] if '/Account' in url_sistema else url_sistema.rsplit('/', 1)[0]
             import_url = f"{base_url.rstrip('/')}/importacao"
-            await page.goto(import_url, wait_until="domcontentloaded", timeout=45000)
+            
+            try:
+                await page.goto(import_url, wait_until="domcontentloaded", timeout=45000)
+            except Exception as e_timeout:
+                log_task(f"Timeout ao abrir {import_url}. O portal pode estar instável. Encerrando navegação para este cliente.", "ERROR")
+                if browser: await browser.close()
+                return "Erro", f"Timeout no portal ({str(e_timeout)[:50]})", default_stats
             
             log_task(f"Buscando ABI {active_abi} na grid...", "DEBUG")
             try:
@@ -735,7 +741,7 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
             }
             
             # ─── 7. DETERMINAR STATUS FINAL ───
-            if not has_imp and not has_apto and has_ag:
+            if not has_imp and not has_apto and not has_nao_imp and has_ag:
                 log_task(f"⏳ NÃO INICIOU IMPUGNAÇÃO! {count_ag} atendimentos aguardando.", "SUCCESS")
                 if browser: await browser.close()
                 return "Não Iniciou", f"Cliente ainda não iniciou impugnação. {count_ag} atendimentos aguardando.", stats_dict
@@ -746,8 +752,8 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
                 if browser: await browser.close()
                 return "Impugnando", f"{total_resolvidos} registros impugnados/aptos, e {count_ag} ainda aguardando.", stats_dict
 
-            elif (has_imp or has_apto) and not has_ag:
-                total_resolvidos = count_imp + count_apto
+            elif (has_imp or has_apto or has_nao_imp) and not has_ag:
+                total_resolvidos = count_imp + count_apto + count_nao_imp
                 log_task(f"✅ FINALIZOU O ABI! 0 aguardando.", "SUCCESS")
                 if browser: await browser.close()
                 return "Finalizou", f"Cliente finalizou o ABI. Nenhum atendimento aguardando impugnação.", stats_dict
@@ -823,7 +829,7 @@ async def run_batch_impugnation_check(task_id, client_ids=None):
             # Adiciona aos detalhes
             emoji_map = {"Impugnando": "⚖️", "Finalizou": "🏁", "Sem Impugnação": "✅", "Não Iniciou": "⏳", "Erro": "❌"}
             emoji = emoji_map.get(status, "ℹ️")
-            details_list.append(f"{emoji} *{client_name}*: {stats['impugnados']} imp | {stats['aptos']} aptos | {stats['aguardando']} aguard.")
+            details_list.append(f"{emoji} *{client_name}*: {stats['impugnados']} imp | {stats['nao_impugnando']} não imp | {stats['aptos']} aptos | {stats['aguardando']} aguard.")
 
             if status == "Impugnando":
                 impugnating += 1
