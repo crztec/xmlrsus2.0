@@ -97,7 +97,6 @@ app.add_middleware(
 )
 
 
-# ── CLOUD RUN JOB TRIGGER ────────────────────────────────────────────────────
 def trigger_cloud_run_job(task_id: str):
     import requests
     import os
@@ -105,16 +104,22 @@ def trigger_cloud_run_job(task_id: str):
         project = os.environ.get("GCP_PROJECT", "xmlrsus")
         region  = os.environ.get("GCP_REGION", "us-central1")
         
-        # 1. Bypass do SDK: Busca o token DIRETO do servidor interno da máquina
+        # 1. Bypass para ambiente local: Se ENV=development ou falhar a conexão imediata, prossegue silenciosamente
+        # pois o worker.py rodando localmente (listen_tasks) vai processar a tarefa de qualquer maneira.
+        if os.environ.get("ENV", "development") == "development":
+            logger.info(f"[TRIGGER LOCAL] Bypass Cloud Run API for task_id={task_id} in development.")
+            return
+
+        # 2. Conexão real na nuvem via Metadata
         metadata_url = "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token?scopes=https://www.googleapis.com/auth/cloud-platform"
-        token_resp = requests.get(metadata_url, headers={"Metadata-Flavor": "Google"}, timeout=5)
+        token_resp = requests.get(metadata_url, headers={"Metadata-Flavor": "Google"}, timeout=2)
         
         if token_resp.status_code != 200:
             raise Exception(f"Falha ao obter token da máquina: {token_resp.text}")
             
         access_token = token_resp.json().get("access_token")
 
-        # 2. Chamada REST para disparar o Job
+        # 3. Chamada REST para disparar o Job
         url = f"https://{region}-run.googleapis.com/v2/projects/{project}/locations/{region}/jobs/gax-worker-job:run"
         headers = {
             "Authorization": f"Bearer {access_token}",
@@ -126,13 +131,15 @@ def trigger_cloud_run_job(task_id: str):
             }
         }
 
-        response = requests.post(url, headers=headers, json=data, timeout=30)
+        response = requests.post(url, headers=headers, json=data, timeout=10)
         
         if response.status_code == 200:
             logger.info(f"[TRIGGER] Job disparado com sucesso via Metadata Server para task_id={task_id}")
         else:
             raise Exception(f"Erro {response.status_code}: {response.text}")
 
+    except requests.exceptions.ConnectionError:
+        logger.info(f"[TRIGGER FALLBACK] Modo local detectado (sem metadata server). Tarefa {task_id} enfileirada no banco e aguardando worker local.")
     except Exception as e:
         logger.error(f"[TRIGGER] Falha crítica no disparo: {e}")
         from api import database as db

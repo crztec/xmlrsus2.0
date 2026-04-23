@@ -39,6 +39,8 @@ interface Client {
   url_sistema?: string;
   total_abis?: number;
   ultima_importacao?: string;
+  impugnation_status?: string;
+  abi_status?: string;
   api_status?: string;
   api_last_check?: any;
   whatsapp_numbers?: (string | WhatsAppContact)[];
@@ -58,6 +60,11 @@ export default function ClientsPage() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("list");
   const [selectedClients, setSelectedClients] = useState<Set<string>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
+  
+  // Sorting states
+  const [sortField, setSortField] = useState<string | null>("name");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+  const [sortCycle, setSortCycle] = useState(0); // 0: A-Z, 1: Grupo
 
   // Form states...
   const [formData, setFormData] = useState<{
@@ -168,6 +175,63 @@ export default function ClientsPage() {
     }
   };
 
+  const handleDeleteBatch = async () => {
+    if (selectedClients.size === 0) return;
+
+    if (!confirm(`Deseja realmente excluir os ${selectedClients.size} clientes selecionados?`)) return;
+
+    setIsDeleting(true);
+    try {
+      const res = await apiClient('/api/clients/delete-batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ client_ids: Array.from(selectedClients) })
+      });
+
+      if (res.ok) {
+        setSuccessMessage(`${selectedClients.size} clientes excluídos com sucesso.`);
+        setSelectedClients(new Set());
+        fetchClients();
+      } else {
+        const data = await res.json();
+        setErrorMessage(data.detail || "Erro ao excluir clientes.");
+      }
+    } catch (err) {
+      setErrorMessage("Erro de conexão com o servidor.");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleStatusCycle = async (client: Client) => {
+    // Validação: Bloquear se status for "Falta Analisar" (referente ao Check ABI/Imports)
+    // No context do cliente, abi_status pode ser "Importado, falta analisar"
+    if (client.abi_status === "Importado, falta analisar") {
+      alert("Bloqueado: Esta operadora possui pendência de análise de ABI.");
+      return;
+    }
+
+    let nextStatus = "Em Análise";
+    if (client.api_status === "Em Análise") {
+      nextStatus = "Pendente";
+    } else if (client.api_status === "Pendente") {
+      nextStatus = "Em Análise";
+    }
+
+    try {
+      const res = await apiClient(`/api/clients/${client.id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: nextStatus })
+      });
+      if (res.ok) {
+        fetchClients();
+      }
+    } catch (err) {
+      console.error("Erro ao ciclar status:", err);
+    }
+  };
+
   const formatCNPJ = (value: string) => {
     const digits = value.replace(/\D/g, "").slice(0, 14);
     return digits
@@ -235,11 +299,88 @@ export default function ClientsPage() {
     }
   };
 
-  const filteredClients = clients.filter((client: Client) => 
-    (client.name && client.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (client.cnpj && client.cnpj.includes(searchTerm)) ||
-    (client.group_name && client.group_name.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredClients = clients.filter((client: Client) => {
+    const s = searchTerm.toLowerCase();
+    
+    return (
+      (client.name && client.name.toLowerCase().includes(s)) ||
+      (client.cnpj && client.cnpj.includes(s)) ||
+      (client.group_name && client.group_name.toLowerCase().includes(s)) ||
+      (client.api_status && client.api_status.toLowerCase().includes(s)) ||
+      (client.registro_ans && client.registro_ans.includes(s))
+    );
+  }).sort((a, b) => {
+    if (sortField === "group_name") {
+      // Clique 1: Possui Grupo Primeiro
+      const hasA = !!a.group_name;
+      const hasB = !!b.group_name;
+      if (hasA && !hasB) return -1;
+      if (!hasA && hasB) return 1;
+      if (hasA && hasB) {
+        const comp = a.group_name!.localeCompare(b.group_name!);
+        if (comp !== 0) return comp;
+      }
+      return a.name.localeCompare(b.name);
+    }
+
+    if (sortField === "no_group") {
+      // Clique 2: SEM Grupo Primeiro
+      const hasA = !!a.group_name;
+      const hasB = !!b.group_name;
+      if (!hasA && hasB) return -1;
+      if (hasA && !hasB) return 1;
+      return a.name.localeCompare(b.name);
+    }
+
+    if (sortField === "api_status") {
+      // Clique Status: Em Análise > Pendente > Resto
+      const statusOrder: Record<string, number> = {
+        "em análise": 1,
+        "pendente": 2
+      };
+      const sA = (a.api_status || "").toLowerCase();
+      const sB = (b.api_status || "").toLowerCase();
+      const rankA = statusOrder[sA] || 99;
+      const rankB = statusOrder[sB] || 99;
+      if (rankA !== rankB) return sortOrder === "asc" ? rankA - rankB : rankB - rankA;
+      return a.name.localeCompare(b.name);
+    }
+
+    // Padrão: Nome A-Z
+    const compName = a.name.localeCompare(b.name);
+    return sortOrder === "asc" ? compName : -compName;
+  });
+
+  const handleSortOperadora = () => {
+    if (sortCycle === 0) {
+      // Clique 1: Possui Grupo Primeiro
+      setSortField("group_name");
+      setSortOrder("asc");
+      setSortCycle(1);
+    } else if (sortCycle === 1) {
+      // Clique 2: SEM Grupo Primeiro
+      setSortField("no_group");
+      setSortOrder("asc");
+      setSortCycle(2);
+    } else {
+      // Clique 3: Reset para Nome A-Z
+      setSortField("name");
+      setSortOrder("asc");
+      setSortCycle(0);
+    }
+  };
+
+  const handleSortStatus = () => {
+    if (sortField !== "api_status") {
+      setSortField("api_status");
+      setSortOrder("asc");
+    } else if (sortOrder === "asc") {
+      setSortOrder("desc");
+    } else {
+      setSortField("name");
+      setSortOrder("asc");
+    }
+  };
 
   const totalFiltered = filteredClients.length;
   const totalPages = Math.ceil(totalFiltered / itemsPerPage);
@@ -255,35 +396,45 @@ export default function ClientsPage() {
   );
 
   return (
-    <div className="flex flex-col gap-6 p-4 md:p-8 pt-2 max-w-7xl mx-auto animate-in fade-in duration-500">
+    <div className="flex flex-col gap-6 p-4 md:p-8 pt-2 max-w-7xl mx-auto">
       
-      {/* Floating Action Bar for Selected Items */}
+      {/* Floating Action Bar for Selected Items (SaaS High Density) */}
       {selectedClients.size > 0 && (
-        <div className="fixed bottom-8 left-4 right-4 md:left-1/2 md:-translate-x-1/2 md:w-auto z-50 flex flex-col md:flex-row items-center gap-4 md:gap-6 rounded-2xl bg-slate-900 px-6 py-4 shadow-2xl animate-in slide-in-from-bottom-8 duration-500">
-          <span className="text-sm font-bold text-white whitespace-nowrap">
-            {selectedClients.size} {selectedClients.size === 1 ? 'cliente selecionado' : 'clientes selecionados'}
-          </span>
-          <div className="hidden md:block h-4 w-px bg-slate-700" />
-          <div className="flex items-center gap-3 w-full md:w-auto">
-            <button 
-              onClick={() => setSelectedClients(new Set())}
-              className="flex-1 md:flex-none text-xs font-bold text-slate-400 hover:text-white transition-colors"
-            >
-              Cancelar
-            </button>
-            <button 
-              onClick={handleDeleteSelected}
-              disabled={isDeleting}
-              className="flex-1 md:flex-none flex items-center justify-center gap-2 rounded-xl bg-rose-500 px-4 py-2 text-xs font-bold text-white hover:bg-rose-600 transition-all disabled:opacity-50 shadow-lg shadow-rose-500/20 active:scale-95"
-            >
-              {isDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-              Excluir
-            </button>
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50">
+          <div className="flex items-center gap-6 px-6 py-4 bg-slate-900/90 backdrop-blur-xl rounded-2xl border border-slate-700/50 shadow-2xl shadow-slate-900/40 min-w-[400px]">
+            <div className="flex items-center gap-3 pr-6 border-r border-slate-700/50">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gax-blue/20 text-gax-blue shadow-inner">
+                <Users size={16} />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-xs font-bold text-white leading-none">{selectedClients.size} selecionados</span>
+                <span className="text-[10px] text-slate-400 font-medium">Gestão em massa</span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={handleDeleteSelected}
+                disabled={isDeleting}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white transition-all text-xs font-bold shadow-sm"
+              >
+                {isDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                Excluir
+              </button>
+              
+              <button 
+                onClick={() => setSelectedClients(new Set())}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white transition-all text-xs font-bold"
+              >
+                <X size={14} />
+                Desmarcar
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between animate-in fade-in duration-500">
+      <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative group w-full md:max-w-md">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-gax-blue transition-colors" size={18} />
           <input 
@@ -297,12 +448,12 @@ export default function ClientsPage() {
 
         <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
            {successMessage && (
-            <div className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-100 animate-in fade-in slide-in-from-right-2 duration-300">
+            <div className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-100">
               {successMessage}
             </div>
            )}
            {errorMessage && (
-            <div className="text-[11px] font-bold text-rose-600 bg-rose-50 px-3 py-1.5 rounded-full border border-rose-100 animate-in fade-in slide-in-from-right-2 duration-300">
+            <div className="text-[11px] font-bold text-rose-600 bg-rose-50 px-3 py-1.5 rounded-full border border-rose-100">
               {errorMessage}
             </div>
            )}
@@ -347,12 +498,11 @@ export default function ClientsPage() {
             <div 
               key={client.id} 
               className={cn(
-                "group relative flex flex-col rounded-2xl border p-4 transition-all duration-300 animate-in fade-in slide-in-from-bottom-2",
+                "group relative flex flex-col rounded-2xl border p-4 transition-all duration-300",
                 selectedClients.has(client.id) 
                   ? "border-gax-blue bg-gax-blue-light/20 shadow-gax-blue/10" 
                   : "border-slate-200/50 bg-white/60 hover:border-gax-blue/30 hover:shadow-lg hover:shadow-slate-200/40"
               )}
-              style={{ animationDelay: `${(idx % 5) * 40}ms`, animationFillMode: 'both' }}
             >
               <div className="mb-4 flex items-start justify-between">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50 text-slate-400 group-hover:bg-gax-blue/10 group-hover:text-gax-blue transition-all duration-300 shadow-sm">
@@ -423,24 +573,35 @@ export default function ClientsPage() {
           ))}
         </div>
       ) : (
-        <div className="overflow-hidden rounded-3xl border border-slate-200/60 bg-white/70 shadow-xl shadow-slate-200/20 backdrop-blur-sm animate-in fade-in duration-500">
+        <div className="overflow-hidden rounded-3xl border border-slate-200/60 bg-white/70 shadow-xl shadow-slate-200/20 backdrop-blur-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/50 whitespace-nowrap">
-                  <th className="px-6 py-4 w-12 text-center">
+                  <th className="px-4 py-2 w-12 text-center">
                     <input 
                       type="checkbox" 
                       checked={selectedClients.size === paginatedClients.length && paginatedClients.length > 0} 
                       onChange={toggleSelectAll}
-                      className="h-4 w-4 rounded border-slate-300 text-gax-blue focus:ring-gax-blue/20"
+                      className="h-3.5 w-3.5 rounded border-slate-300 text-gax-blue focus:ring-gax-blue/20"
                     />
                   </th>
-                  <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">Cliente</th>
-                  <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">Grupo</th>
-                  <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">CNPJ / ANS</th>
-                  <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400 w-48">Última Importação</th>
-                  <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400 text-right">Ações</th>
+                  <th 
+                    className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 cursor-pointer hover:text-gax-blue transition-colors"
+                    onClick={handleSortOperadora}
+                  >
+                    <div className="flex items-center gap-1">
+                      Cliente {sortField === "name" ? (sortOrder === "asc" ? "↑" : "↓") : sortField === "group_name" ? "(G)" : sortField === "no_group" ? "(G!)" : ""}
+                    </div>
+                  </th>
+                  <th 
+                    className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 cursor-pointer hover:text-gax-blue transition-colors"
+                    onClick={() => { setSortField("group_name"); setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc'); }}
+                  >
+                    Grupo
+                  </th>
+                  <th className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">CNPJ / ANS</th>
+                  <th className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 text-right">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -452,80 +613,66 @@ export default function ClientsPage() {
                       selectedClients.has(client.id) ? "bg-gax-blue/[0.04]" : "hover:bg-gax-blue/[0.02]"
                     )}
                   >
-                    <td className="px-6 py-4 text-center">
+                    <td className="px-4 py-2 text-center">
                       <input 
                         type="checkbox" 
                         checked={selectedClients.has(client.id)} 
                         onChange={() => toggleSelect(client.id)}
-                        className="h-4 w-4 rounded border-slate-300 text-gax-blue focus:ring-gax-blue/20"
+                        className="h-3.5 w-3.5 rounded border-slate-300 text-gax-blue focus:ring-gax-blue/20"
                       />
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-2">
                       <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-gax-blue/10 to-gax-blue/5 text-gax-blue shadow-inner group-hover:scale-105 transition-transform">
-                          <Building2 size={16} />
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-gax-blue/10 to-gax-blue/5 text-gax-blue shadow-inner group-hover:scale-105 transition-transform">
+                          <Building2 size={14} />
                         </div>
-                        <div className="flex flex-col">
+                        <div className="flex flex-col min-w-0">
                           {client.url_sistema ? (
                             <a 
                               href={client.url_sistema} 
                               target="_blank" 
                               rel="noopener noreferrer"
-                              className="flex items-center gap-1.5 text-sm font-bold text-slate-700 hover:text-gax-blue transition-colors"
+                              className="flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-gax-blue transition-colors truncate max-w-[200px]"
                             >
                               {client.name}
-                              <ExternalLink size={12} className="text-slate-300" />
+                              <ExternalLink size={10} className="text-slate-300" />
                             </a>
                           ) : (
-                            <span className="text-sm font-bold text-slate-700">{client.name}</span>
+                            <span className="text-xs font-bold text-slate-700 truncate max-w-[200px]">{client.name}</span>
                           )}
-                          <span className="text-[10px] font-medium text-slate-400 truncate max-w-[150px]">{client.cnpj}</span>
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-2">
                        {client.group_name ? (
-                         <span className="inline-flex items-center rounded-full bg-gax-blue/5 px-2.5 py-0.5 text-[10px] font-bold text-gax-blue border border-gax-blue/10">
+                         <span className="inline-flex items-center rounded-full bg-gax-blue/5 px-2 py-0.5 text-[9px] font-bold text-gax-blue border border-gax-blue/10">
                            {client.group_name}
                          </span>
                        ) : (
-                         <span className="text-[10px] italic text-slate-400">Sem grupo</span>
+                         <span className="text-[9px] italic text-slate-400">Sem grupo</span>
                        )}
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-2">
                       <div className="flex flex-col gap-0.5">
-                        <span className="text-[11px] font-bold text-slate-600">{client.cnpj || "-"}</span>
-                        {client.registro_ans && <span className="text-[10px] font-medium text-slate-400 italic">ANS: {client.registro_ans}</span>}
+                        <span className="text-[10px] font-bold text-slate-600">{client.cnpj || "-"}</span>
+                        {client.registro_ans && <span className="text-[9px] font-medium text-slate-400 italic">ANS: {client.registro_ans}</span>}
                       </div>
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col gap-0.5">
-                        <span className="text-xs font-bold text-slate-600">
-                          {client.ultima_importacao ? new Date(client.ultima_importacao.replace(' ', 'T')).toLocaleString('pt-BR', {
-                            day: '2-digit',
-                            month: '2-digit',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          }) : "Sem registros"}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
+                    <td className="px-4 py-2 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
                         <button 
                           onClick={() => handleEditClick(client)}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-slate-50 text-slate-400 hover:bg-gax-blue hover:text-white transition-all shadow-sm active:scale-95"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-slate-50 text-slate-400 hover:bg-gax-blue hover:text-white transition-all shadow-sm active:scale-95"
                           title="Editar"
                         >
-                          <Pencil size={14} />
+                          <Pencil size={12} />
                         </button>
                         <button 
                           onClick={() => handleDeleteSingle(client.id, client.name)}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-slate-50 text-rose-400 hover:bg-rose-500 hover:text-white transition-all shadow-sm active:scale-95"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-slate-50 text-rose-400 hover:bg-rose-500 hover:text-white transition-all shadow-sm active:scale-95"
                           title="Excluir"
                         >
-                          <Trash2 size={14} />
+                          <Trash2 size={12} />
                         </button>
                       </div>
                     </td>
@@ -539,7 +686,7 @@ export default function ClientsPage() {
 
       {/* Controles de Paginação (Logs Reference Style) */}
       {totalPages > 1 && (
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <span className="text-xs font-medium text-slate-500">
             Mostrando {(currentPage - 1) * itemsPerPage + 1} a {Math.min(currentPage * itemsPerPage, totalFiltered)} de {totalFiltered} clientes
           </span>
@@ -584,11 +731,11 @@ export default function ClientsPage() {
       {/* Edit Modal */}
       {isEditModalOpen && (
         <div 
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm animate-in fade-in duration-200"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
         >
-          <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-2xl animate-in zoom-in-95 duration-200">
+          <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-2xl">
             <div className="mb-6 flex items-center justify-between">
               <h3 className="text-xl font-bold text-slate-800">Editar Cliente</h3>
               <button 
@@ -737,6 +884,44 @@ export default function ClientsPage() {
           </div>
         </div>
       )}
+    {/* Floating Action Bar for Bulk Actions */}
+    {selectedClients.size > 0 && (
+      <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-8 duration-300">
+        <div className="flex items-center gap-6 px-6 py-4 bg-slate-900/90 backdrop-blur-xl rounded-2xl border border-slate-700/50 shadow-2xl shadow-slate-900/40 min-w-[400px]">
+          <div className="flex items-center gap-3 pr-6 border-r border-slate-700/50">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gax-blue/20 text-gax-blue">
+              <Users size={16} />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-xs font-bold text-white leading-none">{selectedClients.size} selecionados</span>
+              <span className="text-[10px] text-slate-400 font-medium">Gestão em massa</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => {
+                if (window.confirm(`Excluir ${selectedClients.size} clientes selecionados?`)) {
+                  handleDeleteBatch();
+                }
+              }}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-500/10 text-rose-400 hover:bg-rose-500 hover:text-white transition-all text-xs font-bold"
+            >
+              <Trash2 size={14} />
+              Excluir
+            </button>
+            
+            <button 
+              onClick={() => setSelectedClients(new Set())}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white transition-all text-xs font-bold"
+            >
+              <X size={14} />
+              Desmarcar
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
     </div>
   );
 }

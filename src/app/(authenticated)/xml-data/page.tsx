@@ -33,6 +33,12 @@ export default function XmlDataPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedClient, setSelectedClient] = useState<string | null>(null);
   
+  // Sorting states for clients list
+  const [sortField, setSortField] = useState<string | null>("name");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+  const [sortCycle, setSortCycle] = useState(0); 
+  
+  
   // Pagination State for Main Table
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -116,11 +122,35 @@ export default function XmlDataPage() {
   };
 
   // Filter clients locally for better UX (no flicker)
-  const filteredClients = clients.filter((c: any) => 
-    c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    (c.cnpj && c.cnpj.includes(searchTerm)) ||
-    (c.group_name && c.group_name.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredClients = clients.filter((c: any) => {
+    const s = searchTerm.toLowerCase();
+    return (
+      (c.name && c.name.toLowerCase().includes(s)) || 
+      (c.cnpj && c.cnpj.includes(s)) ||
+      (c.group_name && c.group_name.toLowerCase().includes(s))
+    );
+  }).sort((a, b) => {
+    if (!sortField) return 0;
+    let valA = (a as any)[sortField] || "";
+    let valB = (b as any)[sortField] || "";
+    if (typeof valA === "string") valA = valA.toLowerCase();
+    if (typeof valB === "string") valB = valB.toLowerCase();
+    if (valA < valB) return sortOrder === "asc" ? -1 : 1;
+    if (valA > valB) return sortOrder === "asc" ? 1 : -1;
+    return 0;
+  });
+
+  const handleSortOperadora = () => {
+    if (sortCycle === 0) {
+      setSortField("name");
+      setSortOrder("asc");
+      setSortCycle(1);
+    } else {
+      setSortField("group_name");
+      setSortOrder("asc");
+      setSortCycle(0);
+    }
+  };
 
   const totalClientsPages = Math.ceil(filteredClients.length / clientsPerPage);
   const paginatedClients = filteredClients.slice((clientPage - 1) * clientsPerPage, clientPage * clientsPerPage);
@@ -174,7 +204,7 @@ export default function XmlDataPage() {
               setSelectedClient(client.name);
               setSearchTerm("");
             }}
-            className="group relative flex flex-col rounded-2xl border border-slate-200/50 bg-white/60 p-4 text-left transition-all duration-300 hover:border-gax-blue/30 hover:shadow-lg hover:shadow-slate-200/40 animate-in fade-in slide-in-from-bottom-2"
+            className="group relative flex flex-col rounded-2xl border border-slate-200/50 bg-white/60 p-4 text-left transition-all duration-300 hover:border-gax-blue/30 hover:shadow-lg hover:shadow-slate-200/40"
             style={{ animationDelay: `${(idx % 5) * 40}ms`, animationFillMode: 'both' }}
           >
             <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50 text-slate-400 group-hover:bg-gax-blue/10 group-hover:text-gax-blue transition-all duration-300 shadow-sm">
@@ -256,7 +286,7 @@ export default function XmlDataPage() {
 
   // --- RENDERING: DATA TABLE ---
   return (
-    <div className="flex flex-col gap-6 p-4 md:p-8 pt-2 max-w-7xl mx-auto animate-in fade-in duration-500">
+    <div className="flex flex-col gap-6 p-4 md:p-8 pt-2 max-w-7xl mx-auto">
       <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-3 md:gap-5">
           <button 
@@ -310,54 +340,54 @@ export default function XmlDataPage() {
           ) : (
             <>
               <table className="w-full text-left font-sans text-xs">
-                <thead className="bg-slate-50/30 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400 whitespace-nowrap">
+                <thead className="bg-slate-50/30 text-[9px] font-bold uppercase tracking-widest text-slate-400 whitespace-nowrap">
                   <tr className="border-b border-slate-100/50">
-                    <th className="px-5 py-5 font-bold">Arquivo</th>
-                    <th className="px-5 py-5 font-bold">ABI</th>
-                    <th className="px-5 py-5 text-right font-bold">Valor Total</th>
-                    <th className="px-5 py-5 text-center font-bold">Qtd. Proc.</th>
-                    <th className="px-5 py-5 text-center font-bold">Competência</th>
-                    <th className="px-5 py-5 font-bold">Nº Processo</th>
-                    <th className="px-5 py-5 font-bold">Data Proc.</th>
-                    <th className="px-5 py-5 text-center font-bold">Ações</th>
+                    <th className="px-4 py-3 font-bold">Arquivo</th>
+                    <th className="px-4 py-3 font-bold">ABI</th>
+                    <th className="px-4 py-3 text-right font-bold">Valor Total</th>
+                    <th className="px-4 py-3 text-center font-bold">Qtd. Proc.</th>
+                    <th className="px-4 py-3 text-center font-bold">Competência</th>
+                    <th className="px-4 py-3 font-bold">Nº Processo</th>
+                    <th className="px-4 py-3 font-bold">Data Proc.</th>
+                    <th className="px-4 py-3 text-center font-bold">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {paginatedData.map((xml) => (
-                    <tr key={xml.id} className="group transition-colors hover:bg-slate-50/50 whitespace-nowrap">
-                      <td className="px-4 py-3 max-w-[200px] truncate" title={xml.file_name}>
+                    <tr key={xml.id} className="group transition-colors hover:bg-slate-50/50 whitespace-nowrap text-[11px]">
+                      <td className="px-4 py-2.5 max-w-[200px] truncate" title={xml.file_name}>
                         <div className="flex items-center gap-2">
-                          <FileText size={14} className="text-slate-300 group-hover:text-gax-blue" aria-hidden="true" />
+                          <FileText size={12} className="text-slate-300 group-hover:text-gax-blue" aria-hidden="true" />
                           <span className="text-slate-600 font-medium">{xml.file_name}</span>
                         </div>
                       </td>
-                      <td className="px-4 py-3 font-bold text-slate-800">{xml.abi}</td>
-                      <td className="px-4 py-3 text-right font-bold text-gax-blue">R$ {xml.value}</td>
-                      <td className="px-4 py-3 text-center text-slate-500">{xml.quantity}</td>
-                      <td className="px-4 py-3 text-center">
-                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-bold text-slate-500">
+                      <td className="px-4 py-2.5 font-bold text-slate-800">{xml.abi}</td>
+                      <td className="px-4 py-2.5 text-right font-bold text-gax-blue">R$ {xml.value}</td>
+                      <td className="px-4 py-2.5 text-center text-slate-500">{xml.quantity}</td>
+                      <td className="px-4 py-2.5 text-center">
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[8px] font-bold text-slate-500">
                           {xml.competence}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-slate-400">{xml.process_number}</td>
-                      <td className="px-4 py-3 text-[10px] text-slate-400">{xml.date}</td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-2.5 text-slate-400">{xml.process_number}</td>
+                      <td className="px-4 py-2.5 text-[10px] text-slate-400">{xml.date}</td>
+                      <td className="px-4 py-2.5">
                         <div className="flex items-center justify-center gap-1">
                           <button 
                             onClick={() => handleViewDetails(xml)}
-                            className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-100 bg-white text-slate-400 hover:border-gax-blue/30 hover:text-gax-blue shadow-sm transition-all focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
+                            className="flex h-6 w-6 items-center justify-center rounded-lg border border-slate-100 bg-white text-slate-400 hover:border-gax-blue/30 hover:text-gax-blue shadow-sm transition-all focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
                             title="Ver Detalhes"
                             aria-label={`Ver detalhes do ABI ${xml.abi}`}
                           >
-                            <Eye size={14} aria-hidden="true" />
+                            <Eye size={12} aria-hidden="true" />
                           </button>
                           <button 
                             onClick={() => handleExportFile(xml.id)}
-                            className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-100 bg-white text-slate-400 hover:border-gax-blue/30 hover:text-gax-blue shadow-sm transition-all focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
+                            className="flex h-6 w-6 items-center justify-center rounded-lg border border-slate-100 bg-white text-slate-400 hover:border-gax-blue/30 hover:text-gax-blue shadow-sm transition-all focus-visible:ring-2 focus-visible:ring-gax-blue/20 outline-none"
                             title="Baixar Excel deste Item"
                             aria-label={`Baixar Excel do ABI ${xml.abi}`}
                           >
-                            <Download size={14} aria-hidden="true" />
+                            <Download size={12} aria-hidden="true" />
                           </button>
                         </div>
                       </td>

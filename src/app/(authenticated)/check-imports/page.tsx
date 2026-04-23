@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { 
   CloudUpload, 
   Play, 
@@ -24,7 +24,8 @@ import {
   Clock,
   RotateCcw,
   FileX,
-  Scale
+  Scale,
+  LayoutGrid
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/apiClient";
@@ -102,6 +103,12 @@ export default function CheckImportsPage() {
   const [modalTitle, setModalTitle] = React.useState("Console Técnico");
   const [logFilterClient, setLogFilterClient] = React.useState<string | null>(null);
   const [historyMenuOpen, setHistoryMenuOpen] = React.useState(false);
+  
+  // Sorting states
+  const [sortField, setSortField] = React.useState<string | null>("name");
+  const [sortOrder, setSortOrder] = React.useState<"asc" | "desc">("asc");
+  const [sortCycle, setSortCycle] = React.useState(0); 
+  
   const scrollRef = React.useRef<HTMLDivElement>(null);
 
   // Auto-scroll para o final dos logs
@@ -110,10 +117,12 @@ export default function CheckImportsPage() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [realtimeLogs, detailedLogs, showLogsModal]);
-  const [openMenuId, setOpenMenuId] = React.useState<string | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
+  const [selectedClients, setSelectedClients] = useState<Set<string>>(new Set());
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const logEndRef = React.useRef<HTMLDivElement>(null);
-  const dropdownRef = React.useRef<HTMLDivElement>(null);
 
   // Click outside dropdown handler
   React.useEffect(() => {
@@ -312,12 +321,15 @@ export default function CheckImportsPage() {
     }
   };
 
-  const startCheck = async (clientId?: string) => {
+  const startCheck = async (clientId?: string, clientIds?: string[]) => {
     try {
       const res = await apiClient("/api/start-abi-check", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ client_id: clientId || null }),
+        body: JSON.stringify({ 
+          client_id: clientId || null,
+          client_ids: clientIds || null
+        }),
       });
       
       if (!res.ok) {
@@ -331,8 +343,6 @@ export default function CheckImportsPage() {
         setActiveTaskId(data.task_id);
         setCurrentTaskStatus(null);
         setRealtimeLogs([]);
-        // Atualiza o abi_last_task_id localmente para que o menu 'Ver Log Individual' funcione
-        // mesmo antes do fetchData() ser chamado ao final da task
         if (clientId) {
           setClients(prev => prev.map(c => 
             c.id === clientId ? { ...c, abi_last_task_id: data.task_id } : c
@@ -384,12 +394,15 @@ export default function CheckImportsPage() {
     }
   };
 
-  const startImpugnationCheck = async (clientId?: string) => {
+  const startImpugnationCheck = async (clientId?: string, clientIds?: string[]) => {
     try {
       const res = await apiClient("/api/start-impugnation-check", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ client_id: clientId || null }),
+        body: JSON.stringify({ 
+          client_id: clientId || null,
+          client_ids: clientIds || null
+        }),
       });
       
       if (!res.ok) {
@@ -467,32 +480,169 @@ export default function CheckImportsPage() {
   };
 
   const filteredClients = clients.filter(c => {
+    const s = search.toLowerCase();
     const matchesSearch = 
-      c.name.toLowerCase().includes(search.toLowerCase()) || 
-      c.cnpj.includes(search) ||
-      (c.abi_status || "").toLowerCase().includes(search.toLowerCase()) ||
-      (c.impugnation_status || "").toLowerCase().includes(search.toLowerCase());
+      (c.name && c.name.toLowerCase().includes(s)) || 
+      (c.cnpj && c.cnpj.includes(s)) ||
+      (c.abi_status && c.abi_status.toLowerCase().includes(s)) ||
+      (c.impugnation_status && c.impugnation_status.toLowerCase().includes(s)) ||
+      ((c as any).group_name && (c as any).group_name.toLowerCase().includes(s));
       
     if (!filterStatus) return matchesSearch;
     
-    // Lógica de mapeamento entre Card Label e Status Interno
     const sABI = (c.abi_status || "");
     const sIMP = (c.impugnation_status || "");
+    const sMSG = (c.abi_last_message || "");
     
-    if (filterStatus === "Importados") return matchesSearch && (sABI === "Importado e Analisado" || sABI === "Importado, falta analisar");
-    if (filterStatus === "Analisados") return matchesSearch && sABI === "Importado e Analisado";
-    if (filterStatus === "Não Inic. Impug.") return matchesSearch && sIMP === "Não Iniciou";
-    if (filterStatus === "Impugnando") return matchesSearch && sIMP === "Impugnando";
-    if (filterStatus === "Finalizou") return matchesSearch && sIMP === "Finalizou";
-    if (filterStatus === "Falta Analisar") return matchesSearch && sABI === "Importado, falta analisar";
-    if (filterStatus === "Falhas") return matchesSearch && (sABI === "Falha" || sABI === "Falha na Análise");
-    if (filterStatus === "Não Import.") return matchesSearch && (sABI === "Nao Importado" || sABI === "Não Importado");
+    // Determina o status exato usando a MESMA lógica mutuamente exclusiva (elif chain) do backend
+    let assignedStatus = "Pendente";
     
-    return matchesSearch;
+    if (sIMP === 'Finalizou') {
+      assignedStatus = "Finalizou";
+    } else if (sIMP === 'Impugnando') {
+      assignedStatus = "Impugnando";
+    } else if (sIMP === 'Não Iniciou' || sIMP === 'Nao Iniciou') {
+      assignedStatus = "Não Inic. Impug.";
+    } else if (sABI === 'Importado e Analisado') {
+      assignedStatus = "Analisados";
+    } else if (sABI === 'Importado') {
+      if (sMSG.includes("nao realiza an") || sMSG.includes("não realiza an")) {
+        assignedStatus = "Analisados";
+      } else {
+        assignedStatus = "Importados"; // Conta como importado mas não analisado (Falta analisar entra aqui ou no de baixo dependendo do card)
+      }
+    } else if (sABI === 'Importado, falta analisar') {
+      assignedStatus = "Falta Analisar"; // Porém o card "Importados" deve incluir os que faltam analisar
+    } else if (sABI === 'Falha' || sABI === 'Falha na Análise') {
+      assignedStatus = "Falhas";
+    } else if (sABI === 'Nao Importado' || sABI === 'Não Importado') {
+      assignedStatus = "Não Import.";
+    }
+    
+    // Mapeamento extra para cobrir agrupamentos dos cards:
+    if (filterStatus === "Importados") {
+      // Importados no backend soma "Importado" e "Importado, falta analisar" (se não for Analisado)
+      return matchesSearch && (assignedStatus === "Importados" || assignedStatus === "Falta Analisar");
+    }
+    
+    return matchesSearch && (assignedStatus === filterStatus);
+  }).sort((a, b) => {
+    if (sortField === "name") {
+      // Clique 1 ou Reset: A-Z por nome
+      return sortOrder === "asc" ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name);
+    }
+    
+    if (sortField === "group_name") {
+      // Clique 1: Possui Grupo Primeiro
+      const hasA = !!(a as any).group_name;
+      const hasB = !!(b as any).group_name;
+      if (hasA && !hasB) return -1;
+      if (!hasA && hasB) return 1;
+      if (hasA && hasB) {
+        const comp = (a as any).group_name.localeCompare((b as any).group_name);
+        if (comp !== 0) return comp;
+      }
+      return a.name.localeCompare(b.name);
+    }
+
+    if (sortField === "no_group") {
+      // Clique 2: SEM Grupo Primeiro
+      const hasA = !!(a as any).group_name;
+      const hasB = !!(b as any).group_name;
+      if (!hasA && hasB) return -1;
+      if (hasA && !hasB) return 1;
+      return a.name.localeCompare(b.name);
+    }
+
+    if (sortField === "status_group") {
+      // Ordenação Ciclo Status
+      const statusOrder: Record<string, number> = {
+        "finalizou": 1,
+        "impugnando": 10,
+        "em análise": 10,
+        "não iniciou": 20,
+        "nao iniciou": 20,
+        "importado e analisado": 1,
+        "importado, falta analisar": 10,
+        "importado": 10,
+        "falha": 30,
+        "falha na análise": 30,
+        "falha na analise": 30,
+        "nao importado": 40,
+        "não importado": 40
+      };
+
+      const sA = (a.impugnation_status || a.abi_status || "").toLowerCase();
+      const sB = (b.impugnation_status || b.abi_status || "").toLowerCase();
+
+      let rankA = statusOrder[sA] || 99;
+      let rankB = statusOrder[sB] || 99;
+
+      if (sortCycle === 1) { // Clique 1: Concluídos (Grupo 1)
+        if (rankA === 1 && rankB !== 1) return -1;
+        if (rankA !== 1 && rankB === 1) return 1;
+      } else if (sortCycle === 2) { // Clique 2: Em Andamento (Grupo 10)
+        if (rankA === 10 && rankB !== 10) return -1;
+        if (rankA !== 10 && rankB === 10) return 1;
+      } else if (sortCycle === 3) { // Clique 3: Não Iniciou (Grupo 20)
+        if (rankA === 20 && rankB !== 20) return -1;
+        if (rankA !== 20 && rankB === 20) return 1;
+      } else if (sortCycle === 4) { // Clique 4: Falhas/Pendentes (Grupo 30/40)
+        const isFailA = rankA >= 30;
+        const isFailB = rankB >= 30;
+        if (isFailA && !isFailB) return -1;
+        if (!isFailA && isFailB) return 1;
+      }
+
+      if (rankA !== rankB) return rankA - rankB;
+      return a.name.localeCompare(b.name);
+    }
+    
+    return 0;
   });
 
+  const handleSortOperadora = () => {
+    if (sortCycle === 0) {
+      // Já está em Nome, mudar para Grupo
+      setSortField("group_name");
+      setSortOrder("asc");
+      setSortCycle(1);
+    } else if (sortCycle === 1) {
+      // Mudar para SEM Grupo
+      setSortField("no_group");
+      setSortOrder("asc");
+      setSortCycle(2);
+    } else {
+      // Reset para Nome A-Z
+      setSortField("name");
+      setSortOrder("asc");
+      setSortCycle(0);
+    }
+  };
+
+  const handleSortStatus = () => {
+    if (sortField !== "status_group") {
+      // Clique 1: Concluídos Primeiro
+      setSortField("status_group");
+      setSortCycle(1);
+    } else if (sortCycle === 1) {
+      // Clique 2: Em Andamento Primeiro
+      setSortCycle(2);
+    } else if (sortCycle === 2) {
+      // Clique 3: Não Iniciou Primeiro
+      setSortCycle(3);
+    } else if (sortCycle === 3) {
+      // Clique 4: Falhas Primeiro
+      setSortCycle(4);
+    } else {
+      // Clique 5: Reset
+      setSortField("name");
+      setSortCycle(0);
+    }
+  };
+
   return (
-    <div className="flex flex-col gap-6 p-8 pt-2 max-w-7xl mx-auto animate-in fade-in duration-500">
+    <div className="flex flex-col gap-6 p-8 pt-2 max-w-7xl mx-auto">
       
       {/* Actions Toolbar (Real-time Status Bar) */}
       <div className={cn(
@@ -561,36 +711,51 @@ export default function CheckImportsPage() {
               </button>
               
               <button 
+                onClick={() => {
+                  const filteredIds = filteredClients.map(c => c.id);
+                  if (filterStatus) startImpugnationCheck(undefined, filteredIds);
+                  else startImpugnationCheck();
+                }}
+                disabled={!!activeTaskId}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-200 text-amber-700 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-amber-100 transition-all disabled:opacity-40 font-display shadow-sm shrink-0"
+              >
+                <Scale size={12} />
+                {(filterStatus === "Não Inic. Impug." || filterStatus === "Impugnando" || filterStatus === "Finalizou") ? "Checar Selecionados" : "Checar Impugnações"}
+              </button>
+              
+              <button 
+                onClick={() => {
+                  const filteredIds = filteredClients.map(c => c.id);
+                  // Lógica Dinâmica: Se estiver em filtros de Impugnação, dispara robô de Impugnação.
+                  const isImpugnContext = ["Não Inic. Impug.", "Impugnando", "Finalizou"].includes(filterStatus || "");
+                  
+                  if (filterStatus) {
+                    if (isImpugnContext) startImpugnationCheck(undefined, filteredIds);
+                    else startCheck(undefined, filteredIds);
+                  } else {
+                    startCheck();
+                  }
+                }}
+                disabled={!!activeTaskId}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-gax-blue text-white rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-gax-blue-hover transition-all shadow-md shadow-gax-blue/20 disabled:opacity-40 font-display shrink-0"
+              >
+                <Play size={12} className={activeTaskId ? 'animate-pulse' : ''} />
+                {(filterStatus && !["Não Inic. Impug.", "Impugnando", "Finalizou"].includes(filterStatus)) ? "Checar Selecionados" : "Checar ABIs"}
+              </button>
+
+              <label className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-white transition-all cursor-pointer font-display shrink-0">
+                <CloudUpload size={12} />
+                {isUploading ? "..." : "Cronograma"}
+                <input type="file" className="hidden" accept=".xlsx,.xls" onChange={handleUpload} />
+              </label>
+
+              <button 
                 onClick={handleRunFailedChecks}
                 disabled={!!activeTaskId}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-white transition-all disabled:opacity-40 font-display shrink-0"
               >
                 <RotateCcw size={12} />
                 Checar Falhas
-              </button>
-              
-              <label className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-white transition-all cursor-pointer font-display shrink-0">
-                <CloudUpload size={12} />
-                {isUploading ? "..." : "Cronograma"}
-                <input type="file" className="hidden" accept=".xlsx,.xls" onChange={handleUpload} />
-              </label>
-              
-              <button 
-                onClick={() => startImpugnationCheck()}
-                disabled={!!activeTaskId}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-200 text-amber-700 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-amber-100 transition-all disabled:opacity-40 font-display shadow-sm shrink-0"
-              >
-                <Scale size={12} />
-                Checar Impugnações
-              </button>
-              
-              <button 
-                onClick={() => startCheck()}
-                disabled={!!activeTaskId}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-gax-blue text-white rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-gax-blue-hover transition-all shadow-md shadow-gax-blue/20 disabled:opacity-40 font-display shrink-0"
-              >
-                <Play size={12} className={activeTaskId ? 'animate-pulse' : ''} />
-                Checar ABIs
               </button>
 
               <div className="relative">
@@ -609,23 +774,13 @@ export default function CheckImportsPage() {
                 </button>
 
                 {historyMenuOpen && (
-                  <div className="absolute right-0 top-full mt-2 w-52 bg-white rounded-2xl shadow-2xl shadow-slate-200/80 border border-slate-100 z-50 overflow-hidden animate-in zoom-in-95 duration-200 origin-top-right">
-                    <div className="px-4 py-2 border-b border-slate-50 bg-slate-50/50">
-                      <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Históricos</span>
-                    </div>
+                  <div className="absolute right-0 top-full mt-2 w-52 bg-white rounded-2xl shadow-2xl shadow-slate-200/80 border border-slate-100 z-50 overflow-hidden origin-top-right">
                     <button 
                       onClick={() => { handleViewGlobalLog(); setHistoryMenuOpen(false); }}
                       className="w-full flex items-center gap-2.5 px-4 py-3 text-[11px] font-bold text-slate-700 hover:bg-gax-blue hover:text-white transition-colors"
                     >
                       <Terminal size={14} className="opacity-70" />
                       Histórico ABI
-                    </button>
-                    <button 
-                      onClick={() => { handleDownloadReport(); setHistoryMenuOpen(false); }}
-                      className="w-full flex items-center gap-2.5 px-4 py-3 text-[11px] font-bold text-slate-700 hover:bg-gax-blue hover:text-white transition-colors"
-                    >
-                      <FileSpreadsheet size={14} className="opacity-70" />
-                      Relatório Impugnações
                     </button>
                     <button 
                       onClick={async () => {
@@ -646,6 +801,13 @@ export default function CheckImportsPage() {
                     >
                       <History size={14} className="opacity-70" />
                       Histórico Impugnações
+                    </button>
+                    <button 
+                      onClick={() => { handleDownloadReport(); setHistoryMenuOpen(false); }}
+                      className="w-full flex items-center gap-2.5 px-4 py-3 text-[11px] font-bold text-slate-700 hover:bg-gax-blue hover:text-white transition-colors border-t border-slate-50"
+                    >
+                      <FileSpreadsheet size={14} className="opacity-70" />
+                      Relatório Impugnações
                     </button>
                   </div>
                 )}
@@ -693,7 +855,7 @@ export default function CheckImportsPage() {
         
         {/* Client List */}
         <div className="lg:col-span-2 flex flex-col gap-4">
-          <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500" style={{ animationDelay: '240ms', animationFillMode: 'both' }}>
+          <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">
             <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/40">
               <h2 className="text-xs font-bold text-slate-800 flex items-center gap-2 uppercase tracking-widest">
                 <Activity size={18} className="text-gax-blue" />
@@ -712,18 +874,46 @@ export default function CheckImportsPage() {
             </div>
             <div className="overflow-x-auto min-h-[300px]">
               <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50/50 text-slate-400 font-bold uppercase tracking-widest text-[10px] border-b border-slate-100 whitespace-nowrap">
-                  <tr>
-                    <th className="px-5 py-3.5">Operadora</th>
-                    <th className="px-5 py-3.5">Status</th>
-                    <th className="px-5 py-3.5">Última Checagem</th>
-                    <th className="px-5 py-3.5 text-right">Ações</th>
-                  </tr>
-                </thead>
+                  <thead className="bg-slate-50/50 text-slate-400 font-bold uppercase tracking-widest text-[9px] border-b border-slate-100 whitespace-nowrap">
+                    <tr>
+                      <th className="px-4 py-3 w-10">
+                        <input 
+                          type="checkbox" 
+                          className="h-3.5 w-3.5 rounded border-slate-300 text-gax-blue focus:ring-gax-blue/20 transition-all cursor-pointer"
+                          checked={selectedClients.size === filteredClients.length && filteredClients.length > 0}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedClients(new Set(filteredClients.map(c => c.id)));
+                            } else {
+                              setSelectedClients(new Set());
+                            }
+                          }}
+                        />
+                      </th>
+                      <th 
+                        className="px-4 py-3 cursor-pointer hover:text-gax-blue transition-colors"
+                        onClick={handleSortOperadora}
+                      >
+                        <div className="flex items-center gap-1">
+                          Operadora {sortField === "name" ? (sortOrder === "asc" ? "↑" : "↓") : sortField === "group_name" ? "(G)" : sortField === "no_group" ? "(G!)" : ""}
+                        </div>
+                      </th>
+                      <th 
+                        className="px-4 py-3 cursor-pointer hover:text-gax-blue transition-colors"
+                        onClick={handleSortStatus}
+                      >
+                        <div className="flex items-center gap-1">
+                          Status {sortField === "status_group" ? (sortCycle === 1 ? "(FIN)" : sortCycle === 2 ? "(AND)" : sortCycle === 3 ? "(INI)" : "(FAL)") : ""}
+                        </div>
+                      </th>
+                      <th className="px-4 py-3">Última Checagem</th>
+                      <th className="px-4 py-3 text-right">Ações</th>
+                    </tr>
+                  </thead>
                 <tbody className="divide-y divide-slate-100/80">
                   {isLoading ? (
                     <tr>
-                      <td colSpan={4} className="px-4 py-16 text-center">
+                      <td colSpan={5} className="px-4 py-16 text-center">
                         <div className="flex flex-col items-center gap-3">
                           <Loader2 className="animate-spin text-gax-blue" size={24} />
                           <p className="text-xs text-slate-400 font-medium font-display">Carregando operadoras...</p>
@@ -731,24 +921,43 @@ export default function CheckImportsPage() {
                       </td>
                     </tr>
                   ) : filteredClients.map((client, idx) => (
-                    <tr key={client.id} className="group hover:bg-gax-blue/[0.02] transition-colors">
-                      <td className="px-5 py-3.5 whitespace-nowrap">
-                        <div className="flex flex-col gap-1">
-                          <span className="font-bold text-slate-800 text-sm font-display leading-tight">{client.name}</span>
+                    <tr 
+                      key={client.id} 
+                      className={cn(
+                        "group transition-colors text-[11px]",
+                        selectedClients.has(client.id) ? "bg-gax-blue/5" : "hover:bg-gax-blue/[0.02]"
+                      )}
+                    >
+                      <td className="px-4 py-2.5">
+                        <input 
+                          type="checkbox" 
+                          className="h-3.5 w-3.5 rounded border-slate-300 text-gax-blue focus:ring-gax-blue/20 transition-all cursor-pointer"
+                          checked={selectedClients.has(client.id)}
+                          onChange={() => {
+                            const newSet = new Set(selectedClients);
+                            if (newSet.has(client.id)) newSet.delete(client.id);
+                            else newSet.add(client.id);
+                            setSelectedClients(newSet);
+                          }}
+                        />
+                      </td>
+                      <td className="px-4 py-2.5 whitespace-nowrap">
+                        <div className="flex flex-col gap-0.5 min-w-0">
+                          <span className="font-bold text-slate-800 text-xs font-display leading-tight truncate max-w-[200px]">{client.name}</span>
                           {(client as any).group_name ? (
-                            <span className="inline-flex items-center rounded-full bg-gax-blue/5 px-2 py-0.5 text-[9px] font-bold text-gax-blue border border-gax-blue/10 w-fit">
+                            <span className="inline-flex items-center rounded-full bg-gax-blue/5 px-2 py-0.5 text-[8px] font-bold text-gax-blue border border-gax-blue/10 w-fit">
                               {(client as any).group_name}
                             </span>
                           ) : (
-                            <span className="text-[10px] text-slate-300 font-medium italic">Sem grupo</span>
+                            <span className="text-[8px] text-slate-300 font-medium italic">Sem grupo</span>
                           )}
                         </div>
                       </td>
-                      <td className="px-5 py-3.5">
+                      <td className="px-4 py-2.5">
                         <div className="flex items-center gap-2">
                           {getStatusIcon(client.abi_status, client.impugnation_status)}
                           <span className={cn(
-                            "font-bold text-[10px] uppercase border px-2.5 py-1 rounded-full whitespace-nowrap",
+                            "font-bold text-[9px] uppercase border px-2 py-0.5 rounded-full whitespace-nowrap",
                             client.impugnation_status === "Finalizou" ? "bg-green-50 text-green-700 border-green-200" :
                             client.impugnation_status === "Impugnando" ? "bg-yellow-50 text-yellow-700 border-yellow-200" :
                             client.impugnation_status === "Não Iniciou" ? "bg-purple-50 text-purple-700 border-purple-200" :
@@ -759,14 +968,14 @@ export default function CheckImportsPage() {
                             client.abi_status === "Nao Importado" || client.abi_status === "Não Importado" ? "bg-slate-50 text-slate-500 border-slate-200" :
                             "bg-slate-100 text-slate-500 border-slate-200"
                           )}>
-                            {client.impugnation_status === "Finalizou" ? "Finalizou o ABI" :
-                             client.impugnation_status === "Impugnando" ? "Impugnando o ABI" : 
-                             client.impugnation_status === "Não Iniciou" ? "Não iniciou Impugnação" :
+                            {client.impugnation_status === "Finalizou" ? "Finalizou" :
+                             client.impugnation_status === "Impugnando" ? "Impugnando" : 
+                             client.impugnation_status === "Não Iniciou" ? "Não iniciou" :
                              (client.abi_status === "Nao Importado" || client.abi_status === "Não Importado" ? "Não Importado" : (client.abi_status || "Não Checado"))}
                           </span>
                         </div>
                       </td>
-                      <td className="px-5 py-3.5 whitespace-nowrap">
+                      <td className="px-4 py-2.5 whitespace-nowrap">
                         <div className="flex flex-col">
                            {(() => {
                              const lastCheck = [client.abi_last_check, (client as any).impugnation_last_check]
@@ -774,14 +983,14 @@ export default function CheckImportsPage() {
                                .map(d => new Date(d as string))
                                .sort((a, b) => b.getTime() - a.getTime())[0];
 
-                             if (!lastCheck) return <span className="text-[11px] font-bold text-slate-300 italic">Nunca checado</span>;
+                             if (!lastCheck) return <span className="text-[10px] font-bold text-slate-300 italic">Nunca checado</span>;
 
                              return (
                                <>
-                                 <span className="text-[11px] font-bold text-slate-600">
+                                 <span className="text-[10px] font-bold text-slate-600">
                                    {formatDistanceToNow(lastCheck, { addSuffix: true, locale: ptBR })}
                                  </span>
-                                 <span className="text-[9px] text-slate-400 font-medium font-display">
+                                 <span className="text-[8px] text-slate-400 font-medium font-display leading-none">
                                    {lastCheck.toLocaleDateString('pt-BR')} às {lastCheck.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                                  </span>
                                </>
@@ -789,7 +998,7 @@ export default function CheckImportsPage() {
                            })()}
                         </div>
                       </td>
-                      <td className="px-5 py-3.5 text-right">
+                      <td className="px-4 py-2.5 text-right">
                         <div className="relative inline-block text-left" ref={openMenuId === client.id ? dropdownRef : null}>
                           <button 
                             onClick={() => setOpenMenuId(openMenuId === client.id ? null : client.id)}
@@ -874,7 +1083,7 @@ export default function CheckImportsPage() {
             <div className="p-4 flex flex-col gap-5">
               {/* Hero Card: Active ABI */}
               {activeAbi ? (
-                <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-gax-blue to-blue-700 p-5 text-white shadow-lg shadow-gax-blue/20 animate-in zoom-in-95 duration-500">
+                <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-gax-blue to-blue-700 p-5 text-white shadow-lg shadow-gax-blue/20">
                   {/* Background decoration */}
                   <div className="absolute top-0 right-0 -mr-4 -mt-4 h-24 w-24 rounded-full bg-white/10 blur-2xl"></div>
                   <div className="absolute bottom-0 left-0 -ml-4 -mb-4 h-16 w-16 rounded-full bg-white/5 blur-xl"></div>
@@ -951,8 +1160,8 @@ export default function CheckImportsPage() {
 
       {/* LOG MODAL (Aligned with API Check) */}
       {showLogsModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-100 flex flex-col max-h-[85vh] overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-100 flex flex-col max-h-[85vh] overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-gax-blue text-white rounded-xl shadow-lg shadow-gax-blue/20">
@@ -1025,6 +1234,53 @@ export default function CheckImportsPage() {
                 className="px-5 py-2 text-xs font-bold text-slate-600 hover:bg-white border border-transparent hover:border-slate-200 rounded-xl transition-all font-display"
               >
                 Fechar Console
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Floating Action Bar for Bulk Actions */}
+      {selectedClients.size > 0 && (
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50">
+          <div className="flex items-center gap-6 px-6 py-4 bg-slate-900/90 backdrop-blur-xl rounded-2xl border border-slate-700/50 shadow-2xl shadow-slate-900/40 min-w-[400px]">
+            <div className="flex items-center gap-3 pr-6 border-r border-slate-700/50">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gax-blue/20 text-gax-blue">
+                <LayoutGrid size={16} />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-xs font-bold text-white leading-none">{selectedClients.size} selecionados</span>
+                <span className="text-[10px] text-slate-400 font-medium">Gestão em massa</span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={() => {
+                  if (window.confirm(`Deseja iniciar a checagem em massa para ${selectedClients.size} operadoras?`)) {
+                    const ids = Array.from(selectedClients);
+                    // Lógica Dinâmica no Footer: Detecta contexto pelo filtro atual
+                    const isImpugnContext = ["Não Inic. Impug.", "Impugnando", "Finalizou"].includes(filterStatus || "");
+                    
+                    if (isImpugnContext) {
+                      startImpugnationCheck(undefined, ids);
+                    } else {
+                      startCheck(undefined, ids);
+                    }
+                    setSelectedClients(new Set());
+                  }
+                }}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gax-blue/10 text-gax-blue hover:bg-gax-blue hover:text-white transition-all text-xs font-bold"
+              >
+                <Play size={14} />
+                Checar Selecionados
+              </button>
+              
+              <button 
+                onClick={() => setSelectedClients(new Set())}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white transition-all text-xs font-bold"
+              >
+                <X size={14} />
+                Desmarcar
               </button>
             </div>
           </div>

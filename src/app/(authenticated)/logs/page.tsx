@@ -202,11 +202,11 @@ export default function LogsPage() {
   };
 
   return (
-    <div className="flex flex-col gap-6 p-8 pt-2 max-w-7xl mx-auto animate-in fade-in duration-500">
+    <div className="flex flex-col gap-6 p-8 pt-2 max-w-7xl mx-auto">
       <div></div>
 
       {/* ═══════ STATS STRIP ═══════ */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         {[
           {
             label: "Total Processado",
@@ -247,7 +247,6 @@ export default function LogsPage() {
               "group flex items-center gap-4 rounded-2xl border bg-white p-5 shadow-sm transition-all duration-300 hover:shadow-md",
               s.border
             )}
-            style={{ animationDelay: `${i * 60}ms`, animationFillMode: "both" }}
           >
             <div className={cn("flex h-11 w-11 items-center justify-center rounded-xl shrink-0 transition-transform group-hover:scale-105", s.bg, s.color)}>
               {s.icon}
@@ -261,7 +260,7 @@ export default function LogsPage() {
       </div>
 
       {/* ═══════ TOOLBAR ═══════ */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in slide-in-from-bottom-2 duration-500" style={{ animationDelay: "200ms", animationFillMode: "both" }}>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           {/* Filter Pills */}
           <div className="flex items-center gap-1 rounded-xl border border-slate-200/60 bg-white p-1 shadow-sm">
@@ -313,7 +312,7 @@ export default function LogsPage() {
       </div>
 
       {/* ═══════ LOG TABLE ═══════ */}
-      <div className="rounded-2xl border border-slate-200/60 bg-white shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-3 duration-500" style={{ animationDelay: "300ms", animationFillMode: "both" }}>
+      <div className="rounded-2xl border border-slate-200/60 bg-white shadow-sm overflow-hidden">
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-24 gap-4">
             <Loader2 className="animate-spin text-gax-blue" size={32} />
@@ -341,8 +340,7 @@ export default function LogsPage() {
                     return (
                       <tr
                         key={task.id}
-                        className="group transition-colors hover:bg-slate-50/60 animate-in fade-in duration-300"
-                        style={{ animationDelay: `${(idx % 12) * 25}ms` }}
+                        className="group transition-colors hover:bg-slate-50/60"
                       >
                         {/* Date/Time */}
                         <td className="px-6 py-4">

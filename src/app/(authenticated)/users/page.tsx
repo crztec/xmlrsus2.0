@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Users, Shield, Mail, Trash2, Edit2, Loader2, CheckCircle, XCircle, ChevronLeft, ChevronRight } from "lucide-react";
+import { Users, Shield, Mail, Trash2, Edit2, Loader2, CheckCircle, XCircle, ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/apiClient";
 
@@ -21,6 +21,12 @@ export default function UsersPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  
+  // Sorting states
+  const [sortField, setSortField] = useState<string | null>("first_name");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+  
   
   // Pagination States
   const [currentPage, setCurrentPage] = useState(1);
@@ -48,9 +54,38 @@ export default function UsersPage() {
     fetchUsers();
   }, []);
 
-  const totalUsers = users.length;
+  const filteredUsers = users.filter((user) => {
+    const s = searchTerm.toLowerCase();
+    return (
+      (user.email && user.email.toLowerCase().includes(s)) ||
+      (user.first_name && user.first_name.toLowerCase().includes(s)) ||
+      (user.last_name && user.last_name.toLowerCase().includes(s)) ||
+      (user.role && user.role.toLowerCase().includes(s)) ||
+      (user.status && user.status.toLowerCase().includes(s))
+    );
+  }).sort((a, b) => {
+    if (!sortField) return 0;
+    let valA = (a as any)[sortField] || "";
+    let valB = (b as any)[sortField] || "";
+    if (typeof valA === "string") valA = valA.toLowerCase();
+    if (typeof valB === "string") valB = valB.toLowerCase();
+    if (valA < valB) return sortOrder === "asc" ? -1 : 1;
+    if (valA > valB) return sortOrder === "asc" ? 1 : -1;
+    return 0;
+  });
+
+  const totalUsers = filteredUsers.length;
   const totalPages = Math.ceil(totalUsers / itemsPerPage);
-  const paginatedUsers = users.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const paginatedUsers = filteredUsers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortOrder("asc");
+    }
+  };
 
   useEffect(() => {
     setCurrentPage(1);
@@ -102,72 +137,96 @@ export default function UsersPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 p-4 md:p-8 pt-2 max-w-7xl mx-auto animate-in fade-in duration-500">
-      <div></div>
+    <div className="flex flex-col gap-6 p-4 md:p-8 pt-2 max-w-7xl mx-auto">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 uppercase tracking-widest">
+          <Users size={18} className="text-gax-blue" />
+          Gerenciamento de Usuários
+        </h2>
+        
+        <div className="relative group w-full max-w-[240px]">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-gax-blue transition-colors" size={14} />
+          <input 
+            type="text" 
+            placeholder="Buscar usuário..." 
+            className="w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 py-2 text-xs font-medium text-slate-700 outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all placeholder:text-slate-300 shadow-sm"
+            value={searchTerm}
+            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+          />
+        </div>
+      </div>
 
       <div className="overflow-hidden rounded-3xl border border-slate-200/60 bg-white/70 shadow-sm backdrop-blur-sm">
         <table className="w-full text-left font-sans text-xs">
-          <thead className="bg-slate-50/30 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400 whitespace-nowrap">
-            <tr className="border-b border-slate-100/50">
-              <th className="px-6 py-4">Usuário</th>
-              <th className="px-6 py-4">E-mail</th>
-              <th className="px-6 py-4">Papel</th>
-              <th className="px-6 py-4">Status</th>
-              <th className="px-6 py-4 text-center">Ações</th>
+          <thead className="bg-slate-50/30 text-[9px] font-bold uppercase tracking-widest text-slate-400 whitespace-nowrap border-b border-slate-100/50">
+            <tr>
+              <th className="px-5 py-3 cursor-pointer hover:text-gax-blue transition-colors" onClick={() => handleSort("first_name")}>
+                Usuário {sortField === "first_name" ? (sortOrder === "asc" ? "↑" : "↓") : ""}
+              </th>
+              <th className="px-5 py-3 cursor-pointer hover:text-gax-blue transition-colors" onClick={() => handleSort("email")}>
+                E-mail {sortField === "email" ? (sortOrder === "asc" ? "↑" : "↓") : ""}
+              </th>
+              <th className="px-5 py-3 cursor-pointer hover:text-gax-blue transition-colors" onClick={() => handleSort("role")}>
+                Papel
+              </th>
+              <th className="px-5 py-3 cursor-pointer hover:text-gax-blue transition-colors" onClick={() => handleSort("status")}>
+                Status
+              </th>
+              <th className="px-5 py-3 text-center">Ações</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100/50">
             {paginatedUsers.map((user) => (
-              <tr key={user.email} className="hover:bg-white transition-colors group whitespace-nowrap">
-                <td className="px-6 py-4">
+              <tr key={user.email} className="hover:bg-white transition-colors group whitespace-nowrap text-[11px]">
+                <td className="px-5 py-2.5">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-gax-blue/10 to-gax-blue/5 text-gax-blue font-bold shadow-inner">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-gax-blue/10 to-gax-blue/5 text-gax-blue font-bold shadow-inner text-[10px]">
                       {(user.first_name || user.email).charAt(0).toUpperCase()}
                     </div>
                     <span className="font-bold text-slate-700 group-hover:text-gax-blue transition-colors">{user.first_name} {user.last_name}</span>
                   </div>
                 </td>
-                <td className="px-6 py-4 text-slate-500 font-medium">{user.email}</td>
-                <td className="px-6 py-4">
-                  <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${
+                <td className="px-5 py-2.5 text-slate-500 font-medium">{user.email}</td>
+                <td className="px-5 py-2.5">
+                  <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
                     user.role === 'admin' ? 'bg-gax-blue-light text-gax-blue border border-gax-blue/10' : 'bg-slate-50 text-slate-500 border border-slate-100'
                   }`}>
                     <Shield size={10} />
                     {user.role}
                   </span>
                 </td>
-                <td className="px-6 py-4">
-                  <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${
+                <td className="px-5 py-2.5">
+                  <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
                     user.status === 'approved' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-amber-50 text-amber-600 border border-amber-100'
                   }`}>
                     <div className={cn("h-1.5 w-1.5 rounded-full", user.status === 'approved' ? 'bg-emerald-500' : 'bg-amber-500')} />
                     {user.status === 'approved' ? 'Ativo' : 'Pendente'}
                   </span>
                 </td>
-                <td className="px-6 py-4">
-                  <div className="flex items-center justify-center gap-2">
+                <td className="px-5 py-2.5">
+                  <div className="flex items-center justify-center gap-1.5">
                     {user.status === 'pending' && (
                       <button 
                         onClick={() => handleApprove(user.email)}
-                        className="flex h-8 w-8 items-center justify-center rounded-xl border border-emerald-100 bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white transition-all shadow-sm"
+                        className="flex h-7 w-7 items-center justify-center rounded-lg border border-emerald-100 bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white transition-all shadow-sm"
                         title="Aprovar Usuário"
                       >
-                        <CheckCircle size={14} />
+                        <CheckCircle size={12} />
                       </button>
                     )}
                     <button 
                       onClick={() => { setSelectedUser(user); setShowEditModal(true); }}
-                      className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-100 bg-white text-slate-400 hover:border-gax-blue/30 hover:text-gax-blue hover:shadow-lg hover:shadow-gax-blue/10 transition-all"
+                      className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-100 bg-white text-slate-400 hover:border-gax-blue/30 hover:text-gax-blue shadow-sm transition-all"
                       title="Editar"
                     >
-                      <Edit2 size={14} />
+                      <Edit2 size={12} />
                     </button>
                     <button 
                       onClick={() => handleDelete(user.email)}
-                      className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-100 bg-white text-slate-400 hover:border-red-100 hover:text-red-500 hover:shadow-lg hover:shadow-red-500/10 transition-all"
+                      className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-100 bg-white text-slate-400 hover:border-red-100 hover:text-red-500 shadow-sm transition-all"
                       title="Excluir"
                     >
-                      <Trash2 size={14} />
+                      <Trash2 size={12} />
                     </button>
                   </div>
                 </td>
@@ -223,8 +282,8 @@ export default function UsersPage() {
 
       {/* Modal de Edição */}
       {showEditModal && selectedUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-2xl animate-in zoom-in-95 duration-300">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-2xl">
             <div className="mb-6 flex items-center justify-between">
               <h3 className="text-xl font-bold text-slate-900">Editar Usuário</h3>
               <button onClick={() => setShowEditModal(false)} className="text-slate-400 hover:text-slate-600"><XCircle size={24} /></button>

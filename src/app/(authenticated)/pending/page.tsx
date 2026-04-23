@@ -63,7 +63,7 @@ export default function PendingUsersPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 p-4 md:p-8 pt-2 max-w-7xl mx-auto animate-in fade-in duration-500">
+    <div className="flex flex-col gap-6 p-4 md:p-8 pt-2 max-w-7xl mx-auto">
       <div></div>
 
       {users.length > 0 ? (
@@ -72,7 +72,6 @@ export default function PendingUsersPage() {
             <div 
               key={user.email} 
               className="group flex flex-col sm:flex-row items-start sm:items-center justify-between rounded-3xl border border-slate-200/60 bg-white/70 p-6 shadow-sm backdrop-blur-sm transition-all hover:border-gax-blue/30 hover:shadow-xl hover:shadow-slate-200/50 gap-6"
-              style={{ animationDelay: `${idx * 50}ms`, animationFillMode: 'both' }}
             >
               <div className="flex items-center gap-4">
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-50 to-amber-50/10 text-amber-500 shadow-inner group-hover:scale-110 transition-transform duration-500">

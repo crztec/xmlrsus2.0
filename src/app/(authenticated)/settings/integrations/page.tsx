@@ -174,7 +174,7 @@ export default function IntegrationsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 md:gap-8 p-4 md:p-8 pt-2 max-w-7xl mx-auto animate-in fade-in duration-500">
+    <div className="flex flex-col gap-6 md:gap-8 p-4 md:p-8 pt-2 max-w-7xl mx-auto">
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
         {/* Card: WhatsApp Config (Server Config) */}
         <section className="flex flex-col h-fit space-y-6 rounded-3xl border border-slate-200/60 bg-white/70 p-6 md:p-8 shadow-sm backdrop-blur-sm">
@@ -315,7 +315,7 @@ export default function IntegrationsPage() {
 
             {/* Status Result */}
             {instanceStatus && (
-              <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 space-y-2 animate-in slide-in-from-top-2 duration-300">
+              <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 space-y-2">
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">Retorno da API</p>
                   {instanceStatus.instance?.state === "open" && (
@@ -338,7 +338,7 @@ export default function IntegrationsPage() {
 
             {/* QR Code Display */}
             {qrCode && (
-              <div className="flex flex-col items-center gap-4 rounded-xl border border-violet-100 bg-violet-50/50 p-6 animate-in fade-in zoom-in-95 duration-500">
+              <div className="flex flex-col items-center gap-4 rounded-xl border border-violet-100 bg-violet-50/50 p-6">
                 <p className="text-xs font-bold text-violet-800 uppercase tracking-wider">Escaneie o QR Code</p>
                 <div className="bg-white rounded-2xl p-4 shadow-lg ring-1 ring-violet-100 w-full max-w-[280px] aspect-square flex items-center justify-center">
                   <img src={qrCode.startsWith("data:") ? qrCode : `data:image/png;base64,${qrCode}`} alt="QR Code WhatsApp" className="w-full h-full object-contain" />

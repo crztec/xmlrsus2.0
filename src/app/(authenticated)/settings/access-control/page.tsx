@@ -86,7 +86,7 @@ export default function AccessControlPage() {
   const inputCls = "w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all text-slate-700 font-medium";
 
   return (
-    <div className="flex flex-col gap-6 md:gap-8 p-4 md:p-8 pt-2 max-w-7xl mx-auto animate-in fade-in duration-500">
+    <div className="flex flex-col gap-6 md:gap-8 p-4 md:p-8 pt-2 max-w-7xl mx-auto">
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-2 xl:grid-cols-3">
         {/* RSUS Geral */}
         <section className="space-y-6 rounded-3xl border border-slate-200/60 bg-white/70 p-6 md:p-8 shadow-sm backdrop-blur-sm">

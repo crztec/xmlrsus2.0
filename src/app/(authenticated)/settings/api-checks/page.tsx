@@ -354,7 +354,7 @@ export default function ApiChecksPage() {
   };
 
   return (
-    <div className="flex flex-col gap-6 p-4 md:p-8 max-w-7xl mx-auto animate-in fade-in duration-500 pt-2">
+    <div className="flex flex-col gap-6 p-4 md:p-8 max-w-7xl mx-auto pt-2">
       
       {/* ── REAL-TIME STATUS BAR ── */}
       <div className={cn(
@@ -485,15 +485,14 @@ export default function ApiChecksPage() {
         ].map((card, i) => (
           <div
             key={i}
-            className="rounded-2xl bg-white border border-slate-200 p-5 flex items-center gap-4 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500"
-            style={{ animationDelay: `${i * 60}ms`, animationFillMode: 'both' }}
+            className="rounded-2xl bg-white border border-slate-200 p-5 flex items-center gap-4 shadow-sm"
           >
             <div className={cn("flex h-10 w-10 items-center justify-center rounded-xl shrink-0", card.color)}>
               {card.icon}
             </div>
             <div>
               <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{card.label}</p>
-              <p className="text-2xl font-bold text-slate-800 tracking-tight flex items-center gap-2">
+              <p className="text-xl font-bold text-slate-800 tracking-tight flex items-center gap-2">
                 {card.value}
                 {card.pulse && card.value > 0 && (
                   <span className="relative flex h-2.5 w-2.5">
@@ -508,7 +507,7 @@ export default function ApiChecksPage() {
       </div>
 
       {/* ── CLIENT TABLE ── */}
-      <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500" style={{ animationDelay: '180ms', animationFillMode: 'both' }}>
+      <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">
         {/* Table Toolbar */}
         <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row gap-3 justify-between items-center bg-slate-50/40">
           <div className="relative group w-full max-w-sm">
@@ -547,7 +546,7 @@ export default function ApiChecksPage() {
                   <th
                     key={h}
                     className={cn(
-                      "px-5 py-3.5 text-[10px] font-bold uppercase tracking-widest text-slate-400 border-b border-slate-100 font-display",
+                      "px-5 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 border-b border-slate-100 font-display",
                       i === 4 ? "text-right" : ""
                     )}
                   >
@@ -559,16 +558,16 @@ export default function ApiChecksPage() {
             <tbody className="divide-y divide-slate-100/80">
               {isLoading ? (
                 <tr>
-                  <td colSpan={5} className="py-16 text-center">
+                  <td colSpan={5} className="py-12 text-center">
                     <div className="flex flex-col items-center gap-3">
-                      <Loader2 size={28} className="animate-spin text-gax-blue" />
+                      <Loader2 size={24} className="animate-spin text-gax-blue" />
                       <p className="text-xs text-slate-400 font-medium">Carregando clientes...</p>
                     </div>
                   </td>
                 </tr>
               ) : paginatedClients.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-16 text-center">
+                  <td colSpan={5} className="py-12 text-center">
                     <p className="text-xs text-slate-400">Nenhum registro para o filtro selecionado.</p>
                   </td>
                 </tr>
@@ -578,20 +577,20 @@ export default function ApiChecksPage() {
                   className="group hover:bg-gax-blue/[0.02] transition-colors"
                 >
                   {/* Cliente */}
-                  <td className="px-5 py-3.5">
+                  <td className="px-5 py-2.5">
                     <div className="flex flex-col">
                       {client.url_sistema ? (
                         <a 
                           href={client.url_sistema} 
                           target="_blank" 
                           rel="noopener noreferrer"
-                          className="font-bold text-slate-800 text-sm hover:text-gax-blue transition-colors flex items-center gap-1.5 group/namelink"
+                          className="font-bold text-slate-800 text-xs hover:text-gax-blue transition-colors flex items-center gap-1.5 group/namelink"
                         >
                           {client.name}
-                          <ExternalLink size={12} className="opacity-0 group-hover/namelink:opacity-100 transition-all text-slate-400 group-hover/namelink:text-gax-blue" />
+                          <ExternalLink size={10} className="opacity-0 group-hover/namelink:opacity-100 transition-all text-slate-400 group-hover/namelink:text-gax-blue" />
                         </a>
                       ) : (
-                        <span className="font-bold text-slate-800 text-sm">{client.name}</span>
+                        <span className="font-bold text-slate-800 text-xs">{client.name}</span>
                       )}
                       {client.group_name ? (
                         <span className="inline-flex items-center rounded-full bg-gax-blue/5 px-2 py-0.5 text-[9px] font-bold text-gax-blue border border-gax-blue/10 w-fit mt-1">
@@ -671,7 +670,7 @@ export default function ApiChecksPage() {
                       </button>
 
                       {openMenuId === client.id && (
-                        <div className="absolute right-0 mt-1.5 w-44 bg-white rounded-2xl shadow-2xl shadow-slate-200/80 border border-slate-100 z-50 overflow-hidden animate-in zoom-in-95 duration-150 origin-top-right">
+                        <div className="absolute right-0 mt-1.5 w-44 bg-white rounded-2xl shadow-2xl shadow-slate-200/80 border border-slate-100 z-50 overflow-hidden origin-top-right">
                           <button
                             onClick={() => handleRunSingleCheck(client.id)}
                             className="w-full flex items-center gap-2.5 px-4 py-3 text-xs font-semibold text-slate-700 hover:bg-gax-blue hover:text-white transition-colors"
@@ -747,8 +746,8 @@ export default function ApiChecksPage() {
 
       {/* ── LOG MODAL ── */}
       {showLogs && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-100 flex flex-col max-h-[85vh] overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-100 flex flex-col max-h-[85vh] overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-gax-blue text-white rounded-xl shadow-lg shadow-gax-blue/20">
@@ -820,8 +819,8 @@ export default function ApiChecksPage() {
 
       {/* ── SCREENSHOT MODAL ── */}
       {selectedScreenshot && (
-        <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="relative max-w-5xl w-full bg-slate-900 rounded-2xl overflow-hidden shadow-2xl border border-slate-800 animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="relative max-w-5xl w-full bg-slate-900 rounded-2xl overflow-hidden shadow-2xl border border-slate-800">
             <button
               onClick={() => setSelectedScreenshot(null)}
               className="absolute top-4 right-4 z-10 p-2 bg-white/20 hover:bg-white/40 text-white rounded-full transition-all"

@@ -42,7 +42,7 @@ export default function MaintenancePage() {
   }
 
   return (
-    <div className="flex flex-col gap-8 p-4 md:p-8 pt-2 max-w-3xl mx-auto animate-in fade-in duration-500">
+    <div className="flex flex-col gap-8 p-4 md:p-8 pt-2 max-w-3xl mx-auto">
       <section className="space-y-6 rounded-3xl border border-slate-200/60 bg-white/70 p-6 md:p-8 shadow-sm backdrop-blur-sm">
         <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-50 text-red-500">

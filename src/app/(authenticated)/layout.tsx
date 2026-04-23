@@ -54,7 +54,7 @@ export default function AuthenticatedLayout({
       {/* Mobile Overlay */}
       {isSidebarOpen && (
         <div 
-          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 md:hidden animate-in fade-in duration-300" 
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 md:hidden" 
           onClick={() => setIsSidebarOpen(false)}
         />
       )}

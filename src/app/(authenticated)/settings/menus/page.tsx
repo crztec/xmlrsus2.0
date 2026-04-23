@@ -293,15 +293,15 @@ export default function MenusPage() {
   ];
 
   return (
-    <div className="flex flex-col gap-5 p-4 md:p-8 pt-2 max-w-3xl mx-auto animate-in fade-in duration-500">
+    <div className="flex flex-col gap-5 p-4 md:p-8 pt-2 max-w-3xl mx-auto">
       {/* Feedback Messages */}
       {successMessage && (
-        <div className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-100 animate-in fade-in slide-in-from-top-2 duration-300">
+        <div className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-100">
           ✓ {successMessage}
         </div>
       )}
       {errorMessage && (
-        <div className="text-[11px] font-bold text-rose-600 bg-rose-50 px-4 py-2 rounded-xl border border-rose-100 animate-in fade-in slide-in-from-top-2 duration-300">
+        <div className="text-[11px] font-bold text-rose-600 bg-rose-50 px-4 py-2 rounded-xl border border-rose-100">
           {errorMessage}
         </div>
       )}

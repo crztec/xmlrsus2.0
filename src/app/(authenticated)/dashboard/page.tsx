@@ -198,7 +198,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="flex flex-col gap-6 md:gap-8 p-4 md:p-8 pt-2 max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <div className="flex flex-col gap-6 md:gap-8 p-4 md:p-8 pt-2 max-w-7xl mx-auto">
       {/* Upload Section */}
       <section className="rounded-3xl border border-slate-200/60 bg-white/70 p-4 md:p-8 shadow-sm backdrop-blur-sm">
         <div className="mb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
@@ -228,7 +228,7 @@ export default function DashboardPage() {
         </div>
 
         {razaoSocial && (
-          <div className="mb-8 p-6 rounded-2xl bg-white border border-slate-100 shadow-sm animate-in slide-in-from-top-2">
+          <div className="mb-8 p-6 rounded-2xl bg-white border border-slate-100 shadow-sm">
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
               <div className="w-full md:w-auto">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Empresa no XML</p>
@@ -287,8 +287,7 @@ export default function DashboardPage() {
             {files.map((file, idx) => (
               <div 
                 key={idx} 
-                className="group relative flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm transition-all hover:border-gax-blue/20 hover:shadow-xl hover:shadow-slate-200/50 animate-in zoom-in-95 duration-300"
-                style={{ animationDelay: `${idx * 50}ms`, animationFillMode: 'both' }}
+                className="group relative flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm transition-all hover:border-gax-blue/20 hover:shadow-xl hover:shadow-slate-200/50"
               >
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gax-blue-light/50 text-gax-blue">
                   <FileText size={20} />
@@ -349,7 +348,7 @@ export default function DashboardPage() {
       {/* Detailed Log Modal */}
       {showDetailedLogs && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-          <div className="w-full max-w-4xl max-h-[80vh] flex flex-col rounded-2xl bg-white shadow-2xl animate-in zoom-in-95 duration-200">
+          <div className="w-full max-w-4xl max-h-[80vh] flex flex-col rounded-2xl bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-100 p-6">
               <div>
                 <h3 className="text-lg font-bold text-slate-800">Log Detalhado de Execução</h3>
@@ -393,8 +392,8 @@ export default function DashboardPage() {
 
       {/* New Client Modal */}
       {showNewClientModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
-          <div className="w-full max-w-xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl animate-in zoom-in-95">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+          <div className="w-full max-w-xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
             <div className="border-b border-slate-100 bg-slate-50/50 p-6">
               <div className="flex items-center justify-between">
                 <div>
@@ -451,7 +450,7 @@ export default function DashboardPage() {
               </div>
 
               {credentialChoice === 'manual' && (
-                <div className="grid grid-cols-2 gap-4 animate-in slide-in-from-top-2">
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Usuário</label>
                     <input 
@@ -488,7 +487,7 @@ export default function DashboardPage() {
 
       {/* Confirmation Modal */}
       {showConfirmModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
           <div className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
             <div className="border-b border-slate-100 bg-slate-50/50 p-6">
               <div className="flex items-center gap-3 text-amber-600">
@@ -534,7 +533,7 @@ export default function DashboardPage() {
 
 function LogEntry({ status, message, time }: { status: 'success' | 'error' | 'processing' | 'info' | 'debug' | 'warning', message: string, time: string }) {
   return (
-    <div className="flex items-center gap-3 text-xs animate-in fade-in slide-in-from-top-1 duration-300">
+    <div className="flex items-center gap-3 text-xs">
       {status === 'success' && <CheckCircle2 size={16} className="text-green-500" />}
       {status === 'error' && <AlertCircle size={16} className="text-red-500" />}
       {status === 'warning' && <AlertTriangle size={16} className="text-amber-500" />}

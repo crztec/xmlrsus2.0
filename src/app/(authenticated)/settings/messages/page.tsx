@@ -393,7 +393,7 @@ export default function MessagesPage() {
 
 
   return (
-    <div className="flex flex-col gap-6 p-4 md:p-8 pt-2 max-w-7xl mx-auto animate-in fade-in duration-500">
+    <div className="flex flex-col gap-6 p-4 md:p-8 pt-2 max-w-7xl mx-auto">
       
       {/* Tab Switcher */}
       <div className="flex items-center gap-1.5 rounded-2xl border border-slate-200/60 bg-white/70 backdrop-blur-md p-1.5 shadow-sm w-fit sticky top-0 z-30">
@@ -508,7 +508,7 @@ export default function MessagesPage() {
                           className="fixed inset-0 z-10" 
                           onClick={() => setIsSearchOpen(false)}
                         />
-                        <div className="absolute left-0 right-0 top-full z-20 overflow-hidden rounded-b-2xl border-x border-b border-gax-blue bg-white shadow-2xl animate-in slide-in-from-top-1 duration-200">
+                        <div className="absolute left-0 right-0 top-full z-20 overflow-hidden rounded-b-2xl border-x border-b border-gax-blue bg-white shadow-2xl">
                            <div className="p-2 border-b border-slate-50 flex items-center justify-between">
                               <button 
                                 onClick={() => {
@@ -751,7 +751,7 @@ export default function MessagesPage() {
 
               {sendResult && (
                 <div className={cn(
-                  "mt-4 rounded-xl p-3 text-xs font-bold border flex items-center gap-2 animate-in slide-in-from-top-2",
+                  "mt-4 rounded-xl p-3 text-xs font-bold border flex items-center gap-2",
                   sendResult.success ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-rose-50 text-rose-600 border-rose-100"
                 )}>
                   {sendResult.success ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
@@ -777,7 +777,7 @@ export default function MessagesPage() {
         </div>
       ) : (
         /* History Tab */
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+        <div className="space-y-6">
            {/* Summary Stats for History - Optional but looks premium */}
            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="rounded-3xl border border-slate-200/60 bg-white p-4 shadow-sm flex items-center gap-4">
