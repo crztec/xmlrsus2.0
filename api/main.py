@@ -981,7 +981,11 @@ async def reset_db(user = Depends(require_admin)):
 async def get_tasks(type: Optional[str] = None, exclude_api: bool = False, user = Depends(get_current_user)):
     # Retorna o histórico de tarefas para a página de logs, com filtro opcional por tipo
     # Usando o limite de 50 para evitar sobrecarga
-    return db.get_tasks_for_dashboard(limit=50, task_type=type, exclude_api_checks=exclude_api)
+    tasks = db.get_tasks_for_dashboard(limit=50, task_type=type, exclude_api_checks=exclude_api)
+    for t in tasks:
+        if 'senha' in t: t['senha'] = "********"
+        if 'usuario' in t: t['usuario'] = "********"
+    return tasks
 
 @app.get("/task/{task_id}")
 async def get_task_status(task_id: str, user = Depends(get_current_user)):
@@ -991,6 +995,12 @@ async def get_task_status(task_id: str, user = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="Tarefa não encontrada")
     
     task_data = task.to_dict()
+    
+    # Mascarar campos sensíveis antes de retornar
+    if 'senha' in task_data: task_data['senha'] = "********"
+    if 'usuario' in task_data: task_data['usuario'] = "********"
+    # Campos da Evolution API se existirem
+    if 'api_key' in task_data: task_data['api_key'] = "********"
     
     # Cálculos de compatibilidade
     total = task_data.get('total_arquivos', 0)

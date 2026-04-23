@@ -331,17 +331,19 @@ async def run_impugnation_check_for_client(client_id, task_id=None, pre_fetched_
         import traceback
         err = f"{type(e).__name__}: {str(e)}"
         logger.error(f"Impugnation check error: {traceback.format_exc()}")
-        db.update_client_impugnation_status(client_id, "Erro", err, task_id)
+        db.update_client_impugnation_status(client_id, "Erro", err, task_id, stats=default_stats)
         if task_id:
             db.add_log(task_id, f"[{client_name}] Erro crítico: {err}", "ERROR")
-        return "Erro", err, {"aptos": 0, "aguardando": 0}
+        return "Erro", err, default_stats
 
 
 async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetched_creds=None):
     """Lógica interna de checagem de impugnações — navega até Atendimentos e busca 'Impugnado'."""
+    default_stats = {"total": 0, "impugnados": 0, "nao_impugnando": 0, "aptos": 0, "aguardando": 0}
+    
     client = db.get_client_config(client_id)
     if not client:
-        return "Erro", "Cliente não encontrado."
+        return "Erro", "Cliente não encontrado.", default_stats
         
     url_sistema = client.get('url_sistema')
     client_name = client.get('name', client_id)
@@ -551,7 +553,7 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
             if target_row_index == -1:
                 log_task("ABI atual não encontrado na grid de importações.", "WARNING")
                 if browser: await browser.close()
-                return "Não Verificado", "ABI não importado no RSUS."
+                return "Não Verificado", "ABI não importado no RSUS.", default_stats
 
             # Verifica se está importado
             status_text = grid_data[target_row_index]['secondCell']
@@ -560,11 +562,11 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
             if status_text != "Importado":
                 log_task(f"ABI com status '{status_text}', pulando checagem de impugnação.", "INFO")
                 if browser: await browser.close()
-                return "Não Verificado", f"ABI com status: {status_text}"
+                return "Não Verificado", f"ABI com status: {status_text}", default_stats
 
             if await is_cancelled():
                 await browser.close()
-                return "Erro", "Cancelado."
+                return "Erro", "Cancelado.", default_stats
 
             # ─── 3. ABRIR ATENDIMENTOS ───
             update_progress(60)
@@ -581,7 +583,7 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
             except Exception as e:
                 log_task(f"Link 'Atendimentos' não encontrado: {str(e)[:100]}", "ERROR")
                 if browser: await browser.close()
-                return "Erro", "Link Atendimentos não encontrado."
+                return "Erro", "Link Atendimentos não encontrado.", default_stats
             
             log_task("Aguardando carregamento da tela de Atendimentos...", "DEBUG")
             await asyncio.sleep(4)
@@ -595,7 +597,7 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
 
             if await is_cancelled():
                 await browser.close()
-                return "Erro", "Cancelado."
+                return "Erro", "Cancelado.", default_stats
 
             # ─── 4. BUSCAR "IMPUGNADO" NO CAMPO DE PESQUISA ───
             update_progress(75)
@@ -635,7 +637,7 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
             if not search_field:
                 log_task("Campo de pesquisa não encontrado na tela de Atendimentos.", "WARNING")
                 if browser: await browser.close()
-                return "Não Verificado", "Campo de pesquisa não encontrado."
+                return "Não Verificado", "Campo de pesquisa não encontrado.", default_stats
 
             # ─── 5. DEFINIR FUNÇÃO DE PESQUISA NA GRID ───
             async def search_grid(term, target_keywords):
