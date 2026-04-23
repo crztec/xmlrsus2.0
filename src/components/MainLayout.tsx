@@ -35,7 +35,7 @@ interface PageMeta {
 
 const PAGE_METADATA: Record<string, PageMeta> = {
   "/dashboard": {
-    title: "Nova Importação",
+    title: "Enviar ABIs",
     subtitle: "Selecione arquivos XML para processamento (Limite: 5MB por arquivo)",
     icon: <CloudUpload size={24} className="text-gax-blue" />
   },
