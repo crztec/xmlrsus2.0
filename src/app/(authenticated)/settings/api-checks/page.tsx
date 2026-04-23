@@ -662,7 +662,10 @@ export default function ApiChecksPage() {
                     <div className="relative inline-block text-left" ref={openMenuId === client.id ? dropdownRef : null}>
                       <button
                         onClick={() => setOpenMenuId(openMenuId === client.id ? null : client.id)}
-                        className="p-2 text-slate-300 hover:text-gax-blue hover:bg-gax-blue/10 rounded-xl transition-all"
+                        className="p-2 text-slate-300 hover:text-gax-blue hover:bg-gax-blue/10 rounded-xl transition-all outline-none focus-visible:ring-2 focus-visible:ring-gax-blue/50"
+                        aria-label="Ações da API"
+                        aria-expanded={openMenuId === client.id}
+                        aria-haspopup="menu"
                       >
                         <MoreHorizontal size={16} />
                       </button>

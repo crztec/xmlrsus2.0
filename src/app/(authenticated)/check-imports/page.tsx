@@ -573,10 +573,13 @@ export default function CheckImportsPage() {
                 <button 
                   onClick={() => setHistoryMenuOpen(!historyMenuOpen)}
                   className={cn(
-                    "p-1.5 rounded-lg transition-all shrink-0 border",
+                    "p-1.5 rounded-lg transition-all shrink-0 border outline-none focus-visible:ring-2 focus-visible:ring-gax-blue/50",
                     historyMenuOpen ? "bg-slate-100 border-slate-300 text-slate-800" : "bg-slate-50 border-slate-200 text-slate-400 hover:bg-slate-100"
                   )}
                   title="Mais Opções"
+                  aria-label="Mais opções de histórico"
+                  aria-expanded={historyMenuOpen}
+                  aria-haspopup="menu"
                 >
                   <MoreHorizontal size={14} />
                 </button>
@@ -759,7 +762,10 @@ export default function CheckImportsPage() {
                         <div className="relative inline-block text-left" ref={openMenuId === client.id ? dropdownRef : null}>
                           <button 
                             onClick={() => setOpenMenuId(openMenuId === client.id ? null : client.id)}
-                            className="p-2 text-slate-300 hover:text-gax-blue hover:bg-gax-blue/10 rounded-xl transition-all"
+                            className="p-2 text-slate-300 hover:text-gax-blue hover:bg-gax-blue/10 rounded-xl transition-all outline-none focus-visible:ring-2 focus-visible:ring-gax-blue/50"
+                            aria-label="Ações da operadora"
+                            aria-expanded={openMenuId === client.id}
+                            aria-haspopup="menu"
                           >
                             <MoreHorizontal size={16} />
                           </button>
