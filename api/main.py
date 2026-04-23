@@ -97,20 +97,14 @@ app.add_middleware(
 )
 
 
-def trigger_cloud_run_job(task_id: str):
+def trigger_cloud_run_job(task_id: str, background_tasks=None):
     import requests
     import os
     try:
         project = os.environ.get("GCP_PROJECT", "xmlrsus")
         region  = os.environ.get("GCP_REGION", "us-central1")
         
-        # 1. Bypass para ambiente local: Se ENV=development ou falhar a conexão imediata, prossegue silenciosamente
-        # pois o worker.py rodando localmente (listen_tasks) vai processar a tarefa de qualquer maneira.
-        if os.environ.get("ENV", "development") == "development":
-            logger.info(f"[TRIGGER LOCAL] Bypass Cloud Run API for task_id={task_id} in development.")
-            return
-
-        # 2. Conexão real na nuvem via Metadata
+        # Conexão real na nuvem via Metadata Server
         metadata_url = "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token?scopes=https://www.googleapis.com/auth/cloud-platform"
         token_resp = requests.get(metadata_url, headers={"Metadata-Flavor": "Google"}, timeout=2)
         
@@ -119,7 +113,7 @@ def trigger_cloud_run_job(task_id: str):
             
         access_token = token_resp.json().get("access_token")
 
-        # 3. Chamada REST para disparar o Job
+        # Chamada REST para disparar o Job
         url = f"https://{region}-run.googleapis.com/v2/projects/{project}/locations/{region}/jobs/gax-worker-job:run"
         headers = {
             "Authorization": f"Bearer {access_token}",
@@ -134,18 +128,42 @@ def trigger_cloud_run_job(task_id: str):
         response = requests.post(url, headers=headers, json=data, timeout=10)
         
         if response.status_code == 200:
-            logger.info(f"[TRIGGER] Job disparado com sucesso via Metadata Server para task_id={task_id}")
+            import logging
+            logging.getLogger(__name__).info(f"[TRIGGER] Job disparado com sucesso via Metadata Server para task_id={task_id}")
         else:
             raise Exception(f"Erro {response.status_code}: {response.text}")
 
-    except requests.exceptions.ConnectionError:
-        logger.info(f"[TRIGGER FALLBACK] Modo local detectado (sem metadata server). Tarefa {task_id} enfileirada no banco e aguardando worker local.")
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout, requests.exceptions.ConnectTimeout):
+        import logging
+        logging.getLogger(__name__).info(f"[TRIGGER FALLBACK] Modo local (sem metadata server). Delegando ao processamento assíncrono...")
+        if background_tasks:
+            _execute_local_fallback(task_id, background_tasks)
     except Exception as e:
-        logger.error(f"[TRIGGER] Falha crítica no disparo: {e}")
+        import logging
+        logging.getLogger(__name__).error(f"[TRIGGER] Falha crítica no disparo: {e}")
         from api import database as db
         from fastapi import HTTPException
         db.update_task(task_id, {"status": "failed", "last_log": f"Falha ao enfileirar o job: {str(e)[:120]}"})
         raise HTTPException(status_code=500, detail=f"Erro ao enfileirar o job: {str(e)[:120]}")
+
+def _execute_local_fallback(task_id: str, background_tasks):
+    from api import database as db
+    task = db.get_task(task_id)
+    if not task: return
+    t_type = task.get("type", "")
+    
+    if "abi_check" in t_type:
+        from api.automation_abi_check import run_batch_check, run_single_check
+        if t_type == "abi_check_single":
+            background_tasks.add_task(run_single_check, task.get("client_id"), task_id)
+        else:
+            background_tasks.add_task(run_batch_check, task_id, task.get("client_ids"))
+    elif "impugnation" in t_type:
+        from api.automation_impugnation_check import run_batch_impugnation_check, run_single_impugnation_check
+        if t_type == "impugnation_check_single":
+            background_tasks.add_task(run_single_impugnation_check, task.get("client_id"), task_id)
+        else:
+            background_tasks.add_task(run_batch_impugnation_check, task_id, task.get("client_ids"))
 
 # @app.middleware("http")
 # async def log_requests(request, call_next):
@@ -617,7 +635,7 @@ async def get_abi_dashboard_stats(user = Depends(get_current_user)):
     return db.get_abi_dashboard_stats()
 
 @app.post("/start-abi-check")
-async def start_abi_check(request: ABICheckRequest, user = Depends(get_current_user)):
+async def start_abi_check(request: ABICheckRequest, background_tasks: BackgroundTasks, user = Depends(get_current_user)):
     """Inicia a checagem de ABIs (lote ou individual) via Cloud Run Job."""
     active_abi = db.get_active_abi()
     if not active_abi:
@@ -636,12 +654,12 @@ async def start_abi_check(request: ABICheckRequest, user = Depends(get_current_u
     else:
         task_id = db.create_task("abi_check_batch", f"Checagem ABI {abi_label} em Lote")
 
-    trigger_cloud_run_job(task_id)
+    trigger_cloud_run_job(task_id, background_tasks)
     return {"status": "pending", "task_id": task_id}
 
 # --- IMPUGNATION CHECK ENDPOINTS ---
 @app.post("/start-impugnation-check")
-async def start_impugnation_check(request: ABICheckRequest, user = Depends(get_current_user)):
+async def start_impugnation_check(request: ABICheckRequest, background_tasks: BackgroundTasks, user = Depends(get_current_user)):
     """Inicia a checagem de impugnações (lote ou individual) via Cloud Run Job."""
     active_abi = db.get_active_abi()
     if not active_abi:
@@ -660,7 +678,7 @@ async def start_impugnation_check(request: ABICheckRequest, user = Depends(get_c
     else:
         task_id = db.create_task("impugnation_check_batch", f"Checagem Impugnação {abi_label} em Lote")
 
-    trigger_cloud_run_job(task_id)
+    trigger_cloud_run_job(task_id, background_tasks)
     return {"status": "pending", "task_id": task_id}
 
 @app.get("/impugnation-dashboard-stats")
