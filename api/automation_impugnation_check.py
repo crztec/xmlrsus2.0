@@ -691,50 +691,69 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
             # ─── 6. EXECUTAR PESQUISAS SEQUENCIAIS E VALIDAR REGRAS ───
             update_progress(80)
             
-            # 1. Pesquisa "Impugnado" (abrange 'Impugnado' e 'Não Impugnado')
-            has_imp, count_imp = await search_grid("Impugnado", ['impugnado', 'não impugnado'])
-            if has_imp:
-                log_task(f"Encontrados {count_imp} registros Impugnados/Não Impugnados.", "INFO")
+            # Obtém Total Geral
+            _, count_total = await search_grid("", [""])
+            if count_total > 0:
+                log_task(f"Encontrados {count_total} registros no total de atendimentos.", "INFO")
+                
+            update_progress(82)
+            
+            # 1. Pesquisa "Não Impugnado"
+            has_nao_imp, count_nao_imp = await search_grid("Não Impugnado", ['não impugnado'])
+            if has_nao_imp:
+                log_task(f"Encontrados {count_nao_imp} registros Não Impugnados.", "INFO")
+            
+            # 2. Pesquisa "Impugnado" (abrange 'Impugnado' e 'Não Impugnado' no Kendo UI)
+            has_imp_geral, count_imp_geral = await search_grid("Impugnado", ['impugnado', 'não impugnado'])
+            count_imp = max(0, count_imp_geral - count_nao_imp)
+            has_imp = count_imp > 0
+            if has_imp_geral:
+                log_task(f"Encontrados {count_imp} registros puramente Impugnados.", "INFO")
                 
             update_progress(85)
-            # 2. Pesquisa "Apto" (Para incluir Apto Para Impugnação)
+            # 3. Pesquisa "Apto"
             has_apto, count_apto = await search_grid("Apto", ['apto'])
             if has_apto:
                 log_task(f"Encontrados {count_apto} registros Aptos para Impugnação.", "INFO")
                 
             update_progress(90)
-            # 3. Pesquisa "Aguardando"
+            # 4. Pesquisa "Aguardando"
             has_ag, count_ag = await search_grid("Aguardando", ['aguardando'])
             if has_ag:
                 log_task(f"Encontrados {count_ag} registros Aguardando Impugnação.", "INFO")
                 
             update_progress(95)
             
+            stats_dict = {
+                "total": count_total,
+                "impugnados": count_imp,
+                "nao_impugnando": count_nao_imp,
+                "aptos": count_apto,
+                "aguardando": count_ag
+            }
+            
             # ─── 7. DETERMINAR STATUS FINAL ───
             if not has_imp and not has_apto and has_ag:
-                # Nao tem impasse, só "aguardando"
                 log_task(f"⏳ NÃO INICIOU IMPUGNAÇÃO! {count_ag} atendimentos aguardando.", "SUCCESS")
                 if browser: await browser.close()
-                return "Não Iniciou", f"Cliente ainda não iniciou impugnação. {count_ag} atendimentos aguardando.", {"impugnados": 0, "aptos": 0, "aguardando": count_ag}
+                return "Não Iniciou", f"Cliente ainda não iniciou impugnação. {count_ag} atendimentos aguardando.", stats_dict
 
             elif (has_imp or has_apto) and has_ag:
-                # Tem impugnados ou aptos, E também tem aguardando. Ou seja: ainda está no meio do processo
                 total_resolvidos = count_imp + count_apto
                 log_task(f"⚖️ IMPUGNANDO! {total_resolvidos} resolvidos (imp/apto), {count_ag} aguardando.", "SUCCESS")
                 if browser: await browser.close()
-                return "Impugnando", f"{total_resolvidos} registros impugnados/aptos, e {count_ag} ainda aguardando.", {"impugnados": count_imp, "aptos": count_apto, "aguardando": count_ag}
+                return "Impugnando", f"{total_resolvidos} registros impugnados/aptos, e {count_ag} ainda aguardando.", stats_dict
 
             elif (has_imp or has_apto) and not has_ag:
-                # Não tem mais nada "aguardando", então tudo foi impugnado (ou apto/não impugnado)
                 total_resolvidos = count_imp + count_apto
                 log_task(f"✅ FINALIZOU O ABI! 0 aguardando.", "SUCCESS")
                 if browser: await browser.close()
-                return "Finalizou", f"Cliente finalizou o ABI. Nenhum atendimento aguardando impugnação.", {"impugnados": count_imp, "aptos": count_apto, "aguardando": 0}
+                return "Finalizou", f"Cliente finalizou o ABI. Nenhum atendimento aguardando impugnação.", stats_dict
             
             elif not has_imp and not has_apto and not has_ag:
                 log_task("Nenhum registro encontrado nas três pesquisas (Impugnado, Apto, Aguardando).", "WARNING")
                 if browser: await browser.close()
-                return "Sem Impugnação", "Nenhum atendimento relevante detectado.", {"impugnados": 0, "aptos": 0, "aguardando": 0}
+                return "Sem Impugnação", "Nenhum atendimento relevante detectado.", stats_dict
 
 
     except Exception as e:
@@ -745,7 +764,7 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
         if browser:
             try: await browser.close()
             except: pass
-        return "Erro", f"Erro: {err_msg}", {"impugnados": 0, "aptos": 0, "aguardando": 0}
+        return "Erro", f"Erro: {err_msg}", {"total": 0, "impugnados": 0, "nao_impugnando": 0, "aptos": 0, "aguardando": 0}
 
 
 async def run_batch_impugnation_check(task_id, client_ids=None):

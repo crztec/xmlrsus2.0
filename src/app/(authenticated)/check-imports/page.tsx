@@ -426,6 +426,30 @@ export default function CheckImportsPage() {
     }
   };
 
+  const handleDownloadReport = async () => {
+    try {
+      const res = await apiClient("/api/reports/impugnations", {
+        method: "GET",
+      });
+      if (!res.ok) {
+        throw new Error("Erro ao gerar relatório");
+      }
+      
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "Relatorio_Impugnacoes.xlsx";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao baixar o relatório de impugnações.");
+    }
+  };
+
   const getStatusIcon = (status?: string, impugnationStatus?: string) => {
     if (impugnationStatus === 'Finalizou') return <CheckCircle2 className="text-green-600" size={16} />;
     if (impugnationStatus === 'Impugnando') return <Scale className="text-yellow-600" size={16} />;
@@ -523,8 +547,8 @@ export default function CheckImportsPage() {
           </>
         ) : (
           <>
-            <div className="flex items-center gap-2 text-slate-400 italic text-sm">
-              <ShieldCheck size={14} className="text-emerald-500" />
+            <div className="flex items-center gap-2 text-slate-400 italic text-sm whitespace-nowrap">
+              <ShieldCheck size={14} className="text-emerald-500 shrink-0" />
               <span className="text-xs font-medium text-slate-500">Sistema pronto para nova checagem</span>
             </div>
             <div className="flex items-center gap-2 overflow-visible w-full pb-2 md:pb-0 justify-end" ref={dropdownRef}>
@@ -595,6 +619,13 @@ export default function CheckImportsPage() {
                     >
                       <Terminal size={14} className="opacity-70" />
                       Histórico ABI
+                    </button>
+                    <button 
+                      onClick={() => { handleDownloadReport(); setHistoryMenuOpen(false); }}
+                      className="w-full flex items-center gap-2.5 px-4 py-3 text-[11px] font-bold text-slate-700 hover:bg-gax-blue hover:text-white transition-colors"
+                    >
+                      <FileSpreadsheet size={14} className="opacity-70" />
+                      Relatório Impugnações
                     </button>
                     <button 
                       onClick={async () => {

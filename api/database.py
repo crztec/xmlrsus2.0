@@ -1561,7 +1561,7 @@ def get_abi_dashboard_stats():
         logger.error(f"Erro ao calcular estatísticas ABI: {e}")
         return {}
 
-def update_client_impugnation_status(client_id, status, message, task_id=None):
+def update_client_impugnation_status(client_id, status, message, task_id=None, stats=None):
     """Updates impugnation check status for a client."""
     if not client_id: return False
     try:
@@ -1575,6 +1575,9 @@ def update_client_impugnation_status(client_id, status, message, task_id=None):
         
         if task_id:
             update_data['impugnation_last_task_id'] = task_id
+            
+        if stats:
+            update_data['impugnation_stats'] = stats
             
         client_ref.update(update_data)
         return True

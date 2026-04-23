@@ -660,6 +660,55 @@ async def start_impugnation_check(request: ABICheckRequest, user = Depends(get_c
 async def get_impugnation_stats(user = Depends(get_current_user)):
     return db.get_impugnation_dashboard_stats()
 
+@app.get("/reports/impugnations")
+async def export_impugnations_report(user = Depends(get_current_user)):
+    import io
+    import pandas as pd
+    from fastapi.responses import StreamingResponse
+    from datetime import datetime
+    
+    clients = db.get_all_clients()
+    report_data = []
+    
+    for c in clients:
+        # Puxa a configuração completa do cliente para pegar o config que contém os stats (get_all_clients já retorna isso, mas vamos garantir)
+        full_client = db.get_client_config(c['id']) if 'impugnation_stats' not in c else c
+        stats = full_client.get('impugnation_stats', {})
+        
+        last_check = full_client.get('impugnation_last_check')
+        dt_str = ""
+        if last_check:
+            try:
+                # Firestore DatetimeWithNanoseconds to string
+                dt_str = last_check.strftime('%d/%m/%Y %H:%M')
+            except:
+                dt_str = str(last_check)
+                
+        report_data.append({
+            "Cliente": full_client.get('name', 'Desconhecido'),
+            "Situação do ABI": full_client.get('impugnation_status', 'Não Iniciou'),
+            "Quantidade de Atendimentos": stats.get('total', 0),
+            "Quantidade Impugnados": stats.get('impugnados', 0),
+            "Quantidade Não Impugnando": stats.get('nao_impugnando', 0),
+            "Quantidade Aptos": stats.get('aptos', 0),
+            "Quantidade Aguardando Impugnação": stats.get('aguardando', 0),
+            "Data da Última Checagem": dt_str
+        })
+        
+    df = pd.DataFrame(report_data)
+    
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Relatório Impugnações')
+    
+    output.seek(0)
+    
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=Relatorio_Impugnacoes.xlsx"}
+    )
+
 
 # --- SINGLE API CHECK (Consolidados no fim do arquivo) ---
 
