@@ -679,10 +679,17 @@ async def export_impugnations_report(user = Depends(get_current_user)):
         dt_str = ""
         if last_check:
             try:
-                # Firestore DatetimeWithNanoseconds to string
-                dt_str = last_check.strftime('%d/%m/%Y %H:%M')
-            except:
-                dt_str = str(last_check)
+                import pytz
+                # Localize to Sao Paulo
+                tz = pytz.timezone('America/Sao_Paulo')
+                # Check if it's aware, if so astimezone, otherwise force tz
+                if hasattr(last_check, 'tzinfo') and last_check.tzinfo is not None:
+                    local_dt = last_check.astimezone(tz)
+                else:
+                    local_dt = pytz.utc.localize(last_check).astimezone(tz)
+                dt_str = local_dt.strftime('%d/%m/%Y %H:%M')
+            except Exception as e:
+                dt_str = str(last_check)[:16]
                 
         report_data.append({
             "Cliente": full_client.get('name', 'Desconhecido'),
