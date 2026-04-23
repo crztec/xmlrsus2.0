@@ -56,3 +56,16 @@ debug/
 /tmp/
 *.log
 .ipynb_checkpoints/
+
+# Security and Custom Rules
+/.agents/
+/xmls/
+/scripts/
+/api/scripts/
+/api/tests/
+/old_version/
+test_audit.py
+cleanup_tasks.py
+service_desc.json
+skills-lock.json
+FIREBASE_SETUP.md
