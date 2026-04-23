@@ -288,7 +288,7 @@ async def run_impugnation_check_for_client(client_id, task_id=None, pre_fetched_
         status, message, stats = await _run_impugnation_logic(client_id, active_abi, task_id, pre_fetched_creds)
         
         # Salva o status de impugnação no cliente
-        db.update_client_impugnation_status(client_id, status, message, task_id)
+        db.update_client_impugnation_status(client_id, status, message, task_id, stats)
         
         # Sincroniza status final com Gestaocomercial Cubeti APENAS SE mudou E não for erro técnico
         is_technical_error = status == 'Erro' and any(kw in message.lower() for kw in ['timeout', 'erro técnico', 'targetclosederror', 'cancelado', 'falha no login'])
