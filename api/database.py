@@ -1524,9 +1524,10 @@ def get_abi_dashboard_stats():
         }
         
         for c in clients:
-            status = c.get('abi_status', 'Pendente')
-            msg = c.get('abi_last_message', '')
-            impugnation = c.get('impugnation_status', '')
+            status = str(c.get('abi_status', 'Pendente')).strip()
+            status_lower = status.lower()
+            msg = str(c.get('abi_last_message', '')).lower()
+            impugnation = str(c.get('impugnation_status', '')).strip()
             
             # Se o cliente finalizou o ABI, conta como finalizado
             if impugnation == 'Finalizou':
@@ -1536,22 +1537,22 @@ def get_abi_dashboard_stats():
                 stats['impugnating'] += 1
             elif impugnation == 'Não Iniciou':
                 stats['not_started'] += 1
-            elif status == 'Importado e Analisado':
+            elif status_lower == 'importado e analisado':
                 stats['imported_analyzed'] += 1
-            elif status == 'Importado':
+            elif status_lower == 'importado':
                 # Se o cliente não realiza análise, ele já está "concluído" (Importado e Analisado)
-                if msg == "Cliente nao realiza análise.":
+                if "nao realiza an" in msg or "não realiza an" in msg:
                     stats['imported_analyzed'] += 1
                 else:
                     # Se apenas importado e realiza análise, conta como pendente de análise
                     stats['imported'] += 1
                     stats['imported_not_analyzed'] += 1
-            elif status == 'Importado, falta analisar':
+            elif status_lower == 'importado, falta analisar':
                 stats['imported'] += 1
                 stats['imported_not_analyzed'] += 1
-            elif status in ['Falha', 'Falha na Análise']:
+            elif status_lower in ['falha', 'falha na análise', 'falha na analise']:
                 stats['failure'] += 1
-            elif status == 'Nao Importado':
+            elif status_lower in ['nao importado', 'não importado']:
                 stats['not_imported'] += 1
             else:
                 stats['pending'] += 1

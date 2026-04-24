@@ -488,13 +488,17 @@ export default function CheckImportsPage() {
     if (impugnationStatus === 'Impugnando') return <Scale className="text-yellow-600" size={16} />;
     if (impugnationStatus === 'Não Iniciou') return <Clock className="text-purple-600" size={16} />;
     
-    switch (status) {
-      case "Importado e Analisado": return <CheckCircle2 className="text-green-500" size={16} />;
-      case "Importado, falta analisar": return <AlertCircle className="text-orange-500" size={16} />;
-      case "Falha": return <XCircle className="text-red-500" size={16} />;
-      case "Nao Importado":
-      case "Não Importado": return <XCircle className="text-slate-400" size={16} />;
-      case "Pendente": return <Loader2 className="text-amber-500 animate-spin" size={16} />;
+    const s = (status || "").toLowerCase();
+    
+    switch (s) {
+      case "importado e analisado": return <CheckCircle2 className="text-green-500" size={16} />;
+      case "importado, falta analisar": return <AlertCircle className="text-orange-500" size={16} />;
+      case "falha":
+      case "falha na análise":
+      case "falha na analise": return <XCircle className="text-red-500" size={16} />;
+      case "nao importado":
+      case "não importado": return <XCircle className="text-slate-400" size={16} />;
+      case "pendente": return <Loader2 className="text-amber-500 animate-spin" size={16} />;
       default: return <Activity className="text-slate-300" size={16} />;
     }
   };
@@ -510,9 +514,9 @@ export default function CheckImportsPage() {
       
     if (!filterStatus) return matchesSearch;
     
-    const sABI = (c.abi_status || "");
+    const sABI = (c.abi_status || "").toLowerCase();
     const sIMP = (c.impugnation_status || "");
-    const sMSG = (c.abi_last_message || "");
+    const sMSG = (c.abi_last_message || "").toLowerCase();
     
     // Determina o status exato usando a MESMA lógica mutuamente exclusiva (elif chain) do backend
     let assignedStatus = "Pendente";
@@ -523,19 +527,19 @@ export default function CheckImportsPage() {
       assignedStatus = "Impugnando";
     } else if (sIMP === 'Não Iniciou' || sIMP === 'Nao Iniciou') {
       assignedStatus = "Não Inic. Impug.";
-    } else if (sABI === 'Importado e Analisado') {
+    } else if (sABI === 'importado e analisado') {
       assignedStatus = "Analisados";
-    } else if (sABI === 'Importado') {
+    } else if (sABI === 'importado') {
       if (sMSG.includes("nao realiza an") || sMSG.includes("não realiza an")) {
         assignedStatus = "Analisados";
       } else {
         assignedStatus = "Falta Analisar";
       }
-    } else if (sABI === 'Importado, falta analisar') {
+    } else if (sABI === 'importado, falta analisar') {
       assignedStatus = "Falta Analisar";
-    } else if (sABI === 'Falha' || sABI === 'Falha na Análise') {
+    } else if (sABI === 'falha' || sABI === 'falha na análise' || sABI === 'falha na analise') {
       assignedStatus = "Falhas";
-    } else if (sABI === 'Nao Importado' || sABI === 'Não Importado') {
+    } else if (sABI === 'nao importado' || sABI === 'não importado') {
       assignedStatus = "Não Import.";
     }
     
