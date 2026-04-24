@@ -34,6 +34,7 @@ import api.auth as auth
 import api.database as db
 import api.parser as parser
 from api.automation_api_check import run_batch_api_check, run_single_api_check
+from api.orchestrator import trigger_cloud_run_job
 from fastapi import Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
@@ -97,73 +98,7 @@ app.add_middleware(
 )
 
 
-def trigger_cloud_run_job(task_id: str, background_tasks=None):
-    import requests
-    import os
-    try:
-        project = os.environ.get("GCP_PROJECT", "xmlrsus")
-        region  = os.environ.get("GCP_REGION", "us-central1")
-        
-        # Conexão real na nuvem via Metadata Server
-        metadata_url = "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token?scopes=https://www.googleapis.com/auth/cloud-platform"
-        token_resp = requests.get(metadata_url, headers={"Metadata-Flavor": "Google"}, timeout=2)
-        
-        if token_resp.status_code != 200:
-            raise Exception(f"Falha ao obter token da máquina: {token_resp.text}")
-            
-        access_token = token_resp.json().get("access_token")
 
-        # Chamada REST para disparar o Job
-        url = f"https://{region}-run.googleapis.com/v2/projects/{project}/locations/{region}/jobs/gax-worker-job:run"
-        headers = {
-            "Authorization": f"Bearer {access_token}",
-            "Content-Type": "application/json"
-        }
-        data = {
-            "overrides": {
-                "containerOverrides": [{"env": [{"name": "TASK_ID", "value": task_id}]}]
-            }
-        }
-
-        response = requests.post(url, headers=headers, json=data, timeout=10)
-        
-        if response.status_code == 200:
-            import logging
-            logging.getLogger(__name__).info(f"[TRIGGER] Job disparado com sucesso via Metadata Server para task_id={task_id}")
-        else:
-            raise Exception(f"Erro {response.status_code}: {response.text}")
-
-    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout, requests.exceptions.ConnectTimeout):
-        import logging
-        logging.getLogger(__name__).info(f"[TRIGGER FALLBACK] Modo local (sem metadata server). Delegando ao processamento assíncrono...")
-        if background_tasks:
-            _execute_local_fallback(task_id, background_tasks)
-    except Exception as e:
-        import logging
-        logging.getLogger(__name__).error(f"[TRIGGER] Falha crítica no disparo: {e}")
-        from api import database as db
-        from fastapi import HTTPException
-        db.update_task(task_id, {"status": "failed", "last_log": f"Falha ao enfileirar o job: {str(e)[:120]}"})
-        raise HTTPException(status_code=500, detail=f"Erro ao enfileirar o job: {str(e)[:120]}")
-
-def _execute_local_fallback(task_id: str, background_tasks):
-    from api import database as db
-    task = db.get_task(task_id)
-    if not task: return
-    t_type = task.get("type", "")
-    
-    if "abi_check" in t_type:
-        from api.automation_abi_check import run_batch_check, run_single_check
-        if t_type == "abi_check_single":
-            background_tasks.add_task(run_single_check, task.get("client_id"), task_id)
-        else:
-            background_tasks.add_task(run_batch_check, task_id, task.get("client_ids"))
-    elif "impugnation" in t_type:
-        from api.automation_impugnation_check import run_batch_impugnation_check, run_single_impugnation_check
-        if t_type == "impugnation_check_single":
-            background_tasks.add_task(run_single_impugnation_check, task.get("client_id"), task_id)
-        else:
-            background_tasks.add_task(run_batch_impugnation_check, task_id, task.get("client_ids"))
 
 # @app.middleware("http")
 # async def log_requests(request, call_next):

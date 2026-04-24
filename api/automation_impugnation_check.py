@@ -220,24 +220,30 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
 
             # Selecionar status no dropdown do CubeTI (pula se target_status for None)
             if target_status:
+                # Re-localiza a linha caso o DOM tenha mudado após o salvamento do contato (Kendo UI Re-render)
+                target_row = await try_search(client_name)
+                
                 log_task(f"Atualizando status para '{target_status}'")
                 
-                status_trigger = target_row.locator("button, [role='combobox'], .cursor-pointer, span.inline-flex, span[aria-haspopup='dialog']").filter(
+                # Seletor robusto que ignora se é um span, button ou div, focado no texto de status conhecido
+                status_trigger = target_row.locator("button, [role='combobox'], .cursor-pointer, span.inline-flex, span[aria-haspopup='dialog'], .k-dropdown").filter(
                     has_text=re.compile(r"Não iniciou|Importou|Impugnando|Impugnado|Finalizou|Agendou|Erro|Analisou", re.IGNORECASE)
                 ).first
                 
                 if await status_trigger.count() > 0:
                     await status_trigger.scroll_into_view_if_needed()
-                    await status_trigger.dispatch_event("mousedown")
                     await status_trigger.click(force=True)
                     await asyncio.sleep(2)
                     
-                    option_regex = re.compile(rf"^\s*{re.escape(target_status)}\s*$", re.I)
-                    option = page.locator("button, a, li, [role='menuitem'], [role='option'], .dropdown-item").filter(has_text=option_regex).filter(visible=True).first
+                    # Normaliza o target_status para aceitar tanto vírgula quanto ponto (CubeTI varia)
+                    alt_status = target_status.replace(",", ".") if "," in target_status else target_status.replace(".", ",")
+                    option_regex = re.compile(rf"^\s*({re.escape(target_status)}|{re.escape(alt_status)})\s*$", re.I)
+                    option = page.locator("button, a, li, [role='menuitem'], [role='option'], .dropdown-item, .k-item").filter(has_text=option_regex).filter(visible=True).first
+                    
                     
                     if await option.count() > 0:
-                        await option.click()
-                        log_task(f"Status '{target_status}' selecionado.", "DEBUG")
+                        await option.click(force=True)
+                        log_task(f"Status '{target_status}' selecionado com sucesso.", "SUCCESS")
                         await asyncio.sleep(2)
                     else:
                         # Fallback por texto visível
