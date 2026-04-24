@@ -250,8 +250,9 @@ async def run_abi_check_for_client(client_id, task_id=None, pre_fetched_creds=No
         db.update_client_abi_status(client_id, active_abi, status, message, task_id, is_batch=is_batch_run)
         
         # Sincroniza status final com Gestaocomercial Cubeti APENAS SE mudou E não for erro técnico
-        # Não sincroniza no caso de falhas técnicas (timeout, navegação, etc)
-        is_technical_error = status == 'Falha' and any(kw in message.lower() for kw in ['timeout', 'erro técnico', 'cancelado', 'falha no login', 'navegação'])
+        # Não sincroniza no caso de falhas técnicas (timeout, navegação, bugs de script, etc)
+        technical_keywords = ['timeout', 'erro técnico', 'syntaxerror', 'page.evaluate', 'cancelado', 'falha no login', 'navegação', 'error:']
+        is_technical_error = status == 'Falha' and any(kw in message.lower() for kw in technical_keywords)
         if status != old_status and not is_technical_error:
             await sync_to_cubeti_management(client_name, status, message, task_id)
             if task_id:
@@ -521,8 +522,12 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                 const rows = document.querySelectorAll('table tbody tr');
                 return Array.from(rows).map(row => {
                     const cells = Array.from(row.querySelectorAll('td'));
-                    const lastCellAction = cells[cells.length - 1]?.querySelector('a, button[href], [data-id], .dropdown-item');
-                    const logsLink = row.querySelector("a:has-text('Logs Análise'), a[href*='log-analise']");
+                    // Busca link de logs usando JS nativo (resiliente)
+                    const links = Array.from(row.querySelectorAll('a'));
+                    const logsLink = links.find(a => 
+                        a.innerText.includes('Logs Análise') || 
+                        (a.getAttribute('href') && a.getAttribute('href').includes('log-analise'))
+                    );
                     
                     return {
                         cellCount: cells.length,
