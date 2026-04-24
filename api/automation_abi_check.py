@@ -585,8 +585,11 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
             logs_btn = page.locator(".dropdown-menu a:has-text('Logs Análise'), a:has-text('Logs Análise')").first
             
             try:
-                await logs_btn.wait_for(state="visible", timeout=7000)
-                await logs_btn.click(force=True, timeout=5000)
+                await logs_btn.wait_for(state="attached", timeout=7000)
+                # O dropdown do RSUS é scrollable — o item pode estar fora da viewport visível
+                await logs_btn.scroll_into_view_if_needed()
+                await asyncio.sleep(0.3)
+                await logs_btn.click(timeout=5000)
             except:
                 log_task("Aviso: Cliente não realiza análise ou opção indisponível.", "WARNING")
                 if browser: await browser.close()
