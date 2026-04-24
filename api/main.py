@@ -635,7 +635,7 @@ async def export_impugnations_report(user = Depends(get_current_user)):
         full_client = db.get_client_config(c['id']) if 'impugnation_stats' not in c else c
         stats = full_client.get('impugnation_stats', {})
         
-        last_check = full_client.get('impugnation_last_check')
+        last_check = full_client.get('impugnation_last_check') or full_client.get('abi_last_check')
         dt_str = ""
         if last_check:
             try:

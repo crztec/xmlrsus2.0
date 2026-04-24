@@ -748,41 +748,51 @@ export default function CheckImportsPage() {
               {(!filterStatus || ["Não Inic. Impug.", "Impugnando", "Finalizou", "Analisados"].includes(filterStatus)) && (
                 <button 
                   onClick={() => {
-                    const filteredIds = filteredClients.map(c => c.id);
-                    if (filterStatus) {
-                      const isImpugnContext = ["Não Inic. Impug.", "Impugnando", "Finalizou", "Analisados"].includes(filterStatus);
-                      if (isImpugnContext) startImpugnationCheck(undefined, filteredIds);
-                      else startImpugnationCheck();
+                    // Prioridade: Checkboxes > Filtro atual
+                    const selectedIds = selectedClients.size > 0 
+                      ? Array.from(selectedClients)
+                      : filteredClients.map(c => c.id);
+
+                    if (filterStatus || selectedClients.size > 0) {
+                      const isImpugnContext = ["Não Inic. Impug.", "Impugnando", "Finalizou", "Analisados"].includes(filterStatus || "");
+                      if (isImpugnContext) startImpugnationCheck(undefined, selectedIds);
+                      else startImpugnationCheck(undefined, selectedIds); // Mantém a lógica de lote
                     } else {
                       startImpugnationCheck();
                     }
+                    setSelectedClients(new Set()); // Limpa após disparar
                   }}
                   disabled={!!activeTaskId}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-200 text-amber-700 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-amber-100 transition-all disabled:opacity-40 font-display shadow-sm shrink-0"
                 >
                   <Scale size={12} />
-                  {(filterStatus && ["Não Inic. Impug.", "Impugnando", "Finalizou", "Analisados"].includes(filterStatus)) ? "Checar Selecionados" : "Checar Impugnações"}
+                  {(filterStatus || selectedClients.size > 0) ? "Checar Selecionados" : "Checar Impugnações"}
                 </button>
               )}
               
               <button 
                 onClick={() => {
-                  const filteredIds = filteredClients.map(c => c.id);
+                  // Prioridade: Checkboxes > Filtro atual
+                  const selectedIds = selectedClients.size > 0 
+                    ? Array.from(selectedClients)
+                    : filteredClients.map(c => c.id);
+
                   // Lógica Dinâmica: Se estiver em filtros de Impugnação/Analisados, dispara robô de Impugnação.
                   const isImpugnContext = ["Não Inic. Impug.", "Impugnando", "Finalizou", "Analisados"].includes(filterStatus || "");
                   
-                  if (filterStatus) {
-                    if (isImpugnContext) startImpugnationCheck(undefined, filteredIds);
-                    else startCheck(undefined, filteredIds);
+                  if (filterStatus || selectedClients.size > 0) {
+                    if (isImpugnContext) startImpugnationCheck(undefined, selectedIds);
+                    else startCheck(undefined, selectedIds);
                   } else {
                     startCheck();
                   }
+                  setSelectedClients(new Set()); // Limpa após disparar
                 }}
                 disabled={!!activeTaskId}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-gax-blue text-white rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-gax-blue-hover transition-all shadow-md shadow-gax-blue/20 disabled:opacity-40 font-display shrink-0"
               >
                 <Play size={12} className={activeTaskId ? 'animate-pulse' : ''} />
-                {(filterStatus && !["Não Inic. Impug.", "Impugnando", "Finalizou", "Analisados"].includes(filterStatus)) ? "Checar Selecionados" : "Checar ABIs"}
+                {(filterStatus || selectedClients.size > 0) ? "Checar Selecionados" : "Checar ABIs"}
               </button>
 
               <label className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-white transition-all cursor-pointer font-display shrink-0">
@@ -910,7 +920,11 @@ export default function CheckImportsPage() {
                   placeholder="Nome, status..." 
                   className="w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 py-2 text-xs font-medium text-slate-700 outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all placeholder:text-slate-300"
                   value={search}
-                  onChange={(e) => { setSearch(e.target.value); setFilterStatus(null); }}
+                  onChange={(e) => { 
+                    setSearch(e.target.value); 
+                    setFilterStatus(null); 
+                    setSelectedClients(new Set()); 
+                  }}
                 />
               </div>
             </div>
