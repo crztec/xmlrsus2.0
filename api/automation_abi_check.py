@@ -584,36 +584,22 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
             log_task("Clicando em 'Logs Análise'...", "DEBUG")
             logs_btn = page.locator(".dropdown-menu a:has-text('Logs Análise'), a:has-text('Logs Análise')").first
             
-            # Verifica se o botão existe e é visível rapidamente
             try:
                 await logs_btn.wait_for(state="visible", timeout=7000)
-                # Salva URL atual para detectar navegação
-                url_before = page.url
                 await logs_btn.click(force=True, timeout=5000)
             except:
-                log_task(f"Aviso: Cliente não realiza análise ou opção indisponível.", "WARNING")
+                log_task("Aviso: Cliente não realiza análise ou opção indisponível.", "WARNING")
                 if browser: await browser.close()
                 return "Importado", "Cliente não realiza análise.", None
             
-            # CRÍTICO: 'Logs Análise' NAVEGA para /log-analise/ (página "Análises Realizadas")
-            # Pode abrir na mesma aba ou em uma nova aba (popup) dependendo da operadora/software.
-            log_task("Aguardando navegação ou popup para 'Análises Realizadas'...", "DEBUG")
-            
+            # Aguarda a página "Análises Realizadas" carregar (navega na mesma aba)
             try:
-                # Tenta capturar se abrir em nova aba
-                async with page.expect_popup(timeout=8000) as popup_info:
-                    await logs_btn.click(force=True, timeout=5000)
-                page = await popup_info.value
-                log_task(f"Nova aba/popup detectada para análise: {page.url}", "DEBUG")
+                await page.wait_for_url("**/log-analise/**", timeout=20000)
+                log_task(f"Página de análise carregada: {page.url}", "DEBUG")
             except:
-                # Se não abriu popup, assume que navegou na mesma aba
-                try:
-                    await page.wait_for_url("**/log-analise/**", timeout=20000)
-                    log_task(f"Página de análise carregada (mesma aba): {page.url}", "DEBUG")
-                except:
-                    # Fallback final se o URL não mudou visivelmente
-                    await asyncio.sleep(4)
-                    log_task(f"Página atual após tentativa de Logs: {page.url}", "DEBUG")
+                # Fallback se a URL não mudou visivelmente (AJAX)
+                await asyncio.sleep(4)
+                log_task(f"Página atual após tentativa de Logs: {page.url}", "DEBUG")
             
             # Aguarda a página "Análises Realizadas" carregar completamente
             try:
