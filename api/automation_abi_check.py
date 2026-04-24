@@ -676,17 +676,17 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                     
                     abi_matched_any_row = True
                     result_text = row_data['resultado']
-                    res_lower = result_text.lower()
-                    log_task(f"ABI {row_data['abi']} encontrado na linha {r_idx+1}. Resultado: '{result_text}'", "DEBUG")
+                    row_lower = row_data['fullText'].lower()
+                    log_task(f"ABI {row_data['abi']} encontrado na linha {r_idx+1}. FullText: '{row_data['fullText'][:80]}'", "DEBUG")
                     
-                    if "sucesso" in res_lower:
+                    if re.search(r'\bsucesso\b', row_lower):
                         update_progress(100)
                         log_task(f"Sucesso detectado na análise do ABI {row_data['abi']}", "SUCCESS")
                         await browser.close()
                         return "Importado e Analisado", "Análise feita com sucesso.", None
                     
-                    if "falha" in res_lower or "erro" in res_lower:
-                        log_task(f"Evento '{result_text}' detectado para ABI {row_data['abi']}. Iniciando Deep Dive...", "INFO")
+                    if re.search(r'\b(falha|erro)\b', row_lower):
+                        log_task(f"Palavra 'Erro' ou 'Falha' detectada no ABI {row_data['abi']}. Iniciando Deep Dive...", "INFO")
                         # Obtém o locator real da linha para interagir com o Deep Dive
                         row = page.locator("table tbody tr").nth(r_idx)
                         try:
@@ -866,12 +866,7 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                         await browser.close()
                         return "Falha na Análise", f"Erro: {row_data['fullText'][:80]}", None
             
-            # Se chegou aqui, não achou Sucesso nem Falha na segunda coluna de forma explícita
-            # FALLBACK FINAL: Se o ABI foi encontrado na tela de logs de análises, infere-se que foi processado
-            if abi_matched_any_row:
-                log_task("ABI localizado nos logs, mas sem status explícito de Sucesso/Falha. Assumindo Sucesso por padrão.", "SUCCESS")
-                await browser.close()
-                return "Importado e Analisado", "Análise concluída (status deduzido).", None
+            # Se chegou aqui, não achou Sucesso nem Falha de forma explícita
             
             log_task("Conclusão da análise não localizada na grid.", "WARNING")
             await browser.close()
