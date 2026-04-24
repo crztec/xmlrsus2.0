@@ -64,11 +64,11 @@ def _execute_local_fallback(task_id: str, background_tasks):
     t_type = task.get("type", "")
     
     if "abi_check" in t_type:
-        from api.automation_abi_check import run_batch_check, run_single_check
+        from api.automation_abi_check import run_batch_abi_check, run_single_abi_check
         if t_type == "abi_check_single":
-            background_tasks.add_task(run_single_check, task.get("client_id"), task_id)
+            background_tasks.add_task(run_single_abi_check, task.get("client_id"), task_id)
         else:
-            background_tasks.add_task(run_batch_check, task_id, task.get("client_ids"))
+            background_tasks.add_task(run_batch_abi_check, task_id, task.get("client_ids"))
     elif "impugnation" in t_type:
         from api.automation_impugnation_check import run_batch_impugnation_check, run_single_impugnation_check
         if t_type == "impugnation_check_single":
