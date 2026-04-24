@@ -160,65 +160,98 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
                 
             log_task("Operadora localizada!")
             
-            if contact_message:
-                log_task(f"Registrando contato: {contact_message}...")
-                # Seletores ultra-robustos para o botão + (Lida com variações de DOM no CubeTI)
-                possible_btn_selectors = [
-                    "button[title*='Registrar']",
-                    "a[title*='Registrar']",
-                    "button[data-original-title*='Registrar']",
-                    "a[data-original-title*='Registrar']",
-                    "a.btn-success i.fa-plus",
-                    "button.btn-success i.fa-plus",
-                    ".btn-success"
-                ]
-                
-                btn_add = None
-                for btn_sel in possible_btn_selectors:
-                    try:
-                        # Primeiro tenta restringir à linha do cliente
-                        sel = f"tr:has-text('{client_name}') {btn_sel}"
-                        btn_add = page.locator(sel).first
-                        if await btn_add.count() > 0 and await btn_add.is_visible():
-                            log_task(f"Botão '+' localizado via seletor específico: {sel}", "DEBUG")
-                            break
-                    except: pass
+            # --- INTELIGÊNCIA DE SINCRONIZAÇÃO (Ler estado atual para evitar redundância) ---
+            current_row_data = await target_row.evaluate("""(row) => {
+                const cells = Array.from(row.querySelectorAll('td'));
+                return {
+                    status: cells[2] ? cells[2].innerText.trim() : "",
+                    andamento: cells[5] ? cells[5].innerText.trim() : ""
+                };
+            }""")
+            current_status = current_row_data.get('status', '')
+            current_andamento = current_row_data.get('andamento', '')
+            log_task(f"Estado atual no CubeTI: Status='{current_status}', Último Andamento='{current_andamento}'", "DEBUG")
 
-                if not btn_add or await btn_add.count() == 0 or not await btn_add.is_visible():
-                    log_task("Busca secundária por botão '+' em andamento...", "WARNING")
-                    # Fallback genérico na página inteira
+            # --- DECISÃO: REGISTRAR CONTATO ---
+            if contact_message:
+                # Se a mensagem que vamos enviar (ou similar) já está no "Último Andamento", pulamos.
+                if contact_message.lower() in current_andamento.lower():
+                    log_task(f"Contato '{contact_message}' já registrado no CubeTI. Pulando registro (+).", "SUCCESS")
+                else:
+                    log_task(f"Registrando contato: {contact_message}...")
+                    # Seletores ultra-robustos para o botão + (Lida com variações de DOM no CubeTI)
+                    possible_btn_selectors = [
+                        "button[title*='Registrar']",
+                        "a[title*='Registrar']",
+                        "button[data-original-title*='Registrar']",
+                        "a[data-original-title*='Registrar']",
+                        "a.btn-success i.fa-plus",
+                        "button.btn-success i.fa-plus",
+                        ".btn-success"
+                    ]
+                    
+                    btn_add = None
                     for btn_sel in possible_btn_selectors:
                         try:
-                            btn_add = page.locator(btn_sel).filter(visible=True).first
-                            if await btn_add.count() > 0:
-                                log_task(f"Botão '+' encontrado no fallback via: {btn_sel}", "WARNING")
+                            # Primeiro tenta restringir à linha do cliente
+                            sel = f"tr:has-text('{client_name}') {btn_sel}"
+                            btn_add = page.locator(sel).first
+                            if await btn_add.count() > 0 and await btn_add.is_visible():
+                                log_task(f"Botão '+' localizado via seletor específico: {sel}", "DEBUG")
                                 break
                         except: pass
-                
 
-                if btn_add and await btn_add.count() > 0:
-                    await btn_add.click(force=True)
-                    await asyncio.sleep(2)
+                    if not btn_add or await btn_add.count() == 0 or not await btn_add.is_visible():
+                        log_task("Busca secundária por botão '+' em andamento...", "WARNING")
+                        # Fallback genérico na página inteira
+                        for btn_sel in possible_btn_selectors:
+                            try:
+                                btn_add = page.locator(btn_sel).filter(visible=True).first
+                                if await btn_add.count() > 0:
+                                    log_task(f"Botão '+' encontrado no fallback via: {btn_sel}", "WARNING")
+                                    break
+                            except: pass
                     
-                    modal_area = page.locator("[role='dialog'], .modal-content, [role='document']").first
-                    if await modal_area.count() == 0:
-                        modal_area = page.locator("body")
-                        
-                    textbox = modal_area.locator("textarea, input:not([type='hidden']):not([type='checkbox']):not([type='radio'])").filter(visible=True).first
-                    if await textbox.count() > 0:
-                        await textbox.fill("")
-                        await textbox.fill(contact_message)
-                        await asyncio.sleep(1)
 
-                    save_btn = page.locator("button:has-text('Salvar'), button:has-text('Confirmar'), .btn-primary, button[type='submit']").filter(visible=True).first
-                    if await save_btn.count() > 0:
-                        await save_btn.click()
+                    if btn_add and await btn_add.count() > 0:
+                        await btn_add.click(force=True)
                         await asyncio.sleep(2)
-                    log_task("Registro de contato processado.")
-                else:
-                    log_task("Botão '+' não encontrado.", "WARNING")
+                        
+                        modal_area = page.locator("[role='dialog'], .modal-content, [role='document']").first
+                        if await modal_area.count() == 0:
+                            modal_area = page.locator("body")
+                            
+                        textbox = modal_area.locator("textarea, input:not([type='hidden']):not([type='checkbox']):not([type='radio'])").filter(visible=True).first
+                        if await textbox.count() > 0:
+                            await textbox.fill("")
+                            await textbox.fill(contact_message)
+                            await asyncio.sleep(1)
 
-            # Selecionar status no dropdown do CubeTI (pula se target_status for None)
+                        save_btn = page.locator("button:has-text('Salvar'), button:has-text('Confirmar'), .btn-primary, button[type='submit']").filter(visible=True).first
+                        if await save_btn.count() > 0:
+                            await save_btn.click()
+                            await asyncio.sleep(2)
+                        log_task("Registro de contato processado.")
+                    else:
+                        log_task("Botão '+' não encontrado.", "WARNING")
+
+            # --- DECISÃO: ATUALIZAR STATUS ---
+            # Ordem de avanço: Não iniciou < Importou o ABI < Importou e Analisou < Impugnando o ABI < Finalizou o ABI
+            workflow_order = ["Não iniciou", "Importou o ABI", "Importou e Analisou", "Impugnando o ABI", "Finalizou o ABI"]
+            
+            def get_rank(s):
+                for idx, val in enumerate(workflow_order):
+                    if val.lower() in s.lower(): return idx
+                return -1
+
+            target_rank = get_rank(target_status) if target_status else -1
+            current_rank = get_rank(current_status)
+
+            if target_status and target_rank != -1 and current_rank >= target_rank:
+                log_task(f"Status atual '{current_status}' já atende ou supera '{target_status}'. Pulando alteração.", "SUCCESS")
+                target_status = None # Aborta mudança
+            
+            # Selecionar status no dropdown do CubeTI (pula se target_status for None após a decisão)
             if target_status:
                 # Re-localiza a linha caso o DOM tenha mudado após o salvamento do contato (Kendo UI Re-render)
                 target_row = await try_search(client_name)
@@ -260,7 +293,7 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
                 else:
                     log_task("Dropdown de status não encontrado.", "WARNING")
             else:
-                log_task("Status mantido (sem alteração no dropdown).")
+                log_task("Status mantido (pulado por inteligência ou sem target).")
 
 
             await browser.close()
