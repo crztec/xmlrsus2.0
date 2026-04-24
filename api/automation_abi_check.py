@@ -594,17 +594,25 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
             try:
                 await logs_btn.wait_for(state="visible", timeout=5000)
                 await logs_btn.click(force=True, timeout=5000)
-                # Aguarda navegação
-                await page.wait_for_url("**/log-analise/**", timeout=12000)
-                log_task(f"Logs carregados via clique: {page.url}", "DEBUG")
+                click_success = True
             except:
+                click_success = False
+                
+            if not click_success:
                 if direct_logs_url:
-                    log_task(f"Clique falhou ou demorou. Forçando navegação direta: {direct_logs_url}", "WARNING")
+                    log_task(f"Clique falhou. Forçando navegação direta: {direct_logs_url}", "WARNING")
                     await page.goto(direct_logs_url, wait_until="domcontentloaded", timeout=30000)
                 else:
                     log_task("Não foi possível navegar para Logs Análise via clique ou URL direta.", "ERROR")
                     if browser: await browser.close()
                     return "Importado", "Página de logs não acessada.", None
+            else:
+                # Aguarda navegação se houver, ou aceita que foi AJAX (timeout)
+                try:
+                    await page.wait_for_url("**/log-analise/**", timeout=8000)
+                    log_task(f"Página recarregada via navegação: {page.url}", "DEBUG")
+                except:
+                    log_task("URL não mudou significativamente após clique. Possível carregamento via AJAX.", "DEBUG")
             
             # Aguarda a página "Análises Realizadas" carregar completamente
             try:
