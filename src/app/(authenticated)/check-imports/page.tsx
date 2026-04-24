@@ -529,10 +529,10 @@ export default function CheckImportsPage() {
       if (sMSG.includes("nao realiza an") || sMSG.includes("não realiza an")) {
         assignedStatus = "Analisados";
       } else {
-        assignedStatus = "Importados"; // Conta como importado mas não analisado (Falta analisar entra aqui ou no de baixo dependendo do card)
+        assignedStatus = "Falta Analisar";
       }
     } else if (sABI === 'Importado, falta analisar') {
-      assignedStatus = "Falta Analisar"; // Porém o card "Importados" deve incluir os que faltam analisar
+      assignedStatus = "Falta Analisar";
     } else if (sABI === 'Falha' || sABI === 'Falha na Análise') {
       assignedStatus = "Falhas";
     } else if (sABI === 'Nao Importado' || sABI === 'Não Importado') {
@@ -542,7 +542,8 @@ export default function CheckImportsPage() {
     // Mapeamento extra para cobrir agrupamentos dos cards:
     if (filterStatus === "Importados") {
       // Importados no backend soma "Importado" e "Importado, falta analisar" (se não for Analisado)
-      return matchesSearch && (assignedStatus === "Importados" || assignedStatus === "Falta Analisar");
+      // Ambos agora são mapeados internamente como "Falta Analisar"
+      return matchesSearch && assignedStatus === "Falta Analisar";
     }
     
     return matchesSearch && (assignedStatus === filterStatus);
