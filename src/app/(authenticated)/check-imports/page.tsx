@@ -713,21 +713,26 @@ export default function CheckImportsPage() {
               <button 
                 onClick={() => {
                   const filteredIds = filteredClients.map(c => c.id);
-                  if (filterStatus) startImpugnationCheck(undefined, filteredIds);
-                  else startImpugnationCheck();
+                  if (filterStatus) {
+                    const isImpugnContext = ["Não Inic. Impug.", "Impugnando", "Finalizou", "Analisados"].includes(filterStatus);
+                    if (isImpugnContext) startImpugnationCheck(undefined, filteredIds);
+                    else startImpugnationCheck();
+                  } else {
+                    startImpugnationCheck();
+                  }
                 }}
                 disabled={!!activeTaskId}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-200 text-amber-700 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-amber-100 transition-all disabled:opacity-40 font-display shadow-sm shrink-0"
               >
                 <Scale size={12} />
-                {(filterStatus === "Não Inic. Impug." || filterStatus === "Impugnando" || filterStatus === "Finalizou") ? "Checar Selecionados" : "Checar Impugnações"}
+                {(filterStatus && ["Não Inic. Impug.", "Impugnando", "Finalizou", "Analisados"].includes(filterStatus)) ? "Checar Selecionados" : "Checar Impugnações"}
               </button>
               
               <button 
                 onClick={() => {
                   const filteredIds = filteredClients.map(c => c.id);
-                  // Lógica Dinâmica: Se estiver em filtros de Impugnação, dispara robô de Impugnação.
-                  const isImpugnContext = ["Não Inic. Impug.", "Impugnando", "Finalizou"].includes(filterStatus || "");
+                  // Lógica Dinâmica: Se estiver em filtros de Impugnação/Analisados, dispara robô de Impugnação.
+                  const isImpugnContext = ["Não Inic. Impug.", "Impugnando", "Finalizou", "Analisados"].includes(filterStatus || "");
                   
                   if (filterStatus) {
                     if (isImpugnContext) startImpugnationCheck(undefined, filteredIds);
@@ -740,7 +745,7 @@ export default function CheckImportsPage() {
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-gax-blue text-white rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-gax-blue-hover transition-all shadow-md shadow-gax-blue/20 disabled:opacity-40 font-display shrink-0"
               >
                 <Play size={12} className={activeTaskId ? 'animate-pulse' : ''} />
-                {(filterStatus && !["Não Inic. Impug.", "Impugnando", "Finalizou"].includes(filterStatus)) ? "Checar Selecionados" : "Checar ABIs"}
+                {(filterStatus && !["Não Inic. Impug.", "Impugnando", "Finalizou", "Analisados"].includes(filterStatus)) ? "Checar Selecionados" : "Checar ABIs"}
               </button>
 
               <label className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-white transition-all cursor-pointer font-display shrink-0">
@@ -1258,10 +1263,18 @@ export default function CheckImportsPage() {
                 onClick={() => {
                   if (window.confirm(`Deseja iniciar a checagem em massa para ${selectedClients.size} operadoras?`)) {
                     const ids = Array.from(selectedClients);
-                    // Lógica Dinâmica no Footer: Detecta contexto pelo filtro atual
-                    const isImpugnContext = ["Não Inic. Impug.", "Impugnando", "Finalizou"].includes(filterStatus || "");
+                    const selectedClientsArr = clients.filter(c => selectedClients.has(c.id));
                     
-                    if (isImpugnContext) {
+                    // Avalia todas as operadoras selecionadas pra ver se já passaram da primeira fase
+                    const allReadyForImpugnation = selectedClientsArr.every(c => {
+                      const sABI = c.abi_status || "";
+                      const sIMP = c.impugnation_status || "";
+                      return ["Importado e Analisado"].includes(sABI) || ["Não Iniciou", "Nao Iniciou", "Impugnando", "Finalizou"].includes(sIMP);
+                    });
+                    
+                    const isImpugnContext = ["Não Inic. Impug.", "Impugnando", "Finalizou", "Analisados"].includes(filterStatus || "");
+                    
+                    if (allReadyForImpugnation || isImpugnContext) {
                       startImpugnationCheck(undefined, ids);
                     } else {
                       startCheck(undefined, ids);
