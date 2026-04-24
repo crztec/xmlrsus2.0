@@ -322,6 +322,16 @@ export default function CheckImportsPage() {
   };
 
   const startCheck = async (clientId?: string, clientIds?: string[]) => {
+    // Reset modal title for new check
+    if (clientIds && clientIds.length > 1) {
+      setModalTitle(`Checagem em Lote: ${clientIds.length} operadoras`);
+    } else if (clientId) {
+      const c = clients.find(cl => cl.id === clientId);
+      setModalTitle(`Checagem ABI: ${c?.name || 'Operadora'}`);
+    } else {
+      setModalTitle("Checagem de ABIs");
+    }
+
     try {
       const res = await apiClient("/api/start-abi-check", {
         method: "POST",
@@ -395,6 +405,16 @@ export default function CheckImportsPage() {
   };
 
   const startImpugnationCheck = async (clientId?: string, clientIds?: string[]) => {
+    // Reset modal title for new check
+    if (clientIds && clientIds.length > 1) {
+      setModalTitle(`Checagem em Lote (Impugnação): ${clientIds.length} operadoras`);
+    } else if (clientId) {
+      const c = clients.find(cl => cl.id === clientId);
+      setModalTitle(`Log Impugnação: ${c?.name || 'Operadora'}`);
+    } else {
+      setModalTitle("Checagem de Impugnações");
+    }
+
     try {
       const res = await apiClient("/api/start-impugnation-check", {
         method: "POST",
@@ -680,7 +700,17 @@ export default function CheckImportsPage() {
 
             <div className="flex items-center gap-2 shrink-0">
               <button 
-                onClick={() => { setViewingTaskId(activeTaskId); setShowLogsModal(true); }}
+                onClick={() => { 
+                  // Garante título correto baseado no status da tarefa atual
+                  if (currentTaskStatus?.total > 1) {
+                    setModalTitle(currentTaskStatus?.type === 'impugnation' ? "Checagem em Lote (Impugnação)" : "Checagem em Lote (ABI)");
+                  } else if (currentTaskStatus?.current_client) {
+                    setModalTitle(`${currentTaskStatus?.type === 'impugnation' ? 'Log Impugnação' : 'Log ABI'}: ${currentTaskStatus.current_client}`);
+                  }
+                  
+                  setViewingTaskId(activeTaskId); 
+                  setShowLogsModal(true); 
+                }}
                 className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 transition-colors"
                 title="Abrir Console"
               >
