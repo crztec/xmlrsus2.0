@@ -521,11 +521,15 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                 const rows = document.querySelectorAll('table tbody tr');
                 return Array.from(rows).map(row => {
                     const cells = Array.from(row.querySelectorAll('td'));
+                    const lastCellAction = cells[cells.length - 1]?.querySelector('a, button[href], [data-id], .dropdown-item');
+                    const logsLink = row.querySelector("a:has-text('Logs Análise'), a[href*='log-analise']");
+                    
                     return {
                         cellCount: cells.length,
                         firstCell: cells[0] ? cells[0].innerText.trim() : '',
                         secondCell: cells[1] ? cells[1].innerText.trim() : '',
-                        fullText: row.innerText.trim()
+                        fullText: row.innerText.trim(),
+                        logsHref: logsLink ? logsLink.getAttribute('href') : null
                     };
                 });
             }""")
@@ -572,39 +576,30 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
             await hamburger.click(force=True)
             await asyncio.sleep(1.5)
             
+            # Tenta clicar no botão de Logs
             log_task("Clicando em 'Logs Análise'...", "DEBUG")
-            logs_btn = page.locator(".dropdown-menu a:has-text('Logs Análise'), a:has-text('Logs Análise')").first
+            logs_btn = page.locator(".dropdown-menu a:has-text('Logs Análise'), a:has-text('Logs Análise'), .fa-list-alt").first
             
-            # Verifica se o botão existe e é visível rapidamente
+            # Tenta extrair URL direto se disponível nos dados da grid
+            direct_logs_url = None
+            if grid_data[target_row_index].get('logsHref'):
+                h = grid_data[target_row_index]['logsHref']
+                direct_logs_url = f"{base_url.rstrip('/')}/{h.lstrip('/')}" if not h.startswith('http') else h
+
             try:
-                await logs_btn.wait_for(state="visible", timeout=7000)
-                # Salva URL atual para detectar navegação
-                url_before = page.url
+                await logs_btn.wait_for(state="visible", timeout=5000)
                 await logs_btn.click(force=True, timeout=5000)
+                # Aguarda navegação
+                await page.wait_for_url("**/log-analise/**", timeout=12000)
+                log_task(f"Logs carregados via clique: {page.url}", "DEBUG")
             except:
-                log_task(f"Aviso: Cliente não realiza análise ou opção indisponível.", "WARNING")
-                if browser: await browser.close()
-                return "Importado", "Cliente não realiza análise.", None
-            
-            # CRÍTICO: 'Logs Análise' NAVEGA para /log-analise/ (página "Análises Realizadas")
-            # Pode abrir na mesma aba ou em uma nova aba (popup) dependendo da operadora/software.
-            log_task("Aguardando navegação ou popup para 'Análises Realizadas'...", "DEBUG")
-            
-            try:
-                # Tenta capturar se abrir em nova aba
-                async with page.expect_popup(timeout=8000) as popup_info:
-                    await logs_btn.click(force=True, timeout=5000)
-                page = await popup_info.value
-                log_task(f"Nova aba/popup detectada para análise: {page.url}", "DEBUG")
-            except:
-                # Se não abriu popup, assume que navegou na mesma aba
-                try:
-                    await page.wait_for_url("**/log-analise/**", timeout=20000)
-                    log_task(f"Página de análise carregada (mesma aba): {page.url}", "DEBUG")
-                except:
-                    # Fallback final se o URL não mudou visivelmente
-                    await asyncio.sleep(4)
-                    log_task(f"Página atual após tentativa de Logs: {page.url}", "DEBUG")
+                if direct_logs_url:
+                    log_task(f"Clique falhou ou demorou. Forçando navegação direta: {direct_logs_url}", "WARNING")
+                    await page.goto(direct_logs_url, wait_until="domcontentloaded", timeout=30000)
+                else:
+                    log_task("Não foi possível navegar para Logs Análise via clique ou URL direta.", "ERROR")
+                    if browser: await browser.close()
+                    return "Importado", "Página de logs não acessada.", None
             
             # Aguarda a página "Análises Realizadas" carregar completamente
             try:
@@ -843,7 +838,7 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                         return "Falha na Análise", f"Erro: {row_data['fullText'][:80]}", None
             
             # Se chegou aqui, não achou Sucesso nem Falha explícita nas primeiras linhas
-            log_task(f"Conclusão da análise não localizada na grid (verificadas: {len(analysis_data)}).", "WARNING")
+            log_task("Conclusão da análise não localizada na grid.", "WARNING")
             await browser.close()
             return "Importado, falta analisar", "Arquivo importado, análise não concluída ou não localizada.", None
 
