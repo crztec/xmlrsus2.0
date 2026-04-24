@@ -710,23 +710,25 @@ export default function CheckImportsPage() {
                 <RefreshCw size={14} />
               </button>
               
-              <button 
-                onClick={() => {
-                  const filteredIds = filteredClients.map(c => c.id);
-                  if (filterStatus) {
-                    const isImpugnContext = ["Não Inic. Impug.", "Impugnando", "Finalizou", "Analisados"].includes(filterStatus);
-                    if (isImpugnContext) startImpugnationCheck(undefined, filteredIds);
-                    else startImpugnationCheck();
-                  } else {
-                    startImpugnationCheck();
-                  }
-                }}
-                disabled={!!activeTaskId}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-200 text-amber-700 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-amber-100 transition-all disabled:opacity-40 font-display shadow-sm shrink-0"
-              >
-                <Scale size={12} />
-                {(filterStatus && ["Não Inic. Impug.", "Impugnando", "Finalizou", "Analisados"].includes(filterStatus)) ? "Checar Selecionados" : "Checar Impugnações"}
-              </button>
+              {(!filterStatus || ["Não Inic. Impug.", "Impugnando", "Finalizou", "Analisados"].includes(filterStatus)) && (
+                <button 
+                  onClick={() => {
+                    const filteredIds = filteredClients.map(c => c.id);
+                    if (filterStatus) {
+                      const isImpugnContext = ["Não Inic. Impug.", "Impugnando", "Finalizou", "Analisados"].includes(filterStatus);
+                      if (isImpugnContext) startImpugnationCheck(undefined, filteredIds);
+                      else startImpugnationCheck();
+                    } else {
+                      startImpugnationCheck();
+                    }
+                  }}
+                  disabled={!!activeTaskId}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-200 text-amber-700 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-amber-100 transition-all disabled:opacity-40 font-display shadow-sm shrink-0"
+                >
+                  <Scale size={12} />
+                  {(filterStatus && ["Não Inic. Impug.", "Impugnando", "Finalizou", "Analisados"].includes(filterStatus)) ? "Checar Selecionados" : "Checar Impugnações"}
+                </button>
+              )}
               
               <button 
                 onClick={() => {
