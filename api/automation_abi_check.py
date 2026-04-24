@@ -587,19 +587,24 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                 return "Importado", "Cliente não realiza análise.", None
             
             # CRÍTICO: 'Logs Análise' NAVEGA para /log-analise/ (página "Análises Realizadas")
-            # Precisamos aguardar a navegação completar antes de ler qualquer tabela
-            log_task("Aguardando navegação para 'Análises Realizadas'...", "DEBUG")
+            # Pode abrir na mesma aba ou em uma nova aba (popup) dependendo da operadora/software.
+            log_task("Aguardando navegação ou popup para 'Análises Realizadas'...", "DEBUG")
+            
             try:
-                # Espera a URL mudar (sai da /importacao para /log-analise)
-                await page.wait_for_url("**/log-analise/**", timeout=30000)
-                log_task(f"Navegação detectada: {page.url}", "DEBUG")
+                # Tenta capturar se abrir em nova aba
+                async with page.expect_popup(timeout=8000) as popup_info:
+                    await logs_btn.click(force=True, timeout=5000)
+                page = await popup_info.value
+                log_task(f"Nova aba/popup detectada para análise: {page.url}", "DEBUG")
             except:
-                # Fallback: se wait_for_url falhar, aguarda qualquer mudança de URL
-                await asyncio.sleep(3)
-                if page.url != url_before:
-                    log_task(f"URL mudou para: {page.url}", "DEBUG")
-                else:
-                    log_task(f"URL não mudou ({page.url}). Página pode ter carregado via AJAX.", "WARNING")
+                # Se não abriu popup, assume que navegou na mesma aba
+                try:
+                    await page.wait_for_url("**/log-analise/**", timeout=20000)
+                    log_task(f"Página de análise carregada (mesma aba): {page.url}", "DEBUG")
+                except:
+                    # Fallback final se o URL não mudou visivelmente
+                    await asyncio.sleep(4)
+                    log_task(f"Página atual após tentativa de Logs: {page.url}", "DEBUG")
             
             # Aguarda a página "Análises Realizadas" carregar completamente
             try:
@@ -838,7 +843,7 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                         return "Falha na Análise", f"Erro: {row_data['fullText'][:80]}", None
             
             # Se chegou aqui, não achou Sucesso nem Falha explícita nas primeiras linhas
-            log_task(f"Resultado final da análise não localizado. Linhas verificadas: {len(analysis_data)}, ABI match: {abi_matched_any_row}", "WARNING")
+            log_task(f"Conclusão da análise não localizada na grid (verificadas: {len(analysis_data)}).", "WARNING")
             await browser.close()
             return "Importado, falta analisar", "Arquivo importado, análise não concluída ou não localizada.", None
 

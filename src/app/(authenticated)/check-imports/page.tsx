@@ -1024,14 +1024,16 @@ export default function CheckImportsPage() {
                               >
                                 <Play size={14} /> Checar Importação
                               </button>
-                              <button 
-                                onClick={() => { startImpugnationCheck(client.id); setOpenMenuId(null); }}
-                                disabled={!!activeTaskId || !['Importado e Analisado'].includes(client.abi_status || '') && !['Impugnando', 'Finalizou', 'Não Iniciou'].includes(client.impugnation_status || '')}
-                                className="w-full flex items-center gap-2.5 px-4 py-3 text-[11px] font-bold text-amber-700 hover:bg-amber-50 transition-colors disabled:opacity-30 border-t border-slate-50"
-                                title={client.abi_status !== 'Importado e Analisado' ? 'Disponível apenas para clientes que já analisaram o ABI' : ''}
-                              >
-                                <Scale size={14} /> Checar Impugnações
-                              </button>
+                              {((client.abi_status === 'Importado e Analisado') || ['Impugnando', 'Finalizou', 'Não Iniciou'].includes(client.impugnation_status || '')) && (
+                                <button 
+                                  onClick={() => { startImpugnationCheck(client.id); setOpenMenuId(null); }}
+                                  disabled={!!activeTaskId}
+                                  className="w-full flex items-center gap-2.5 px-4 py-3 text-[11px] font-bold text-amber-700 hover:bg-amber-50 transition-colors disabled:opacity-30 border-t border-slate-50"
+                                  title={client.abi_status !== 'Importado e Analisado' ? 'Disponível apenas para clientes que já analisaram o ABI' : ''}
+                                >
+                                  <Scale size={14} /> Checar Impugnações
+                                </button>
+                              )}
                               
                               {client.abi_last_task_id ? (
                                 <button 
