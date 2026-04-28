@@ -1,7 +1,9 @@
 [tool.pyright]
-include = ["api", "scripts", "cleanup_tasks.py", "test_audit.py"]
+executionEnvironments = [
+  { root = "." }
+]
+include = ["api", "scripts"]
 extraPaths = ["."]
-reportMissingImports = true
 typeCheckingMode = "basic"
 
 [tool.ruff]

@@ -1,10 +1,15 @@
 {
   "executionEnvironments": [
     {
-      "root": ".",
-      "extraPaths": ["."]
+      "root": "."
     }
   ],
-  "include": ["api"],
+  "include": [
+    "api",
+    "scripts"
+  ],
+  "extraPaths": [
+    "."
+  ],
   "typeCheckingMode": "basic"
 }
