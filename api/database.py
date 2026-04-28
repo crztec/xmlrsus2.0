@@ -1484,10 +1484,18 @@ def update_client_abi_status(client_id, abi, status, message, task_id=None, is_b
             'abi_last_check': firestore.SERVER_TIMESTAMP
         }
         
-        # Atualiza o abi_last_task_id SEMPRE para ser o mais recente
         if task_id:
             update_data['abi_last_task_id'] = task_id
-            
+
+        # Reset inteligente de impugnação se o número do ABI mudar
+        client_doc = client_ref.get()
+        if client_doc.exists:
+            current_abi_in_db = client_doc.to_dict().get('abi_current')
+            if current_abi_in_db and current_abi_in_db != abi:
+                update_data['impugnation_status'] = 'Não Iniciou'
+                update_data['impugnation_stats'] = {"total": 0, "impugnados": 0, "nao_impugnando": 0, "aptos": 0, "aguardando": 0}
+                update_data['impugnation_last_message'] = f"ABI mudou de {current_abi_in_db} para {abi}. Resetando status para nova checagem."
+        
         client_ref.update(update_data)
         
         # Histórico de ABIs

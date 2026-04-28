@@ -7,7 +7,7 @@ import re
 from datetime import datetime
 from playwright.async_api import async_playwright
 import api.database as db
-from api.utils import send_whatsapp_alert
+from api.utils import send_whatsapp_alert, launch_browser_robust
 
 logger = logging.getLogger(__name__)
 
@@ -441,9 +441,10 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
                 "--headless=new", "--no-sandbox", "--disable-setuid-sandbox", 
                 "--disable-dev-shm-usage",
                 "--disable-gpu", "--window-size=1920,1080",
-                "--disable-features=SameSiteByDefaultCookies,CookiesWithoutSameSiteMustBeSecure",
+                "--disable-features=SameSiteByDefaultCookies,CookiesWithoutSameSiteMustBeSecure,dbus",
                 "--disable-web-security", "--allow-running-insecure-content",
-                "--ignore-certificate-errors", "--disable-blink-features=AutomationControlled"
+                "--ignore-certificate-errors", "--disable-blink-features=AutomationControlled",
+                "--disable-software-rasterizer"
             ]
 
             if pre_fetched_creds:
@@ -454,7 +455,7 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
             if not creds or not creds.get('username'):
                 return "Erro", f"Credenciais '{cred_type}' não encontradas."
 
-            browser = await p.chromium.launch(headless=True, args=browser_args)
+            browser = await launch_browser_robust(p, browser_args, task_id=task_id)
             update_progress(15)
 
             usuario = creds['username']
@@ -822,10 +823,12 @@ async def run_batch_impugnation_check(task_id, client_ids=None):
         if client_ids:
             clients = [c for c in all_clients if c['id'] in client_ids]
         else:
-            # Seleciona TODAS que estão como 'Importado e Analisado' (os 39 que o usuário mencionou)
+            # Seleciona apenas quem já analisou o ABI E não terminou a impugnação
+            # (Mantém: Não Iniciou, Impugnando, Erro, ou sem status definido)
             clients = [
                 c for c in all_clients 
                 if c.get('abi_status') == 'Importado e Analisado'
+                and c.get('impugnation_status') not in ['Finalizou', 'Sem Impugnação']
             ]
         
         total = len(clients)

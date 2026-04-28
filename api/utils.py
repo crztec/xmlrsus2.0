@@ -54,3 +54,20 @@ async def send_whatsapp_alert(text_message: str, task_id: str = None, target_num
         except Exception as e:
             logger.error(f"Erro WhatsApp para {jid}: {str(e)}")
             if task_id: db.add_log(task_id, f"Erro WhatsApp {jid}: {str(e)}", "ERROR")
+
+async def launch_browser_robust(playwright_instance, browser_args, retries=3, task_id=None):
+    """
+    Tenta lançar o navegador Chromium com retries em caso de crash (TargetClosedError/SIGSEGV).
+    """
+    import api.database as db
+    last_err = None
+    for i in range(retries):
+        try:
+            return await playwright_instance.chromium.launch(headless=True, args=browser_args)
+        except Exception as e:
+            last_err = e
+            logger.warning(f"Falha na tentativa {i+1} de abrir o navegador: {str(e)}")
+            if task_id:
+                db.add_log(task_id, f"⚠️ Falha ao abrir navegador (tentativa {i+1}): {str(e)}", "WARNING")
+            await asyncio.sleep(2 * (i + 1))
+    raise last_err

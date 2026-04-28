@@ -6,7 +6,7 @@ import base64
 from datetime import datetime
 from playwright.async_api import async_playwright
 import api.database as db
-from api.utils import send_whatsapp_alert
+from api.utils import send_whatsapp_alert, launch_browser_robust
 
 logger = logging.getLogger(__name__)
 
@@ -75,21 +75,14 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                 "--disable-dev-shm-usage",
                 "--disable-gpu",
                 "--window-size=1920,1080",
-                "--disable-features=SameSiteByDefaultCookies,CookiesWithoutSameSiteMustBeSecure,SameSiteDefaultChecksMethodRacy",
+                "--disable-features=SameSiteByDefaultCookies,CookiesWithoutSameSiteMustBeSecure,SameSiteDefaultChecksMethodRacy,dbus",
                 "--disable-web-security",
                 "--allow-running-insecure-content",
                 "--ignore-certificate-errors",
-                "--disable-blink-features=AutomationControlled"
+                "--disable-blink-features=AutomationControlled",
+                "--disable-software-rasterizer"
             ]
             
-            async def launch_browser():
-                try:
-                    return await p.chromium.launch(headless=True, args=browser_args)
-                except Exception:
-                    import subprocess, sys
-                    subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], check=False)
-                    return await p.chromium.launch(headless=True, args=browser_args)
-
             async def fetch_creds():
                 if pre_fetched_creds:
                     return pre_fetched_creds
@@ -98,7 +91,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
             # Dispara ambas as tarefas I/O bound simultaneamente
             creds, browser = await asyncio.gather(
                 fetch_creds(),
-                launch_browser()
+                launch_browser_robust(p, browser_args, task_id=task_id)
             )
             update_progress(15)
             

@@ -7,7 +7,7 @@ from datetime import datetime
 import re
 from playwright.async_api import async_playwright
 import api.database as db
-from api.utils import send_whatsapp_alert
+from api.utils import send_whatsapp_alert, launch_browser_robust
 
 logger = logging.getLogger(__name__)
 
@@ -406,9 +406,10 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                 "--headless=new", "--no-sandbox", "--disable-setuid-sandbox", 
                 "--disable-dev-shm-usage",
                 "--disable-gpu", "--window-size=1920,1080",
-                "--disable-features=SameSiteByDefaultCookies,CookiesWithoutSameSiteMustBeSecure",
+                "--disable-features=SameSiteByDefaultCookies,CookiesWithoutSameSiteMustBeSecure,dbus",
                 "--disable-web-security", "--allow-running-insecure-content",
-                "--ignore-certificate-errors", "--disable-blink-features=AutomationControlled"
+                "--ignore-certificate-errors", "--disable-blink-features=AutomationControlled",
+                "--disable-software-rasterizer"
             ]
 
             # Busca credenciais
@@ -423,7 +424,7 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                 return "Falha", msg_erro, None
 
             log_task("Credenciais obtidas. Abrindo navegador...")
-            browser = await p.chromium.launch(headless=True, args=browser_args)
+            browser = await launch_browser_robust(p, browser_args, task_id=task_id)
             update_progress(15)
             log_task("Navegador aberto com sucesso.", "DEBUG")
 
