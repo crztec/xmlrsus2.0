@@ -69,3 +69,6 @@ cleanup_tasks.py
 service_desc.json
 skills-lock.json
 FIREBASE_SETUP.md
+
+# Local session summary
+SESSION_SUMMARY.md
