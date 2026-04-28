@@ -1,6 +1,8 @@
 {
   "css.customData": [".vscode/tailwind-custom-data.json"],
   "css.lint.unknownAtRules": "ignore",
-  "python.analysis.extraPaths": ["."],
-  "python.analysis.include": ["api", "scripts"]
+  "python.analysis.extraPaths": ["${workspaceFolder}"],
+  "python.analysis.include": ["api", "scripts"],
+  "python.analysis.indexing": true,
+  "python.analysis.autoImportCompletions": true
 }
