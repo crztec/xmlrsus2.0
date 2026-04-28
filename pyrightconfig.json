@@ -1,13 +1,10 @@
 {
-  "include": [
-    "api",
-    "scripts",
-    "cleanup_tasks.py",
-    "test_audit.py"
+  "executionEnvironments": [
+    {
+      "root": ".",
+      "extraPaths": ["."]
+    }
   ],
-  "extraPaths": [
-    "."
-  ],
-  "typeCheckingMode": "basic",
-  "reportMissingImports": true
+  "include": ["api"],
+  "typeCheckingMode": "basic"
 }

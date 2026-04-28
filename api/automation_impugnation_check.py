@@ -323,6 +323,8 @@ async def run_impugnation_check_for_client(client_id, task_id=None, pre_fetched_
             db.add_log(task_id, full_msg, level)
         logger.info(full_msg)
 
+    default_stats = {"total": 0, "impugnados": 0, "nao_impugnando": 0, "aptos": 0, "aguardando": 0}
+
     try:
         status, message, stats = await _run_impugnation_logic(client_id, active_abi, task_id, pre_fetched_creds)
         

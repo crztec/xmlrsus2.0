@@ -631,9 +631,9 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                 await asyncio.sleep(0.3)
                 await logs_btn.click(timeout=5000)
             except:
-                log_task("Aviso: Cliente não realiza análise ou opção indisponível.", "WARNING")
+                log_task("Aviso: Cliente não realiza análise ou opção indisponível. Marcando como Analisado.", "WARNING")
                 if browser: await browser.close()
-                return "Importado", "Cliente não realiza análise.", None
+                return "Importado e Analisado", "Cliente não realiza análise no portal.", None
             
             # Aguarda a página "Análises Realizadas" carregar (navega na mesma aba)
             try:

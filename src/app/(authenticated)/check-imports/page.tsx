@@ -1068,14 +1068,17 @@ export default function CheckImportsPage() {
 
                           {openMenuId === client.id && (
                             <div className="absolute right-0 mt-1.5 w-52 bg-white rounded-2xl shadow-2xl shadow-slate-200/80 border border-slate-100 z-50 overflow-hidden animate-in zoom-in-95 duration-150 origin-top-right">
-                              <button 
-                                onClick={() => { startCheck(client.id); setOpenMenuId(null); }}
-                                disabled={!!activeTaskId}
-                                className="w-full flex items-center gap-2.5 px-4 py-3 text-[11px] font-bold text-slate-700 hover:bg-gax-blue hover:text-white transition-colors disabled:opacity-40"
-                              >
-                                <Play size={14} /> Checar Importação
-                              </button>
-                              {((client.abi_status === 'Importado e Analisado') || ['Impugnando', 'Finalizou', 'Não Iniciou'].includes(client.impugnation_status || '')) && (
+                              {!(client.abi_status === 'Importado e Analisado' || ['Impugnando', 'Finalizou', 'Não Iniciou', 'Nao Iniciou'].includes(client.impugnation_status || '')) && (
+                                <button 
+                                  onClick={() => { startCheck(client.id); setOpenMenuId(null); }}
+                                  disabled={!!activeTaskId}
+                                  className="w-full flex items-center gap-2.5 px-4 py-3 text-[11px] font-bold text-slate-700 hover:bg-gax-blue hover:text-white transition-colors disabled:opacity-40"
+                                >
+                                  <Play size={14} /> Checar Importação
+                                </button>
+                              )}
+
+                              {((client.abi_status === 'Importado e Analisado') || ['Impugnando', 'Não Iniciou', 'Nao Iniciou'].includes(client.impugnation_status || '')) && client.impugnation_status !== 'Finalizou' && (
                                 <button 
                                   onClick={() => { startImpugnationCheck(client.id); setOpenMenuId(null); }}
                                   disabled={!!activeTaskId}
@@ -1312,34 +1315,45 @@ export default function CheckImportsPage() {
             </div>
 
             <div className="flex items-center gap-3">
-              <button 
-                onClick={() => {
-                  if (window.confirm(`Deseja iniciar a checagem em massa para ${selectedClients.size} operadoras?`)) {
+              {filterStatus !== "Finalizou" && (
+                <button 
+                  onClick={() => {
                     const ids = Array.from(selectedClients);
                     const selectedClientsArr = clients.filter(c => selectedClients.has(c.id));
                     
-                    // Avalia todas as operadoras selecionadas pra ver se já passaram da primeira fase
                     const allReadyForImpugnation = selectedClientsArr.every(c => {
                       const sABI = c.abi_status || "";
                       const sIMP = c.impugnation_status || "";
                       return ["Importado e Analisado"].includes(sABI) || ["Não Iniciou", "Nao Iniciou", "Impugnando", "Finalizou"].includes(sIMP);
                     });
                     
-                    const isImpugnContext = ["Não Inic. Impug.", "Impugnando", "Finalizou", "Analisados"].includes(filterStatus || "");
-                    
-                    if (allReadyForImpugnation || isImpugnContext) {
-                      startImpugnationCheck(undefined, ids);
-                    } else {
-                      startCheck(undefined, ids);
+                    const isImpugnContext = ["Não Inic. Impug.", "Impugnando", "Analisados"].includes(filterStatus || "");
+                    const actionType = (allReadyForImpugnation || isImpugnContext) ? "impugnações" : "importações/ABI";
+
+                    if (window.confirm(`Deseja iniciar a checagem de ${actionType} para ${selectedClients.size} operadoras?`)) {
+                      if (allReadyForImpugnation || isImpugnContext) {
+                        startImpugnationCheck(undefined, ids);
+                      } else {
+                        startCheck(undefined, ids);
+                      }
+                      setSelectedClients(new Set());
                     }
-                    setSelectedClients(new Set());
-                  }
-                }}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gax-blue/10 text-gax-blue hover:bg-gax-blue hover:text-white transition-all text-xs font-bold"
-              >
-                <Play size={14} />
-                Checar Selecionados
-              </button>
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gax-blue/10 text-gax-blue hover:bg-gax-blue hover:text-white transition-all text-xs font-bold"
+                >
+                  <Play size={14} />
+                  {(() => {
+                    const selectedClientsArr = clients.filter(c => selectedClients.has(c.id));
+                    const allReadyForImpugnation = selectedClientsArr.every(c => {
+                      const sABI = c.abi_status || "";
+                      const sIMP = c.impugnation_status || "";
+                      return ["Importado e Analisado"].includes(sABI) || ["Não Iniciou", "Nao Iniciou", "Impugnando", "Finalizou"].includes(sIMP);
+                    });
+                    const isImpugnContext = ["Não Inic. Impug.", "Impugnando", "Analisados"].includes(filterStatus || "");
+                    return (allReadyForImpugnation || isImpugnContext) ? "Checar Impugnações" : "Checar ABI";
+                  })()}
+                </button>
+              )}
               
               <button 
                 onClick={() => setSelectedClients(new Set())}
