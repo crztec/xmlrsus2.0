@@ -92,17 +92,27 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
                 await asyncio.sleep(2)
                 
             # Busca operadora específica (Isolamento de Grid)
-            search_input = page.locator("input[placeholder*='Buscar cliente'], input[placeholder*='Pesquisar']").first
+            search_input = page.locator("input[placeholder*='Buscar cliente'], input[placeholder*='Pesquisar'], .k-textbox input, .k-input-inner").first
             
             async def try_search(name_to_search):
                 if await search_input.count() > 0:
+                    log_task(f"Pesquisando por '{name_to_search}' na CubeTI...")
                     await search_input.click()
                     await search_input.fill("")
-                    await search_input.fill(name_to_search)
-                    await asyncio.sleep(2)
+                    await asyncio.sleep(0.5)
+                    await search_input.type(name_to_search, delay=50)
+                    await asyncio.sleep(1)
                     await page.keyboard.press("Enter")
-                    await asyncio.sleep(3)
-                return page.locator("table tbody tr").filter(has_text=re.compile(name_to_search, re.IGNORECASE)).first
+                    await asyncio.sleep(5) 
+                
+                rows = page.locator("table tbody tr")
+                count = await rows.count()
+                for i in range(count):
+                    row = rows.nth(i)
+                    text = await row.inner_text()
+                    if name_to_search.lower() in " ".join(text.split()).lower():
+                        return row
+                return page.locator("NON_EXISTENT_ELEMENT")
 
             target_row = await try_search(client_name)
             
@@ -110,13 +120,20 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
                 import unicodedata
                 search_name = "".join(c for c in unicodedata.normalize('NFD', client_name) if unicodedata.category(c) != 'Mn')
                 if search_name != client_name:
-                    log_task(f"Operadora não encontrada com nome original '{client_name}'. Tentando sem acento...", "WARNING")
+                    log_task(f"Tentando sem acento: '{search_name}'", "WARNING")
                     target_row = await try_search(search_name)
 
+            if await target_row.count() == 0 and "unimed" in client_name.lower():
+                simplified = re.sub(r'^unimed\s+', '', client_name, flags=re.I).strip()
+                if simplified and simplified != client_name:
+                    log_task(f"Tentando busca simplificada por '{simplified}'...", "WARNING")
+                    target_row = await try_search(simplified)
+
             if await target_row.count() == 0:
-                log_task("Operadora não encontrada na grid da Cubeti.", "WARNING")
+                log_task("Operadora não encontrada na grid da Cubeti após várias tentativas.", "WARNING")
                 await browser.close()
                 return False
+
                 
             log_task("Operadora localizada!")
             
