@@ -1,15 +1,19 @@
 {
-  "executionEnvironments": [
-    {
-      "root": "."
-    }
-  ],
   "include": [
     "api",
-    "scripts"
+    "scripts",
+    "*.py"
+  ],
+  "exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    "src",
+    ".next",
+    ".git"
   ],
   "extraPaths": [
     "."
   ],
   "typeCheckingMode": "basic"
 }
+

@@ -770,30 +770,33 @@ export default function CheckImportsPage() {
                 </button>
               )}
               
-              <button 
-                onClick={() => {
-                  // Prioridade: Checkboxes > Filtro atual
-                  const selectedIds = selectedClients.size > 0 
-                    ? Array.from(selectedClients)
-                    : filteredClients.map(c => c.id);
+              {(!filterStatus || !["Não Inic. Impug.", "Impugnando", "Finalizou", "Analisados"].includes(filterStatus)) && (
+                <button 
+                  onClick={() => {
+                    // Prioridade: Checkboxes > Filtro atual
+                    const selectedIds = selectedClients.size > 0 
+                      ? Array.from(selectedClients)
+                      : filteredClients.map(c => c.id);
 
-                  // Lógica Dinâmica: Se estiver em filtros de Impugnação/Analisados, dispara robô de Impugnação.
-                  const isImpugnContext = ["Não Inic. Impug.", "Impugnando", "Finalizou", "Analisados"].includes(filterStatus || "");
-                  
-                  if (filterStatus || selectedClients.size > 0) {
-                    if (isImpugnContext) startImpugnationCheck(undefined, selectedIds);
-                    else startCheck(undefined, selectedIds);
-                  } else {
-                    startCheck();
-                  }
-                  setSelectedClients(new Set()); // Limpa após disparar
-                }}
-                disabled={!!activeTaskId}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-gax-blue text-white rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-gax-blue-hover transition-all shadow-md shadow-gax-blue/20 disabled:opacity-40 font-display shrink-0"
-              >
-                <Play size={12} className={activeTaskId ? 'animate-pulse' : ''} />
-                {(filterStatus || selectedClients.size > 0) ? "Checar Selecionados" : "Checar ABIs"}
-              </button>
+                    // Lógica Dinâmica: Se estiver em filtros de Impugnação/Analisados, dispara robô de Impugnação.
+                    const isImpugnContext = ["Não Inic. Impug.", "Impugnando", "Finalizou", "Analisados"].includes(filterStatus || "");
+                    
+                    if (filterStatus || selectedClients.size > 0) {
+                      if (isImpugnContext) startImpugnationCheck(undefined, selectedIds);
+                      else startCheck(undefined, selectedIds);
+                    } else {
+                      startCheck();
+                    }
+                    setSelectedClients(new Set()); // Limpa após disparar
+                  }}
+                  disabled={!!activeTaskId}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-gax-blue text-white rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-gax-blue-hover transition-all shadow-md shadow-gax-blue/20 disabled:opacity-40 font-display shrink-0"
+                >
+                  <Play size={12} className={activeTaskId ? 'animate-pulse' : ''} />
+                  {(filterStatus || selectedClients.size > 0) ? "Checar Selecionados" : "Checar ABIs"}
+                </button>
+              )}
+
 
               <label className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-white transition-all cursor-pointer font-display shrink-0">
                 <CloudUpload size={12} />

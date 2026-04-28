@@ -1,8 +1,10 @@
 {
   "css.customData": [".vscode/tailwind-custom-data.json"],
   "css.lint.unknownAtRules": "ignore",
-  "python.analysis.extraPaths": ["${workspaceFolder}"],
-  "python.analysis.include": ["api", "scripts"],
+  "python.analysis.extraPaths": ["."],
+  "python.analysis.include": ["api", "scripts", "*.py"],
+  "python.analysis.exclude": ["**/node_modules", "**/__pycache__", "src", ".next", ".git"],
   "python.analysis.indexing": true,
   "python.analysis.autoImportCompletions": true
+
 }

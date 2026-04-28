@@ -1,10 +1,9 @@
 [tool.pyright]
-executionEnvironments = [
-  { root = "." }
-]
-include = ["api", "scripts"]
+include = ["api", "scripts", "*.py"]
+exclude = ["**/node_modules", "**/__pycache__", "src", ".next", ".git"]
 extraPaths = ["."]
 typeCheckingMode = "basic"
+
 
 [tool.ruff]
 line-length = 88
