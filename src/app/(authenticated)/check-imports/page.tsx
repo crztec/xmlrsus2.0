@@ -684,7 +684,7 @@ export default function CheckImportsPage() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-gax-blue">
-                    {(currentTaskStatus?.total && currentTaskStatus.total > 1) ? "Lote em execução" : "Verificando ABI"}
+                    {(currentTaskStatus?.total && currentTaskStatus.total > 1) ? "Lote em execução" : (currentTaskStatus?.type?.includes('impugnation') ? "Checando Impugnação" : "Verificando ABI")}
                     {!!currentTaskStatus?.total && currentTaskStatus.total > 0 && (
                       <span className="ml-2 opacity-60">({currentTaskStatus.current || 0}/{currentTaskStatus.total})</span>
                     )}
@@ -708,9 +708,9 @@ export default function CheckImportsPage() {
                 onClick={() => { 
                   // Garante título correto baseado no status da tarefa atual
                   if (currentTaskStatus?.total > 1) {
-                    setModalTitle(currentTaskStatus?.type === 'impugnation' ? "Checagem em Lote (Impugnação)" : "Checagem em Lote (ABI)");
+                    setModalTitle(currentTaskStatus?.type?.includes('impugnation') ? "Checagem em Lote (Impugnação)" : "Checagem em Lote (ABI)");
                   } else if (currentTaskStatus?.current_client) {
-                    setModalTitle(`${currentTaskStatus?.type === 'impugnation' ? 'Log Impugnação' : 'Log ABI'}: ${currentTaskStatus.current_client}`);
+                    setModalTitle(`${currentTaskStatus?.type?.includes('impugnation') ? 'Log Impugnação' : 'Log ABI'}: ${currentTaskStatus.current_client}`);
                   }
                   
                   setViewingTaskId(activeTaskId); 
