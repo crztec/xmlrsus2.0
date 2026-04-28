@@ -1,4 +1,6 @@
 {
   "css.customData": [".vscode/tailwind-custom-data.json"],
-  "css.lint.unknownAtRules": "ignore"
+  "css.lint.unknownAtRules": "ignore",
+  "python.analysis.extraPaths": ["."],
+  "python.analysis.include": ["api", "scripts"]
 }
