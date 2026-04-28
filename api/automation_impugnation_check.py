@@ -689,15 +689,16 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
 
             # ─── 5. DEFINIR FUNÇÃO DE PESQUISA NA GRID ───
             async def search_grid(term, target_keywords):
-                if not search_field: return False, 0
                 log_task(f"Pesquisando por '{term}' na grid...", "DEBUG")
+                await search_field.click()
                 await search_field.fill("")
-                await search_field.fill(term)
+                await asyncio.sleep(0.3)
+                await search_field.type(term, delay=60)
                 await asyncio.sleep(0.5)
                 await page.keyboard.press("Enter")
                 
-                # Aguarda um pouco para o AJAX do Kendo UI processar
-                await asyncio.sleep(3)
+                # Aguarda o processamento (grids Kendo/CubeTI podem ser lentas)
+                await asyncio.sleep(5)
                 
                 # Extração via JS para evitar pendência/timeout de inner_text()
                 grid_data = await page.evaluate("""() => {
@@ -709,9 +710,12 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
                 match_count = 0
                 no_results_keywords = ['nenhum registro', 'sem resultados', '0 registros', 'no records', 'nenhum resultado']
                 
-                # Se a grade está vazia ou contém apenas mensagens de "sem resultados"
-                if not grid_data or any(all(k in row_text for k in no_results_keywords) for row_text in grid_data[:1]):
-                    pass
+                # Se a grade está vazia ou contém mensagens de "sem resultados"
+                # Corrigido: basta QUALQUER uma das keywords de "sem resultados" aparecer
+                is_empty = not grid_data or any(any(k in row_text for k in no_results_keywords) for row_text in grid_data[:2])
+                
+                if is_empty:
+                    log_task(f"Busca por '{term}': Nenhum registro encontrado.", "DEBUG")
                 else:
                     for row_text in grid_data:
                         if any(k in row_text for k in target_keywords):
