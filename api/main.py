@@ -584,7 +584,8 @@ async def start_abi_check(request: ABICheckRequest, background_tasks: Background
         task_id = db.create_task("abi_check_single", f"Checagem ABI {abi_label}: {client_id}")
         db.update_task(task_id, {"client_id": client_id})
     elif client_ids:
-        task_id = db.create_task("abi_check_batch", f"Checagem ABI {abi_label} (Parcial: {len(client_ids)} operadoras)")
+        label_unit = "operadora" if len(client_ids) == 1 else "operadoras"
+        task_id = db.create_task("abi_check_batch", f"Checagem ABI {abi_label} (Parcial: {len(client_ids)} {label_unit})")
         db.update_task(task_id, {"client_ids": client_ids})
     else:
         task_id = db.create_task("abi_check_batch", f"Checagem ABI {abi_label} em Lote")
@@ -608,7 +609,8 @@ async def start_impugnation_check(request: ABICheckRequest, background_tasks: Ba
         task_id = db.create_task("impugnation_check_single", f"Checagem Impugnação {abi_label}: {client_id}")
         db.update_task(task_id, {"client_id": client_id})
     elif client_ids:
-        task_id = db.create_task("impugnation_check_batch", f"Checagem Impugnação {abi_label} (Parcial: {len(client_ids)} operadoras)")
+        label_unit = "operadora" if len(client_ids) == 1 else "operadoras"
+        task_id = db.create_task("impugnation_check_batch", f"Checagem Impugnação {abi_label} (Parcial: {len(client_ids)} {label_unit})")
         db.update_task(task_id, {"client_ids": client_ids})
     else:
         task_id = db.create_task("impugnation_check_batch", f"Checagem Impugnação {abi_label} em Lote")

@@ -835,8 +835,9 @@ async def run_batch_impugnation_check(task_id, client_ids=None):
         
         total = len(clients)
         
-        db.update_task(task_id, {"total": total, "current": 0, "status": "running"})
-        db.add_log(task_id, f"⚖️ Iniciando checagem de impugnações para {total} operadoras (apenas Analisadas)...")
+        unit = "operadora" if total == 1 else "operadoras"
+        db.add_log(task_id, f"⚖️ Iniciando checagem de impugnações para {total} {unit}...")
+
 
         if total == 0:
             db.add_log(task_id, "Nenhum cliente com status 'Importado e Analisado' encontrado.", "WARNING")
