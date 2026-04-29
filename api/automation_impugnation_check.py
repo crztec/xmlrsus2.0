@@ -341,7 +341,6 @@ async def run_impugnation_check_for_client(client_id, task_id=None, pre_fetched_
                 sync_success = await _sync_impugnation_to_cubeti(client_name, task_id, target_status="Impugnando o ABI", contact_message="Cliente impugnando o ABI")
             elif status == "Finalizou":
                 sync_success = await _sync_impugnation_to_cubeti(client_name, task_id, target_status="Finalizou o ABI", contact_message="Cliente Finalizou o ABI")
-            elif status == "Não Iniciou":
                 sync_success = await _sync_impugnation_to_cubeti(client_name, task_id, target_status="Importou, Analisou e Não Iniciou", contact_message="Cliente ainda não iniciou Impugnação")
             
             if task_id:
@@ -789,12 +788,7 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
             }
             
             # ─── 7. DETERMINAR STATUS FINAL ───
-            if not has_imp and not has_apto and not has_nao_imp and has_ag:
-                log_task(f"⏳ NÃO INICIOU IMPUGNAÇÃO! {count_ag} atendimentos aguardando.", "SUCCESS")
-                if browser: await browser.close()
-                return "Não Iniciou", f"Cliente ainda não iniciou impugnação. {count_ag} atendimentos aguardando.", stats_dict
-
-            elif (has_imp or has_apto) and has_ag:
+            if (has_imp or has_apto) and has_ag:
                 total_resolvidos = count_imp + count_apto
                 log_task(f"⚖️ IMPUGNANDO! {total_resolvidos} resolvidos (imp/apto), {count_ag} aguardando.", "SUCCESS")
                 if browser: await browser.close()
@@ -806,16 +800,11 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
                 if browser: await browser.close()
                 return "Finalizou", f"Cliente finalizou o ABI. Nenhum atendimento aguardando impugnação.", stats_dict
             
-            elif not has_imp and not has_apto and not has_ag:
-                # Se existem registros totais, mas nenhum está em estado de impugnação, é "Não Iniciou" ou "Sem Impugnação"
-                if count_total > 0:
-                    log_task(f"Atenção: Existem {count_total} registros, mas nenhum em estado de Impugnação/Aguardando.", "WARNING")
-                    if browser: await browser.close()
-                    return "Não Iniciou", f"Existem {count_total} registros, mas nenhum foi identificado como Impugnado ou Aguardando.", stats_dict
-                else:
-                    log_task("Grid totalmente vazia. Nenhum atendimento encontrado.", "SUCCESS")
-                    if browser: await browser.close()
-                    return "Sem Impugnação", "Nenhum atendimento encontrado para este ABI.", stats_dict
+            else:
+                # Fallback: Se não iniciou ou não tem nada, volta para Analisado
+                log_task("Nenhum atendimento em processo de impugnação detectado. Mantendo status Analisado.", "SUCCESS")
+                if browser: await browser.close()
+                return "Importado e Analisado", "Nenhum atendimento relevante detectado para impugnação.", stats_dict
 
 
     except Exception as e:
