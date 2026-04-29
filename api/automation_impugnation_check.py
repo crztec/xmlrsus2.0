@@ -341,7 +341,11 @@ async def run_impugnation_check_for_client(client_id, task_id=None, pre_fetched_
                 sync_success = await _sync_impugnation_to_cubeti(client_name, task_id, target_status="Impugnando o ABI", contact_message="Cliente impugnando o ABI")
             elif status == "Finalizou":
                 sync_success = await _sync_impugnation_to_cubeti(client_name, task_id, target_status="Finalizou o ABI", contact_message="Cliente Finalizou o ABI")
+            elif status in ["Não Iniciou", "Importado e Analisado"]:
                 sync_success = await _sync_impugnation_to_cubeti(client_name, task_id, target_status="Importou, Analisou e Não Iniciou", contact_message="Cliente ainda não iniciou Impugnação")
+            else:
+                # Se for outro status (ex: Erro ou Não Verificado), a sync pode ser considerada 'sucesso por omissão' ou pulada
+                sync_success = True
             
             if task_id:
                 if sync_success:
@@ -700,47 +704,55 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
                 try:
                     loading = page.locator(".k-loading-mask, .k-loading-image, .k-loading-text").first
                     if await loading.is_visible():
-                        await loading.wait_for(state="detached", timeout=10000)
+                        await loading.wait_for(state="detached", timeout=12000)
                 except: pass
 
-                # Extração via JS para evitar pendência/timeout de inner_text()
+                # Tenta extrair o total da grid no PAGER (ex: "1-10 de 4735 registros")
+                # Espera o pager ter números (indica que carregou o contador)
+                match_count = 0
+                has_match = False
+                try:
+                    pager_locator = page.locator('.k-pager-info, .k-grid-pager, .grid-status, .total-registros, .k-pager-sizes').first
+                    await pager_locator.wait_for(state="visible", timeout=10000)
+                    
+                    total_text = await pager_locator.inner_text()
+                    if total_text:
+                        nums = re.findall(r'(\d+)', total_text.replace('.', '').replace(',', ''))
+                        if len(nums) >= 3: 
+                            match_count = int(nums[2])
+                        elif len(nums) == 1: 
+                            match_count = int(nums[0])
+                except: 
+                    log_task("Não foi possível ler o contador da grid pelo rodapé.", "DEBUG")
+
+                # Extração via JS para conferência de linhas
                 grid_data = await page.evaluate("""() => {
                     const rows = Array.from(document.querySelectorAll('.k-grid-content tr, .k-grid table tr, table tr:not(.k-grouping-row)'));
                     return rows.map(r => r.innerText.toLowerCase());
                 }""")
                 
-                has_match = False
-                match_count = 0
                 no_results_keywords = ['nenhum registro', 'sem resultados', '0 registros', 'no records', 'nenhum resultado', '0 de 0']
-                
-                # Se a grade está vazia ou contém mensagens de "sem resultados"
                 is_empty = not grid_data or any(any(k in row_text for k in no_results_keywords) for row_text in grid_data[:2])
                 
                 if is_empty:
                     log_task(f"Busca por '{term}': Nenhum registro encontrado.", "DEBUG")
+                    match_count = 0
+                    has_match = False
                 else:
-                    # Tenta extrair o total da grid no PAGER (ex: "1-10 de 4735 registros")
-                    total_text = await page.evaluate("""() => {
-                        const pager = document.querySelector('.k-pager-info, .k-grid-pager, .grid-status, .total-registros, .k-pager-sizes');
-                        return pager ? pager.innerText : '';
-                    }""")
-                    
-                    if total_text:
-                        nums = re.findall(r'(\d+)', total_text.replace('.', '').replace(',', ''))
-                        if len(nums) >= 3: # Formato "1-10 de 4735"
-                            match_count = int(nums[2])
-                        elif len(nums) == 1: # Formato "Total: 4735"
-                            match_count = int(nums[0])
-                    
-                    # Se não achou no pager ou o pager deu 0 mas temos linhas, conta as linhas da grid_data
+                    # Se temos dados mas o pager falhou, conta as linhas
                     if match_count == 0:
                         for row_text in grid_data:
                             if any(k in row_text for k in target_keywords):
-                                has_match = True
                                 match_count += 1
-                    else:
                         has_match = match_count > 0
-                    
+                    else:
+                        # Se temos count no pager, verifica se as linhas visíveis batem com a busca (para termos has_match)
+                        rows_matching = 0
+                        for row_text in grid_data:
+                            if any(k in row_text for k in target_keywords):
+                                rows_matching += 1
+                        has_match = (match_count > 0) and (rows_matching > 0 or term == "")
+
                 return has_match, match_count
 
             # ─── 6. EXECUTAR PESQUISAS SEQUENCIAIS E VALIDAR REGRAS ───
