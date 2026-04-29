@@ -697,48 +697,50 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
                 await asyncio.sleep(0.5)
                 await page.keyboard.press("Enter")
                 
-                # Aguarda o processamento (grids Kendo/CubeTI podem ser lentas)
-                await asyncio.sleep(5)
-                
+                # Aguarda o indicador de carregamento do Kendo UI sumir se existir
+                try:
+                    loading = page.locator(".k-loading-mask, .k-loading-image, .k-loading-text").first
+                    if await loading.is_visible():
+                        await loading.wait_for(state="detached", timeout=10000)
+                except: pass
+
                 # Extração via JS para evitar pendência/timeout de inner_text()
                 grid_data = await page.evaluate("""() => {
-                    const rows = document.querySelectorAll('table tbody tr');
-                    return Array.from(rows).map(row => row.innerText.trim().toLowerCase());
+                    const rows = Array.from(document.querySelectorAll('.k-grid-content tr, .k-grid table tr, table tr:not(.k-grouping-row)'));
+                    return rows.map(r => r.innerText.toLowerCase());
                 }""")
                 
                 has_match = False
                 match_count = 0
-                no_results_keywords = ['nenhum registro', 'sem resultados', '0 registros', 'no records', 'nenhum resultado']
+                no_results_keywords = ['nenhum registro', 'sem resultados', '0 registros', 'no records', 'nenhum resultado', '0 de 0']
                 
                 # Se a grade está vazia ou contém mensagens de "sem resultados"
-                # Corrigido: basta QUALQUER uma das keywords de "sem resultados" aparecer
                 is_empty = not grid_data or any(any(k in row_text for k in no_results_keywords) for row_text in grid_data[:2])
                 
                 if is_empty:
                     log_task(f"Busca por '{term}': Nenhum registro encontrado.", "DEBUG")
                 else:
-                    for row_text in grid_data:
-                        if any(k in row_text for k in target_keywords):
-                            has_match = True
-                            match_count += 1
-                
-                # Tenta pegar contagem do rodapé se encontrou algo
-                if has_match:
-                    try:
-                        ft_text = await page.evaluate("""
-                            () => {
-                                const els = document.querySelectorAll('span, div, p, .k-pager-info');
-                                for (const el of els) {
-                                    const t = el.innerText;
-                                    if (t && /de\\s+\\d+\\s+(?:registros|itens)/i.test(t)) return t;
-                                }
-                                return '';
-                            }
-                        """)
-                        if ft_text:
-                            mtch = re.search(r'de\s+(\d+)\s+(?:registros|itens)', ft_text, re.I)
-                            if mtch: match_count = int(mtch.group(1))
-                    except: pass
+                    # Tenta extrair o total da grid no PAGER (ex: "1-10 de 4735 registros")
+                    total_text = await page.evaluate("""() => {
+                        const pager = document.querySelector('.k-pager-info, .k-grid-pager, .grid-status, .total-registros, .k-pager-sizes');
+                        return pager ? pager.innerText : '';
+                    }""")
+                    
+                    if total_text:
+                        nums = re.findall(r'(\d+)', total_text.replace('.', '').replace(',', ''))
+                        if len(nums) >= 3: # Formato "1-10 de 4735"
+                            match_count = int(nums[2])
+                        elif len(nums) == 1: # Formato "Total: 4735"
+                            match_count = int(nums[0])
+                    
+                    # Se não achou no pager ou o pager deu 0 mas temos linhas, conta as linhas da grid_data
+                    if match_count == 0:
+                        for row_text in grid_data:
+                            if any(k in row_text for k in target_keywords):
+                                has_match = True
+                                match_count += 1
+                    else:
+                        has_match = match_count > 0
                     
                 return has_match, match_count
 
@@ -805,9 +807,15 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
                 return "Finalizou", f"Cliente finalizou o ABI. Nenhum atendimento aguardando impugnação.", stats_dict
             
             elif not has_imp and not has_apto and not has_ag:
-                log_task("Nenhum registro encontrado nas três pesquisas (Impugnado, Apto, Aguardando).", "WARNING")
-                if browser: await browser.close()
-                return "Sem Impugnação", "Nenhum atendimento relevante detectado.", stats_dict
+                # Se existem registros totais, mas nenhum está em estado de impugnação, é "Não Iniciou" ou "Sem Impugnação"
+                if count_total > 0:
+                    log_task(f"Atenção: Existem {count_total} registros, mas nenhum em estado de Impugnação/Aguardando.", "WARNING")
+                    if browser: await browser.close()
+                    return "Não Iniciou", f"Existem {count_total} registros, mas nenhum foi identificado como Impugnado ou Aguardando.", stats_dict
+                else:
+                    log_task("Grid totalmente vazia. Nenhum atendimento encontrado.", "SUCCESS")
+                    if browser: await browser.close()
+                    return "Sem Impugnação", "Nenhum atendimento encontrado para este ABI.", stats_dict
 
 
     except Exception as e:

@@ -1020,6 +1020,7 @@ export default function CheckImportsPage() {
                             client.impugnation_status === "Finalizou" ? "bg-green-50 text-green-700 border-green-200" :
                             client.impugnation_status === "Impugnando" ? "bg-yellow-50 text-yellow-700 border-yellow-200" :
                             client.impugnation_status === "Não Iniciou" ? "bg-purple-50 text-purple-700 border-purple-200" :
+                            client.impugnation_status === "Sem Impugnação" ? "bg-slate-50 text-slate-500 border-slate-200" :
                             client.abi_status === "Importado e Analisado" ? "bg-emerald-50 text-emerald-700 border-emerald-100" : 
                             client.abi_status === "Importado, falta analisar" ? "bg-orange-50 text-orange-700 border-orange-100" :
                             client.abi_status === "Importado" ? "bg-sky-50 text-sky-700 border-sky-100" :
@@ -1029,7 +1030,8 @@ export default function CheckImportsPage() {
                           )}>
                             {client.impugnation_status === "Finalizou" ? "Finalizou" :
                              client.impugnation_status === "Impugnando" ? "Impugnando" : 
-                             client.impugnation_status === "Não Iniciou" ? "Não iniciou" :
+                             client.impugnation_status === "Não Iniciou" ? "Não Iniciou" :
+                             client.impugnation_status === "Sem Impugnação" ? "Sem Impugnação" :
                              (client.abi_status === "Nao Importado" || client.abi_status === "Não Importado" ? "Não Importado" : (client.abi_status || "Não Checado"))}
                           </span>
                         </div>
