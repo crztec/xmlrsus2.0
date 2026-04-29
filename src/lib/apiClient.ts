@@ -8,7 +8,8 @@ export async function apiClient(url: string, options: RequestInit = {}) {
   let idToken = null;
   if (user) {
     try {
-      idToken = await user.getIdToken();
+      // forceRefresh=true garante que tokens expirados sejam renovados automaticamente
+      idToken = await user.getIdToken(true);
     } catch (error) {
       console.error("Erro ao obter ID Token do Firebase SDK:", error);
     }
