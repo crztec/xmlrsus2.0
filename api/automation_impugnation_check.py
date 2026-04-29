@@ -788,7 +788,12 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
             }
             
             # ─── 7. DETERMINAR STATUS FINAL ───
-            if (has_imp or has_apto) and has_ag:
+            if not has_imp and not has_apto and not has_nao_imp and has_ag:
+                log_task(f"⏳ NÃO INICIOU IMPUGNAÇÃO! {count_ag} atendimentos aguardando.", "SUCCESS")
+                if browser: await browser.close()
+                return "Não Iniciou", f"Cliente ainda não iniciou impugnação. {count_ag} atendimentos aguardando.", stats_dict
+
+            elif (has_imp or has_apto) and has_ag:
                 total_resolvidos = count_imp + count_apto
                 log_task(f"⚖️ IMPUGNANDO! {total_resolvidos} resolvidos (imp/apto), {count_ag} aguardando.", "SUCCESS")
                 if browser: await browser.close()
@@ -801,10 +806,10 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
                 return "Finalizou", f"Cliente finalizou o ABI. Nenhum atendimento aguardando impugnação.", stats_dict
             
             else:
-                # Fallback: Se não iniciou ou não tem nada, volta para Analisado
-                log_task("Nenhum atendimento em processo de impugnação detectado. Mantendo status Analisado.", "SUCCESS")
+                # Fallback: Se não tem nada (grid vazia), volta para Analisado
+                log_task("Nenhum atendimento encontrado na grid. Mantendo status Analisado.", "SUCCESS")
                 if browser: await browser.close()
-                return "Importado e Analisado", "Nenhum atendimento relevante detectado para impugnação.", stats_dict
+                return "Importado e Analisado", "Nenhum atendimento detectado na grid.", stats_dict
 
 
     except Exception as e:
