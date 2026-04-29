@@ -694,16 +694,7 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
                 if browser: await browser.close()
                 return "Não Verificado", "Campo de pesquisa não encontrado.", default_stats
 
-            # ─── 5. DEFINIR FUNÇÃO DE PESQUISA NA GRID ───
-            async def search_grid(term, target_keywords):
-                log_task(f"Pesquisando por '{term}' na grid...", "DEBUG")
-                await search_field.click()
-                await search_field.fill("")
-                await asyncio.sleep(0.3)
-                await search_field.type(term, delay=60)
-                await asyncio.sleep(0.5)
-                await page.keyboard.press("Enter")
-                
+
             # ─── 5. DEFINIR FUNÇÃO DE PESQUISA NA GRID ───
             async def search_grid(term, target_keywords):
                 log_task(f"Pesquisando por '{term}' na grid...", "DEBUG")
@@ -740,21 +731,31 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
                     log_task(f"Busca por '{term}': Nenhum registro encontrado.", "DEBUG")
                     return False, 0
                 else:
-                    # Tenta ler total do pager
+                    # Varredura ampla: busca em TODOS os elementos o padrão "X de Y registros"
+                    # Isso garante que funciona mesmo quando o pager usa seletores não convencionais
                     total_text = await page.evaluate("""() => {
-                        const pager = document.querySelector('.k-pager-info, .k-grid-pager, .grid-status, .total-registros');
-                        return pager ? pager.innerText : '';
+                        const allEls = document.querySelectorAll('*');
+                        for (const el of allEls) {
+                            if (el.children.length > 0) continue;
+                            const t = (el.innerText || el.textContent || '').trim();
+                            if (/de\\s+\\d[\\d.,]*\\s*(registros?|itens?|results?)/i.test(t)) return t;
+                            if (/\\d+\\s*-\\s*\\d+\\s+de\\s+\\d/i.test(t)) return t;
+                        }
+                        return '';
                     }""")
                     
                     if total_text:
-                        nums = re.findall(r'(\d+)', total_text.replace('.', '').replace(',', ''))
-                        if len(nums) >= 3: match_count = int(nums[2])
-                        elif len(nums) == 1: match_count = int(nums[0])
+                        mtch = re.search(r'de\s+([\d.,]+)', total_text, re.I)
+                        if mtch:
+                            match_count = int(mtch.group(1).replace('.', '').replace(',', ''))
+                            log_task(f"Pager: '{total_text.strip()}' → total={match_count}", "DEBUG")
 
                     if match_count == 0:
                         for row_text in grid_data:
                             if any(k in row_text for k in target_keywords):
                                 match_count += 1
+                        if match_count > 0:
+                            log_task(f"Pager nao encontrado, contando linhas visiveis: {match_count}", "DEBUG")
                     
                     has_match = match_count > 0
                     return has_match, match_count
