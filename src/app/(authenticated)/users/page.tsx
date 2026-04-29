@@ -22,6 +22,7 @@ export default function UsersPage() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [error, setError] = useState<string | null>(null);
   
   // Sorting states
   const [sortField, setSortField] = useState<string | null>("first_name");
@@ -34,12 +35,20 @@ export default function UsersPage() {
 
   const fetchUsers = async () => {
     setIsLoading(true);
+    setError(null);
     try {
       const res = await apiClient("/api/users");
       const data = await res.json();
-      setUsers(data);
+      
+      if (res.ok && Array.isArray(data)) {
+        setUsers(data);
+      } else {
+        setError(data.detail || "Erro ao carregar lista de usuários.");
+        setUsers([]);
+      }
     } catch (error: any) {
       console.error("Erro ao carregar usuários:", error);
+      setError("Não foi possível conectar ao servidor.");
     } finally {
       setIsLoading(false);
     }
@@ -143,6 +152,13 @@ export default function UsersPage() {
           <Users size={18} className="text-gax-blue" />
           Gerenciamento de Usuários
         </h2>
+
+        {error && (
+          <div className="flex items-center gap-2 rounded-xl bg-rose-50 px-4 py-2 text-xs font-bold text-rose-600 border border-rose-100 animate-in fade-in slide-in-from-top-1">
+            <XCircle size={14} />
+            {error}
+          </div>
+        )}
         
         <div className="relative group w-full max-w-[240px]">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-gax-blue transition-colors" size={14} />
@@ -181,9 +197,11 @@ export default function UsersPage() {
                 <td className="px-5 py-2.5">
                   <div className="flex items-center gap-3">
                     <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-gax-blue/10 to-gax-blue/5 text-gax-blue font-bold shadow-inner text-[10px]">
-                      {(user.first_name || user.email).charAt(0).toUpperCase()}
+                      {(user.first_name || user.email || "?").charAt(0).toUpperCase()}
                     </div>
-                    <span className="font-bold text-slate-700 group-hover:text-gax-blue transition-colors">{user.first_name} {user.last_name}</span>
+                    <span className="font-bold text-slate-700 group-hover:text-gax-blue transition-colors">
+                      {user.first_name || "Usuário"} {user.last_name || ""}
+                    </span>
                   </div>
                 </td>
                 <td className="px-5 py-2.5 text-slate-500 font-medium">{user.email}</td>
