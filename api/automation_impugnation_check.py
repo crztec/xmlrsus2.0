@@ -636,15 +636,19 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
                 if browser: await browser.close()
                 return "Erro", "Link Atendimentos não encontrado.", default_stats
             
-            log_task("Aguardando carregamento da tela de Atendimentos...", "DEBUG")
-            await asyncio.sleep(4)
+            is_bh = "Belo Horizonte" in client_name
+            wait_nav = 30 if is_bh else 5
+            wait_grid = 15 if is_bh else 2
+
+            log_task(f"Aguardando carregamento da tela de Atendimentos ({wait_nav}s)...", "DEBUG")
+            await asyncio.sleep(wait_nav)
             
             # Aguarda a grid de atendimentos carregar
             try:
-                await page.wait_for_selector("table tbody tr, .grid", timeout=45000)
-                await asyncio.sleep(2)
+                await page.wait_for_selector("table tbody tr, .grid", timeout=60000)
+                await asyncio.sleep(wait_grid)
             except:
-                log_task("Grid de atendimentos não carregou.", "WARNING")
+                log_task("Grid de atendimentos não carregou completamente.", "WARNING")
 
             if await is_cancelled():
                 await browser.close()
@@ -700,30 +704,26 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
                 await asyncio.sleep(0.5)
                 await page.keyboard.press("Enter")
                 
-                # Aguarda o indicador de carregamento do Kendo UI sumir se existir
-                try:
-                    loading = page.locator(".k-loading-mask, .k-loading-image, .k-loading-text").first
-                    if await loading.is_visible():
-                        await loading.wait_for(state="detached", timeout=12000)
-                except: pass
+            # ─── 5. DEFINIR FUNÇÃO DE PESQUISA NA GRID ───
+            async def search_grid(term, target_keywords):
+                log_task(f"Pesquisando por '{term}' na grid...", "DEBUG")
+                await search_field.click()
+                await search_field.fill("")
+                await asyncio.sleep(0.3)
+                await search_field.type(term, delay=60)
+                await asyncio.sleep(0.5)
+                await page.keyboard.press("Enter")
+                
+                # Espera personalizada para BH devido à lentidão extrema
+                wait_search = 35 if is_bh else 8
+                await asyncio.sleep(wait_search)
 
-                # Tenta extrair o total da grid no PAGER (ex: "1-10 de 4735 registros")
-                # Espera o pager ter números (indica que carregou o contador)
-                match_count = 0
-                has_match = False
+                # Aguarda o indicador de carregamento sumir
                 try:
-                    pager_locator = page.locator('.k-pager-info, .k-grid-pager, .grid-status, .total-registros, .k-pager-sizes').first
-                    await pager_locator.wait_for(state="visible", timeout=10000)
-                    
-                    total_text = await pager_locator.inner_text()
-                    if total_text:
-                        nums = re.findall(r'(\d+)', total_text.replace('.', '').replace(',', ''))
-                        if len(nums) >= 3: 
-                            match_count = int(nums[2])
-                        elif len(nums) == 1: 
-                            match_count = int(nums[0])
-                except: 
-                    log_task("Não foi possível ler o contador da grid pelo rodapé.", "DEBUG")
+                    loading = page.locator(".k-loading-mask, .k-loading-image").first
+                    if await loading.is_visible():
+                        await loading.wait_for(state="detached", timeout=20000)
+                except: pass
 
                 # Extração via JS para conferência de linhas
                 grid_data = await page.evaluate("""() => {
@@ -731,29 +731,33 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
                     return rows.map(r => r.innerText.toLowerCase());
                 }""")
                 
+                match_count = 0
+                has_match = False
                 no_results_keywords = ['nenhum registro', 'sem resultados', '0 registros', 'no records', 'nenhum resultado', '0 de 0']
                 is_empty = not grid_data or any(any(k in row_text for k in no_results_keywords) for row_text in grid_data[:2])
                 
                 if is_empty:
                     log_task(f"Busca por '{term}': Nenhum registro encontrado.", "DEBUG")
-                    match_count = 0
-                    has_match = False
+                    return False, 0
                 else:
-                    # Se temos dados mas o pager falhou, conta as linhas
+                    # Tenta ler total do pager
+                    total_text = await page.evaluate("""() => {
+                        const pager = document.querySelector('.k-pager-info, .k-grid-pager, .grid-status, .total-registros');
+                        return pager ? pager.innerText : '';
+                    }""")
+                    
+                    if total_text:
+                        nums = re.findall(r'(\d+)', total_text.replace('.', '').replace(',', ''))
+                        if len(nums) >= 3: match_count = int(nums[2])
+                        elif len(nums) == 1: match_count = int(nums[0])
+
                     if match_count == 0:
                         for row_text in grid_data:
                             if any(k in row_text for k in target_keywords):
                                 match_count += 1
-                        has_match = match_count > 0
-                    else:
-                        # Se temos count no pager, verifica se as linhas visíveis batem com a busca (para termos has_match)
-                        rows_matching = 0
-                        for row_text in grid_data:
-                            if any(k in row_text for k in target_keywords):
-                                rows_matching += 1
-                        has_match = (match_count > 0) and (rows_matching > 0 or term == "")
-
-                return has_match, match_count
+                    
+                    has_match = match_count > 0
+                    return has_match, match_count
 
             # ─── 6. EXECUTAR PESQUISAS SEQUENCIAIS E VALIDAR REGRAS ───
             update_progress(80)
