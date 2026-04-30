@@ -784,26 +784,6 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                                         await modal_container.locator("td").filter(has_text=re.compile(r"Falha", re.I)).first.wait_for(state="visible", timeout=300)
                                     except: pass
                                     
-                                    if r_count > 0:
-                                        # Varredura dinâmica da grid filtrada
-                                        visible_rows_list = await visible_rows.all()
-                                        
-                                        # Checa se a primeira linha tem mensagem de vazio
-                                        try:
-                                            first_row_text = (await visible_rows_list[0].inner_text()).lower()
-                                            is_empty_table_message = any(k in first_row_text for k in no_results_keywords)
-                                        except:
-                                            is_empty_table_message = False
-                 
-                                        if not is_empty_table_message:
-                                            for r_row in visible_rows_list[:5]:
-                                                try:
-                                                    r_text = (await r_row.inner_text()).strip().lower()
-                                                    if any(k in r_text for k in ['falha', 'erro']):
-                                                        has_match = True
-                                                        match_count += 1
-                                                except: continue
-                                    
                                     modal_text = await modal_container.inner_text(timeout=3000)
                                     if "Falha" in modal_text or "falha" in modal_text.lower():
                                         has_real_error = True
