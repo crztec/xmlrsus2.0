@@ -123,16 +123,20 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
                     log_task(f"Tentando sem acento: '{search_name}'", "WARNING")
                     target_row = await try_search(search_name)
 
-            if await target_row.count() == 0 and "unimed" in client_name.lower():
-                simplified = re.sub(r'^unimed\s+', '', client_name, flags=re.I).strip()
-                if simplified and simplified != client_name:
-                    log_task(f"Tentando busca simplificada por '{simplified}'...", "WARNING")
-                    target_row = await try_search(simplified)
+            if await target_row.count() == 0:
+                skip_words = {'unimed', 'de', 'da', 'do', 'dos', 'das', 'e', 'em', 'a', 'o', 'sa', 'ltda', 'me'}
+                parts = [p for p in client_name.split() if len(p) > 3 and p.lower() not in skip_words]
+                for part in parts:
+                    log_task(f"Tentando busca parcial por '{part}'...", "WARNING")
+                    target_row = await try_search(part)
+                    if await target_row.count() > 0:
+                        break
 
             if await target_row.count() == 0:
                 log_task("Operadora não encontrada na grid da Cubeti após várias tentativas.", "WARNING")
                 await browser.close()
                 return False
+
 
                 
             log_task("Operadora localizada!")

@@ -139,13 +139,15 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
                     log_task(f"Not found as '{client_name}'. Trying without accents: '{search_name}'...")
                     target_row = await try_search(search_name)
                 
-                # Tenta nome parcial (primeira parte significativa) se for nome composto
-                if await target_row.count() == 0 and " " in client_name:
-                    parts = [p for p in client_name.split() if len(p) > 3 and p.lower() not in ['unimed', 'oeste', 'parana']]
-                    if parts:
-                        partial_name = parts[0]
-                        log_task(f"Searching by partial name: '{partial_name}'...")
-                        target_row = await try_search(partial_name)
+                # Tenta cada palavra significativa individualmente (não apenas a primeira)
+                if await target_row.count() == 0:
+                    skip_words = {'unimed', 'de', 'da', 'do', 'dos', 'das', 'e', 'em', 'a', 'o', 'sa', 'ltda', 'me'}
+                    parts = [p for p in client_name.split() if len(p) > 3 and p.lower() not in skip_words]
+                    for part in parts:
+                        log_task(f"Searching by partial name: '{part}'...")
+                        target_row = await try_search(part)
+                        if await target_row.count() > 0:
+                            break
 
             if await target_row.count() == 0:
                 log_task(f"Operadora '{client_name}' não encontrada na grid da Cubeti após múltiplas tentativas.", "WARNING")
