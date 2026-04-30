@@ -799,7 +799,7 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                                             for r_row in visible_rows_list[:5]:
                                                 try:
                                                     r_text = (await r_row.inner_text()).strip().lower()
-                                                    if any(k in r_text for k in target_keywords):
+                                                    if any(k in r_text for k in ['falha', 'erro']):
                                                         has_match = True
                                                         match_count += 1
                                                 except: continue
