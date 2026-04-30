@@ -936,6 +936,9 @@ async def run_batch_abi_check(task_id, client_ids=None):
         unit = "operadora" if total == 1 else "operadoras"
         db.add_log(task_id, f"🚀 Iniciando checagem de ABI em LOTE para {total} {unit}...")
 
+        # Salva o total de clientes na tarefa ANTES do loop para que update_progress
+        # consiga calcular o progresso geral do lote corretamente
+        db.update_task(task_id, {"total": total, "current": 0})
 
         # Cache de credenciais
         creds_general = db.get_rsus_credentials('general')

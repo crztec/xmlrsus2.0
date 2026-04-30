@@ -867,6 +867,10 @@ async def run_batch_impugnation_check(task_id, client_ids=None):
             db.update_task(task_id, {"status": "completed", "current_client": "Finalizado"})
             return
 
+        # Salva o total de clientes na tarefa ANTES do loop para que update_progress
+        # consiga calcular o progresso geral do lote corretamente
+        db.update_task(task_id, {"total": total, "current": 0})
+
         # Cache de credenciais
         creds_general = db.get_rsus_credentials('general')
         creds_vitoria = db.get_rsus_credentials('unimed_vitoria')
