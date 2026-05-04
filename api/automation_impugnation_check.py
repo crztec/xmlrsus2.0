@@ -696,71 +696,89 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
                 if browser: await browser.close()
                 return "Não Verificado", "Campo de pesquisa não encontrado.", default_stats
 
-
             # ─── 5. DEFINIR FUNÇÃO DE PESQUISA NA GRID ───
             async def search_grid(term, target_keywords):
                 log_task(f"Pesquisando por '{term}' na grid...", "DEBUG")
-                await search_field.click()
-                await search_field.fill("")
+                
+                # Limpeza robusta do campo de busca
+                await search_field.click(click_count=3)
+                await page.keyboard.press("Control+A")
+                await page.keyboard.press("Backspace")
                 await asyncio.sleep(0.3)
-                await search_field.type(term, delay=60)
-                await asyncio.sleep(0.5)
-                await page.keyboard.press("Enter")
+                
+                if term:
+                    await search_field.type(term, delay=60)
+                    await asyncio.sleep(0.5)
+                    await page.keyboard.press("Enter")
+                else:
+                    # Se não tem termo, apenas garante que está vazio e dá Enter para resetar filtros
+                    await page.keyboard.press("Enter")
                 
                 # Espera personalizada para BH devido à lentidão extrema
-                wait_search = 35 if is_bh else 8
+                wait_search = 40 if is_bh else 10
                 await asyncio.sleep(wait_search)
 
                 # Aguarda o indicador de carregamento sumir
                 try:
                     loading = page.locator(".k-loading-mask, .k-loading-image").first
                     if await loading.is_visible():
-                        await loading.wait_for(state="detached", timeout=20000)
+                        log_task("Aguardando grid carregar...", "DEBUG")
+                        await loading.wait_for(state="detached", timeout=30000)
                 except: pass
 
-                # Extração via JS para conferência de linhas
-                grid_data = await page.evaluate("""() => {
+                # Extração via JS para conferência de linhas e pager
+                grid_info = await page.evaluate("""() => {
                     const rows = Array.from(document.querySelectorAll('.k-grid-content tr, .k-grid table tr, table tr:not(.k-grouping-row)'));
-                    return rows.map(r => r.innerText.toLowerCase());
+                    const rowTexts = rows.map(r => r.innerText.toLowerCase());
+                    
+                    // Busca ampla por qualquer texto que pareça um pager
+                    const allEls = document.querySelectorAll('*');
+                    let pagerText = '';
+                    for (const el of allEls) {
+                        if (el.children.length > 0) continue;
+                        const t = (el.innerText || el.textContent || '').trim();
+                        // Regex flexível: "X registros" ou "X de Y" ou "Exibindo X"
+                        if (/\\d[\\d.,]*\\s+(registros?|itens?|results?)/i.test(t) || /\\d+\\s+de\\s+\\d/i.test(t)) {
+                            pagerText = t;
+                            break;
+                        }
+                    }
+                    return { rowTexts, pagerText };
                 }""")
                 
-                match_count = 0
-                has_match = False
+                grid_data = grid_info['rowTexts']
+                total_text = grid_info['pagerText']
+                
                 no_results_keywords = ['nenhum registro', 'sem resultados', '0 registros', 'no records', 'nenhum resultado', '0 de 0']
                 is_empty = not grid_data or any(any(k in row_text for k in no_results_keywords) for row_text in grid_data[:2])
                 
                 if is_empty:
                     log_task(f"Busca por '{term}': Nenhum registro encontrado.", "DEBUG")
                     return False, 0
-                else:
-                    # Varredura ampla: busca em TODOS os elementos o padrão "X de Y registros"
-                    # Isso garante que funciona mesmo quando o pager usa seletores não convencionais
-                    total_text = await page.evaluate("""() => {
-                        const allEls = document.querySelectorAll('*');
-                        for (const el of allEls) {
-                            if (el.children.length > 0) continue;
-                            const t = (el.innerText || el.textContent || '').trim();
-                            if (/de\\s+\\d[\\d.,]*\\s*(registros?|itens?|results?)/i.test(t)) return t;
-                            if (/\\d+\\s*-\\s*\\d+\\s+de\\s+\\d/i.test(t)) return t;
-                        }
-                        return '';
-                    }""")
-                    
-                    if total_text:
-                        mtch = re.search(r'de\s+([\d.,]+)', total_text, re.I)
-                        if mtch:
-                            match_count = int(mtch.group(1).replace('.', '').replace(',', ''))
-                            log_task(f"Pager: '{total_text.strip()}' → total={match_count}", "DEBUG")
+                
+                match_count = 0
+                if total_text:
+                    log_task(f"Texto do Pager encontrado: '{total_text}'", "DEBUG")
+                    # Tenta extrair o total (geralmente o último número ou após 'de')
+                    mtch_de = re.search(r'de\s+([\d.,]+)', total_text, re.I)
+                    if mtch_de:
+                        match_count = int(mtch_de.group(1).replace('.', '').replace(',', ''))
+                    else:
+                        # Fallback: pega o primeiro número que aparece seguido de "registros"
+                        mtch_simple = re.search(r'([\d.,]+)\s+(registros?|itens?|results?)', total_text, re.I)
+                        if mtch_simple:
+                            match_count = int(mtch_simple.group(1).replace('.', '').replace(',', ''))
 
-                    if match_count == 0:
-                        for row_text in grid_data:
-                            if any(k in row_text for k in target_keywords):
-                                match_count += 1
-                        if match_count > 0:
-                            log_task(f"Pager nao encontrado, contando linhas visiveis: {match_count}", "DEBUG")
-                    
-                    has_match = match_count > 0
-                    return has_match, match_count
+                if match_count == 0:
+                    # Fallback manual: conta linhas visíveis
+                    for row_text in grid_data:
+                        if any(k in row_text for k in target_keywords):
+                            match_count += 1
+                    if match_count > 0:
+                        log_task(f"Pager não reconhecido, contando linhas visíveis: {match_count}", "DEBUG")
+                
+                has_match = match_count > 0
+                return has_match, match_count
 
             # ─── 6. EXECUTAR PESQUISAS SEQUENCIAIS E VALIDAR REGRAS ───
             update_progress(80)

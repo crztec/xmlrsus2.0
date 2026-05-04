@@ -310,6 +310,7 @@ def get_all_clients():
                 'impugnation_last_check': data.get('impugnation_last_check', ''),
                 'impugnation_last_message': data.get('impugnation_last_message', ''),
                 'impugnation_last_task_id': data.get('impugnation_last_task_id', ''),
+                'impugnation_stats': data.get('impugnation_stats', {}),
             })
             
         clients.sort(key=lambda x: x['name'])
