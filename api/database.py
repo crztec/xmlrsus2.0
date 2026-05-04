@@ -1575,12 +1575,24 @@ def get_abi_dashboard_stats():
             'not_started': 0
         }
         
+        client_details = []
         for c in clients:
             status = str(c.get('abi_status', 'Pendente')).strip()
             status_lower = status.lower()
             msg = str(c.get('abi_last_message', '')).lower()
             impugnation = str(c.get('impugnation_status', '')).strip()
+            stats_raw = c.get('impugnation_stats', {})
             
+            # Adiciona aos detalhes para gráficos do dashboard
+            client_details.append({
+                'name': c.get('name') or c.get('razao_social') or c.get('id'),
+                'total': stats_raw.get('total', 0),
+                'impugnados': stats_raw.get('impugnados', 0),
+                'nao_impugnando': stats_raw.get('nao_impugnando', 0),
+                'aptos': stats_raw.get('aptos', 0),
+                'aguardando': stats_raw.get('aguardando', 0)
+            })
+
             # Se o cliente finalizou o ABI, conta como finalizado
             if impugnation == 'Finalizou':
                 stats['finalized'] += 1
@@ -1609,6 +1621,7 @@ def get_abi_dashboard_stats():
             else:
                 stats['pending'] += 1
                 
+        stats['client_details'] = client_details
         return stats
     except Exception as e:
         logger.error(f"Erro ao calcular estatísticas ABI: {e}")
