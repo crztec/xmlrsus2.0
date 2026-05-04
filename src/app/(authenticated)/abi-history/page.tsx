@@ -18,7 +18,8 @@ import {
   FileDown,
   Activity,
   UserX,
-  Hourglass
+  Hourglass,
+  LayoutGrid
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/apiClient";
@@ -46,6 +47,7 @@ export default function AbiHistoryPage() {
   const [historicalData, setHistoricalData] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<'current' | 'history'>('current');
+  const [topLimit, setTopLimit] = useState(5);
 
   const fetchData = async () => {
     setLoading(true);
@@ -85,23 +87,23 @@ export default function AbiHistoryPage() {
   const { topImpugnados, topAguardando, topNaoImpugnados, distributionData, evolutionData } = useMemo(() => {
     const clients = currentAbiData?.client_details || [];
     
-    // Top 5 Impugnações (Aptos + Impugnados, excluindo Não Impugnados)
+    // Top X Impugnações (Aptos + Impugnados, excluindo Não Impugnados)
     const imp = [...clients]
       .map(c => ({ name: c.name, total: (c.impugnados || 0) + (c.aptos || 0) }))
       .sort((a, b) => b.total - a.total)
-      .slice(0, 5);
+      .slice(0, topLimit);
 
-    // Top 5 Aguardando
+    // Top X Aguardando
     const agu = [...clients]
       .map(c => ({ name: c.name, total: c.aguardando || 0 }))
       .sort((a, b) => b.total - a.total)
-      .slice(0, 5);
+      .slice(0, topLimit);
 
-    // Top 5 Não Impugnados
+    // Top X Não Impugnados
     const nImp = [...clients]
       .map(c => ({ name: c.name, total: c.nao_impugnando || 0 }))
       .sort((a, b) => b.total - a.total)
-      .slice(0, 5);
+      .slice(0, topLimit);
 
     // Distribuição Consolidada
     const dist = [
@@ -112,7 +114,6 @@ export default function AbiHistoryPage() {
     ].filter(d => d.value > 0);
 
     // Evolução por Ciclo (Real do Histórico)
-    // Agrupa por ABI e soma o volume de impugnações
     const evoMap: Record<string, number> = {};
     historicalData.forEach(item => {
       const abi = String(item.abi || 'N/A');
@@ -120,7 +121,6 @@ export default function AbiHistoryPage() {
       evoMap[abi] = (evoMap[abi] || 0) + volume;
     });
 
-    // Converte para array e ordena por número do ABI
     const evo = Object.entries(evoMap)
       .map(([abi, volume]) => ({ abi: abi.includes('º') ? abi : `${abi}º`, volume }))
       .sort((a, b) => {
@@ -129,7 +129,6 @@ export default function AbiHistoryPage() {
         return numA - numB;
       });
 
-    // Se estiver vazio, adiciona o ABI 105 como ponto inicial (mesmo que 0) conforme pedido
     if (evo.length === 0) {
       evo.push({ abi: '105º', volume: 0 });
     }
@@ -141,7 +140,7 @@ export default function AbiHistoryPage() {
       distributionData: dist,
       evolutionData: evo
     };
-  }, [currentAbiData, historicalData]);
+  }, [currentAbiData, historicalData, topLimit]);
 
   return (
     <div className="flex flex-col gap-5 p-2 md:p-4 max-w-7xl mx-auto min-h-screen text-slate-800">
@@ -188,6 +187,21 @@ export default function AbiHistoryPage() {
         </div>
         
         <div className="flex items-center gap-2">
+          {activeTab === 'current' && (
+            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Exibir:</span>
+              <select 
+                value={topLimit} 
+                onChange={(e) => setTopLimit(Number(e.target.value))}
+                className="bg-transparent border-none outline-none text-[12px] font-bold text-gax-blue cursor-pointer"
+              >
+                <option value={5}>Top 5</option>
+                <option value={10}>Top 10</option>
+                <option value={15}>Top 15</option>
+                <option value={20}>Top 20</option>
+              </select>
+            </div>
+          )}
           <button 
             onClick={fetchData} 
             disabled={loading}
@@ -251,11 +265,11 @@ export default function AbiHistoryPage() {
               <div className="flex items-center justify-between mb-6">
                 <h4 className="text-sm font-bold flex items-center gap-2">
                   <TrendingUp size={16} className="text-emerald-500" />
-                  Top 5 Qtd. Impugnações
+                  Top {topLimit} Qtd. Impugnações
                 </h4>
                 <span className="text-[10px] bg-slate-100 px-2 py-1 rounded-md text-slate-500 font-medium italic">Dados Reais</span>
               </div>
-              <div className="h-[240px] w-full">
+              <div className="h-[300px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={topImpugnados} layout="vertical" margin={{ left: 20, right: 30, top: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
@@ -265,7 +279,7 @@ export default function AbiHistoryPage() {
                       type="category" 
                       axisLine={false} 
                       tickLine={false} 
-                      fontSize={11} 
+                      fontSize={10} 
                       fontWeight={600} 
                       width={80}
                       tick={{ fill: '#64748b' }}
@@ -274,7 +288,7 @@ export default function AbiHistoryPage() {
                       cursor={{ fill: '#f8fafc' }}
                       contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }}
                     />
-                    <Bar dataKey="total" fill="#10b981" radius={[0, 4, 4, 0]} barSize={20} />
+                    <Bar dataKey="total" fill="#10b981" radius={[0, 4, 4, 0]} barSize={topLimit > 10 ? 12 : 18} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -285,10 +299,10 @@ export default function AbiHistoryPage() {
               <div className="flex items-center justify-between mb-6">
                 <h4 className="text-sm font-bold flex items-center gap-2">
                   <Hourglass size={16} className="text-amber-500" />
-                  Top 5 Qtd. Aguardando
+                  Top {topLimit} Qtd. Aguardando
                 </h4>
               </div>
-              <div className="h-[240px] w-full">
+              <div className="h-[300px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={topAguardando} layout="vertical" margin={{ left: 20, right: 30, top: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
@@ -298,7 +312,7 @@ export default function AbiHistoryPage() {
                       type="category" 
                       axisLine={false} 
                       tickLine={false} 
-                      fontSize={11} 
+                      fontSize={10} 
                       fontWeight={600} 
                       width={80}
                       tick={{ fill: '#64748b' }}
@@ -307,7 +321,7 @@ export default function AbiHistoryPage() {
                       cursor={{ fill: '#f8fafc' }}
                       contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }}
                     />
-                    <Bar dataKey="total" fill="#f59e0b" radius={[0, 4, 4, 0]} barSize={20} />
+                    <Bar dataKey="total" fill="#f59e0b" radius={[0, 4, 4, 0]} barSize={topLimit > 10 ? 12 : 18} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -318,10 +332,10 @@ export default function AbiHistoryPage() {
               <div className="flex items-center justify-between mb-6">
                 <h4 className="text-sm font-bold flex items-center gap-2">
                   <UserX size={16} className="text-slate-400" />
-                  Top 5 Não Impugnados
+                  Top {topLimit} Não Impugnados
                 </h4>
               </div>
-              <div className="h-[240px] w-full">
+              <div className="h-[300px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={topNaoImpugnados} layout="vertical" margin={{ left: 20, right: 30, top: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
@@ -331,7 +345,7 @@ export default function AbiHistoryPage() {
                       type="category" 
                       axisLine={false} 
                       tickLine={false} 
-                      fontSize={11} 
+                      fontSize={10} 
                       fontWeight={600} 
                       width={80}
                       tick={{ fill: '#64748b' }}
@@ -340,7 +354,7 @@ export default function AbiHistoryPage() {
                       cursor={{ fill: '#f8fafc' }}
                       contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }}
                     />
-                    <Bar dataKey="total" fill="#94a3b8" radius={[0, 4, 4, 0]} barSize={20} />
+                    <Bar dataKey="total" fill="#94a3b8" radius={[0, 4, 4, 0]} barSize={topLimit > 10 ? 12 : 18} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -349,18 +363,18 @@ export default function AbiHistoryPage() {
             {/* Gráfico de Rosca - Distribuição */}
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 hover:shadow-md transition-shadow">
               <h4 className="text-sm font-bold mb-6 flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-gax-blue animate-pulse" />
+                <LayoutGrid size={16} className="text-gax-blue" />
                 Distribuição Global de Atendimentos
               </h4>
-              <div className="h-[220px] w-full relative">
+              <div className="h-[280px] w-full relative">
                 {distributionData.length > 0 ? (
                   <>
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
                           data={distributionData}
-                          innerRadius={60}
-                          outerRadius={80}
+                          innerRadius={70}
+                          outerRadius={95}
                           paddingAngle={5}
                           dataKey="value"
                         >
@@ -375,8 +389,8 @@ export default function AbiHistoryPage() {
                     </ResponsiveContainer>
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                       <div className="text-center">
-                        <p className="text-[10px] text-slate-400 font-bold uppercase">Total</p>
-                        <p className="text-xl font-black text-slate-800">
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Total</p>
+                        <p className="text-2xl font-black text-slate-800">
                           {distributionData.reduce((acc, curr) => acc + curr.value, 0).toLocaleString()}
                         </p>
                       </div>
@@ -388,11 +402,14 @@ export default function AbiHistoryPage() {
                   </div>
                 )}
               </div>
-              <div className="grid grid-cols-2 gap-2 mt-4">
+              <div className="grid grid-cols-2 gap-3 mt-4 border-t border-slate-50 pt-4">
                 {distributionData.map((item, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <div className="h-2 w-2 rounded-full" style={{ backgroundColor: DISTRIBUTION_COLORS[idx] }} />
-                    <span className="text-[10px] font-bold text-slate-500 truncate">{item.name}</span>
+                  <div key={idx} className="flex items-center justify-between group cursor-default">
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full" style={{ backgroundColor: DISTRIBUTION_COLORS[idx] }} />
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">{item.name}</span>
+                    </div>
+                    <span className="text-[11px] font-black text-slate-400 group-hover:text-gax-blue transition-colors">{item.value.toLocaleString()}</span>
                   </div>
                 ))}
               </div>
