@@ -79,6 +79,11 @@ const PAGE_METADATA: Record<string, PageMeta> = {
     subtitle: "Monitoramento em tempo real do processamento de ABIs no RSUS",
     icon: <Shield size={24} className="text-gax-blue" />
   },
+  "/abi-history": {
+    title: "Histórico de ABIs",
+    subtitle: "Acompanhe os resultados dos ciclos de ABI finalizados",
+    icon: <ScrollText size={24} className="text-gax-blue" />
+  },
   "/settings/branding": {
     title: "Identidade Visual",
     subtitle: "Personalize o nome e o logotipo do sistema",
@@ -132,6 +137,7 @@ export default function MainLayout({ children, onToggleSidebar }: MainLayoutProp
           dashboard: "/dashboard",
           "xml-data": "/xml-data",
           "check-imports": "/check-imports",
+          "abi-history": "/abi-history",
           logs: "/logs",
           "api-checks": "/settings/api-checks",
           clients: "/clients",
