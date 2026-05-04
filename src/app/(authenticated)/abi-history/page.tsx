@@ -404,7 +404,6 @@ export default function AbiHistoryPage() {
                   <TrendingUp size={16} className="text-emerald-500" />
                   Top {topLimit} Impugnações
                 </h4>
-                <span className="text-[10px] bg-slate-100 px-2 py-1 rounded-md text-slate-500 font-medium italic">Dados Reais</span>
               </div>
               <div style={{ height: `${chartHeight}px` }} className="w-full transition-all">
                 <ResponsiveContainer width="100%" height="100%">
