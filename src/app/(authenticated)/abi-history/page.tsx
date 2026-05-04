@@ -9,6 +9,7 @@ import {
   CheckCircle2, 
   AlertCircle,
   TrendingUp,
+  Activity,
   Download,
   Loader2,
   CalendarDays,
@@ -292,7 +293,7 @@ export default function AbiHistoryPage() {
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
             <div className="flex items-center justify-between mb-6">
                <h4 className="text-sm font-bold flex items-center gap-2">
-                <LineChart size={16} className="text-gax-blue" />
+                <Activity size={16} className="text-gax-blue" />
                 Evolução de Impugnações por Ciclo
               </h4>
               <div className="flex items-center gap-3">
