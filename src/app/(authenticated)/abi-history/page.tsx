@@ -45,6 +45,7 @@ export default function AbiHistoryPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<'current' | 'history'>('current');
   const [topLimit, setTopLimit] = useState(5);
+  const [selectedSlice, setSelectedSlice] = useState<string | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -85,17 +86,17 @@ export default function AbiHistoryPage() {
     const clients = currentAbiData?.client_details || [];
     
     const imp = [...clients]
-      .map(c => ({ name: c.name, total: (c.impugnados || 0) + (c.aptos || 0) }))
+      .map(c => ({ name: c.name, total: (c.impugnados || 0) + (c.aptos || 0), clientTotal: c.total || 1 }))
       .sort((a, b) => b.total - a.total)
       .slice(0, topLimit);
 
     const agu = [...clients]
-      .map(c => ({ name: c.name, total: c.aguardando || 0 }))
+      .map(c => ({ name: c.name, total: c.aguardando || 0, clientTotal: c.total || 1 }))
       .sort((a, b) => b.total - a.total)
       .slice(0, topLimit);
 
     const nImp = [...clients]
-      .map(c => ({ name: c.name, total: c.nao_impugnando || 0 }))
+      .map(c => ({ name: c.name, total: c.nao_impugnando || 0, clientTotal: c.total || 1 }))
       .sort((a, b) => b.total - a.total)
       .slice(0, topLimit);
 
@@ -137,6 +138,24 @@ export default function AbiHistoryPage() {
       totalGlobal: total
     };
   }, [currentAbiData, historicalData, topLimit]);
+
+  const sliceDetails = useMemo(() => {
+    if (!selectedSlice) return [];
+    const clients = currentAbiData?.client_details || [];
+    
+    let key = '';
+    if (selectedSlice === 'Impugnados') key = 'impugnados';
+    else if (selectedSlice === 'Aptos') key = 'aptos';
+    else if (selectedSlice === 'Aguardando') key = 'aguardando';
+    else if (selectedSlice === 'Não Impugnados') key = 'nao_impugnando';
+
+    if (!key) return [];
+    
+    return [...clients]
+      .map(c => ({ name: c.name, value: c[key] || 0, clientTotal: c.total || 1 }))
+      .filter(c => c.value > 0)
+      .sort((a, b) => b.value - a.value);
+  }, [currentAbiData, selectedSlice]);
 
   // Altura dinâmica baseada na quantidade de itens (40px por item + base)
   const chartHeight = useMemo(() => Math.max(300, topLimit * 40), [topLimit]);
@@ -286,6 +305,7 @@ export default function AbiHistoryPage() {
                     <Tooltip 
                       cursor={{ fill: '#f8fafc' }}
                       contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }}
+                      formatter={(value: any, name: any, props: any) => [`${value} (${((value / (props.payload.clientTotal || 1)) * 100).toFixed(0)}% do total do cliente)`, 'Qtd.']}
                     />
                     <Bar dataKey="total" fill="#10b981" radius={[0, 4, 4, 0]} barSize={topLimit > 10 ? 12 : 18} />
                   </BarChart>
@@ -319,6 +339,7 @@ export default function AbiHistoryPage() {
                     <Tooltip 
                       cursor={{ fill: '#f8fafc' }}
                       contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }}
+                      formatter={(value: any, name: any, props: any) => [`${value} (${((value / (props.payload.clientTotal || 1)) * 100).toFixed(0)}% do total do cliente)`, 'Qtd.']}
                     />
                     <Bar dataKey="total" fill="#f59e0b" radius={[0, 4, 4, 0]} barSize={topLimit > 10 ? 12 : 18} />
                   </BarChart>
@@ -352,6 +373,7 @@ export default function AbiHistoryPage() {
                     <Tooltip 
                       cursor={{ fill: '#f8fafc' }}
                       contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }}
+                      formatter={(value: any, name: any, props: any) => [`${value} (${((value / (props.payload.clientTotal || 1)) * 100).toFixed(0)}% do total do cliente)`, 'Qtd.']}
                     />
                     <Bar dataKey="total" fill="#94a3b8" radius={[0, 4, 4, 0]} barSize={topLimit > 10 ? 12 : 18} />
                   </BarChart>
@@ -360,13 +382,34 @@ export default function AbiHistoryPage() {
             </div>
 
             {/* Gráfico de Rosca - Distribuição */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 hover:shadow-md transition-shadow">
-              <h4 className="text-sm font-bold mb-6 flex items-center gap-2">
-                <LayoutGrid size={16} className="text-gax-blue" />
-                Distribuição Global de Atendimentos
-              </h4>
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 hover:shadow-md transition-shadow flex flex-col">
+              <div className="flex items-center justify-between mb-6">
+                <h4 className="text-sm font-bold flex items-center gap-2">
+                  <LayoutGrid size={16} className="text-gax-blue" />
+                  {selectedSlice ? `Operadoras: ${selectedSlice}` : 'Distribuição Global de Atendimentos'}
+                </h4>
+                {selectedSlice && (
+                  <button onClick={() => setSelectedSlice(null)} className="text-[11px] text-gax-blue hover:text-blue-700 hover:bg-blue-50 transition-colors font-bold px-2 py-1 bg-slate-50 rounded-md border border-slate-200 cursor-pointer">
+                    Voltar
+                  </button>
+                )}
+              </div>
               <div className="h-[280px] w-full relative">
-                {distributionData.length > 0 ? (
+                {selectedSlice ? (
+                  <div className="absolute inset-0 overflow-y-auto pr-2 custom-scrollbar">
+                    <div style={{ height: Math.max(280, sliceDetails.length * 35) }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={sliceDetails} layout="vertical" margin={{ left: 0, right: 30, top: 0, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
+                          <XAxis type="number" hide />
+                          <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} fontSize={10} fontWeight={600} width={80} tick={{ fill: '#64748b' }} />
+                          <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }} formatter={(value: any, name: any, props: any) => [`${value} (${((value / (props.payload.clientTotal || 1)) * 100).toFixed(0)}% do total do cliente)`, 'Qtd.']} />
+                          <Bar dataKey="value" fill={DISTRIBUTION_COLORS[distributionData.findIndex(d => d.name === selectedSlice) || 0] || '#94a3b8'} radius={[0, 4, 4, 0]} barSize={12} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                ) : distributionData.length > 0 ? (
                   <>
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
@@ -377,7 +420,19 @@ export default function AbiHistoryPage() {
                           paddingAngle={5}
                           dataKey="value"
                           labelLine={false}
-                          label={({ percent }: any) => (percent || 0) > 0.05 ? `${((percent || 0) * 100).toFixed(0)}%` : ""}
+                          className="cursor-pointer hover:opacity-90 transition-opacity outline-none"
+                          onClick={(data) => setSelectedSlice(data.name)}
+                          label={({ cx, cy, midAngle, innerRadius, outerRadius, percent }: any) => {
+                            if ((percent || 0) < 0.05) return null;
+                            const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+                            const x = cx + radius * Math.cos(-midAngle * (Math.PI / 180));
+                            const y = cy + radius * Math.sin(-midAngle * (Math.PI / 180));
+                            return (
+                              <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" fontSize={10} fontWeight={800} style={{ pointerEvents: 'none' }}>
+                                {`${((percent || 0) * 100).toFixed(0)}%`}
+                              </text>
+                            );
+                          }}
                         >
                           {distributionData.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={DISTRIBUTION_COLORS[index % DISTRIBUTION_COLORS.length]} />
