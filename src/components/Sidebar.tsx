@@ -68,6 +68,7 @@ const ROUTE_MAP: Record<string, string> = {
   dashboard: "/dashboard",
   "xml-data": "/xml-data",
   "check-imports": "/check-imports",
+  "abi-history": "/abi-history",
   logs: "/logs",
   "api-checks": "/settings/api-checks",
   clients: "/clients",

@@ -569,6 +569,10 @@ async def get_abi_schedule(user = Depends(get_current_user)):
 async def get_abi_dashboard_stats(user = Depends(get_current_user)):
     return db.get_abi_dashboard_stats()
 
+@app.get("/abi-historical-data")
+async def get_abi_historical_data(user = Depends(get_current_user)):
+    return db.get_abi_historical_data()
+
 @app.post("/start-abi-check")
 async def start_abi_check(request: ABICheckRequest, background_tasks: BackgroundTasks, user = Depends(get_current_user)):
     """Inicia a checagem de ABIs (lote ou individual) via Cloud Run Job."""

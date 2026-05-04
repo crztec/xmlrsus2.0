@@ -1490,8 +1490,22 @@ def update_client_abi_status(client_id, abi, status, message, task_id=None, is_b
         # Reset inteligente de impugnação se o número do ABI mudar
         client_doc = client_ref.get()
         if client_doc.exists:
-            current_abi_in_db = client_doc.to_dict().get('abi_current')
+            client_data = client_doc.to_dict()
+            current_abi_in_db = client_data.get('abi_current')
             if current_abi_in_db and current_abi_in_db != abi:
+                # Salva o snapshot histórico antes de resetar
+                try:
+                    client_ref.collection('abi_historical_stats').document(str(current_abi_in_db).replace("/", "_")).set({
+                        'abi': current_abi_in_db,
+                        'abi_status': client_data.get('abi_status', ''),
+                        'impugnation_status': client_data.get('impugnation_status', 'Não Iniciou'),
+                        'impugnation_stats': client_data.get('impugnation_stats', {"total": 0, "impugnados": 0, "nao_impugnando": 0, "aptos": 0, "aguardando": 0}),
+                        'archived_at': firestore.SERVER_TIMESTAMP
+                    })
+                    logger.info(f"Snapshot do ABI {current_abi_in_db} salvo para o cliente {client_id}.")
+                except Exception as ex_snap:
+                    logger.error(f"Erro ao salvar snapshot histórico do ABI {current_abi_in_db} para o cliente {client_id}: {ex_snap}")
+
                 update_data['impugnation_status'] = 'Não Iniciou'
                 update_data['impugnation_stats'] = {"total": 0, "impugnados": 0, "nao_impugnando": 0, "aptos": 0, "aguardando": 0}
                 update_data['impugnation_last_message'] = f"ABI mudou de {current_abi_in_db} para {abi}. Resetando status para nova checagem."
@@ -1511,6 +1525,35 @@ def update_client_abi_status(client_id, abi, status, message, task_id=None, is_b
     except Exception as e:
         logger.error(f"Erro ao atualizar status de ABI do cliente {client_id}: {e}")
         return False
+
+def get_abi_historical_data():
+    """Recupera o histórico de todos os ABIs finalizados/arquivados para todos os clientes."""
+    try:
+        import re
+        historical_docs = firestore_db.collection_group('abi_historical_stats').get()
+        
+        clients_ref = firestore_db.collection('client_configs').get()
+        client_names = {c.id: c.to_dict().get('name', c.id) for c in clients_ref}
+        
+        results = []
+        for doc in historical_docs:
+            client_id = doc.reference.parent.parent.id if doc.reference.parent and doc.reference.parent.parent else "Desconhecido"
+            client_name = client_names.get(client_id, client_id)
+            
+            data = doc.to_dict()
+            data['client_id'] = client_id
+            data['client_name'] = client_name
+            ts = data.get('archived_at')
+            if ts:
+                data['archived_at'] = ts.strftime("%d/%m/%Y %H:%M")
+            results.append(data)
+            
+        # Ordenar por ABI decrescente e depois alfabeticamente pelo nome do cliente
+        results.sort(key=lambda x: (int(re.sub(r'\D', '', str(x.get('abi', '0')))) if re.sub(r'\D', '', str(x.get('abi', '0'))) else 0, x.get('client_name', '')), reverse=True)
+        return results
+    except Exception as e:
+        logger.error(f"Erro ao buscar histórico de ABIs: {e}")
+        return []
 
 def get_abi_dashboard_stats():
     """Calculates stats for the ABI dashboard."""
@@ -1874,8 +1917,9 @@ MENU_DEFAULTS = {
         {"key": "dashboard", "label": "Enviar ABIs", "icon": "CloudUpload", "order": 0, "isAdmin": False},
         {"key": "xml-data", "label": "Dados ABIs", "icon": "FileText", "order": 1, "isAdmin": False},
         {"key": "check-imports", "label": "Checar Importações", "icon": "Shield", "order": 2, "isAdmin": False},
-        {"key": "logs", "label": "Histórico de Importações", "icon": "ClipboardList", "order": 3, "isAdmin": False},
-        {"key": "api-checks", "label": "Checar APIs", "icon": "Puzzle", "order": 4, "isAdmin": False},
+        {"key": "abi-history", "label": "Histórico de ABIs", "icon": "ScrollText", "order": 3, "isAdmin": False},
+        {"key": "logs", "label": "Histórico de Importações", "icon": "ClipboardList", "order": 4, "isAdmin": False},
+        {"key": "api-checks", "label": "Checar APIs", "icon": "Puzzle", "order": 5, "isAdmin": False},
     ],
     "admin_menu": [
         {"key": "clients", "label": "Clientes", "icon": "Users", "order": 0, "isAdmin": True},
