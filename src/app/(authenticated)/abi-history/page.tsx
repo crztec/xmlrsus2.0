@@ -16,7 +16,8 @@ import {
   FileDown,
   Activity,
   UserX,
-  Hourglass
+  Hourglass,
+  LayoutGrid
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/apiClient";
@@ -375,6 +376,8 @@ export default function AbiHistoryPage() {
                           outerRadius={95}
                           paddingAngle={5}
                           dataKey="value"
+                          labelLine={false}
+                          label={({ percent }) => percent > 0.05 ? `${(percent * 100).toFixed(0)}%` : ""}
                         >
                           {distributionData.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={DISTRIBUTION_COLORS[index % DISTRIBUTION_COLORS.length]} />
