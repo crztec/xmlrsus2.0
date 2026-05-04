@@ -377,7 +377,7 @@ export default function AbiHistoryPage() {
                           paddingAngle={5}
                           dataKey="value"
                           labelLine={false}
-                          label={({ percent }) => percent > 0.05 ? `${(percent * 100).toFixed(0)}%` : ""}
+                          label={({ percent }: any) => (percent || 0) > 0.05 ? `${((percent || 0) * 100).toFixed(0)}%` : ""}
                         >
                           {distributionData.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={DISTRIBUTION_COLORS[index % DISTRIBUTION_COLORS.length]} />
