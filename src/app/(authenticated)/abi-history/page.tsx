@@ -641,13 +641,13 @@ export default function AbiHistoryPage() {
 
           {/* Tabela de Histórico Minimalista removida e substituída pela Visão Detalhada */}
           <div className="flex flex-col gap-5 mt-6">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 w-full bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 w-full bg-slate-50 p-5 rounded-xl border border-slate-200 overflow-visible">
               <div className="flex items-center gap-2">
                 <span className="text-[12px] font-bold text-slate-500 uppercase tracking-tight whitespace-nowrap">ABI:</span>
                 <select 
                   value={selectedHistoricalAbi || ''} 
                   onChange={(e) => setSelectedHistoricalAbi(e.target.value)}
-                  className="bg-white border border-slate-300 rounded-lg px-3 h-9 outline-none text-[13px] font-bold text-slate-800 cursor-pointer min-w-[140px] shadow-sm hover:border-gax-blue transition-colors"
+                  className="bg-white border border-slate-300 rounded-lg px-3 py-2 outline-none text-[13px] font-bold text-slate-800 cursor-pointer min-w-[150px] shadow-sm hover:border-gax-blue focus:border-gax-blue focus:ring-1 focus:ring-gax-blue/20 transition-all"
                 >
                   {historicalAbisList.map(abi => (
                     <option key={abi} value={abi}>Ciclo {abi}</option>
