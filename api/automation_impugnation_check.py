@@ -39,8 +39,8 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
             log_task("Iniciando sincronização com Gestao Comercial...")
             # Stealth Avançado + Flags de Sandbox para Cloud Run
             browser_args = [
-                "--headless=new", "--no-sandbox", "--disable-setuid-sandbox", 
-                "--disable-dev-shm-usage", "--disable-gpu",
+                "--no-sandbox", "--disable-setuid-sandbox", 
+                "--disable-dev-shm-usage",
                 "--disable-blink-features=AutomationControlled"
             ]
             browser = await p.chromium.launch(headless=True, args=browser_args)
@@ -445,9 +445,9 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
             log_task(f"Iniciando checagem de impugnações para ABI {active_abi}...")
             
             browser_args = [
-                "--headless=new", "--no-sandbox", "--disable-setuid-sandbox", 
+                "--no-sandbox", "--disable-setuid-sandbox", 
                 "--disable-dev-shm-usage",
-                "--disable-gpu", "--window-size=1920,1080",
+                "--window-size=1920,1080",
                 "--disable-features=SameSiteByDefaultCookies,CookiesWithoutSameSiteMustBeSecure,dbus",
                 "--disable-web-security", "--allow-running-insecure-content",
                 "--ignore-certificate-errors", "--disable-blink-features=AutomationControlled",
