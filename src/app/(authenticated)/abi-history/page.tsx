@@ -421,7 +421,7 @@ export default function AbiHistoryPage() {
                           dataKey="value"
                           labelLine={false}
                           className="cursor-pointer hover:opacity-90 transition-opacity outline-none"
-                          onClick={(data) => setSelectedSlice(data.name)}
+                          onClick={(data) => setSelectedSlice(data.name || null)}
                           label={({ cx, cy, midAngle, innerRadius, outerRadius, percent }: any) => {
                             if ((percent || 0) < 0.05) return null;
                             const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
