@@ -662,7 +662,7 @@ async def export_impugnations_report(user = Depends(get_current_user)):
             "Situação do ABI": full_client.get('impugnation_status', 'Não Iniciou'),
             "Quantidade de Atendimentos": stats.get('total', 0),
             "Quantidade Impugnados": stats.get('impugnados', 0),
-            "Quantidade Não Impugnando": stats.get('nao_impugnando', 0),
+            "Quantidade Não Impugnado": stats.get('nao_impugnando', 0),
             "Quantidade Aptos": stats.get('aptos', 0),
             "Quantidade Aguardando Impugnação": stats.get('aguardando', 0),
             "Data da Última Checagem": dt_str

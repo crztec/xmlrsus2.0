@@ -283,7 +283,7 @@ export default function AbiHistoryPage() {
               <div className="flex items-center justify-between mb-6">
                 <h4 className="text-sm font-bold flex items-center gap-2">
                   <TrendingUp size={16} className="text-emerald-500" />
-                  Top {topLimit} Qtd. Impugnações
+                  Top {topLimit} Impugnações
                 </h4>
                 <span className="text-[10px] bg-slate-100 px-2 py-1 rounded-md text-slate-500 font-medium italic">Dados Reais</span>
               </div>
@@ -318,7 +318,7 @@ export default function AbiHistoryPage() {
               <div className="flex items-center justify-between mb-6">
                 <h4 className="text-sm font-bold flex items-center gap-2">
                   <Hourglass size={16} className="text-amber-500" />
-                  Top {topLimit} Qtd. Aguardando
+                  Top {topLimit} Aguardando
                 </h4>
               </div>
               <div style={{ height: `${chartHeight}px` }} className="w-full transition-all">
