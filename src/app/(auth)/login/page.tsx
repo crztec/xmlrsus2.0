@@ -35,6 +35,14 @@ export default function LoginPage() {
 
   // Carregar dados salvos ao montar o componente
   React.useEffect(() => {
+    // Verifica se veio de um redirecionamento de sessão expirada
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("expired") === "true") {
+        setError("Sua sessão expirou por inatividade. Por favor, faça login novamente.");
+      }
+    }
+
     const savedEmail = localStorage.getItem("gax_remembered_email");
     const savedPass = localStorage.getItem("gax_remembered_pass");
     if (savedEmail) {

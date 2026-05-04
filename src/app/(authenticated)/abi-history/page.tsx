@@ -79,13 +79,9 @@ export default function AbiHistoryPage() {
 
   const handleExport = async (abi?: string | null) => {
     try {
-      const token = localStorage.getItem("gax_auth_token");
       const url = abi ? `/api/export-impugnations?abi=${abi}` : '/api/export-impugnations';
-      const res = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+      const res = await apiClient(url, {
+        method: 'GET'
       });
       if (!res.ok) throw new Error("Falha ao exportar");
       

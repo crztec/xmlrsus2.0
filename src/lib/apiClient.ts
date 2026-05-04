@@ -28,8 +28,15 @@ export async function apiClient(url: string, options: RequestInit = {}) {
   const response = await fetch(url, options);
   
   if (response.status === 401) {
-    // Cenário de token expirado ou inválido: redireciona para login se necessário
-    console.warn("Sessão expirada ou não autorizada.");
+    // Cenário de token expirado ou inválido: limpa localStorage e redireciona para login
+    console.warn("Sessão expirada ou não autorizada. Redirecionando para login...");
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("gax_auth_token");
+      localStorage.removeItem("gax_user_name");
+      localStorage.removeItem("gax_user_email");
+      localStorage.removeItem("gax_user_id");
+      window.location.href = "/login?expired=true";
+    }
   }
 
   return response;

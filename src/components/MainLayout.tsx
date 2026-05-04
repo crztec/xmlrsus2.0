@@ -2,6 +2,7 @@
 
 import React from "react";
 import { usePathname } from "next/navigation";
+import { apiClient } from "@/lib/apiClient";
 import { cn } from "@/lib/utils";
 
 interface MainLayoutProps {
@@ -127,7 +128,7 @@ export default function MainLayout({ children, onToggleSidebar }: MainLayoutProp
 
   // Load dynamic menu labels once
   React.useEffect(() => {
-    fetch("/api/menu-config")
+    apiClient("/api/menu-config")
       .then(res => res.json())
       .then(data => {
         if (!data?.main_menu) return;
