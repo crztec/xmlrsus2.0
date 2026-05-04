@@ -46,6 +46,8 @@ export default function AbiHistoryPage() {
   const [activeTab, setActiveTab] = useState<'current' | 'history'>('current');
   const [topLimit, setTopLimit] = useState(5);
   const [selectedSlice, setSelectedSlice] = useState<string | null>(null);
+  const [selectedHistoricalSlice, setSelectedHistoricalSlice] = useState<string | null>(null);
+  const [selectedHistoricalAbi, setSelectedHistoricalAbi] = useState<string | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -74,6 +76,33 @@ export default function AbiHistoryPage() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  const handleExport = async (abi?: string | null) => {
+    try {
+      const token = localStorage.getItem("gax_auth_token");
+      const url = abi ? `/api/export-impugnations?abi=${abi}` : '/api/export-impugnations';
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (!res.ok) throw new Error("Falha ao exportar");
+      
+      const blob = await res.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = `Relatorio_Impugnacoes_${abi ? `ABI_${abi}` : 'Atual'}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(downloadUrl);
+      document.body.removeChild(a);
+    } catch (err) {
+      console.error("Erro na exportação:", err);
+      alert("Erro ao exportar arquivo. Verifique sua conexão ou tente novamente.");
+    }
+  };
 
   const filteredHistory = historicalData.filter(item => 
     item.client_name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -157,6 +186,84 @@ export default function AbiHistoryPage() {
       .sort((a, b) => b.value - a.value);
   }, [currentAbiData, selectedSlice]);
 
+  const historicalAbisList = useMemo(() => {
+    const abis = new Set<string>();
+    historicalData.forEach(item => abis.add(String(item.abi)));
+    return Array.from(abis).sort((a, b) => {
+      const numA = parseInt(a.replace(/\D/g, '')) || 0;
+      const numB = parseInt(b.replace(/\D/g, '')) || 0;
+      return numB - numA;
+    });
+  }, [historicalData]);
+
+  useEffect(() => {
+    if (activeTab === 'history' && !selectedHistoricalAbi && historicalAbisList.length > 0) {
+      setSelectedHistoricalAbi(historicalAbisList[0]);
+    }
+  }, [activeTab, historicalAbisList, selectedHistoricalAbi]);
+
+  const historicalDataForCharts = useMemo(() => {
+    if (!selectedHistoricalAbi) return null;
+    
+    const clients = historicalData.filter(item => String(item.abi) === selectedHistoricalAbi).map(item => {
+      let impugnating = 0, finalized = 0, not_started = 0, not_imported = 0;
+      const status = String(item.abi_status || '').toLowerCase();
+      const imp_status = String(item.impugnation_status || '');
+      
+      if (imp_status === 'Finalizou') finalized = 1;
+      else if (imp_status === 'Impugnando') impugnating = 1;
+      else if (imp_status === 'Não Iniciou') not_started = 1;
+      
+      if (status === 'nao importado' || status === 'não importado') not_imported = 1;
+
+      return {
+        name: item.client_name,
+        impugnados: item.impugnation_stats?.impugnados || 0,
+        aptos: item.impugnation_stats?.aptos || 0,
+        aguardando: item.impugnation_stats?.aguardando || 0,
+        nao_impugnando: item.impugnation_stats?.nao_impugnando || 0,
+        total: item.impugnation_stats?.total || 0,
+        finalized, impugnating, not_started, not_imported
+      };
+    });
+
+    const imp = [...clients].map(c => ({ name: c.name, total: c.impugnados + c.aptos, clientTotal: c.total || 1 })).sort((a,b)=>b.total-a.total).slice(0,topLimit);
+    const agu = [...clients].map(c => ({ name: c.name, total: c.aguardando, clientTotal: c.total || 1 })).sort((a,b)=>b.total-a.total).slice(0,topLimit);
+    const nImp = [...clients].map(c => ({ name: c.name, total: c.nao_impugnando, clientTotal: c.total || 1 })).sort((a,b)=>b.total-a.total).slice(0,topLimit);
+    
+    const totalGlobal = clients.reduce((acc, c) => acc + c.total, 0);
+    const dist = [
+      { name: 'Impugnados', value: clients.reduce((acc, c) => acc + c.impugnados, 0) },
+      { name: 'Aptos', value: clients.reduce((acc, c) => acc + c.aptos, 0) },
+      { name: 'Aguardando', value: clients.reduce((acc, c) => acc + c.aguardando, 0) },
+      { name: 'Não Impugnados', value: clients.reduce((acc, c) => acc + c.nao_impugnando, 0) },
+    ].map(d => ({ ...d, percentage: totalGlobal > 0 ? Math.round((d.value/totalGlobal)*100) : 0 })).filter(d => d.value > 0);
+
+    const summary = {
+      finalized: clients.reduce((acc, c) => acc + c.finalized, 0),
+      impugnating: clients.reduce((acc, c) => acc + c.impugnating, 0),
+      not_started: clients.reduce((acc, c) => acc + c.not_started, 0),
+      not_imported: clients.reduce((acc, c) => acc + c.not_imported, 0),
+    };
+
+    return { topImpugnados: imp, topAguardando: agu, topNaoImpugnados: nImp, distributionData: dist, totalGlobal, summary, clients };
+  }, [historicalData, selectedHistoricalAbi, topLimit]);
+
+  const historicalSliceDetails = useMemo(() => {
+    if (!selectedHistoricalSlice || !historicalDataForCharts) return [];
+    let key = '';
+    if (selectedHistoricalSlice === 'Impugnados') key = 'impugnados';
+    else if (selectedHistoricalSlice === 'Aptos') key = 'aptos';
+    else if (selectedHistoricalSlice === 'Aguardando') key = 'aguardando';
+    else if (selectedHistoricalSlice === 'Não Impugnados') key = 'nao_impugnando';
+
+    if (!key) return [];
+    return [...historicalDataForCharts.clients]
+      .map(c => ({ name: c.name, value: (c as any)[key] || 0, clientTotal: c.total || 1 }))
+      .filter(c => c.value > 0)
+      .sort((a, b) => b.value - a.value);
+  }, [historicalDataForCharts, selectedHistoricalSlice]);
+
   // Altura dinâmica baseada na quantidade de itens (40px por item + base)
   const chartHeight = useMemo(() => Math.max(300, topLimit * 40), [topLimit]);
 
@@ -229,7 +336,10 @@ export default function AbiHistoryPage() {
             >
               <Clock size={14} className={cn(loading && "animate-spin")} />
             </button>
-            <button className="flex items-center gap-2 h-8 px-3 rounded-lg border border-slate-200 bg-white text-slate-700 font-bold hover:bg-slate-50 hover:text-gax-blue transition-all text-[11px] sm:text-[12px] shadow-sm">
+            <button 
+              onClick={() => handleExport()}
+              className="flex items-center gap-2 h-8 px-3 rounded-lg border border-slate-200 bg-white text-slate-700 font-bold hover:bg-slate-50 hover:text-gax-blue transition-all text-[11px] sm:text-[12px] shadow-sm"
+            >
               <Download size={13} />
               <span className="hidden xs:inline">Exportar</span>
               <span className="hidden sm:inline">Dashboard</span>
@@ -247,7 +357,7 @@ export default function AbiHistoryPage() {
         /* Aba Visão Geral Atual */
         <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 space-y-5">
           {/* Cards de Resumo Compactos */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="rounded-xl border border-emerald-100 bg-white p-4 shadow-sm flex items-center justify-between group hover:border-emerald-200 transition-colors">
               <div>
                 <h3 className="text-slate-500 font-bold text-[11px] uppercase tracking-wider mb-1">Finalizados</h3>
@@ -275,6 +385,16 @@ export default function AbiHistoryPage() {
               </div>
               <div className="h-10 w-10 bg-slate-50 rounded-lg flex items-center justify-center text-slate-400 group-hover:scale-110 transition-transform">
                 <ShieldAlert size={20} />
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-rose-100 bg-white p-4 shadow-sm flex items-center justify-between group hover:border-rose-200 transition-colors">
+              <div>
+                <h3 className="text-slate-500 font-bold text-[11px] uppercase tracking-wider mb-1">Não Importados</h3>
+                <p className="text-2xl font-black text-rose-600 tracking-tight">{currentAbiData?.not_imported || 0}</p>
+              </div>
+              <div className="h-10 w-10 bg-rose-50 rounded-lg flex items-center justify-center text-rose-500 group-hover:scale-110 transition-transform">
+                <UserX size={20} />
               </div>
             </div>
           </div>
@@ -524,110 +644,234 @@ export default function AbiHistoryPage() {
             </div>
           </div>
 
-          {/* Tabela de Histórico Minimalista */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="flex flex-col sm:flex-row items-center justify-between p-3 border-b border-slate-100 gap-4">
-              <div className="flex items-center gap-2 text-slate-400 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 w-full sm:w-80">
-                <Search size={14} />
-                <input 
-                  type="text" 
-                  placeholder="Pesquisar histórico..." 
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="bg-transparent border-none outline-none text-[12px] text-slate-700 w-full placeholder:text-slate-400"
-                />
+          {/* Tabela de Histórico Minimalista removida e substituída pela Visão Detalhada */}
+          <div className="flex flex-col gap-5 mt-6">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 w-full bg-slate-50 p-4 rounded-xl border border-slate-200">
+              <div className="flex items-center gap-2">
+                <span className="text-[12px] font-bold text-slate-500 uppercase tracking-tight whitespace-nowrap">Visualizar Snapshot:</span>
+                <select 
+                  value={selectedHistoricalAbi || ''} 
+                  onChange={(e) => setSelectedHistoricalAbi(e.target.value)}
+                  className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 outline-none text-[13px] font-bold text-slate-800 cursor-pointer min-w-[120px]"
+                >
+                  {historicalAbisList.map(abi => (
+                    <option key={abi} value={abi}>ABI {abi}</option>
+                  ))}
+                </select>
               </div>
-              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Snapshots Arquivados</p>
+
+              {selectedHistoricalAbi && (
+                <button 
+                  onClick={() => handleExport(selectedHistoricalAbi)}
+                  className="flex items-center justify-center gap-2 h-9 px-4 rounded-lg border border-gax-blue bg-gax-blue text-white font-bold hover:bg-gax-blue-hover transition-all text-[12px] shadow-sm w-full sm:w-auto"
+                >
+                  <Download size={14} />
+                  Baixar Excel (ABI {selectedHistoricalAbi})
+                </button>
+              )}
             </div>
-            
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-50/50 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                    <th className="px-5 py-4">ABI</th>
-                    <th className="px-5 py-4">Operadora / Competência</th>
-                    <th className="px-5 py-4 text-center">Total</th>
-                    <th className="px-5 py-4 text-center">Impugnados</th>
-                    <th className="px-5 py-4 text-center">Aptos</th>
-                    <th className="px-5 py-4 text-center">Aguardando</th>
-                    <th className="px-5 py-4 text-center">Eficiência (%)</th>
-                    <th className="px-5 py-4 text-right">Ações</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {filteredHistory.length > 0 ? (
-                    filteredHistory.map((item, idx) => {
-                      const total = item.impugnation_stats?.total || 0;
-                      const resolvidos = (item.impugnation_stats?.impugnados || 0) + (item.impugnation_stats?.aptos || 0);
-                      const eficiencia = total > 0 ? Math.round((resolvidos / total) * 100) : 0;
-                      
-                      return (
-                        <tr key={idx} className="hover:bg-slate-50/80 transition-all group">
-                          <td className="px-5 py-4">
-                            <span className="font-black text-slate-800 text-[12px]">{item.abi}</span>
-                          </td>
-                          <td className="px-5 py-4">
-                            <p className="font-bold text-[13px] text-slate-800">{item.client_name}</p>
-                            <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-medium mt-0.5">
-                              <CalendarDays size={10} />
-                              Arquivado em {item.archived_at}
-                            </div>
-                          </td>
-                          <td className="px-5 py-4 text-center font-mono text-[13px] font-bold text-slate-600">
-                            {total.toLocaleString()}
-                          </td>
-                          <td className="px-5 py-4 text-center">
-                            <span className="text-[12px] font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-md">
-                              {item.impugnation_stats?.impugnados || 0}
-                            </span>
-                          </td>
-                          <td className="px-5 py-4 text-center">
-                             <span className="text-[12px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-md">
-                              {item.impugnation_stats?.aptos || 0}
-                            </span>
-                          </td>
-                          <td className="px-5 py-4 text-center">
-                             <span className="text-[12px] font-bold text-amber-600 bg-amber-50 px-2.5 py-1 rounded-md">
-                              {item.impugnation_stats?.aguardando || 0}
-                            </span>
-                          </td>
-                          <td className="px-5 py-4 text-center">
-                            <div className="flex flex-col items-center gap-1">
-                              <span className={cn(
-                                "text-[11px] font-black",
-                                eficiencia >= 80 ? "text-emerald-600" : eficiencia >= 50 ? "text-amber-600" : "text-slate-500"
-                              )}>
-                                {eficiencia}%
-                              </span>
-                              <div className="w-12 h-1 bg-slate-100 rounded-full overflow-hidden">
-                                <div 
-                                  className={cn("h-full", eficiencia >= 80 ? "bg-emerald-500" : "bg-amber-500")} 
-                                  style={{ width: `${eficiencia}%` }} 
-                                />
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-5 py-4 text-right">
-                            <button className="h-8 w-8 rounded-lg flex items-center justify-center bg-white border border-slate-200 text-slate-400 hover:text-gax-blue hover:border-gax-blue transition-all shadow-sm">
-                              <FileDown size={14} />
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  ) : (
-                    <tr>
-                      <td colSpan={8} className="px-5 py-12 text-center text-slate-400">
-                        <div className="flex flex-col items-center gap-2 opacity-50">
-                          <ClipboardList size={36} />
-                          <p className="font-bold text-[13px]">Nenhum snapshot encontrado.</p>
+
+            {historicalDataForCharts ? (
+              <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 space-y-5">
+                {/* Cards de Resumo */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="rounded-xl border border-emerald-100 bg-white p-4 shadow-sm flex items-center justify-between group hover:border-emerald-200 transition-colors">
+                    <div>
+                      <h3 className="text-slate-500 font-bold text-[11px] uppercase tracking-wider mb-1">Finalizados</h3>
+                      <p className="text-2xl font-black text-emerald-600 tracking-tight">{historicalDataForCharts.summary.finalized}</p>
+                    </div>
+                    <div className="h-10 w-10 bg-emerald-50 rounded-lg flex items-center justify-center text-emerald-500 group-hover:scale-110 transition-transform">
+                      <ShieldCheck size={20} />
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-amber-100 bg-white p-4 shadow-sm flex items-center justify-between group hover:border-amber-200 transition-colors">
+                    <div>
+                      <h3 className="text-slate-500 font-bold text-[11px] uppercase tracking-wider mb-1">Em Andamento</h3>
+                      <p className="text-2xl font-black text-amber-600 tracking-tight">{historicalDataForCharts.summary.impugnating}</p>
+                    </div>
+                    <div className="h-10 w-10 bg-amber-50 rounded-lg flex items-center justify-center text-amber-500 group-hover:scale-110 transition-transform">
+                      <TrendingUp size={20} />
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm flex items-center justify-between group hover:border-slate-300 transition-colors">
+                    <div>
+                      <h3 className="text-slate-500 font-bold text-[11px] uppercase tracking-wider mb-1">Não Iniciados</h3>
+                      <p className="text-2xl font-black text-slate-800 tracking-tight">{historicalDataForCharts.summary.not_started}</p>
+                    </div>
+                    <div className="h-10 w-10 bg-slate-50 rounded-lg flex items-center justify-center text-slate-400 group-hover:scale-110 transition-transform">
+                      <ShieldAlert size={20} />
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-rose-100 bg-white p-4 shadow-sm flex items-center justify-between group hover:border-rose-200 transition-colors">
+                    <div>
+                      <h3 className="text-slate-500 font-bold text-[11px] uppercase tracking-wider mb-1">Não Importados</h3>
+                      <p className="text-2xl font-black text-rose-600 tracking-tight">{historicalDataForCharts.summary.not_imported}</p>
+                    </div>
+                    <div className="h-10 w-10 bg-rose-50 rounded-lg flex items-center justify-center text-rose-500 group-hover:scale-110 transition-transform">
+                      <UserX size={20} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Grid de Gráficos Analíticos */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 hover:shadow-md transition-shadow">
+                    <div className="flex items-center justify-between mb-6">
+                      <h4 className="text-sm font-bold flex items-center gap-2">
+                        <TrendingUp size={16} className="text-emerald-500" />
+                        Top {topLimit} Impugnações
+                      </h4>
+                      <span className="text-[10px] bg-slate-100 px-2 py-1 rounded-md text-slate-500 font-medium italic">Snapshot</span>
+                    </div>
+                    <div style={{ height: `${chartHeight}px` }} className="w-full transition-all">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={historicalDataForCharts.topImpugnados} layout="vertical" margin={{ left: 20, right: 30, top: 0, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
+                          <XAxis type="number" hide />
+                          <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} fontSize={9} fontWeight={600} width={70} tick={{ fill: '#64748b' }} />
+                          <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }} formatter={(value: any, name: any, props: any) => [`${value} (${((value / (props.payload.clientTotal || 1)) * 100).toFixed(0)}% do total do cliente)`, 'Qtd.']} />
+                          <Bar dataKey="total" fill="#10b981" radius={[0, 4, 4, 0]} barSize={topLimit > 10 ? 12 : 18} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 hover:shadow-md transition-shadow">
+                    <div className="flex items-center justify-between mb-6">
+                      <h4 className="text-sm font-bold flex items-center gap-2">
+                        <Hourglass size={16} className="text-amber-500" />
+                        Top {topLimit} Aguardando
+                      </h4>
+                    </div>
+                    <div style={{ height: `${chartHeight}px` }} className="w-full transition-all">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={historicalDataForCharts.topAguardando} layout="vertical" margin={{ left: 20, right: 30, top: 0, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
+                          <XAxis type="number" hide />
+                          <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} fontSize={9} fontWeight={600} width={70} tick={{ fill: '#64748b' }} />
+                          <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }} formatter={(value: any, name: any, props: any) => [`${value} (${((value / (props.payload.clientTotal || 1)) * 100).toFixed(0)}% do total do cliente)`, 'Qtd.']} />
+                          <Bar dataKey="total" fill="#f59e0b" radius={[0, 4, 4, 0]} barSize={topLimit > 10 ? 12 : 18} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 hover:shadow-md transition-shadow">
+                    <div className="flex items-center justify-between mb-6">
+                      <h4 className="text-sm font-bold flex items-center gap-2">
+                        <UserX size={16} className="text-slate-400" />
+                        Top {topLimit} Não Impugnados
+                      </h4>
+                    </div>
+                    <div style={{ height: `${chartHeight}px` }} className="w-full transition-all">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={historicalDataForCharts.topNaoImpugnados} layout="vertical" margin={{ left: 20, right: 30, top: 0, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
+                          <XAxis type="number" hide />
+                          <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} fontSize={9} fontWeight={600} width={70} tick={{ fill: '#64748b' }} />
+                          <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }} formatter={(value: any, name: any, props: any) => [`${value} (${((value / (props.payload.clientTotal || 1)) * 100).toFixed(0)}% do total do cliente)`, 'Qtd.']} />
+                          <Bar dataKey="total" fill="#94a3b8" radius={[0, 4, 4, 0]} barSize={topLimit > 10 ? 12 : 18} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 hover:shadow-md transition-shadow flex flex-col">
+                    <div className="flex items-center justify-between mb-6">
+                      <h4 className="text-sm font-bold flex items-center gap-2">
+                        <LayoutGrid size={16} className="text-gax-blue" />
+                        {selectedHistoricalSlice ? `Operadoras: ${selectedHistoricalSlice}` : 'Distribuição Global (Snapshot)'}
+                      </h4>
+                      {selectedHistoricalSlice && (
+                        <button onClick={() => setSelectedHistoricalSlice(null)} className="text-[11px] text-gax-blue hover:text-blue-700 hover:bg-blue-50 transition-colors font-bold px-2 py-1 bg-slate-50 rounded-md border border-slate-200 cursor-pointer">
+                          Voltar
+                        </button>
+                      )}
+                    </div>
+                    <div className="h-[280px] w-full relative">
+                      {selectedHistoricalSlice ? (
+                        <div className="absolute inset-0 overflow-y-auto pr-2 custom-scrollbar">
+                          <div style={{ height: Math.max(280, historicalSliceDetails.length * 35) }}>
+                            <ResponsiveContainer width="100%" height="100%">
+                              <BarChart data={historicalSliceDetails} layout="vertical" margin={{ left: 0, right: 30, top: 0, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
+                                <XAxis type="number" hide />
+                                <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} fontSize={10} fontWeight={600} width={80} tick={{ fill: '#64748b' }} />
+                                <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }} formatter={(value: any, name: any, props: any) => [`${value} (${((value / (props.payload.clientTotal || 1)) * 100).toFixed(0)}% do total do cliente)`, 'Qtd.']} />
+                                <Bar dataKey="value" fill={DISTRIBUTION_COLORS[historicalDataForCharts.distributionData.findIndex(d => d.name === selectedHistoricalSlice) || 0] || '#94a3b8'} radius={[0, 4, 4, 0]} barSize={12} />
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </div>
                         </div>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                      ) : historicalDataForCharts.distributionData.length > 0 ? (
+                        <>
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie
+                                data={historicalDataForCharts.distributionData}
+                                innerRadius={70}
+                                outerRadius={95}
+                                paddingAngle={5}
+                                dataKey="value"
+                                labelLine={false}
+                                className="cursor-pointer hover:opacity-90 transition-opacity outline-none"
+                                onClick={(data) => setSelectedHistoricalSlice(data.name || null)}
+                                label={({ cx, cy, midAngle, innerRadius, outerRadius, percent }: any) => {
+                                  if ((percent || 0) < 0.05) return null;
+                                  const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+                                  const x = cx + radius * Math.cos(-midAngle * (Math.PI / 180));
+                                  const y = cy + radius * Math.sin(-midAngle * (Math.PI / 180));
+                                  return (
+                                    <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" fontSize={10} fontWeight={800} style={{ pointerEvents: 'none' }}>
+                                      {`${((percent || 0) * 100).toFixed(0)}%`}
+                                    </text>
+                                  );
+                                }}
+                              >
+                                {historicalDataForCharts.distributionData.map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={DISTRIBUTION_COLORS[index % DISTRIBUTION_COLORS.length]} />
+                                ))}
+                              </Pie>
+                              <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }} />
+                            </PieChart>
+                          </ResponsiveContainer>
+                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                            <div className="text-center">
+                              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Total</p>
+                              <p className="text-2xl font-black text-slate-800">
+                                {historicalDataForCharts.totalGlobal.toLocaleString()}
+                              </p>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="h-full flex items-center justify-center text-slate-300 italic text-[11px]">
+                          Nenhum dado real para exibir ainda.
+                        </div>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 mt-4 border-t border-slate-50 pt-4">
+                      {historicalDataForCharts.distributionData.map((item, idx) => (
+                        <div key={idx} className="flex items-center justify-between group cursor-default">
+                          <div className="flex items-center gap-2">
+                            <div className="h-2 w-2 rounded-full" style={{ backgroundColor: DISTRIBUTION_COLORS[idx] }} />
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">{item.name}</span>
+                          </div>
+                          <div className="text-right flex items-center gap-2">
+                            <span className="text-[11px] font-black text-slate-700">{item.percentage}%</span>
+                            <span className="text-[10px] font-bold text-slate-300 group-hover:text-gax-blue transition-colors">({item.value.toLocaleString()})</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center h-40 text-slate-400 italic text-[13px]">
+                Selecione um ABI para visualizar os dados consolidados.
+              </div>
+            )}
           </div>
         </div>
       )}

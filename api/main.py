@@ -626,47 +626,64 @@ async def start_impugnation_check(request: ABICheckRequest, background_tasks: Ba
 async def get_impugnation_stats(user = Depends(get_current_user)):
     return db.get_impugnation_dashboard_stats()
 
-@app.get("/reports/impugnations")
-async def export_impugnations_report(user = Depends(get_current_user)):
+@app.get("/export-impugnations")
+async def export_impugnations_report(abi: str = None, user = Depends(get_current_user)):
     import io
     import pandas as pd
     from fastapi.responses import StreamingResponse
     from datetime import datetime
     
-    clients = db.get_all_clients()
     report_data = []
     
-    for c in clients:
-        # Puxa a configuração completa do cliente para pegar o config que contém os stats (get_all_clients já retorna isso, mas vamos garantir)
-        full_client = db.get_client_config(c['id']) if 'impugnation_stats' not in c else c
-        stats = full_client.get('impugnation_stats', {})
-        
-        last_check = full_client.get('impugnation_last_check') or full_client.get('abi_last_check')
-        dt_str = ""
-        if last_check:
-            try:
-                import pytz
-                # Localize to Sao Paulo
-                tz = pytz.timezone('America/Sao_Paulo')
-                # Check if it's aware, if so astimezone, otherwise force tz
-                if hasattr(last_check, 'tzinfo') and last_check.tzinfo is not None:
-                    local_dt = last_check.astimezone(tz)
-                else:
-                    local_dt = pytz.utc.localize(last_check).astimezone(tz)
-                dt_str = local_dt.strftime('%d/%m/%Y %H:%M')
-            except Exception as e:
-                dt_str = str(last_check)[:16]
-                
-        report_data.append({
-            "Cliente": full_client.get('name', 'Desconhecido'),
-            "Situação do ABI": full_client.get('impugnation_status', 'Não Iniciou'),
-            "Quantidade de Atendimentos": stats.get('total', 0),
-            "Quantidade Impugnados": stats.get('impugnados', 0),
-            "Quantidade Não Impugnado": stats.get('nao_impugnando', 0),
-            "Quantidade Aptos": stats.get('aptos', 0),
-            "Quantidade Aguardando Impugnação": stats.get('aguardando', 0),
-            "Data da Última Checagem": dt_str
-        })
+    if abi:
+        historical = db.get_abi_historical_data()
+        filtered = [h for h in historical if str(h.get('abi')) == str(abi)]
+        for h in filtered:
+            stats = h.get('impugnation_stats', {})
+            dt_str = h.get('archived_at', '')
+            report_data.append({
+                "Cliente": h.get('client_name', 'Desconhecido'),
+                "Situação do ABI": h.get('impugnation_status', 'Não Iniciou'),
+                "Quantidade de Atendimentos": stats.get('total', 0),
+                "Quantidade Impugnados": stats.get('impugnados', 0),
+                "Quantidade Não Impugnado": stats.get('nao_impugnando', 0),
+                "Quantidade Aptos": stats.get('aptos', 0),
+                "Quantidade Aguardando Impugnação": stats.get('aguardando', 0),
+                "Data da Última Checagem": dt_str
+            })
+    else:
+        clients = db.get_all_clients()
+        for c in clients:
+            # Puxa a configuração completa do cliente para pegar o config que contém os stats (get_all_clients já retorna isso, mas vamos garantir)
+            full_client = db.get_client_config(c['id']) if 'impugnation_stats' not in c else c
+            stats = full_client.get('impugnation_stats', {})
+            
+            last_check = full_client.get('impugnation_last_check') or full_client.get('abi_last_check')
+            dt_str = ""
+            if last_check:
+                try:
+                    import pytz
+                    # Localize to Sao Paulo
+                    tz = pytz.timezone('America/Sao_Paulo')
+                    # Check if it's aware, if so astimezone, otherwise force tz
+                    if hasattr(last_check, 'tzinfo') and last_check.tzinfo is not None:
+                        local_dt = last_check.astimezone(tz)
+                    else:
+                        local_dt = pytz.utc.localize(last_check).astimezone(tz)
+                    dt_str = local_dt.strftime('%d/%m/%Y %H:%M')
+                except Exception as e:
+                    dt_str = str(last_check)[:16]
+                    
+            report_data.append({
+                "Cliente": full_client.get('name', 'Desconhecido'),
+                "Situação do ABI": full_client.get('impugnation_status', 'Não Iniciou'),
+                "Quantidade de Atendimentos": stats.get('total', 0),
+                "Quantidade Impugnados": stats.get('impugnados', 0),
+                "Quantidade Não Impugnado": stats.get('nao_impugnando', 0),
+                "Quantidade Aptos": stats.get('aptos', 0),
+                "Quantidade Aguardando Impugnação": stats.get('aguardando', 0),
+                "Data da Última Checagem": dt_str
+            })
         
     df = pd.DataFrame(report_data)
     
