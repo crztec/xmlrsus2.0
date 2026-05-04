@@ -324,7 +324,7 @@ export default function Sidebar({ onOpenProfile, isOpen, onClose }: SidebarProps
             "overflow-hidden transition-all duration-300 ease-in-out",
             importMenuOpen ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0"
           )}>
-            <div className="ml-3 space-y-0.5 border-l-2 border-slate-100 pl-3 py-1">
+            <div className="ml-1 space-y-0.5 py-1">
               {mainMenuItems.map((item, idx) => {
                 if (item.isAdmin && !isAdmin) return null;
                 const isActive = pathname === item.href;
@@ -384,7 +384,7 @@ export default function Sidebar({ onOpenProfile, isOpen, onClose }: SidebarProps
                 "overflow-hidden transition-all duration-300 ease-in-out",
                 adminMenuOpen ? "max-h-[300px] opacity-100" : "max-h-0 opacity-0"
               )}>
-                <div className="ml-3 space-y-0.5 border-l-2 border-slate-100 pl-3 py-1">
+                <div className="ml-1 space-y-0.5 py-1">
                   {adminSubItems.map((sub, idx) => {
                     const isSubActive = pathname === sub.href;
                     return (
@@ -446,7 +446,7 @@ export default function Sidebar({ onOpenProfile, isOpen, onClose }: SidebarProps
                 "overflow-hidden transition-all duration-300 ease-in-out",
                 systemMenuOpen ? "max-h-[300px] opacity-100" : "max-h-0 opacity-0"
               )}>
-                <div className="ml-3 space-y-0.5 border-l-2 border-slate-100 pl-3 py-1">
+                <div className="ml-1 space-y-0.5 py-1">
                   {configSubItems.map((sub: any, idx: number) => {
                     const isSubActive = pathname === sub.href;
                     return (

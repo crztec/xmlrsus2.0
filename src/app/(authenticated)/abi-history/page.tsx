@@ -204,14 +204,14 @@ export default function AbiHistoryPage() {
           </div>
         </div>
         
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
           {activeTab === 'current' && (
-            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Exibir:</span>
+            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 flex-1 sm:flex-none">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight whitespace-nowrap">Exibir:</span>
               <select 
                 value={topLimit} 
                 onChange={(e) => setTopLimit(Number(e.target.value))}
-                className="bg-transparent border-none outline-none text-[12px] font-bold text-gax-blue cursor-pointer"
+                className="bg-transparent border-none outline-none text-[12px] font-bold text-gax-blue cursor-pointer w-full"
               >
                 <option value={5}>Top 5</option>
                 <option value={10}>Top 10</option>
@@ -220,18 +220,21 @@ export default function AbiHistoryPage() {
               </select>
             </div>
           )}
-          <button 
-            onClick={fetchData} 
-            disabled={loading}
-            className="flex items-center justify-center h-8 w-8 rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-gax-blue transition-all shadow-sm disabled:opacity-50"
-            title="Atualizar Dados"
-          >
-            <Clock size={14} className={cn(loading && "animate-spin")} />
-          </button>
-          <button className="flex items-center gap-2 h-8 px-3 rounded-lg border border-slate-200 bg-white text-slate-700 font-bold hover:bg-slate-50 hover:text-gax-blue transition-all text-[12px] shadow-sm">
-            <Download size={13} />
-            Exportar Dashboard
-          </button>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={fetchData} 
+              disabled={loading}
+              className="flex items-center justify-center h-8 w-8 rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-gax-blue transition-all shadow-sm disabled:opacity-50"
+              title="Atualizar Dados"
+            >
+              <Clock size={14} className={cn(loading && "animate-spin")} />
+            </button>
+            <button className="flex items-center gap-2 h-8 px-3 rounded-lg border border-slate-200 bg-white text-slate-700 font-bold hover:bg-slate-50 hover:text-gax-blue transition-all text-[11px] sm:text-[12px] shadow-sm">
+              <Download size={13} />
+              <span className="hidden xs:inline">Exportar</span>
+              <span className="hidden sm:inline">Dashboard</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -297,9 +300,9 @@ export default function AbiHistoryPage() {
                       type="category" 
                       axisLine={false} 
                       tickLine={false} 
-                      fontSize={10} 
+                      fontSize={9} 
                       fontWeight={600} 
-                      width={80}
+                      width={70}
                       tick={{ fill: '#64748b' }}
                     />
                     <Tooltip 
@@ -331,9 +334,9 @@ export default function AbiHistoryPage() {
                       type="category" 
                       axisLine={false} 
                       tickLine={false} 
-                      fontSize={10} 
+                      fontSize={9} 
                       fontWeight={600} 
-                      width={80}
+                      width={70}
                       tick={{ fill: '#64748b' }}
                     />
                     <Tooltip 
@@ -365,9 +368,9 @@ export default function AbiHistoryPage() {
                       type="category" 
                       axisLine={false} 
                       tickLine={false} 
-                      fontSize={10} 
+                      fontSize={9} 
                       fontWeight={600} 
-                      width={80}
+                      width={70}
                       tick={{ fill: '#64748b' }}
                     />
                     <Tooltip 
