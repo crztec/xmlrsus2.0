@@ -250,10 +250,14 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
                 target_status = None # Aborta mudança de status
             
             if target_status:
+                # Re-localiza a linha caso o DOM tenha mudado após o salvamento do contato (Kendo UI/Angular Re-render)
+                target_row = await try_search(client_name)
+                
                 log_task(f"Atualizando status para '{target_status}'")
                 # Gatilho de status independe da coluna exata. Procura por botões/comboboxes na linha atual.
-                # Baseado na foto, é text "Não Iniciou", "Importou e Analisou", etc.
-                status_trigger = target_row.locator("button, [role='combobox'], .cursor-pointer, span.inline-flex, span[aria-haspopup='dialog']").filter(has_text=re.compile(r"Não iniciou|Importou|Impugnando|Impugnado|Finalizou|Agendou|Erro", re.IGNORECASE)).first
+                status_trigger = target_row.locator("button, [role='combobox'], .cursor-pointer, span.inline-flex, span[aria-haspopup='dialog'], .k-dropdown, .k-dropdown-wrap").filter(
+                    has_text=re.compile(r"Não iniciou|Importou|Impugnando|Impugnado|Finalizou|Agendou|Erro|Analisou", re.IGNORECASE)
+                ).first
                 
                 if await status_trigger.count() > 0:
                     await status_trigger.scroll_into_view_if_needed()

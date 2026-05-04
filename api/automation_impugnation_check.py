@@ -261,7 +261,7 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
                 log_task(f"Atualizando status para '{target_status}'")
                 
                 # Seletor robusto que ignora se é um span, button ou div, focado no texto de status conhecido
-                status_trigger = target_row.locator("button, [role='combobox'], .cursor-pointer, span.inline-flex, span[aria-haspopup='dialog'], .k-dropdown").filter(
+                status_trigger = target_row.locator("button, [role='combobox'], .cursor-pointer, span.inline-flex, span[aria-haspopup='dialog'], .k-dropdown, .k-dropdown-wrap").filter(
                     has_text=re.compile(r"Não iniciou|Importou|Impugnando|Impugnado|Finalizou|Agendou|Erro|Analisou", re.IGNORECASE)
                 ).first
                 
