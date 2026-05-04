@@ -16,11 +16,7 @@ import {
   FileDown,
   Activity,
   UserX,
-  Hourglass,
-  LayoutGrid,
-  ChevronRight,
-  ArrowUpRight,
-  Filter
+  Hourglass
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/apiClient";
@@ -40,49 +36,6 @@ import {
 } from "recharts";
 
 const DISTRIBUTION_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#94a3b8'];
-
-// --- COMPONENTES AUXILIARES DE DESIGN ---
-
-const CustomTooltip = ({ active, payload, label }: any) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className="bg-slate-900/90 backdrop-blur-md border border-slate-700 p-3 rounded-xl shadow-2xl animate-in zoom-in-95 duration-200">
-        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 border-b border-white/10 pb-1">{label}</p>
-        <div className="flex items-center gap-2">
-          <div className="h-2 w-2 rounded-full" style={{ backgroundColor: payload[0].color || payload[0].fill }} />
-          <p className="text-[13px] font-black text-white">
-            {payload[0].value.toLocaleString()} <span className="text-[10px] text-slate-400 font-medium">registros</span>
-          </p>
-        </div>
-      </div>
-    );
-  }
-  return null;
-};
-
-const StatCard = ({ title, value, icon: Icon, colorClass, delay }: any) => (
-  <div 
-    className={cn(
-      "relative overflow-hidden rounded-2xl border bg-white p-5 shadow-sm group hover:shadow-md transition-all duration-300 animate-in fade-in slide-in-from-bottom-4 fill-mode-both",
-      delay
-    )}
-  >
-    <div className="relative z-10 flex items-center justify-between">
-      <div>
-        <h3 className="text-slate-400 font-black text-[10px] uppercase tracking-widest mb-1.5">{title}</h3>
-        <p className={cn("text-3xl font-black tracking-tighter", colorClass)}>{value}</p>
-      </div>
-      <div className={cn("h-12 w-12 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 duration-500 shadow-sm", 
-        title === "Finalizados" ? "bg-emerald-50 text-emerald-500" : 
-        title === "Em Andamento" ? "bg-amber-50 text-amber-500" : "bg-slate-50 text-slate-400")}>
-        <Icon size={24} strokeWidth={2.5} />
-      </div>
-    </div>
-    <div className="absolute -right-4 -bottom-4 opacity-[0.03] group-hover:opacity-[0.06] transition-opacity duration-500">
-      <Icon size={80} strokeWidth={3} />
-    </div>
-  </div>
-);
 
 export default function AbiHistoryPage() {
   const [loading, setLoading] = useState(true);
@@ -188,283 +141,356 @@ export default function AbiHistoryPage() {
   const chartHeight = useMemo(() => Math.max(300, topLimit * 40), [topLimit]);
 
   return (
-    <div className="flex flex-col gap-6 p-4 md:p-8 max-w-[1600px] mx-auto min-h-screen text-slate-900 bg-[#f8fafc]/50">
+    <div className="flex flex-col gap-5 p-2 md:p-4 max-w-7xl mx-auto min-h-screen text-slate-800">
       
-      {/* Header Estilo SaaS */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 animate-in fade-in duration-700">
-        <div className="space-y-1">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 bg-gax-blue rounded-xl flex items-center justify-center text-white shadow-lg shadow-gax-blue/20">
-              <Activity size={22} strokeWidth={2.5} />
-            </div>
-            <h1 className="text-2xl font-black tracking-tight text-slate-800">Analytics de ABIs</h1>
-          </div>
-          <p className="text-slate-400 text-sm font-medium">Monitoramento em tempo real do processamento e histórico consolidado.</p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex p-1 bg-slate-200/50 backdrop-blur-sm rounded-xl border border-slate-200">
+      {/* Header com Navegação e Ações */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 w-full">
+        <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-sm w-full sm:w-max">
             <button
               onClick={() => setActiveTab('current')}
               className={cn(
-                "flex items-center gap-2 px-5 py-2.5 rounded-lg font-black text-[12px] transition-all duration-300",
-                activeTab === 'current' ? "bg-white text-gax-blue shadow-sm" : "text-slate-500 hover:text-slate-700"
+                "flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-bold text-[12px] transition-all",
+                activeTab === 'current' 
+                  ? "bg-white text-gax-blue shadow-sm border border-slate-100" 
+                  : "text-slate-500 hover:text-slate-700 hover:bg-white/50"
               )}
             >
-              <Activity size={14} /> Visão Geral
+              <CalendarDays size={14} />
+              Visão Geral Atual
             </button>
             <button
               onClick={() => setActiveTab('history')}
               className={cn(
-                "flex items-center gap-2 px-5 py-2.5 rounded-lg font-black text-[12px] transition-all duration-300",
-                activeTab === 'history' ? "bg-white text-gax-blue shadow-sm" : "text-slate-500 hover:text-slate-700"
+                "flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-bold text-[12px] transition-all",
+                activeTab === 'history' 
+                  ? "bg-white text-gax-blue shadow-sm border border-slate-100" 
+                  : "text-slate-500 hover:text-slate-700 hover:bg-white/50"
               )}
             >
-              <History size={14} /> Histórico
+              <ClipboardList size={14} />
+              ABIs Anteriores
             </button>
           </div>
-
-          <div className="h-10 w-px bg-slate-200 mx-1 hidden sm:block" />
-
+          
+          <div className="group relative">
+            <HelpCircle size={18} className="text-slate-400 cursor-help hover:text-gax-blue transition-colors" />
+            <div className="absolute left-0 top-full mt-2 w-72 p-3 bg-slate-800 text-white text-[11px] rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 pointer-events-none leading-relaxed">
+              <p className="font-bold mb-1 border-b border-white/10 pb-1 flex items-center gap-1.5">
+                <History size={12} /> Como o histórico funciona?
+              </p>
+              Os dados representam o processamento atual. Assim que a operadora iniciar um ciclo novo (ex: ABI 105 para o 106), o robô salva um snapshot automático e envia os consolidados para "ABIs Anteriores".
+            </div>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-2">
           {activeTab === 'current' && (
-            <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-1.5 shadow-sm hover:border-gax-blue/30 transition-colors">
-              <Filter size={14} className="text-slate-400" />
+            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Exibir:</span>
               <select 
                 value={topLimit} 
                 onChange={(e) => setTopLimit(Number(e.target.value))}
-                className="bg-transparent border-none outline-none text-[12px] font-black text-slate-700 cursor-pointer"
+                className="bg-transparent border-none outline-none text-[12px] font-bold text-gax-blue cursor-pointer"
               >
-                {[5, 10, 15, 20].map(v => <option key={v} value={v}>Top {v} Clientes</option>)}
+                <option value={5}>Top 5</option>
+                <option value={10}>Top 10</option>
+                <option value={15}>Top 15</option>
+                <option value={20}>Top 20</option>
               </select>
             </div>
           )}
-
-          <button onClick={fetchData} className="h-10 w-10 flex items-center justify-center rounded-xl bg-white border border-slate-200 text-slate-400 hover:text-gax-blue transition-all shadow-sm active:scale-95">
-            <Clock size={16} className={cn(loading && "animate-spin")} />
+          <button 
+            onClick={fetchData} 
+            disabled={loading}
+            className="flex items-center justify-center h-8 w-8 rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-gax-blue transition-all shadow-sm disabled:opacity-50"
+            title="Atualizar Dados"
+          >
+            <Clock size={14} className={cn(loading && "animate-spin")} />
           </button>
-          
-          <button className="h-10 px-5 flex items-center gap-2 rounded-xl bg-gax-blue text-white font-black text-[12px] shadow-lg shadow-gax-blue/20 hover:bg-gax-blue/90 transition-all active:scale-95">
-            <Download size={14} /> Exportar
+          <button className="flex items-center gap-2 h-8 px-3 rounded-lg border border-slate-200 bg-white text-slate-700 font-bold hover:bg-slate-50 hover:text-gax-blue transition-all text-[12px] shadow-sm">
+            <Download size={13} />
+            Exportar Dashboard
           </button>
         </div>
       </div>
 
       {loading ? (
-        <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
-          <div className="relative">
-            <div className="h-16 w-16 rounded-2xl border-4 border-slate-100 border-t-gax-blue animate-spin" />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <Activity size={24} className="text-gax-blue animate-pulse" />
-            </div>
-          </div>
-          <p className="font-black text-slate-400 text-[11px] uppercase tracking-widest">Sincronizando Módulos...</p>
+        <div className="flex flex-col items-center justify-center h-80 gap-3 text-slate-400">
+          <Loader2 size={28} className="animate-spin text-gax-blue" />
+          <p className="font-semibold text-[13px]">Sincronizando dados...</p>
         </div>
       ) : activeTab === 'current' ? (
-        <div className="space-y-8 animate-in fade-in duration-1000">
-          {/* Grid de Cards Superiores */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <StatCard title="Finalizados" value={currentAbiData?.finalized || 0} icon={ShieldCheck} colorClass="text-emerald-500" delay="delay-75" />
-            <StatCard title="Em Andamento" value={currentAbiData?.impugnating || 0} icon={TrendingUp} colorClass="text-amber-500" delay="delay-150" />
-            <StatCard title="Não Iniciados" value={currentAbiData?.not_started || 0} icon={ShieldAlert} colorClass="text-slate-400" delay="delay-200" />
+        /* Aba Visão Geral Atual */
+        <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 space-y-5">
+          {/* Cards de Resumo Compactos */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="rounded-xl border border-emerald-100 bg-white p-4 shadow-sm flex items-center justify-between group hover:border-emerald-200 transition-colors">
+              <div>
+                <h3 className="text-slate-500 font-bold text-[11px] uppercase tracking-wider mb-1">Finalizados</h3>
+                <p className="text-2xl font-black text-emerald-600 tracking-tight">{currentAbiData?.finalized || 0}</p>
+              </div>
+              <div className="h-10 w-10 bg-emerald-50 rounded-lg flex items-center justify-center text-emerald-500 group-hover:scale-110 transition-transform">
+                <ShieldCheck size={20} />
+              </div>
+            </div>
+            
+            <div className="rounded-xl border border-amber-100 bg-white p-4 shadow-sm flex items-center justify-between group hover:border-amber-200 transition-colors">
+              <div>
+                <h3 className="text-slate-500 font-bold text-[11px] uppercase tracking-wider mb-1">Em Andamento</h3>
+                <p className="text-2xl font-black text-amber-600 tracking-tight">{currentAbiData?.impugnating || 0}</p>
+              </div>
+              <div className="h-10 w-10 bg-amber-50 rounded-lg flex items-center justify-center text-amber-500 group-hover:scale-110 transition-transform">
+                <TrendingUp size={20} />
+              </div>
+            </div>
+            
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm flex items-center justify-between group hover:border-slate-300 transition-colors">
+              <div>
+                <h3 className="text-slate-500 font-bold text-[11px] uppercase tracking-wider mb-1">Não Iniciados</h3>
+                <p className="text-2xl font-black text-slate-800 tracking-tight">{currentAbiData?.not_started || 0}</p>
+              </div>
+              <div className="h-10 w-10 bg-slate-50 rounded-lg flex items-center justify-center text-slate-400 group-hover:scale-110 transition-transform">
+                <ShieldAlert size={20} />
+              </div>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Coluna de Top Listas (Scrollable) */}
-            <div className="lg:col-span-2 space-y-8">
-              {[
-                { title: `Top ${topLimit} Qtd. Impugnações`, data: topImpugnados, icon: TrendingUp, color: "#10b981", sub: "Atendimentos Aptos e Impugnados" },
-                { title: `Top ${topLimit} Qtd. Aguardando`, data: topAguardando, icon: Hourglass, color: "#f59e0b", sub: "Pendências de checagem no portal" },
-                { title: `Top ${topLimit} Não Impugnados`, data: topNaoImpugnados, icon: UserX, color: "#94a3b8", sub: "Registros marcados como sem impugnação" }
-              ].map((chart, i) => (
-                <div key={i} className="bg-white rounded-[24px] border border-slate-200/60 p-6 shadow-sm hover:shadow-xl transition-all duration-500 group">
-                  <div className="flex items-center justify-between mb-8">
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-xl flex items-center justify-center bg-slate-50 text-slate-400 group-hover:bg-slate-100 transition-colors">
-                        <chart.icon size={20} />
-                      </div>
-                      <div>
-                        <h4 className="text-[15px] font-black text-slate-800">{chart.title}</h4>
-                        <p className="text-[11px] text-slate-400 font-medium">{chart.sub}</p>
-                      </div>
-                    </div>
-                    <ArrowUpRight size={18} className="text-slate-200 group-hover:text-gax-blue transition-colors" />
-                  </div>
-                  
-                  <div style={{ height: `${chartHeight}px` }} className="w-full transition-all duration-500">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={chart.data} layout="vertical" margin={{ left: 10, right: 30, top: 0, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="4 4" horizontal={true} vertical={false} stroke="#f1f5f9" />
-                        <XAxis type="number" hide />
-                        <YAxis 
-                          dataKey="name" 
-                          type="category" 
-                          axisLine={false} 
-                          tickLine={false} 
-                          fontSize={10} 
-                          fontWeight={800} 
-                          width={110}
-                          tick={{ fill: '#64748b' }}
-                        />
-                        <Tooltip cursor={{ fill: '#f8fafc', radius: 8 }} content={<CustomTooltip />} />
-                        <Bar 
-                          dataKey="total" 
-                          fill={chart.color} 
-                          radius={[0, 8, 8, 0]} 
-                          barSize={20}
-                          animationDuration={1500}
-                          animationBegin={i * 200}
-                        />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-              ))}
+          {/* Grid de Gráficos Analíticos */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {/* Gráfico de Barras - Top Clientes Impugnações */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between mb-6">
+                <h4 className="text-sm font-bold flex items-center gap-2">
+                  <TrendingUp size={16} className="text-emerald-500" />
+                  Top {topLimit} Qtd. Impugnações
+                </h4>
+                <span className="text-[10px] bg-slate-100 px-2 py-1 rounded-md text-slate-500 font-medium italic">Dados Reais</span>
+              </div>
+              <div style={{ height: `${chartHeight}px` }} className="w-full transition-all">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={topImpugnados} layout="vertical" margin={{ left: 20, right: 30, top: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
+                    <XAxis type="number" hide />
+                    <YAxis 
+                      dataKey="name" 
+                      type="category" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      fontSize={10} 
+                      fontWeight={600} 
+                      width={80}
+                      tick={{ fill: '#64748b' }}
+                    />
+                    <Tooltip 
+                      cursor={{ fill: '#f8fafc' }}
+                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }}
+                    />
+                    <Bar dataKey="total" fill="#10b981" radius={[0, 4, 4, 0]} barSize={topLimit > 10 ? 12 : 18} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
 
-            {/* Coluna Lateral: Distribuição e Insights */}
-            <div className="space-y-8">
-              <div className="bg-slate-900 rounded-[32px] p-8 text-white shadow-2xl relative overflow-hidden group">
-                <div className="relative z-10">
-                  <div className="flex items-center justify-between mb-8">
-                    <h4 className="text-[15px] font-black tracking-tight flex items-center gap-2">
-                      <LayoutGrid size={18} className="text-gax-blue" />
-                      Distribuição Global
-                    </h4>
-                    <span className="bg-white/10 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest">Tempo Real</span>
-                  </div>
+            {/* Gráfico de Barras - Top Clientes Aguardando */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between mb-6">
+                <h4 className="text-sm font-bold flex items-center gap-2">
+                  <Hourglass size={16} className="text-amber-500" />
+                  Top {topLimit} Qtd. Aguardando
+                </h4>
+              </div>
+              <div style={{ height: `${chartHeight}px` }} className="w-full transition-all">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={topAguardando} layout="vertical" margin={{ left: 20, right: 30, top: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
+                    <XAxis type="number" hide />
+                    <YAxis 
+                      dataKey="name" 
+                      type="category" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      fontSize={10} 
+                      fontWeight={600} 
+                      width={80}
+                      tick={{ fill: '#64748b' }}
+                    />
+                    <Tooltip 
+                      cursor={{ fill: '#f8fafc' }}
+                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }}
+                    />
+                    <Bar dataKey="total" fill="#f59e0b" radius={[0, 4, 4, 0]} barSize={topLimit > 10 ? 12 : 18} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
 
-                  <div className="h-[280px] w-full relative mb-8">
+            {/* Gráfico de Barras - Top Clientes Não Impugnados */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between mb-6">
+                <h4 className="text-sm font-bold flex items-center gap-2">
+                  <UserX size={16} className="text-slate-400" />
+                  Top {topLimit} Não Impugnados
+                </h4>
+              </div>
+              <div style={{ height: `${chartHeight}px` }} className="w-full transition-all">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={topNaoImpugnados} layout="vertical" margin={{ left: 20, right: 30, top: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
+                    <XAxis type="number" hide />
+                    <YAxis 
+                      dataKey="name" 
+                      type="category" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      fontSize={10} 
+                      fontWeight={600} 
+                      width={80}
+                      tick={{ fill: '#64748b' }}
+                    />
+                    <Tooltip 
+                      cursor={{ fill: '#f8fafc' }}
+                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }}
+                    />
+                    <Bar dataKey="total" fill="#94a3b8" radius={[0, 4, 4, 0]} barSize={topLimit > 10 ? 12 : 18} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Gráfico de Rosca - Distribuição */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 hover:shadow-md transition-shadow">
+              <h4 className="text-sm font-bold mb-6 flex items-center gap-2">
+                <LayoutGrid size={16} className="text-gax-blue" />
+                Distribuição Global de Atendimentos
+              </h4>
+              <div className="h-[280px] w-full relative">
+                {distributionData.length > 0 ? (
+                  <>
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
                           data={distributionData}
-                          innerRadius={80}
-                          outerRadius={105}
-                          paddingAngle={6}
+                          innerRadius={70}
+                          outerRadius={95}
+                          paddingAngle={5}
                           dataKey="value"
-                          stroke="none"
                         >
                           {distributionData.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={DISTRIBUTION_COLORS[index % DISTRIBUTION_COLORS.length]} />
                           ))}
                         </Pie>
-                        <Tooltip content={<CustomTooltip />} />
+                        <Tooltip 
+                          contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }}
+                        />
                       </PieChart>
                     </ResponsiveContainer>
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                      <div className="text-center animate-in zoom-in duration-1000">
-                        <p className="text-[10px] text-white/40 font-black uppercase tracking-[0.2em] mb-1">Total</p>
-                        <p className="text-3xl font-black tracking-tighter">
+                      <div className="text-center">
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Total</p>
+                        <p className="text-2xl font-black text-slate-800">
                           {totalGlobal.toLocaleString()}
                         </p>
                       </div>
                     </div>
+                  </>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-slate-300 italic text-[11px]">
+                    Nenhum dado real para exibir ainda.
                   </div>
-
-                  <div className="space-y-4">
-                    {distributionData.map((item, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-3 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors group/item">
-                        <div className="flex items-center gap-3">
-                          <div className="h-2 w-2 rounded-full shadow-[0_0_8px_rgba(255,255,255,0.5)]" style={{ backgroundColor: DISTRIBUTION_COLORS[idx] }} />
-                          <span className="text-[11px] font-black text-white/70 uppercase tracking-tighter group-hover/item:text-white transition-colors">{item.name}</span>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-[13px] font-black">{item.percentage}%</p>
-                          <p className="text-[9px] text-white/30 font-bold">{item.value.toLocaleString()}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                {/* Efeito Visual de Fundo */}
-                <div className="absolute -top-20 -right-20 h-64 w-64 bg-gax-blue opacity-10 blur-[100px]" />
-                <div className="absolute -bottom-20 -left-20 h-64 w-64 bg-emerald-500 opacity-5 blur-[100px]" />
+                )}
               </div>
-
-              {/* Card de Informação Rápida */}
-              <div className="bg-white rounded-[24px] border border-slate-200 p-6 shadow-sm overflow-hidden relative group">
-                <h4 className="text-[13px] font-black text-slate-800 mb-4 flex items-center gap-2">
-                  <HelpCircle size={16} className="text-gax-blue" />
-                  Sincronização de Ciclos
-                </h4>
-                <p className="text-[12px] text-slate-400 font-medium leading-relaxed">
-                  Os snapshots do histórico são gerados automaticamente no portal RSUS. Quando o ciclo 105 encerrar, o GAX irá processar os dados finais e arquivá-los na aba de histórico.
-                </p>
-                <div className="mt-5 flex items-center gap-2 text-[11px] font-black text-gax-blue cursor-pointer group-hover:gap-3 transition-all">
-                  Ver documentação completa <ChevronRight size={14} />
-                </div>
+              <div className="grid grid-cols-2 gap-3 mt-4 border-t border-slate-50 pt-4">
+                {distributionData.map((item, idx) => (
+                  <div key={idx} className="flex items-center justify-between group cursor-default">
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full" style={{ backgroundColor: DISTRIBUTION_COLORS[idx] }} />
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">{item.name}</span>
+                    </div>
+                    <div className="text-right flex items-center gap-2">
+                      <span className="text-[11px] font-black text-slate-700">{item.percentage}%</span>
+                      <span className="text-[10px] font-bold text-slate-300 group-hover:text-gax-blue transition-colors">({item.value.toLocaleString()})</span>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
         </div>
       ) : (
-        /* Aba ABIs Anteriores - Visual Refinado */
-        <div className="animate-in fade-in slide-in-from-bottom-6 duration-700 space-y-8">
-          <div className="bg-white rounded-[32px] border border-slate-200/60 p-8 shadow-sm">
-            <div className="flex items-center justify-between mb-10">
-               <div className="space-y-1">
-                 <h4 className="text-[18px] font-black text-slate-800 flex items-center gap-2">
-                  <Activity size={20} className="text-gax-blue" />
-                  Evolução Histórica
-                </h4>
-                <p className="text-[11px] text-slate-400 font-medium">Progressão volumétrica de impugnações validadas.</p>
-               </div>
-               <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <div className="h-1.5 w-6 bg-gax-blue rounded-full" />
-                  <span className="text-[10px] text-slate-400 font-black uppercase">Volume Processado</span>
+        /* Aba ABIs Anteriores */
+        <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 space-y-5">
+          {/* Gráfico de Evolução de Ciclos */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+            <div className="flex items-center justify-between mb-6">
+               <h4 className="text-sm font-bold flex items-center gap-2">
+                <Activity size={16} className="text-gax-blue" />
+                Evolução de Impugnações por Ciclo
+              </h4>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5">
+                  <div className="h-0.5 w-4 bg-gax-blue" />
+                  <span className="text-[10px] text-slate-400 font-bold">Volume Total (Imp/Apto)</span>
                 </div>
-               </div>
+              </div>
             </div>
-            <div className="h-[240px] w-full">
+            <div className="h-[200px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={evolutionData}>
-                  <CartesianGrid strokeDasharray="5 5" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="abi" axisLine={false} tickLine={false} fontSize={11} fontWeight={900} tick={{ fill: '#94a3b8' }} dy={10} />
-                  <Tooltip content={<CustomTooltip />} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis 
+                    dataKey="abi" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    fontSize={11} 
+                    fontWeight={600} 
+                    tick={{ fill: '#94a3b8' }} 
+                  />
+                  <YAxis hide />
+                  <Tooltip 
+                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }}
+                  />
                   <Line 
                     type="monotone" 
                     dataKey="volume" 
                     stroke="#3b82f6" 
-                    strokeWidth={4} 
-                    dot={{ r: 6, fill: '#3b82f6', strokeWidth: 3, stroke: '#fff' }} 
-                    activeDot={{ r: 8, strokeWidth: 0 }} 
+                    strokeWidth={3} 
+                    dot={{ r: 4, fill: '#3b82f6', strokeWidth: 2, stroke: '#fff' }} 
+                    activeDot={{ r: 6 }} 
                   />
                 </LineChart>
               </ResponsiveContainer>
             </div>
           </div>
 
-          <div className="bg-white rounded-[32px] border border-slate-200/60 shadow-sm overflow-hidden">
-            <div className="p-6 border-b border-slate-100 flex flex-col md:flex-row items-center justify-between gap-4">
-              <div className="relative w-full md:w-96 group">
-                <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-gax-blue transition-colors" />
+          {/* Tabela de Histórico Minimalista */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="flex flex-col sm:flex-row items-center justify-between p-3 border-b border-slate-100 gap-4">
+              <div className="flex items-center gap-2 text-slate-400 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 w-full sm:w-80">
+                <Search size={14} />
                 <input 
                   type="text" 
-                  placeholder="Filtrar por operadora ou ciclo..." 
+                  placeholder="Pesquisar histórico..." 
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-slate-50 border-none rounded-2xl py-3 pl-12 pr-4 text-[13px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-gax-blue/10 transition-all"
+                  className="bg-transparent border-none outline-none text-[12px] text-slate-700 w-full placeholder:text-slate-400"
                 />
               </div>
-              <div className="flex items-center gap-3">
-                <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Visualização em</span>
-                <div className="h-8 w-8 bg-slate-50 rounded-lg flex items-center justify-center text-gax-blue border border-slate-200 shadow-sm">
-                  <LayoutGrid size={14} />
-                </div>
-              </div>
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Snapshots Arquivados</p>
             </div>
             
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-slate-50/50 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                    <th className="px-8 py-5">Identificador</th>
-                    <th className="px-8 py-5">Snapshot Operadora</th>
-                    <th className="px-8 py-5 text-center">Volume</th>
-                    <th className="px-8 py-5 text-center">Impugnados</th>
-                    <th className="px-8 py-5 text-center">Eficiência</th>
-                    <th className="px-8 py-5 text-right">Ações</th>
+                  <tr className="bg-slate-50/50 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                    <th className="px-5 py-4">ABI</th>
+                    <th className="px-5 py-4">Operadora / Competência</th>
+                    <th className="px-5 py-4 text-center">Total</th>
+                    <th className="px-5 py-4 text-center">Impugnados</th>
+                    <th className="px-5 py-4 text-center">Aptos</th>
+                    <th className="px-5 py-4 text-center">Aguardando</th>
+                    <th className="px-5 py-4 text-center">Eficiência (%)</th>
+                    <th className="px-5 py-4 text-right">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
@@ -475,49 +501,54 @@ export default function AbiHistoryPage() {
                       const eficiencia = total > 0 ? Math.round((resolvidos / total) * 100) : 0;
                       
                       return (
-                        <tr key={idx} className="hover:bg-slate-50/80 transition-all duration-300 group">
-                          <td className="px-8 py-6">
-                            <span className="h-8 w-8 rounded-lg bg-slate-900 text-white flex items-center justify-center text-[11px] font-black">{item.abi}</span>
+                        <tr key={idx} className="hover:bg-slate-50/80 transition-all group">
+                          <td className="px-5 py-4">
+                            <span className="font-black text-slate-800 text-[12px]">{item.abi}</span>
                           </td>
-                          <td className="px-8 py-6">
-                            <p className="font-black text-[14px] text-slate-800 tracking-tight">{item.client_name}</p>
-                            <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold mt-1">
+                          <td className="px-5 py-4">
+                            <p className="font-bold text-[13px] text-slate-800">{item.client_name}</p>
+                            <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-medium mt-0.5">
                               <CalendarDays size={10} />
-                              {item.archived_at}
+                              Arquivado em {item.archived_at}
                             </div>
                           </td>
-                          <td className="px-8 py-6 text-center font-mono text-[13px] font-black text-slate-600">
+                          <td className="px-5 py-4 text-center font-mono text-[13px] font-bold text-slate-600">
                             {total.toLocaleString()}
                           </td>
-                          <td className="px-8 py-6 text-center">
-                            <div className="flex flex-col items-center gap-1">
-                              <span className="text-[12px] font-black text-gax-blue bg-gax-blue/5 px-2.5 py-1 rounded-lg">
-                                {item.impugnation_stats?.impugnados || 0}
-                              </span>
-                            </div>
+                          <td className="px-5 py-4 text-center">
+                            <span className="text-[12px] font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-md">
+                              {item.impugnation_stats?.impugnados || 0}
+                            </span>
                           </td>
-                          <td className="px-8 py-6 text-center">
-                            <div className="flex flex-col items-center gap-2">
-                              <div className="flex items-center gap-2">
-                                <span className={cn(
-                                  "text-[12px] font-black tracking-tighter",
-                                  eficiencia >= 80 ? "text-emerald-500" : eficiencia >= 50 ? "text-amber-500" : "text-slate-400"
-                                )}>
-                                  {eficiencia}%
-                                </span>
-                                {eficiencia >= 80 && <ArrowUpRight size={14} className="text-emerald-500" />}
-                              </div>
-                              <div className="w-20 h-1.5 bg-slate-100 rounded-full overflow-hidden shadow-inner">
+                          <td className="px-5 py-4 text-center">
+                             <span className="text-[12px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-md">
+                              {item.impugnation_stats?.aptos || 0}
+                            </span>
+                          </td>
+                          <td className="px-5 py-4 text-center">
+                             <span className="text-[12px] font-bold text-amber-600 bg-amber-50 px-2.5 py-1 rounded-md">
+                              {item.impugnation_stats?.aguardando || 0}
+                            </span>
+                          </td>
+                          <td className="px-5 py-4 text-center">
+                            <div className="flex flex-col items-center gap-1">
+                              <span className={cn(
+                                "text-[11px] font-black",
+                                eficiencia >= 80 ? "text-emerald-600" : eficiencia >= 50 ? "text-amber-600" : "text-slate-500"
+                              )}>
+                                {eficiencia}%
+                              </span>
+                              <div className="w-12 h-1 bg-slate-100 rounded-full overflow-hidden">
                                 <div 
-                                  className={cn("h-full transition-all duration-1000", eficiencia >= 80 ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" : "bg-amber-500")} 
+                                  className={cn("h-full", eficiencia >= 80 ? "bg-emerald-500" : "bg-amber-500")} 
                                   style={{ width: `${eficiencia}%` }} 
                                 />
                               </div>
                             </div>
                           </td>
-                          <td className="px-8 py-6 text-right">
-                            <button className="h-10 w-10 rounded-xl flex items-center justify-center bg-white border border-slate-200 text-slate-400 hover:text-gax-blue hover:border-gax-blue hover:bg-gax-blue/5 transition-all shadow-sm active:scale-95">
-                              <FileDown size={18} />
+                          <td className="px-5 py-4 text-right">
+                            <button className="h-8 w-8 rounded-lg flex items-center justify-center bg-white border border-slate-200 text-slate-400 hover:text-gax-blue hover:border-gax-blue transition-all shadow-sm">
+                              <FileDown size={14} />
                             </button>
                           </td>
                         </tr>
@@ -525,12 +556,10 @@ export default function AbiHistoryPage() {
                     })
                   ) : (
                     <tr>
-                      <td colSpan={6} className="px-8 py-24 text-center">
-                        <div className="flex flex-col items-center gap-4 opacity-20 group">
-                          <div className="h-20 w-20 rounded-[32px] bg-slate-100 flex items-center justify-center group-hover:scale-110 transition-transform duration-700">
-                            <ClipboardList size={40} />
-                          </div>
-                          <p className="font-black text-slate-400 text-[14px] uppercase tracking-[0.2em]">Sem Histórico Localizado</p>
+                      <td colSpan={8} className="px-5 py-12 text-center text-slate-400">
+                        <div className="flex flex-col items-center gap-2 opacity-50">
+                          <ClipboardList size={36} />
+                          <p className="font-bold text-[13px]">Nenhum snapshot encontrado.</p>
                         </div>
                       </td>
                     </tr>
