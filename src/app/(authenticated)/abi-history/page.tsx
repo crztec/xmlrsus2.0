@@ -273,7 +273,7 @@ export default function AbiHistoryPage() {
             <button
               onClick={() => setActiveTab('current')}
               className={cn(
-                "flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-bold text-[12px] transition-all focus:outline-none",
+                "flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-bold text-[12px] transition-all outline-none focus:outline-none ring-0 focus:ring-0 focus-visible:ring-0",
                 activeTab === 'current' 
                   ? "bg-white text-gax-blue shadow-sm border border-slate-100" 
                   : "text-slate-500 hover:text-slate-700 hover:bg-white/50"
@@ -285,7 +285,7 @@ export default function AbiHistoryPage() {
             <button
               onClick={() => setActiveTab('history')}
               className={cn(
-                "flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-bold text-[12px] transition-all focus:outline-none",
+                "flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-bold text-[12px] transition-all outline-none focus:outline-none ring-0 focus:ring-0 focus-visible:ring-0",
                 activeTab === 'history' 
                   ? "bg-white text-gax-blue shadow-sm border border-slate-100" 
                   : "text-slate-500 hover:text-slate-700 hover:bg-white/50"
