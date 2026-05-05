@@ -1641,17 +1641,20 @@ def get_abi_dashboard_stats():
                     evolution_timeline.append(data)
                 
                 # Per-Client Timeline
-                # Iteramos sobre os clientes que têm snapshots salvos
-                client_snaps_ref = firestore_db.collection('current_abi_evolution').document(str(abi_num)).collection('client_snapshots').get()
-                for c_doc in client_snaps_ref:
-                    c_id = c_doc.id
-                    snaps = c_doc.reference.collection('snapshots').order_by('date').get()
+                # Iteramos sobre os clientes que já temos nos detalhes para buscar seus históricos específicos
+                for c in client_details:
+                    c_id = c.get('id')
+                    if not c_id: continue
+                    
+                    snaps_ref = firestore_db.collection('current_abi_evolution').document(str(abi_num)).collection('client_snapshots').document(c_id).collection('snapshots').order_by('date').get()
                     timeline = []
-                    for s in snaps:
+                    for s in snaps_ref:
                         s_data = s.to_dict()
                         if 'timestamp' in s_data: del s_data['timestamp']
                         timeline.append(s_data)
-                    client_evolution[c_id] = timeline
+                    
+                    if timeline:
+                        client_evolution[c_id] = timeline
         
         stats['evolution_timeline'] = evolution_timeline
         stats['client_evolution'] = client_evolution
@@ -1702,7 +1705,11 @@ def save_current_abi_evolution_snapshot(abi_number):
             c_id = c.get('id') or c.get('name') # name is used as fallback in get_abi_dashboard_stats
             if not c_id: continue
             
-            client_ref = firestore_db.collection('current_abi_evolution').document(str(abi_number)).collection('client_snapshots').document(c_id).collection('snapshots').document(date_str)
+            # Garantimos que o documento pai exista (Firestore virtual doc fix)
+            parent_ref = firestore_db.collection('current_abi_evolution').document(str(abi_number)).collection('client_snapshots').document(c_id)
+            parent_ref.set({'updated_at': now.strftime('%Y-%m-%d %H:%M:%S'), 'name': c.get('name')}, merge=True)
+            
+            client_ref = parent_ref.collection('snapshots').document(date_str)
             client_data = {
                 'date': date_str,
                 'timestamp': firestore.SERVER_TIMESTAMP,
