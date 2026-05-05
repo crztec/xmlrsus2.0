@@ -1135,13 +1135,6 @@ export default function CheckImportsPage() {
                 <Calendar size={14} className="text-gax-blue" />
                 Cronograma {new Date().getFullYear()}
               </h2>
-              <div className="flex items-center gap-2">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                </span>
-                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Live</span>
-              </div>
             </div>
 
             <div className="p-4 flex flex-col gap-5">
@@ -1197,13 +1190,10 @@ export default function CheckImportsPage() {
                   {schedule && schedule.length > 0 ? (
                     schedule
                       .filter(item => {
-                        if (item.ABI === activeAbi?.ABI) return false;
-                        const dtStr = item['Data fim de Impugnação'];
-                        if (!dtStr) return true;
-                        try {
-                          const [d, m, y] = dtStr.split('/').map(Number);
-                          return new Date(y, m - 1, d, 23, 59, 59) > new Date();
-                        } catch { return true; }
+                        if (!activeAbi) return true;
+                        const activeNum = parseInt(activeAbi.ABI.replace(/\D/g, '') || '0');
+                        const itemNum = parseInt(item.ABI.replace(/\D/g, '') || '0');
+                        return itemNum > activeNum;
                       })
                       .slice(0, 3) // Mostra os próximas 3
                       .map((item, i) => (
@@ -1228,12 +1218,10 @@ export default function CheckImportsPage() {
 
               {/* ABIs Finalizados (Recent) */}
               {schedule && schedule.filter(item => {
-                const dtStr = item['Data fim de Impugnação'];
-                if (!dtStr) return false;
-                try {
-                  const [d, m, y] = dtStr.split('/').map(Number);
-                  return new Date(y, m - 1, d, 23, 59, 59) < new Date() && item.ABI !== activeAbi?.ABI;
-                } catch { return false; }
+                if (!activeAbi) return false;
+                const activeNum = parseInt(activeAbi.ABI.replace(/\D/g, '') || '0');
+                const itemNum = parseInt(item.ABI.replace(/\D/g, '') || '0');
+                return itemNum < activeNum;
               }).length > 0 && (
                 <div className="mt-4 pt-4 border-t border-slate-100">
                   <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
@@ -1243,12 +1231,10 @@ export default function CheckImportsPage() {
                   <div className="flex flex-wrap gap-2">
                     {schedule
                       .filter(item => {
-                        const dtStr = item['Data fim de Impugnação'];
-                        if (!dtStr) return false;
-                        try {
-                          const [d, m, y] = dtStr.split('/').map(Number);
-                          return new Date(y, m - 1, d, 23, 59, 59) < new Date() && item.ABI !== activeAbi?.ABI;
-                        } catch { return false; }
+                        if (!activeAbi) return false;
+                        const activeNum = parseInt(activeAbi.ABI.replace(/\D/g, '') || '0');
+                        const itemNum = parseInt(item.ABI.replace(/\D/g, '') || '0');
+                        return itemNum < activeNum;
                       })
                       .slice(-4) // Mostra os últimos 4
                       .map((item, i) => (
