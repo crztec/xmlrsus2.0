@@ -33,7 +33,9 @@ import {
   Pie,
   Cell,
   LineChart,
-  Line
+  Line,
+  AreaChart,
+  Area
 } from "recharts";
 
 const DISTRIBUTION_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#94a3b8'];
@@ -394,6 +396,63 @@ export default function AbiHistoryPage() {
               </div>
             </div>
           </div>
+
+          {/* Gráfico de Evolução do ABI Atual */}
+          {currentAbiData?.evolution_timeline && currentAbiData.evolution_timeline.length > 0 && (
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between mb-6">
+                <h4 className="text-sm font-bold flex items-center gap-2 text-slate-700">
+                  <Activity size={16} className="text-gax-blue" />
+                  Evolução das Impugnações
+                </h4>
+              </div>
+              <div className="h-[300px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={currentAbiData.evolution_timeline} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorImpugnados" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                      </linearGradient>
+                      <linearGradient id="colorAguardando" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis 
+                      dataKey="date" 
+                      tickFormatter={(val) => {
+                        if (!val) return '';
+                        const [y, m, d] = val.split('-');
+                        return `${d}/${m}`;
+                      }}
+                      tickLine={false} 
+                      axisLine={false} 
+                      tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 600 }}
+                      dy={10}
+                    />
+                    <YAxis 
+                      tickLine={false} 
+                      axisLine={false} 
+                      tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 600 }}
+                      width={40}
+                    />
+                    <Tooltip 
+                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '12px', fontWeight: 'bold' }}
+                      labelFormatter={(label) => {
+                        if (!label) return '';
+                        const [y, m, d] = label.split('-');
+                        return `${d}/${m}/${y}`;
+                      }}
+                    />
+                    <Area type="monotone" name="Aguardando" dataKey="aguardando" stroke="#f59e0b" strokeWidth={3} fillOpacity={1} fill="url(#colorAguardando)" />
+                    <Area type="monotone" name="Impugnados" dataKey="impugnados" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorImpugnados)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
 
           {/* Grid de Gráficos Analíticos */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">

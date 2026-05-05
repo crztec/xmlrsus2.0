@@ -1626,11 +1626,66 @@ def get_abi_dashboard_stats():
             else:
                 stats['pending'] += 1
                 
+        # Fetch the evolution timeline for the active ABI
+        active_abi = get_active_abi()
+        evolution_timeline = []
+        if active_abi:
+            abi_num = active_abi.get('ABI', '')
+            if abi_num:
+                snapshots_ref = firestore_db.collection('current_abi_evolution').document(str(abi_num)).collection('snapshots').order_by('date').get()
+                for doc in snapshots_ref:
+                    data = doc.to_dict()
+                    if 'timestamp' in data:
+                        del data['timestamp']
+                    evolution_timeline.append(data)
+        
+        stats['evolution_timeline'] = evolution_timeline
         stats['client_details'] = client_details
         return stats
     except Exception as e:
         logger.error(f"Erro ao calcular estatísticas ABI: {e}")
         return {}
+
+def save_current_abi_evolution_snapshot(abi_number):
+    """Saves a daily global snapshot of the current ABI's impugnation stats."""
+    if not abi_number: return False
+    try:
+        from datetime import datetime
+        import pytz
+        
+        # Get current global stats
+        stats = get_abi_dashboard_stats()
+        clients = stats.get('client_details', [])
+        
+        # Aggregate totals
+        total_impugnados = sum(c.get('impugnados', 0) for c in clients)
+        total_aptos = sum(c.get('aptos', 0) for c in clients)
+        total_aguardando = sum(c.get('aguardando', 0) for c in clients)
+        total_nao_impugnando = sum(c.get('nao_impugnando', 0) for c in clients)
+        total_atendimentos = sum(c.get('total', 0) for c in clients)
+        
+        # Use BRT timezone for the date
+        tz = pytz.timezone('America/Sao_Paulo')
+        now = datetime.now(tz)
+        date_str = now.strftime('%Y-%m-%d')
+        
+        doc_ref = firestore_db.collection('current_abi_evolution').document(str(abi_number)).collection('snapshots').document(date_str)
+        
+        snapshot_data = {
+            'date': date_str,
+            'timestamp': firestore.SERVER_TIMESTAMP,
+            'impugnados': total_impugnados,
+            'aptos': total_aptos,
+            'aguardando': total_aguardando,
+            'nao_impugnando': total_nao_impugnando,
+            'total': total_atendimentos
+        }
+        
+        doc_ref.set(snapshot_data)
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao salvar snapshot de evolucao do ABI {abi_number}: {e}")
+        return False
 
 def update_client_impugnation_status(client_id, status, message, task_id=None, stats=None):
     """Updates impugnation check status for a client."""

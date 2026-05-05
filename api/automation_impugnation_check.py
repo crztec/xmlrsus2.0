@@ -956,6 +956,10 @@ async def run_batch_impugnation_check(task_id, client_ids=None):
             f"--------------------------------"
         )
         await send_whatsapp_alert(msg, task_id=task_id)
+        
+        active_abi = db.get_active_abi()
+        if active_abi:
+            db.save_current_abi_evolution_snapshot(active_abi.get('ABI'))
 
     except Exception as e:
         db.add_log(task_id, f"Erro estrutural no lote: {str(e)}", "ERROR")
@@ -972,6 +976,10 @@ async def run_single_impugnation_check(client_id, task_id):
         await run_impugnation_check_for_client(client_id, task_id=task_id)
         
         db.update_task(task_id, {"status": "completed", "current": 1, "current_client": "Finalizado"})
+        
+        active_abi = db.get_active_abi()
+        if active_abi:
+            db.save_current_abi_evolution_snapshot(active_abi.get('ABI'))
     except Exception as e:
         db.add_log(task_id, f"Erro: {str(e)}", "ERROR")
         db.update_task(task_id, {"status": "error"})
