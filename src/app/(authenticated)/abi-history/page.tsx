@@ -790,7 +790,7 @@ export default function AbiHistoryPage() {
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart 
                   data={evolutionData}
-                  onClick={(data) => {
+                  onClick={(data: any) => {
                     if (data && data.activePayload && data.activePayload[0]) {
                       const abi = data.activePayload[0].payload.rawAbi;
                       setSelectedHistoricalAbi(abi);
