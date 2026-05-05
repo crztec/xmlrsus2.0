@@ -243,6 +243,7 @@ export default function AbiHistoryPage() {
       const imp_status = String(item.impugnation_status || '');
       
       return {
+        client_id: item.client_id,
         name: item.client_name,
         impugnados: stats_raw.impugnados || 0,
         aptos: stats_raw.aptos || 0,
@@ -880,7 +881,7 @@ export default function AbiHistoryPage() {
                           className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-[11px] font-bold text-slate-600 outline-none hover:border-gax-blue transition-colors"
                         >
                           <option value="global">Visão Consolidada</option>
-                          {historicalDataForCharts.client_details.map((c: any) => (
+                          {historicalDataForCharts.clients.map((c: any) => (
                             <option key={c.client_id} value={c.client_id}>{c.name}</option>
                           ))}
                         </select>
