@@ -430,7 +430,7 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
             browser_args = [
                 "--headless=new", "--no-sandbox", "--disable-setuid-sandbox", 
                 "--disable-dev-shm-usage",
-                "--disable-gpu", "--window-size=1920,1080",
+                "--disable-gpu", "--single-process", "--window-size=1920,1080",
                 "--disable-features=SameSiteByDefaultCookies,CookiesWithoutSameSiteMustBeSecure,dbus",
                 "--disable-web-security", "--allow-running-insecure-content",
                 "--ignore-certificate-errors", "--disable-blink-features=AutomationControlled",

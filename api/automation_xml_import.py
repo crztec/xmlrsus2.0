@@ -62,6 +62,7 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                 "--disable-setuid-sandbox",
                 "--disable-dev-shm-usage",
                 "--disable-gpu",
+                "--single-process",
                 "--window-size=1920,1080",
                 "--disable-features=SameSiteByDefaultCookies,CookiesWithoutSameSiteMustBeSecure,SameSiteDefaultChecksMethodRacy",
                 "--disable-web-security",

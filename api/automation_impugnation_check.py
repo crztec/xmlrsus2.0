@@ -41,6 +41,7 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
             browser_args = [
                 "--no-sandbox", "--disable-setuid-sandbox", 
                 "--disable-dev-shm-usage",
+                "--disable-gpu", "--single-process", "--headless=new",
                 "--disable-blink-features=AutomationControlled"
             ]
             browser = await p.chromium.launch(headless=True, args=browser_args)
@@ -447,6 +448,7 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
             browser_args = [
                 "--no-sandbox", "--disable-setuid-sandbox", 
                 "--disable-dev-shm-usage",
+                "--disable-gpu", "--single-process", "--headless=new",
                 "--window-size=1920,1080",
                 "--disable-features=SameSiteByDefaultCookies,CookiesWithoutSameSiteMustBeSecure,dbus",
                 "--disable-web-security", "--allow-running-insecure-content",

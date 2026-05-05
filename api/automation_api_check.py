@@ -73,7 +73,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                 "--no-sandbox",
                 "--disable-setuid-sandbox",
                 "--disable-dev-shm-usage",
-                "--disable-gpu",
+                "--disable-gpu", "--single-process",
                 "--window-size=1920,1080",
                 "--disable-features=SameSiteByDefaultCookies,CookiesWithoutSameSiteMustBeSecure,SameSiteDefaultChecksMethodRacy,dbus",
                 "--disable-web-security",
