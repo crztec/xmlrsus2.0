@@ -20,14 +20,22 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
         db.firestore_db.collection('tasks').document(task_id).update({'status': 'EM ANDAMENTO'})
         db.add_log(task_id, "INFO", "Iniciando conexão segura com o portal RSUS.")
 
-        # Busca dados da tarefa para obter credenciais
+        # Busca dados da tarefa
         task_doc = db.firestore_db.collection('tasks').document(task_id).get()
         if not task_doc.exists:
             return
         task_data = task_doc.to_dict()
-        usuario = task_data.get('usuario')
-        senha = task_data.get('senha')
         razao_social = task_data.get('razao_social', '')
+        
+        # Busca credenciais do settings (não são mais armazenadas na task)
+        cred_type = task_data.get('credential_type', 'general')
+        creds = db.get_rsus_credentials(cred_type)
+        if not creds:
+            db.add_log(task_id, "ERROR", f"Credenciais RSUS ({cred_type}) não encontradas no sistema.")
+            db.firestore_db.collection('tasks').document(task_id).update({'status': 'ERRO'})
+            return
+        usuario = creds.get('username', '')
+        senha = creds.get('password', '')
 
         # Extrai URL base para o Login
         parsed_url = urlparse(url_sistema)

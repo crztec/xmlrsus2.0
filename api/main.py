@@ -42,11 +42,11 @@ security = HTTPBearer(auto_error=False)
 
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     if not credentials:
-        return None
+        raise HTTPException(status_code=401, detail="Autenticação necessária.")
     token = credentials.credentials
     decoded_token = auth.verify_token(token)
     if not decoded_token:
-        return None
+        raise HTTPException(status_code=401, detail="Token inválido ou expirado.")
     return decoded_token
 
 # Cache in-memory para evitar consultas repetitivas ao Firestore para validar roles (Max 500 usuários, expira em 5min)
@@ -137,27 +137,20 @@ def read_root():
 @app.get("/health")
 async def health_check():
     try:
-        # Tenta uma operação simples no Firestore
         db.firestore_db.collection('users').limit(1).get()
         return {"status": "ok", "database": "connected"}
     except Exception as e:
-        return {"status": "error", "database": str(e)}
+        logger.error(f"Health check failed: {e}")
+        return {"status": "error", "database": "unavailable"}
 
 @app.post("/login")
 async def login(email: str = Form(...), password: str = Form(...)):
     """Autentica usuário via Firebase e retorna token/perfil."""
-    # DETALHES PARA DEPURAÇÃO (Não logue a senha real em produção!)
-    logger.info(f"--- NOVA TENTATIVA DE LOGIN ---")
-    logger.info(f"Email Bruto: '{email}' (Tamanho: {len(email)})")
-    logger.info(f"Senha (Tamanho: {len(password)})")
-    
-    # Tratamento básico
     email = email.strip()
     
     try:
         user = auth.sign_in_with_email_and_password(email, password)
 
-        # Injeta o perfil da base de dados (Role, Nome, Status) na resposta
         user_profile = db.get_user_profile(email)
         if user_profile:
             user["role"] = user_profile.get("role", "user")
@@ -167,9 +160,9 @@ async def login(email: str = Form(...), password: str = Form(...)):
         db.add_audit_log(email, "Login", "Usuário acessou o sistema com sucesso.", "INFO")
         return user
     except Exception as e:
-        logger.error(f"Login failed for {email}: {e}")
-        db.add_audit_log(email, "Tentativa de Login Falhou", str(e), "WARNING")
-        raise HTTPException(status_code=401, detail=str(e))
+        logger.warning(f"Login failed for {email}")
+        db.add_audit_log(email, "Tentativa de Login Falhou", "Credenciais inválidas", "WARNING")
+        raise HTTPException(status_code=401, detail="Email ou senha incorretos.")
 
 @app.post("/register")
 async def register(
@@ -902,12 +895,15 @@ async def export_single_xml_details(file_id: str, user = Depends(get_current_use
         df_export.to_excel(writer, index=False, sheet_name='Detalhes XML')
     output.seek(0)
 
+    import re
     safe_filename = file_name.replace('.xml', '').replace('.XML', '') + "_detalhes.xlsx"
+    safe_filename = re.sub(r'[^\w\s\-.]', '', safe_filename).strip()
+    if not safe_filename: safe_filename = "detalhes.xlsx"
 
     return StreamingResponse(
         output,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f"attachment; filename={safe_filename}"}
+        headers={"Content-Disposition": f'attachment; filename="{safe_filename}"'}
     )
 
 @app.get("/users")
@@ -1087,7 +1083,7 @@ async def route_save_rsus_credentials(type: str = Form(...), username: str = For
 
 # --- MENU CONFIGURATION ENDPOINTS ---
 @app.get("/menu-config")
-async def route_get_menu_config():
+async def route_get_menu_config(user = Depends(get_current_user)):
     return db.get_menu_config()
 
 @app.post("/menu-config")
@@ -1108,14 +1104,14 @@ async def route_restore_menu_default(user = Depends(require_admin)):
 
 # --- USER PROFILE ENDPOINTS ---
 @app.get("/profile")
-async def route_get_profile(email: str):
+async def route_get_profile(email: str, user = Depends(get_current_user)):
     profile = db.get_user_profile(email)
     if not profile:
         raise HTTPException(status_code=404, detail="Perfil não encontrado.")
     return profile
 
 @app.post("/profile/request-code")
-async def route_request_verification_code(email: str = Form(...), action_type: str = Form(...)):
+async def route_request_verification_code(email: str = Form(...), action_type: str = Form(...), user = Depends(get_current_user)):
     """Gera e envia um código de 6 dígitos para o e-mail do usuário."""
     import secrets
     code = secrets.randbelow(900000) + 100000
@@ -1133,7 +1129,8 @@ async def route_update_profile(
     new_email: Optional[str] = Form(None),
     new_password: Optional[str] = Form(None),
     current_password: Optional[str] = Form(None),
-    code: Optional[str] = Form(None)
+    code: Optional[str] = Form(None),
+    user = Depends(get_current_user)
 ):
     """Atualiza dados do perfil no Firebase e Firestore."""
     is_changing_email = new_email and new_email != current_email
@@ -1166,7 +1163,7 @@ async def route_update_profile(
 # --- ADDITIONAL CORE ENDPOINTS ---
 
 @app.post("/pre-check")
-async def pre_check_duplicates(files: List[UploadFile] = File(...)):
+async def pre_check_duplicates(files: List[UploadFile] = File(...), user = Depends(get_current_user)):
     if not files: return {"duplicates": []}
     arquivos_upload_data = []
     for file in files:
@@ -1188,7 +1185,7 @@ async def pre_check_duplicates(files: List[UploadFile] = File(...)):
         return {"duplicates": [], "error": str(e), "client_exists": False}
 
 @app.post("/upload")
-async def upload_xmls(files: List[UploadFile] = File(...), url_sistema: Optional[str] = Form(None), usuario: Optional[str] = Form(None), senha: Optional[str] = Form(None), gax_user_email: str = Form("Admin/Sistema"), force: bool = Form(False)):
+async def upload_xmls(files: List[UploadFile] = File(...), url_sistema: Optional[str] = Form(None), usuario: Optional[str] = Form(None), senha: Optional[str] = Form(None), gax_user_email: str = Form("Admin/Sistema"), force: bool = Form(False), user = Depends(get_current_user)):
     """Recebe XMLs, persiste no Firestore/Storage e dispara processamento via Cloud Run Job."""
     if not files: return {"error": "Nenhum arquivo enviado."}
     arquivos_upload_data = []
@@ -1207,8 +1204,10 @@ async def upload_xmls(files: List[UploadFile] = File(...), url_sistema: Optional
             senha = stored.get('password', senha)
     if not usuario or not senha: return {"error": "Credenciais RSUS não encontradas."}
     if not db.get_last_url_for_client(razao_social): db.save_client_config(razao_social, url_sistema)
-    task_id = db.create_task(task_type="xml_import", url_sistema=url_sistema, usuario=usuario, senha=senha, razao_social=razao_social)
-    db.update_task(task_id, {"force": force, "url_sistema": url_sistema})
+    # Determina tipo de credencial para o worker buscar na hora (não armazena senha na task)
+    cred_type = "unimed_vitoria" if "vitoria" in url_sistema.lower() else "general"
+    task_id = db.create_task(task_type="xml_import", url_sistema=url_sistema, razao_social=razao_social)
+    db.update_task(task_id, {"force": force, "url_sistema": url_sistema, "credential_type": cred_type})
     files_info = []
     for filename, content in arquivos_upload_data:
         storage_path = db.upload_xml_to_storage(task_id, filename, content)

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { 
   UserPlus, 
   Mail, 
@@ -18,11 +18,11 @@ import Link from "next/link";
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
     email: "",
-    password: "",
-    confirmPassword: "",
     firstName: "",
     lastName: ""
   });
+  const passwordRef = useRef<HTMLInputElement>(null);
+  const confirmPasswordRef = useRef<HTMLInputElement>(null);
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -30,7 +30,9 @@ export default function RegisterPage() {
 
   const handleRegister = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (formData.password !== formData.confirmPassword) {
+    const pwd = passwordRef.current?.value || "";
+    const confirmPwd = confirmPasswordRef.current?.value || "";
+    if (pwd !== confirmPwd) {
       setError("As senhas não coincidem.");
       return;
     }
@@ -41,7 +43,7 @@ export default function RegisterPage() {
     try {
       const data = new FormData();
       data.append("email", formData.email);
-      data.append("password", formData.password);
+      data.append("password", pwd);
       data.append("first_name", formData.firstName);
       data.append("last_name", formData.lastName);
 
@@ -148,11 +150,12 @@ export default function RegisterPage() {
                     <Lock size={16} />
                   </div>
                   <input
+                    ref={passwordRef}
                     type="password"
+                    name="password"
                     placeholder="••••••••"
                     className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 pl-10 pr-4 text-sm outline-none transition-all focus:border-gax-blue focus:bg-white focus:ring-4 focus:ring-gax-blue/10"
-                    value={formData.password}
-                    onChange={(e) => setFormData({...formData, password: e.target.value})}
+                    autoComplete="new-password"
                     required
                   />
                 </div>
@@ -165,11 +168,12 @@ export default function RegisterPage() {
                     <ShieldCheck size={16} />
                   </div>
                   <input
+                    ref={confirmPasswordRef}
                     type="password"
+                    name="confirmPassword"
                     placeholder="••••••••"
                     className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 pl-10 pr-4 text-sm outline-none transition-all focus:border-gax-blue focus:bg-white focus:ring-4 focus:ring-gax-blue/10"
-                    value={formData.confirmPassword}
-                    onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
+                    autoComplete="new-password"
                     required
                   />
                 </div>

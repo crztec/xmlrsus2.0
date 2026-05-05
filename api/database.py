@@ -429,7 +429,7 @@ def get_client_config(client_id):
         return data
     return None
 
-def create_task(task_type, description="", url_sistema="", usuario="", senha="", razao_social=""):
+def create_task(task_type, description="", url_sistema="", razao_social="", usuario="", senha=""):
     """
     Cria uma nova tarefa no Firestore.
     Suporta campos de progresso para checagem em lote.
@@ -445,8 +445,6 @@ def create_task(task_type, description="", url_sistema="", usuario="", senha="",
         'created_at': now.strftime("%Y-%m-%d %H:%M:%S"),
         'updated_at': now.strftime("%Y-%m-%d %H:%M:%S"),
         'url_sistema': url_sistema,
-        'usuario': usuario,
-        'senha': senha,
         'razao_social': razao_social,
         'current': 0,
         'total': 0,
@@ -458,7 +456,7 @@ def create_task(task_type, description="", url_sistema="", usuario="", senha="",
     if task_type == "xml_import":
         task_data['total_arquivos'] = 0
         task_data['arquivos_processados'] = 0
-        task_data['status'] = 'PENDENTE' # This will override 'running' if xml_import
+        task_data['status'] = 'PENDENTE'
 
     firestore_db.collection('tasks').document(task_id).set(task_data)
     return task_id

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   LogIn,
   Mail,
@@ -22,7 +22,7 @@ import { signInWithPopup } from "firebase/auth";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const passwordRef = useRef<HTMLInputElement>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
 
@@ -44,14 +44,12 @@ export default function LoginPage() {
     }
 
     const savedEmail = localStorage.getItem("gax_remembered_email");
-    const savedPass = localStorage.getItem("gax_remembered_pass");
     if (savedEmail) {
       setEmail(savedEmail);
       setRememberMe(true);
     }
-    if (savedPass) {
-      setPassword(atob(savedPass)); // Decodifica base64 simples por privacidade visual
-    }
+    // Limpa credenciais legadas do localStorage (segurança)
+    localStorage.removeItem("gax_remembered_pass");
   }, []);
 
   const handleResetPassword = async (e: React.SyntheticEvent<HTMLFormElement>) => {
@@ -85,13 +83,11 @@ const handleLogin = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     setIsLoading(true);
     setError("");
 
-    // Persistência "Lembrar de mim"
+    // Persistência "Lembrar de mim" — apenas email, nunca senha
     if (rememberMe) {
       localStorage.setItem("gax_remembered_email", email);
-      localStorage.setItem("gax_remembered_pass", btoa(password));
     } else {
       localStorage.removeItem("gax_remembered_email");
-      localStorage.removeItem("gax_remembered_pass");
     }
 
     // Captura valores diretamente do formulário (resolve bug de autofill do browser)
@@ -217,13 +213,13 @@ const handleLogin = async (e: React.SyntheticEvent<HTMLFormElement>) => {
               </label>
               <div className="relative">
                 <input
+                  ref={passwordRef}
                   id="password"
                   name="password"
                   type={showPassword ? "text" : "password"}
                   placeholder="••••••••••••"
                   className="h-10 w-full rounded-md border border-gray-200 bg-white pl-3 pr-10 text-sm text-gray-900 outline-none transition-all placeholder:text-gray-400 focus:border-gax-blue focus:ring-2 focus:ring-gax-blue/10 font-medium autofill:bg-white"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
                   required
                 />
                 <button
