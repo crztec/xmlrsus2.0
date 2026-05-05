@@ -860,6 +860,8 @@ export default function AbiHistoryPage() {
               )}
             </div>
 
+            {historicalDataForCharts ? (
+              <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 space-y-5">
                 {/* Gráfico de Evolução do Ciclo Histórico */}
                 {historicalEvolutionData?.timeline?.length > 0 && (
                   <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 overflow-hidden relative">
