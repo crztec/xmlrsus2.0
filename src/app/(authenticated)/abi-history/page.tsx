@@ -50,6 +50,7 @@ export default function AbiHistoryPage() {
   const [selectedSlice, setSelectedSlice] = useState<string | null>(null);
   const [selectedHistoricalSlice, setSelectedHistoricalSlice] = useState<string | null>(null);
   const [selectedHistoricalAbi, setSelectedHistoricalAbi] = useState<string | null>(null);
+  const [evolutionClientId, setEvolutionClientId] = useState<string>("global");
 
   const fetchData = async () => {
     setLoading(true);
@@ -275,11 +276,12 @@ export default function AbiHistoryPage() {
             <button
               onClick={() => setActiveTab('current')}
               className={cn(
-                "flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-bold text-[12px] transition-all outline-none focus:outline-none active:outline-none ring-0 focus:ring-0 focus-visible:ring-0 active:ring-0",
+                "flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-bold text-[12px] transition-all outline-none focus:outline-none active:outline-none ring-0 focus:ring-0 focus-visible:ring-0 active:ring-0 select-none",
                 activeTab === 'current' 
                   ? "bg-white text-gax-blue shadow-sm border border-slate-100" 
                   : "text-slate-500 hover:text-slate-700 hover:bg-white/50"
               )}
+              style={{ WebkitTapHighlightColor: 'transparent' }}
             >
               <CalendarDays size={14} />
               Visão Geral Atual
@@ -287,11 +289,12 @@ export default function AbiHistoryPage() {
             <button
               onClick={() => setActiveTab('history')}
               className={cn(
-                "flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-bold text-[12px] transition-all outline-none focus:outline-none active:outline-none ring-0 focus:ring-0 focus-visible:ring-0 active:ring-0",
+                "flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-bold text-[12px] transition-all outline-none focus:outline-none active:outline-none ring-0 focus:ring-0 focus-visible:ring-0 active:ring-0 select-none",
                 activeTab === 'history' 
                   ? "bg-white text-gax-blue shadow-sm border border-slate-100" 
                   : "text-slate-500 hover:text-slate-700 hover:bg-white/50"
               )}
+              style={{ WebkitTapHighlightColor: 'transparent' }}
             >
               <ClipboardList size={14} />
               ABIs Anteriores
@@ -398,17 +401,34 @@ export default function AbiHistoryPage() {
           </div>
 
           {/* Gráfico de Evolução do ABI Atual */}
-          {currentAbiData?.evolution_timeline && currentAbiData.evolution_timeline.length > 0 && (
+          {(currentAbiData?.evolution_timeline || []).length > 0 && (
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                 <h4 className="text-sm font-bold flex items-center gap-2 text-slate-700">
                   <Activity size={16} className="text-gax-blue" />
-                  Evolução das Impugnações
+                  Evolução do Ciclo
                 </h4>
+                
+                <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 min-w-[200px]">
+                  <Search size={12} className="text-slate-400" />
+                  <select 
+                    value={evolutionClientId}
+                    onChange={(e) => setEvolutionClientId(e.target.value)}
+                    className="bg-transparent border-none outline-none text-[11px] font-bold text-gax-blue cursor-pointer w-full"
+                  >
+                    <option value="global">Visão Consolidada (Geral)</option>
+                    {currentAbiData?.client_details?.map((c: any) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
-              <div className="h-[300px] w-full">
+              <div className="h-[320px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={currentAbiData.evolution_timeline} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                  <AreaChart 
+                    data={evolutionClientId === "global" ? currentAbiData.evolution_timeline : (currentAbiData.client_evolution?.[evolutionClientId] || [])} 
+                    margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                  >
                     <defs>
                       <linearGradient id="colorImpugnados" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
@@ -417,6 +437,10 @@ export default function AbiHistoryPage() {
                       <linearGradient id="colorAguardando" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3}/>
                         <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
+                      </linearGradient>
+                      <linearGradient id="colorNaoImpugnados" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#94a3b8" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#94a3b8" stopOpacity={0}/>
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -446,6 +470,7 @@ export default function AbiHistoryPage() {
                         return `${d}/${m}/${y}`;
                       }}
                     />
+                    <Area type="monotone" name="Não Impugnados" dataKey="nao_impugnando" stroke="#94a3b8" strokeWidth={2} fillOpacity={1} fill="url(#colorNaoImpugnados)" />
                     <Area type="monotone" name="Aguardando" dataKey="aguardando" stroke="#f59e0b" strokeWidth={3} fillOpacity={1} fill="url(#colorAguardando)" />
                     <Area type="monotone" name="Impugnados" dataKey="impugnados" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorImpugnados)" />
                   </AreaChart>

@@ -1590,6 +1590,7 @@ def get_abi_dashboard_stats():
             
             # Adiciona aos detalhes para gráficos do dashboard
             client_details.append({
+                'id': c.get('id'),
                 'name': c.get('name') or c.get('razao_social') or c.get('id'),
                 'total': stats_raw.get('total', 0),
                 'impugnados': stats_raw.get('impugnados', 0),
@@ -1629,17 +1630,33 @@ def get_abi_dashboard_stats():
         # Fetch the evolution timeline for the active ABI
         active_abi = get_active_abi()
         evolution_timeline = []
+        client_evolution = {} # { client_id: [snapshots] }
+        
         if active_abi:
             abi_num = active_abi.get('ABI', '')
             if abi_num:
+                # Global Timeline
                 snapshots_ref = firestore_db.collection('current_abi_evolution').document(str(abi_num)).collection('snapshots').order_by('date').get()
                 for doc in snapshots_ref:
                     data = doc.to_dict()
-                    if 'timestamp' in data:
-                        del data['timestamp']
+                    if 'timestamp' in data: del data['timestamp']
                     evolution_timeline.append(data)
+                
+                # Per-Client Timeline
+                # Iteramos sobre os clientes que têm snapshots salvos
+                client_snaps_ref = firestore_db.collection('current_abi_evolution').document(str(abi_num)).collection('client_snapshots').get()
+                for c_doc in client_snaps_ref:
+                    c_id = c_doc.id
+                    snaps = c_doc.reference.collection('snapshots').order_by('date').get()
+                    timeline = []
+                    for s in snaps:
+                        s_data = s.to_dict()
+                        if 'timestamp' in s_data: del s_data['timestamp']
+                        timeline.append(s_data)
+                    client_evolution[c_id] = timeline
         
         stats['evolution_timeline'] = evolution_timeline
+        stats['client_evolution'] = client_evolution
         stats['client_details'] = client_details
         return stats
     except Exception as e:
@@ -1647,7 +1664,7 @@ def get_abi_dashboard_stats():
         return {}
 
 def save_current_abi_evolution_snapshot(abi_number):
-    """Saves a daily global snapshot of the current ABI's impugnation stats."""
+    """Saves a daily global and per-client snapshot of the current ABI's impugnation stats."""
     if not abi_number: return False
     try:
         from datetime import datetime
@@ -1669,8 +1686,8 @@ def save_current_abi_evolution_snapshot(abi_number):
         now = datetime.now(tz)
         date_str = now.strftime('%Y-%m-%d')
         
-        doc_ref = firestore_db.collection('current_abi_evolution').document(str(abi_number)).collection('snapshots').document(date_str)
-        
+        # Save Global Snapshot
+        global_ref = firestore_db.collection('current_abi_evolution').document(str(abi_number)).collection('snapshots').document(date_str)
         snapshot_data = {
             'date': date_str,
             'timestamp': firestore.SERVER_TIMESTAMP,
@@ -1680,8 +1697,25 @@ def save_current_abi_evolution_snapshot(abi_number):
             'nao_impugnando': total_nao_impugnando,
             'total': total_atendimentos
         }
-        
-        doc_ref.set(snapshot_data)
+        global_ref.set(snapshot_data)
+
+        # Save Per-Client Snapshots
+        for c in clients:
+            c_id = c.get('id') or c.get('name') # name is used as fallback in get_abi_dashboard_stats
+            if not c_id: continue
+            
+            client_ref = firestore_db.collection('current_abi_evolution').document(str(abi_number)).collection('client_snapshots').document(c_id).collection('snapshots').document(date_str)
+            client_data = {
+                'date': date_str,
+                'timestamp': firestore.SERVER_TIMESTAMP,
+                'impugnados': c.get('impugnados', 0),
+                'aptos': c.get('aptos', 0),
+                'aguardando': c.get('aguardando', 0),
+                'nao_impugnando': c.get('nao_impugnando', 0),
+                'total': c.get('total', 0)
+            }
+            client_ref.set(client_data)
+            
         return True
     except Exception as e:
         logger.error(f"Erro ao salvar snapshot de evolucao do ABI {abi_number}: {e}")

@@ -60,3 +60,21 @@ h1, h2, h3, h4, h5, h6 {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* Fix persistent black border on click for buttons */
+button:focus, 
+button:active, 
+button:focus-visible,
+.btn-no-outline:focus,
+.btn-no-outline:active {
+  outline: none !important;
+  box-shadow: none !important;
+  -webkit-box-shadow: none !important;
+  ring: 0 !important;
+  --tw-ring-offset-width: 0px !important;
+  --tw-ring-width: 0px !important;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
