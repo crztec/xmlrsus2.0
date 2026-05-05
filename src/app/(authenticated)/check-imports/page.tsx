@@ -461,7 +461,7 @@ export default function CheckImportsPage() {
 
   const handleDownloadReport = async () => {
     try {
-      const res = await apiClient("/api/reports/impugnations", {
+      const res = await apiClient("/api/export-impugnations", {
         method: "GET",
       });
       if (!res.ok) {
