@@ -641,14 +641,25 @@ async def export_impugnations_report(abi: str = None, user = Depends(get_current
         for h in filtered:
             stats = h.get('impugnation_stats', {})
             dt_str = h.get('archived_at', '')
+            status_abi = h.get('impugnation_status', 'Não Iniciou')
+            
+            aptos = stats.get('aptos', 0)
+            aguardando = stats.get('aguardando', 0)
+            impugnados = stats.get('impugnados', 0)
+            
+            if status_abi.lower() == 'finalizou':
+                impugnados += aptos + aguardando
+                aptos = 0
+                aguardando = 0
+
             report_data.append({
                 "Cliente": h.get('client_name', 'Desconhecido'),
-                "Situação do ABI": h.get('impugnation_status', 'Não Iniciou'),
+                "Situação do ABI": status_abi,
                 "Quantidade de Atendimentos": stats.get('total', 0),
-                "Quantidade Impugnados": stats.get('impugnados', 0),
+                "Quantidade Impugnados": impugnados,
                 "Quantidade Não Impugnado": stats.get('nao_impugnando', 0),
-                "Quantidade Aptos": stats.get('aptos', 0),
-                "Quantidade Aguardando Impugnação": stats.get('aguardando', 0),
+                "Quantidade Aptos": aptos,
+                "Quantidade Aguardando Impugnação": aguardando,
                 "Data da Última Checagem": dt_str
             })
     else:
@@ -674,14 +685,24 @@ async def export_impugnations_report(abi: str = None, user = Depends(get_current
                 except Exception as e:
                     dt_str = str(last_check)[:16]
                     
+            status_abi = full_client.get('impugnation_status', 'Não Iniciou')
+            aptos = stats.get('aptos', 0)
+            aguardando = stats.get('aguardando', 0)
+            impugnados = stats.get('impugnados', 0)
+            
+            if status_abi.lower() == 'finalizou':
+                impugnados += aptos + aguardando
+                aptos = 0
+                aguardando = 0
+
             report_data.append({
                 "Cliente": full_client.get('name', 'Desconhecido'),
-                "Situação do ABI": full_client.get('impugnation_status', 'Não Iniciou'),
+                "Situação do ABI": status_abi,
                 "Quantidade de Atendimentos": stats.get('total', 0),
-                "Quantidade Impugnados": stats.get('impugnados', 0),
+                "Quantidade Impugnados": impugnados,
                 "Quantidade Não Impugnado": stats.get('nao_impugnando', 0),
-                "Quantidade Aptos": stats.get('aptos', 0),
-                "Quantidade Aguardando Impugnação": stats.get('aguardando', 0),
+                "Quantidade Aptos": aptos,
+                "Quantidade Aguardando Impugnação": aguardando,
                 "Data da Última Checagem": dt_str
             })
         
