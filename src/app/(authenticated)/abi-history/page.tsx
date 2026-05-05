@@ -273,7 +273,7 @@ export default function AbiHistoryPage() {
             <button
               onClick={() => setActiveTab('current')}
               className={cn(
-                "flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-bold text-[12px] transition-all",
+                "flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-bold text-[12px] transition-all focus:outline-none",
                 activeTab === 'current' 
                   ? "bg-white text-gax-blue shadow-sm border border-slate-100" 
                   : "text-slate-500 hover:text-slate-700 hover:bg-white/50"
@@ -285,7 +285,7 @@ export default function AbiHistoryPage() {
             <button
               onClick={() => setActiveTab('history')}
               className={cn(
-                "flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-bold text-[12px] transition-all",
+                "flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-bold text-[12px] transition-all focus:outline-none",
                 activeTab === 'history' 
                   ? "bg-white text-gax-blue shadow-sm border border-slate-100" 
                   : "text-slate-500 hover:text-slate-700 hover:bg-white/50"
@@ -327,14 +327,14 @@ export default function AbiHistoryPage() {
             <button 
               onClick={fetchData} 
               disabled={loading}
-              className="flex items-center justify-center h-8 w-8 rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-gax-blue transition-all shadow-sm disabled:opacity-50"
+              className="flex items-center justify-center h-8 w-8 rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-gax-blue transition-all shadow-sm disabled:opacity-50 focus:outline-none"
               title="Atualizar Dados"
             >
               <Clock size={14} className={cn(loading && "animate-spin")} />
             </button>
             <button 
               onClick={() => handleExport()}
-              className="flex items-center gap-2 h-8 px-3 rounded-lg border border-slate-200 bg-white text-slate-700 font-bold hover:bg-slate-50 hover:text-gax-blue transition-all text-[11px] sm:text-[12px] shadow-sm"
+              className="flex items-center gap-2 h-8 px-3 rounded-lg border border-slate-200 bg-white text-slate-700 font-bold hover:bg-slate-50 hover:text-gax-blue transition-all text-[11px] sm:text-[12px] shadow-sm focus:outline-none"
             >
               <Download size={13} />
               <span className="hidden xs:inline">Exportar</span>
