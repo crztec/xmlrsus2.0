@@ -1458,8 +1458,13 @@ def get_active_abi():
             dt_str = item.get('Data fim de Impugnação', '')
             if not dt_str: continue
             try:
+                # dt_obj é 00:00:00 da data limite.
                 dt_obj = datetime.strptime(dt_str, "%d/%m/%Y").replace(tzinfo=timezone(timedelta(hours=-3)))
-                if dt_obj >= now:
+                
+                # Se hoje ainda for menor ou IGUAL à data limite (comparando apenas a data), a ABI ainda está ativa.
+                # Ou comparamos dt_obj em 23:59:59 >= now.
+                dt_limit = dt_obj.replace(hour=23, minute=59, second=59)
+                if dt_limit >= now:
                     active = item
                     break
             except: continue

@@ -1196,7 +1196,15 @@ export default function CheckImportsPage() {
                 <div className="space-y-3 relative before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[1.5px] before:bg-slate-100">
                   {schedule && schedule.length > 0 ? (
                     schedule
-                      .filter(item => item.ABI !== activeAbi?.ABI)
+                      .filter(item => {
+                        if (item.ABI === activeAbi?.ABI) return false;
+                        const dtStr = item['Data fim de Impugnação'];
+                        if (!dtStr) return true;
+                        try {
+                          const [d, m, y] = dtStr.split('/').map(Number);
+                          return new Date(y, m - 1, d, 23, 59, 59) > new Date();
+                        } catch { return true; }
+                      })
                       .slice(0, 3) // Mostra os próximas 3
                       .map((item, i) => (
                         <div key={i} className="relative pl-7 group cursor-default">
@@ -1217,6 +1225,41 @@ export default function CheckImportsPage() {
                   )}
                 </div>
               </div>
+
+              {/* ABIs Finalizados (Recent) */}
+              {schedule && schedule.filter(item => {
+                const dtStr = item['Data fim de Impugnação'];
+                if (!dtStr) return false;
+                try {
+                  const [d, m, y] = dtStr.split('/').map(Number);
+                  return new Date(y, m - 1, d, 23, 59, 59) < new Date() && item.ABI !== activeAbi?.ABI;
+                } catch { return false; }
+              }).length > 0 && (
+                <div className="mt-4 pt-4 border-t border-slate-100">
+                  <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                    <CheckCircle2 size={12} className="text-emerald-500" />
+                    Ciclos Finalizados
+                  </h4>
+                  <div className="flex flex-wrap gap-2">
+                    {schedule
+                      .filter(item => {
+                        const dtStr = item['Data fim de Impugnação'];
+                        if (!dtStr) return false;
+                        try {
+                          const [d, m, y] = dtStr.split('/').map(Number);
+                          return new Date(y, m - 1, d, 23, 59, 59) < new Date() && item.ABI !== activeAbi?.ABI;
+                        } catch { return false; }
+                      })
+                      .slice(-4) // Mostra os últimos 4
+                      .map((item, i) => (
+                        <div key={i} className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg flex items-center gap-1.5" title={`${item.ABI} - Finalizado`}>
+                          <span className="text-[10px] font-bold text-slate-500">{item.ABI}</span>
+                          <div className="h-1 w-1 rounded-full bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.5)]"></div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
