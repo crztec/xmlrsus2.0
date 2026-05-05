@@ -51,6 +51,8 @@ export default function AbiHistoryPage() {
   const [selectedHistoricalSlice, setSelectedHistoricalSlice] = useState<string | null>(null);
   const [selectedHistoricalAbi, setSelectedHistoricalAbi] = useState<string | null>(null);
   const [evolutionClientId, setEvolutionClientId] = useState<string>("global");
+  const [historicalEvolutionData, setHistoricalEvolutionData] = useState<any>(null);
+  const [loadingHistoricalSnapshots, setLoadingHistoricalSnapshots] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
@@ -79,6 +81,27 @@ export default function AbiHistoryPage() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  const fetchHistoricalSnapshots = async (abi: string) => {
+    setLoadingHistoricalSnapshots(true);
+    try {
+      const res = await apiClient(`/api/abi-historical-snapshots/${abi}`);
+      if (res.ok) {
+        const data = await res.json();
+        setHistoricalEvolutionData(data);
+      }
+    } catch (err) {
+      console.error("Erro ao buscar snapshots históricos:", err);
+    } finally {
+      setLoadingHistoricalSnapshots(false);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedHistoricalAbi && activeTab === 'history') {
+      fetchHistoricalSnapshots(selectedHistoricalAbi);
+    }
+  }, [selectedHistoricalAbi, activeTab]);
 
   const handleExport = async (abi?: string | null) => {
     try {
@@ -143,19 +166,29 @@ export default function AbiHistoryPage() {
     const evoMap: Record<string, number> = {};
     historicalData.forEach(item => {
       const abi = String(item.abi || 'N/A');
-      const volume = (item.impugnation_stats?.impugnados || 0) + (item.impugnation_stats?.aptos || 0);
+      // A visão principal exibe o TOTAL de atendimentos de cada ABI
+      const volume = item.total || 0;
       evoMap[abi] = (evoMap[abi] || 0) + volume;
     });
 
     const evo = Object.entries(evoMap)
-      .map(([abi, volume]) => ({ abi: abi.includes('º') ? abi : `${abi}º`, volume }))
+      .map(([abi, volume]) => ({ abi: abi.includes('º') ? abi : `${abi}º`, volume, rawAbi: abi }))
       .sort((a, b) => {
         const numA = parseInt(a.abi.replace(/\D/g, '')) || 0;
         const numB = parseInt(b.abi.replace(/\D/g, '')) || 0;
         return numA - numB;
       });
 
-    if (evo.length === 0) evo.push({ abi: '105º', volume: 0 });
+    // Adiciona o atual se houver
+    if (currentAbiData) {
+      const currentAbi = String(currentAbiData.abi_num || 'Atual');
+      if (!evoMap[currentAbi]) {
+        const totalCurrent = currentAbiData.total_atendimentos || 0;
+        evo.push({ abi: currentAbi.includes('º') ? currentAbi : `${currentAbi}º`, volume: totalCurrent, rawAbi: currentAbi });
+      }
+    }
+
+    if (evo.length === 0) evo.push({ abi: '105º', volume: 0, rawAbi: '105' });
 
     return { 
       topImpugnados: imp, 
@@ -205,38 +238,50 @@ export default function AbiHistoryPage() {
     if (!selectedHistoricalAbi) return null;
     
     const clients = historicalData.filter(item => String(item.abi) === selectedHistoricalAbi).map(item => {
-      let impugnating = 0, finalized = 0, not_started = 0, not_imported = 0;
+      const stats_raw = item.impugnation_stats || {};
       const status = String(item.abi_status || '').toLowerCase();
       const imp_status = String(item.impugnation_status || '');
       
-      if (imp_status === 'Finalizou') finalized = 1;
-      else if (imp_status === 'Impugnando') impugnating = 1;
-      else if (imp_status === 'Não Iniciou') not_started = 1;
-      
-      if (status === 'nao importado' || status === 'não importado') not_imported = 1;
-
       return {
         name: item.client_name,
-        impugnados: item.impugnation_stats?.impugnados || 0,
-        aptos: item.impugnation_stats?.aptos || 0,
-        aguardando: item.impugnation_stats?.aguardando || 0,
-        nao_impugnando: item.impugnation_stats?.nao_impugnando || 0,
-        total: item.impugnation_stats?.total || 0,
-        finalized, impugnating, not_started, not_imported
+        impugnados: stats_raw.impugnados || 0,
+        aptos: stats_raw.aptos || 0,
+        aguardando: stats_raw.aguardando || 0,
+        nao_impugnando: stats_raw.nao_impugnando || 0,
+        total: item.total || 0,
+        finalized: imp_status === 'Finalizou' ? 1 : 0,
+        impugnating: imp_status === 'Impugnando' ? 1 : 0,
+        not_started: imp_status === 'Não Iniciou' ? 1 : 0,
+        not_imported: (status === 'nao importado' || status === 'não importado') ? 1 : 0
       };
     });
 
-    const imp = [...clients].map(c => ({ name: c.name, total: c.impugnados + c.aptos, clientTotal: c.total || 1 })).sort((a,b)=>b.total-a.total).slice(0,topLimit);
-    const agu = [...clients].map(c => ({ name: c.name, total: c.aguardando, clientTotal: c.total || 1 })).sort((a,b)=>b.total-a.total).slice(0,topLimit);
-    const nImp = [...clients].map(c => ({ name: c.name, total: c.nao_impugnando, clientTotal: c.total || 1 })).sort((a,b)=>b.total-a.total).slice(0,topLimit);
+    const imp = [...clients]
+      .map(c => ({ name: c.name, total: c.impugnados || 0, clientTotal: c.total || 1 }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, topLimit);
+
+    const agu = [...clients]
+      .map(c => ({ name: c.name, total: c.aguardando || 0, clientTotal: c.total || 1 }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, topLimit);
+
+    const nImp = [...clients]
+      .map(c => ({ name: c.name, total: c.nao_impugnando || 0, clientTotal: c.total || 1 }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, topLimit);
+
+    const totalGlobal = clients.reduce((acc, curr) => acc + (curr.total || 0), 0);
     
-    const totalGlobal = clients.reduce((acc, c) => acc + c.total, 0);
     const dist = [
-      { name: 'Impugnados', value: clients.reduce((acc, c) => acc + c.impugnados, 0) },
-      { name: 'Aptos', value: clients.reduce((acc, c) => acc + c.aptos, 0) },
-      { name: 'Aguardando', value: clients.reduce((acc, c) => acc + c.aguardando, 0) },
-      { name: 'Não Impugnados', value: clients.reduce((acc, c) => acc + c.nao_impugnando, 0) },
-    ].map(d => ({ ...d, percentage: totalGlobal > 0 ? Math.round((d.value/totalGlobal)*100) : 0 })).filter(d => d.value > 0);
+      { name: 'Impugnados', value: clients.reduce((acc, curr) => acc + (curr.impugnados || 0), 0) },
+      { name: 'Aptos', value: clients.reduce((acc, curr) => acc + (curr.aptos || 0), 0) },
+      { name: 'Aguardando', value: clients.reduce((acc, curr) => acc + (curr.aguardando || 0), 0) },
+      { name: 'Não Impugnados', value: clients.reduce((acc, curr) => acc + (curr.nao_impugnando || 0), 0) },
+    ].map(d => ({
+      ...d,
+      percentage: totalGlobal > 0 ? Math.round((d.value / totalGlobal) * 100) : 0
+    })).filter(d => d.value > 0);
 
     const summary = {
       finalized: clients.reduce((acc, c) => acc + c.finalized, 0),
@@ -680,23 +725,79 @@ export default function AbiHistoryPage() {
       ) : (
         /* Aba ABIs Anteriores */
         <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 space-y-5">
-          {/* Gráfico de Evolução de Ciclos */}
+          {/* Cards de Resumo no Topo */}
+          {historicalDataForCharts && (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="rounded-xl border border-emerald-100 bg-white p-4 shadow-sm flex items-center justify-between group hover:border-emerald-200 transition-colors">
+                <div>
+                  <h3 className="text-slate-500 font-bold text-[11px] uppercase tracking-wider mb-1">Finalizados</h3>
+                  <p className="text-2xl font-black text-emerald-600 tracking-tight">{historicalDataForCharts.summary.finalized}</p>
+                </div>
+                <div className="h-10 w-10 bg-emerald-50 rounded-lg flex items-center justify-center text-emerald-500 group-hover:scale-110 transition-transform">
+                  <ShieldCheck size={20} />
+                </div>
+              </div>
+              <div className="rounded-xl border border-amber-100 bg-white p-4 shadow-sm flex items-center justify-between group hover:border-amber-200 transition-colors">
+                <div>
+                  <h3 className="text-slate-500 font-bold text-[11px] uppercase tracking-wider mb-1">Em Andamento</h3>
+                  <p className="text-2xl font-black text-amber-600 tracking-tight">{historicalDataForCharts.summary.impugnating}</p>
+                </div>
+                <div className="h-10 w-10 bg-amber-50 rounded-lg flex items-center justify-center text-amber-500 group-hover:scale-110 transition-transform">
+                  <TrendingUp size={20} />
+                </div>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm flex items-center justify-between group hover:border-slate-300 transition-colors">
+                <div>
+                  <h3 className="text-slate-500 font-bold text-[11px] uppercase tracking-wider mb-1">Não Iniciados</h3>
+                  <p className="text-2xl font-black text-slate-800 tracking-tight">{historicalDataForCharts.summary.not_started}</p>
+                </div>
+                <div className="h-10 w-10 bg-slate-50 rounded-lg flex items-center justify-center text-slate-400 group-hover:scale-110 transition-transform">
+                  <ShieldAlert size={20} />
+                </div>
+              </div>
+              <div className="rounded-xl border border-rose-100 bg-white p-4 shadow-sm flex items-center justify-between group hover:border-rose-200 transition-colors">
+                <div>
+                  <h3 className="text-slate-500 font-bold text-[11px] uppercase tracking-wider mb-1">Não Importados</h3>
+                  <p className="text-2xl font-black text-rose-600 tracking-tight">{historicalDataForCharts.summary.not_imported}</p>
+                </div>
+                <div className="h-10 w-10 bg-rose-50 rounded-lg flex items-center justify-center text-rose-500 group-hover:scale-110 transition-transform">
+                  <UserX size={20} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Gráfico de Evolução de Ciclos - Selecionável */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex flex-col sm:flex-row items-center justify-between mb-6 gap-4">
                <h4 className="text-sm font-bold flex items-center gap-2">
                 <Activity size={16} className="text-gax-blue" />
-                Evolução de Impugnações por Ciclo
+                Histórico de Volume por Ciclo
               </h4>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-4">
                 <div className="flex items-center gap-1.5">
                   <div className="h-0.5 w-4 bg-gax-blue" />
-                  <span className="text-[10px] text-slate-400 font-bold">Volume Total (Imp/Apto)</span>
+                  <span className="text-[10px] text-slate-400 font-bold">Volume Total Atendimentos</span>
                 </div>
+                {selectedHistoricalAbi && (
+                  <div className="bg-gax-blue/10 px-3 py-1 rounded-full border border-gax-blue/20">
+                    <span className="text-[10px] text-gax-blue font-black uppercase tracking-widest">ABI {selectedHistoricalAbi} Selecionado</span>
+                  </div>
+                )}
               </div>
             </div>
             <div className="h-[200px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={evolutionData}>
+                <LineChart 
+                  data={evolutionData}
+                  onClick={(data) => {
+                    if (data && data.activePayload && data.activePayload[0]) {
+                      const abi = data.activePayload[0].payload.rawAbi;
+                      setSelectedHistoricalAbi(abi);
+                    }
+                  }}
+                  className="cursor-pointer"
+                >
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                   <XAxis 
                     dataKey="abi" 
@@ -709,35 +810,44 @@ export default function AbiHistoryPage() {
                   <YAxis hide />
                   <Tooltip 
                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }}
+                    cursor={{ stroke: '#3b82f6', strokeWidth: 2, strokeDasharray: '5 5' }}
                   />
                   <Line 
                     type="monotone" 
                     dataKey="volume" 
+                    name="Atendimentos"
                     stroke="#3b82f6" 
                     strokeWidth={3} 
-                    dot={{ r: 4, fill: '#3b82f6', strokeWidth: 2, stroke: '#fff' }} 
-                    activeDot={{ r: 6 }} 
+                    dot={{ r: 5, fill: '#3b82f6', strokeWidth: 2, stroke: '#fff' }} 
+                    activeDot={{ r: 8, fill: '#fff', stroke: '#3b82f6', strokeWidth: 3 }} 
                   />
                 </LineChart>
               </ResponsiveContainer>
             </div>
+            <p className="text-[10px] text-slate-400 text-center mt-4 italic font-medium">Clique nos pontos do gráfico para visualizar os detalhes de cada ciclo.</p>
           </div>
 
-          {/* Tabela de Histórico Minimalista removida e substituída pela Visão Detalhada */}
-          <div className="flex flex-col gap-5 mt-6">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 w-full bg-slate-50 p-5 rounded-xl border border-slate-200 overflow-visible">
-              <div className="flex items-center gap-2">
-                <span className="text-[12px] font-bold text-slate-500 uppercase tracking-tight whitespace-nowrap">ABI:</span>
-                <select 
-                  value={selectedHistoricalAbi || ''} 
-                  onChange={(e) => setSelectedHistoricalAbi(e.target.value)}
-                  className="bg-white border border-slate-300 rounded-lg px-3 py-2 outline-none text-[13px] font-bold text-slate-800 cursor-pointer min-w-[150px] shadow-sm hover:border-gax-blue focus:border-gax-blue focus:ring-1 focus:ring-gax-blue/20 transition-all"
-                >
-                  {historicalAbisList.map(abi => (
-                    <option key={abi} value={abi}>Ciclo {abi}</option>
-                  ))}
-                </select>
-              </div>
+          <div className="flex flex-col gap-5">
+            {/* Header de Ações do Ciclo Selecionado */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 w-full bg-slate-50 p-4 rounded-xl border border-slate-200">
+               <div className="flex items-center gap-3">
+                 <div className="flex items-center gap-1.5 bg-white p-1 rounded-lg border border-slate-200 shadow-sm">
+                   {[5, 10, 20, 50].map((limit) => (
+                     <button
+                       key={limit}
+                       onClick={() => setTopLimit(limit)}
+                       className={cn(
+                         "px-3 py-1 rounded-md text-[10px] font-black transition-all",
+                         topLimit === limit 
+                           ? "bg-gax-blue text-white shadow-sm" 
+                           : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
+                       )}
+                     >
+                       TOP {limit}
+                     </button>
+                   ))}
+                 </div>
+               </div>
 
               {selectedHistoricalAbi && (
                 <button 
@@ -745,52 +855,86 @@ export default function AbiHistoryPage() {
                   className="flex items-center justify-center gap-2 h-9 px-4 rounded-lg border border-gax-blue bg-gax-blue text-white font-bold hover:bg-gax-blue-hover transition-all text-[12px] shadow-sm w-full sm:w-auto"
                 >
                   <Download size={14} />
-                  Baixar Excel (ABI {selectedHistoricalAbi})
+                  Exportar Dados (ABI {selectedHistoricalAbi})
                 </button>
               )}
             </div>
 
-            {historicalDataForCharts ? (
-              <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 space-y-5">
-                {/* Cards de Resumo */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div className="rounded-xl border border-emerald-100 bg-white p-4 shadow-sm flex items-center justify-between group hover:border-emerald-200 transition-colors">
-                    <div>
-                      <h3 className="text-slate-500 font-bold text-[11px] uppercase tracking-wider mb-1">Finalizados</h3>
-                      <p className="text-2xl font-black text-emerald-600 tracking-tight">{historicalDataForCharts.summary.finalized}</p>
+                {/* Gráfico de Evolução do Ciclo Histórico */}
+                {historicalEvolutionData?.timeline?.length > 0 && (
+                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 overflow-hidden relative">
+                    <div className="flex items-center justify-between mb-8">
+                      <div>
+                        <h3 className="text-sm font-bold flex items-center gap-2 mb-1">
+                          <History size={18} className="text-gax-blue" />
+                          Evolução do Ciclo {selectedHistoricalAbi}
+                        </h3>
+                        <p className="text-[11px] text-slate-400 font-medium">Acompanhamento diário da situação dos atendimentos</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <select 
+                          value={evolutionClientId} 
+                          onChange={(e) => setEvolutionClientId(e.target.value)}
+                          className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-[11px] font-bold text-slate-600 outline-none hover:border-gax-blue transition-colors"
+                        >
+                          <option value="global">Visão Consolidada</option>
+                          {historicalDataForCharts.client_details.map((c: any) => (
+                            <option key={c.client_id} value={c.client_id}>{c.name}</option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
-                    <div className="h-10 w-10 bg-emerald-50 rounded-lg flex items-center justify-center text-emerald-500 group-hover:scale-110 transition-transform">
-                      <ShieldCheck size={20} />
+
+                    <div className="h-[240px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart 
+                          data={evolutionClientId === "global" ? historicalEvolutionData.timeline : (historicalEvolutionData.client_evolution?.[evolutionClientId] || [])} 
+                          margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                        >
+                          <defs>
+                            <linearGradient id="colorImpugnadosHist" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                              <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                            </linearGradient>
+                            <linearGradient id="colorAguardandoHist" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3}/>
+                              <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
+                            </linearGradient>
+                            <linearGradient id="colorNaoImpugnadosHist" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#94a3b8" stopOpacity={0.3}/>
+                              <stop offset="95%" stopColor="#94a3b8" stopOpacity={0}/>
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                          <XAxis 
+                            dataKey="date" 
+                            tickFormatter={(val) => {
+                              if (!val) return '';
+                              const parts = val.split('-');
+                              return parts.length >= 3 ? `${parts[2]}/${parts[1]}` : val;
+                            }}
+                            tickLine={false} 
+                            axisLine={false} 
+                            tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 600 }}
+                            dy={10}
+                          />
+                          <YAxis tickLine={false} axisLine={false} tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 600 }} width={40} />
+                          <Tooltip 
+                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }}
+                            labelFormatter={(label) => {
+                              if (!label) return '';
+                              const parts = label.split('-');
+                              return parts.length >= 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : label;
+                            }}
+                          />
+                          <Area type="monotone" name="Não Impugnados" dataKey="nao_impugnando" stroke="#94a3b8" strokeWidth={2} fillOpacity={1} fill="url(#colorNaoImpugnadosHist)" />
+                          <Area type="monotone" name="Aguardando" dataKey="aguardando" stroke="#f59e0b" strokeWidth={3} fillOpacity={1} fill="url(#colorAguardandoHist)" />
+                          <Area type="monotone" name="Impugnados" dataKey="impugnados" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorImpugnadosHist)" />
+                        </AreaChart>
+                      </ResponsiveContainer>
                     </div>
                   </div>
-                  <div className="rounded-xl border border-amber-100 bg-white p-4 shadow-sm flex items-center justify-between group hover:border-amber-200 transition-colors">
-                    <div>
-                      <h3 className="text-slate-500 font-bold text-[11px] uppercase tracking-wider mb-1">Em Andamento</h3>
-                      <p className="text-2xl font-black text-amber-600 tracking-tight">{historicalDataForCharts.summary.impugnating}</p>
-                    </div>
-                    <div className="h-10 w-10 bg-amber-50 rounded-lg flex items-center justify-center text-amber-500 group-hover:scale-110 transition-transform">
-                      <TrendingUp size={20} />
-                    </div>
-                  </div>
-                  <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm flex items-center justify-between group hover:border-slate-300 transition-colors">
-                    <div>
-                      <h3 className="text-slate-500 font-bold text-[11px] uppercase tracking-wider mb-1">Não Iniciados</h3>
-                      <p className="text-2xl font-black text-slate-800 tracking-tight">{historicalDataForCharts.summary.not_started}</p>
-                    </div>
-                    <div className="h-10 w-10 bg-slate-50 rounded-lg flex items-center justify-center text-slate-400 group-hover:scale-110 transition-transform">
-                      <ShieldAlert size={20} />
-                    </div>
-                  </div>
-                  <div className="rounded-xl border border-rose-100 bg-white p-4 shadow-sm flex items-center justify-between group hover:border-rose-200 transition-colors">
-                    <div>
-                      <h3 className="text-slate-500 font-bold text-[11px] uppercase tracking-wider mb-1">Não Importados</h3>
-                      <p className="text-2xl font-black text-rose-600 tracking-tight">{historicalDataForCharts.summary.not_imported}</p>
-                    </div>
-                    <div className="h-10 w-10 bg-rose-50 rounded-lg flex items-center justify-center text-rose-500 group-hover:scale-110 transition-transform">
-                      <UserX size={20} />
-                    </div>
-                  </div>
-                </div>
+                )}
 
                 {/* Grid de Gráficos Analíticos */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">

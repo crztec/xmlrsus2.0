@@ -1559,6 +1559,35 @@ def get_abi_historical_data():
         logger.error(f"Erro ao buscar histórico de ABIs: {e}")
         return []
 
+def get_abi_historical_snapshots(abi_num):
+    """Recupera os snapshots diários de um ABI específico (ativo ou arquivado)."""
+    try:
+        snapshots_ref = firestore_db.collection('current_abi_evolution').document(str(abi_num)).collection('snapshots').order_by('date').get()
+        timeline = []
+        for doc in snapshots_ref:
+            data = doc.to_dict()
+            if 'timestamp' in data: del data['timestamp']
+            timeline.append(data)
+        
+        # Também busca por cliente se houver snapshots individuais
+        client_evolution = {}
+        client_snaps_docs = firestore_db.collection('current_abi_evolution').document(str(abi_num)).collection('client_snapshots').get()
+        for c_doc in client_snaps_docs:
+            c_id = c_doc.id
+            snaps_ref = c_doc.reference.collection('snapshots').order_by('date').get()
+            t = []
+            for s in snaps_ref:
+                sd = s.to_dict()
+                if 'timestamp' in sd: del sd['timestamp']
+                t.append(sd)
+            if t:
+                client_evolution[c_id] = t
+                
+        return {"timeline": timeline, "client_evolution": client_evolution}
+    except Exception as e:
+        logger.error(f"Erro ao buscar snapshots históricos do ABI {abi_num}: {e}")
+        return {"timeline": [], "client_evolution": {}}
+
 def get_abi_dashboard_stats():
     """Calculates stats for the ABI dashboard."""
     try:
@@ -1659,6 +1688,8 @@ def get_abi_dashboard_stats():
         stats['evolution_timeline'] = evolution_timeline
         stats['client_evolution'] = client_evolution
         stats['client_details'] = client_details
+        stats['abi_num'] = active_abi.get('ABI') if active_abi else None
+        stats['total_atendimentos'] = sum(c.get('total', 0) for c in client_details)
         return stats
     except Exception as e:
         logger.error(f"Erro ao calcular estatísticas ABI: {e}")
