@@ -247,7 +247,7 @@ export default function AbiHistoryPage() {
       const exists = historicalData.some(h => String(h.abi) === currentAbiNum);
       if (!exists) {
         // Criar registros sintéticos para cada cliente do ABI atual
-        const syntheticHistory = (currentAbiData.client_details || []).map(client => ({
+        const syntheticHistory = (currentAbiData.client_details || []).map((client: any) => ({
           abi: currentAbiNum,
           client_id: client.client_id,
           client_name: client.name,
@@ -417,7 +417,6 @@ export default function AbiHistoryPage() {
               <span className="hidden xs:inline">Exportar</span>
               <span className="hidden sm:inline">Dashboard</span>
             </button>
-          </div>
         </div>
       </div>
 
@@ -758,7 +757,7 @@ export default function AbiHistoryPage() {
               <div className="rounded-xl border border-emerald-100 bg-white p-4 shadow-sm flex items-center justify-between group hover:border-emerald-200 transition-colors">
                 <div>
                   <h3 className="text-slate-500 font-bold text-[11px] uppercase tracking-wider mb-1">Finalizados</h3>
-                  <p className="text-2xl font-black text-emerald-600 tracking-tight">{historicalDataForCharts.summary.finalized}</p>
+                  <p className="text-2xl font-black text-emerald-600 tracking-tight">{historicalDataForCharts?.summary.finalized}</p>
                 </div>
                 <div className="h-10 w-10 bg-emerald-50 rounded-lg flex items-center justify-center text-emerald-500 group-hover:scale-110 transition-transform">
                   <ShieldCheck size={20} />
@@ -767,7 +766,7 @@ export default function AbiHistoryPage() {
               <div className="rounded-xl border border-amber-100 bg-white p-4 shadow-sm flex items-center justify-between group hover:border-amber-200 transition-colors">
                 <div>
                   <h3 className="text-slate-500 font-bold text-[11px] uppercase tracking-wider mb-1">Em Andamento</h3>
-                  <p className="text-2xl font-black text-amber-600 tracking-tight">{historicalDataForCharts.summary.impugnating}</p>
+                  <p className="text-2xl font-black text-amber-600 tracking-tight">{historicalDataForCharts?.summary.impugnating}</p>
                 </div>
                 <div className="h-10 w-10 bg-amber-50 rounded-lg flex items-center justify-center text-amber-500 group-hover:scale-110 transition-transform">
                   <TrendingUp size={20} />
@@ -776,7 +775,7 @@ export default function AbiHistoryPage() {
               <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm flex items-center justify-between group hover:border-slate-300 transition-colors">
                 <div>
                   <h3 className="text-slate-500 font-bold text-[11px] uppercase tracking-wider mb-1">Não Iniciados</h3>
-                  <p className="text-2xl font-black text-slate-800 tracking-tight">{historicalDataForCharts.summary.not_started}</p>
+                  <p className="text-2xl font-black text-slate-800 tracking-tight">{historicalDataForCharts?.summary.not_started}</p>
                 </div>
                 <div className="h-10 w-10 bg-slate-50 rounded-lg flex items-center justify-center text-slate-400 group-hover:scale-110 transition-transform">
                   <ShieldAlert size={20} />
@@ -785,7 +784,7 @@ export default function AbiHistoryPage() {
               <div className="rounded-xl border border-rose-100 bg-white p-4 shadow-sm flex items-center justify-between group hover:border-rose-200 transition-colors">
                 <div>
                   <h3 className="text-slate-500 font-bold text-[11px] uppercase tracking-wider mb-1">Não Importados</h3>
-                  <p className="text-2xl font-black text-rose-600 tracking-tight">{historicalDataForCharts.summary.not_imported}</p>
+                  <p className="text-2xl font-black text-rose-600 tracking-tight">{historicalDataForCharts?.summary.not_imported}</p>
                 </div>
                 <div className="h-10 w-10 bg-rose-50 rounded-lg flex items-center justify-center text-rose-500 group-hover:scale-110 transition-transform">
                   <UserX size={20} />
@@ -870,7 +869,7 @@ export default function AbiHistoryPage() {
                           className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-[11px] font-bold text-slate-600 outline-none hover:border-gax-blue transition-colors"
                         >
                           <option value="global">Visão Consolidada</option>
-                          {historicalDataForCharts.clients.map((c: any) => (
+                          {historicalDataForCharts?.clients.map((c: any) => (
                             <option key={c.client_id} value={c.client_id}>{c.name}</option>
                           ))}
                         </select>
@@ -944,7 +943,7 @@ export default function AbiHistoryPage() {
                     </div>
                     <div style={{ height: `${chartHeight}px` }} className="w-full transition-all">
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={historicalDataForCharts.topImpugnados} layout="vertical" margin={{ left: 20, right: 30, top: 0, bottom: 0 }}>
+                        <BarChart data={historicalDataForCharts?.topImpugnados} layout="vertical" margin={{ left: 20, right: 30, top: 0, bottom: 0 }}>
                           <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
                           <XAxis type="number" hide />
                           <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} fontSize={9} fontWeight={600} width={70} tick={{ fill: '#64748b' }} />
@@ -964,7 +963,7 @@ export default function AbiHistoryPage() {
                     </div>
                     <div style={{ height: `${chartHeight}px` }} className="w-full transition-all">
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={historicalDataForCharts.topAguardando} layout="vertical" margin={{ left: 20, right: 30, top: 0, bottom: 0 }}>
+                        <BarChart data={historicalDataForCharts?.topAguardando} layout="vertical" margin={{ left: 20, right: 30, top: 0, bottom: 0 }}>
                           <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
                           <XAxis type="number" hide />
                           <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} fontSize={9} fontWeight={600} width={70} tick={{ fill: '#64748b' }} />
@@ -984,7 +983,7 @@ export default function AbiHistoryPage() {
                     </div>
                     <div style={{ height: `${chartHeight}px` }} className="w-full transition-all">
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={historicalDataForCharts.topNaoImpugnados} layout="vertical" margin={{ left: 20, right: 30, top: 0, bottom: 0 }}>
+                        <BarChart data={historicalDataForCharts?.topNaoImpugnados} layout="vertical" margin={{ left: 20, right: 30, top: 0, bottom: 0 }}>
                           <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
                           <XAxis type="number" hide />
                           <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} fontSize={9} fontWeight={600} width={70} tick={{ fill: '#64748b' }} />
@@ -1017,17 +1016,17 @@ export default function AbiHistoryPage() {
                                 <XAxis type="number" hide />
                                 <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} fontSize={10} fontWeight={600} width={80} tick={{ fill: '#64748b' }} />
                                 <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }} formatter={(value: any, name: any, props: any) => [`${value} (${((value / (props.payload.clientTotal || 1)) * 100).toFixed(0)}% do total do cliente)`, 'Qtd.']} />
-                                <Bar dataKey="value" fill={DISTRIBUTION_COLORS[historicalDataForCharts.distributionData.findIndex(d => d.name === selectedHistoricalSlice) || 0] || '#94a3b8'} radius={[0, 4, 4, 0]} barSize={12} />
+                                <Bar dataKey="value" fill={DISTRIBUTION_COLORS[historicalDataForCharts?.distributionData.findIndex(d => d.name === selectedHistoricalSlice) || 0] || '#94a3b8'} radius={[0, 4, 4, 0]} barSize={12} />
                               </BarChart>
                             </ResponsiveContainer>
                           </div>
                         </div>
-                      ) : historicalDataForCharts.distributionData.length > 0 ? (
+                      ) : (historicalDataForCharts?.distributionData || []).length > 0 ? (
                         <>
                           <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                               <Pie
-                                data={historicalDataForCharts.distributionData}
+                                data={historicalDataForCharts?.distributionData}
                                 innerRadius={70}
                                 outerRadius={95}
                                 paddingAngle={5}
@@ -1047,7 +1046,7 @@ export default function AbiHistoryPage() {
                                   );
                                 }}
                               >
-                                {historicalDataForCharts.distributionData.map((entry, index) => (
+                                {historicalDataForCharts?.distributionData.map((entry, index) => (
                                   <Cell key={`cell-${index}`} fill={DISTRIBUTION_COLORS[index % DISTRIBUTION_COLORS.length]} />
                                 ))}
                               </Pie>
@@ -1058,7 +1057,7 @@ export default function AbiHistoryPage() {
                             <div className="text-center">
                               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Total</p>
                               <p className="text-2xl font-black text-slate-800">
-                                {historicalDataForCharts.totalGlobal.toLocaleString()}
+                                {historicalDataForCharts?.totalGlobal.toLocaleString()}
                               </p>
                             </div>
                           </div>
@@ -1070,7 +1069,7 @@ export default function AbiHistoryPage() {
                       )}
                     </div>
                     <div className="grid grid-cols-2 gap-3 mt-4 border-t border-slate-50 pt-4">
-                      {historicalDataForCharts.distributionData.map((item, idx) => (
+                      {historicalDataForCharts?.distributionData.map((item, idx) => (
                         <div key={idx} className="flex items-center justify-between group cursor-default">
                           <div className="flex items-center gap-2">
                             <div className="h-2 w-2 rounded-full" style={{ backgroundColor: DISTRIBUTION_COLORS[idx] }} />
