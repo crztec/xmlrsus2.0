@@ -345,32 +345,31 @@ export default function AbiHistoryPage() {
       
       {/* Header com Navegação e Ações */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 w-full">
-        <div className="flex items-center gap-1.5">
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-sm w-full sm:w-max">
+        <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
             <button
               onClick={() => setActiveTab('current')}
               className={cn(
-                "flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-bold text-[12px] transition-all outline-none focus:outline-none active:outline-none ring-0 focus:ring-0 focus-visible:ring-0 active:ring-0 select-none",
+                "flex items-center gap-2 px-4 py-1.5 rounded-lg text-[12px] font-bold transition-all border outline-none focus:outline-none focus:ring-0 focus-visible:ring-0 active:outline-none active:ring-0 ring-0",
                 activeTab === 'current' 
-                  ? "bg-white text-gax-blue shadow-sm border border-slate-100" 
-                  : "text-slate-500 hover:text-slate-700 hover:bg-white/50"
+                  ? "bg-white text-gax-blue border-slate-200 shadow-sm" 
+                  : "text-slate-400 border-transparent hover:text-slate-600"
               )}
-              style={{ WebkitTapHighlightColor: 'transparent' }}
+              style={{ outline: 'none', boxShadow: activeTab === 'current' ? '0 1px 2px 0 rgba(0, 0, 0, 0.05)' : 'none' }}
             >
-              <CalendarDays size={14} />
+              <LayoutGrid size={14} />
               Visão Geral Atual
             </button>
             <button
               onClick={() => setActiveTab('history')}
               className={cn(
-                "flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-bold text-[12px] transition-all outline-none focus:outline-none active:outline-none ring-0 focus:ring-0 focus-visible:ring-0 active:ring-0 select-none",
+                "flex items-center gap-2 px-4 py-1.5 rounded-lg text-[12px] font-bold transition-all border outline-none focus:outline-none focus:ring-0 focus-visible:ring-0 active:outline-none active:ring-0 ring-0",
                 activeTab === 'history' 
-                  ? "bg-white text-gax-blue shadow-sm border border-slate-100" 
-                  : "text-slate-500 hover:text-slate-700 hover:bg-white/50"
+                  ? "bg-white text-gax-blue border-slate-200 shadow-sm" 
+                  : "text-slate-400 border-transparent hover:text-slate-600"
               )}
-              style={{ WebkitTapHighlightColor: 'transparent' }}
+              style={{ outline: 'none', boxShadow: activeTab === 'history' ? '0 1px 2px 0 rgba(0, 0, 0, 0.05)' : 'none' }}
             >
-              <ClipboardList size={14} />
+              <History size={14} />
               ABIs Anteriores
             </button>
           </div>
@@ -429,7 +428,7 @@ export default function AbiHistoryPage() {
         </div>
       ) : activeTab === 'current' ? (
         /* Aba Visão Geral Atual */
-        <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 space-y-5">
+        <div className="space-y-5">
           {/* Cards de Resumo Compactos */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="rounded-xl border border-emerald-100 bg-white p-4 shadow-sm flex items-center justify-between group hover:border-emerald-200 transition-colors">
@@ -752,7 +751,7 @@ export default function AbiHistoryPage() {
         </div>
       ) : (
         /* Aba ABIs Anteriores */
-        <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 space-y-5">
+        <div className="space-y-5">
           {/* Cards de Resumo no Topo */}
           {historicalDataForCharts && (
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -852,7 +851,7 @@ export default function AbiHistoryPage() {
 
           <div className="flex flex-col gap-5">
             {historicalDataForCharts ? (
-              <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 space-y-5">
+              <div className="space-y-5">
                 {/* Gráfico de Evolução do Ciclo Histórico */}
                 {((selectedHistoricalAbi === (currentAbiData?.abi_num ? String(currentAbiData.abi_num) : null) ? (currentAbiData?.evolution_timeline?.length > 0) : (historicalEvolutionData?.timeline?.length > 0))) && (
                   <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 overflow-hidden relative">
