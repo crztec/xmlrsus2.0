@@ -237,7 +237,35 @@ export default function AbiHistoryPage() {
   const historicalDataForCharts = useMemo(() => {
     if (!selectedHistoricalAbi) return null;
     
-    const clients = historicalData.filter(item => String(item.abi) === selectedHistoricalAbi).map(item => {
+    const currentAbiNum = currentAbiData?.abi_num ? String(currentAbiData.abi_num) : null;
+    
+    let baseData = [...historicalData];
+    
+    // Se o ABI selecionado for o atual, injetamos o currentAbiData formatado para ser compatível
+    if (selectedHistoricalAbi === currentAbiNum && currentAbiData) {
+      // Evitar duplicidade se já estiver no historicalData (caso venha do backend)
+      const exists = historicalData.some(h => String(h.abi) === currentAbiNum);
+      if (!exists) {
+        // Criar registros sintéticos para cada cliente do ABI atual
+        const syntheticHistory = (currentAbiData.client_details || []).map(client => ({
+          abi: currentAbiNum,
+          client_id: client.client_id,
+          client_name: client.name,
+          impugnation_stats: {
+            impugnados: client.impugnados,
+            aptos: client.aptos,
+            aguardando: client.aguardando,
+            nao_impugnando: client.nao_impugnando
+          },
+          total: client.total,
+          impugnation_status: client.status === 'finalizado' ? 'Finalizou' : client.status === 'impugnando' ? 'Impugnando' : 'Não Iniciou',
+          abi_status: 'importado'
+        }));
+        baseData = [...baseData, ...syntheticHistory];
+      }
+    }
+
+    const clients = baseData.filter(item => String(item.abi) === selectedHistoricalAbi).map(item => {
       const stats_raw = item.impugnation_stats || {};
       const status = String(item.abi_status || '').toLowerCase();
       const imp_status = String(item.impugnation_status || '');
@@ -359,21 +387,20 @@ export default function AbiHistoryPage() {
         </div>
         
         <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
-          {activeTab === 'current' && (
-            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 flex-1 sm:flex-none">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight whitespace-nowrap">Exibir:</span>
-              <select 
-                value={topLimit} 
-                onChange={(e) => setTopLimit(Number(e.target.value))}
-                className="bg-transparent border-none outline-none text-[12px] font-bold text-gax-blue cursor-pointer w-full"
-              >
-                <option value={5}>Top 5</option>
-                <option value={10}>Top 10</option>
-                <option value={15}>Top 15</option>
-                <option value={20}>Top 20</option>
-              </select>
-            </div>
-          )}
+          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 flex-1 sm:flex-none">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight whitespace-nowrap">Exibir:</span>
+            <select 
+              value={topLimit} 
+              onChange={(e) => setTopLimit(Number(e.target.value))}
+              className="bg-transparent border-none outline-none text-[12px] font-bold text-gax-blue cursor-pointer w-full"
+            >
+              <option value={5}>Top 5</option>
+              <option value={10}>Top 10</option>
+              <option value={15}>Top 15</option>
+              <option value={20}>Top 20</option>
+              <option value={50}>Top 50</option>
+            </select>
+          </div>
           <div className="flex items-center gap-2">
             <button 
               onClick={fetchData} 
@@ -384,7 +411,7 @@ export default function AbiHistoryPage() {
               <Clock size={14} className={cn(loading && "animate-spin")} />
             </button>
             <button 
-              onClick={() => handleExport()}
+              onClick={() => handleExport(activeTab === 'history' ? selectedHistoricalAbi : null)}
               className="flex items-center gap-2 h-8 px-3 rounded-lg border border-slate-200 bg-white text-slate-700 font-bold hover:bg-slate-50 hover:text-gax-blue transition-all text-[11px] sm:text-[12px] shadow-sm focus:outline-none active:outline-none ring-0 focus:ring-0 focus-visible:ring-0 active:ring-0"
             >
               <Download size={13} />
@@ -780,11 +807,6 @@ export default function AbiHistoryPage() {
                   <div className="h-0.5 w-4 bg-gax-blue" />
                   <span className="text-[10px] text-slate-400 font-bold">Volume Total Atendimentos</span>
                 </div>
-                {selectedHistoricalAbi && (
-                  <div className="bg-gax-blue/10 px-3 py-1 rounded-full border border-gax-blue/20">
-                    <span className="text-[10px] text-gax-blue font-black uppercase tracking-widest">ABI {selectedHistoricalAbi} Selecionado</span>
-                  </div>
-                )}
               </div>
             </div>
             <div className="h-[200px] w-full">
@@ -829,42 +851,10 @@ export default function AbiHistoryPage() {
           </div>
 
           <div className="flex flex-col gap-5">
-            {/* Header de Ações do Ciclo Selecionado */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 w-full bg-slate-50 p-4 rounded-xl border border-slate-200">
-               <div className="flex items-center gap-3">
-                 <div className="flex items-center gap-1.5 bg-white p-1 rounded-lg border border-slate-200 shadow-sm">
-                   {[5, 10, 20, 50].map((limit) => (
-                     <button
-                       key={limit}
-                       onClick={() => setTopLimit(limit)}
-                       className={cn(
-                         "px-3 py-1 rounded-md text-[10px] font-black transition-all",
-                         topLimit === limit 
-                           ? "bg-gax-blue text-white shadow-sm" 
-                           : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
-                       )}
-                     >
-                       TOP {limit}
-                     </button>
-                   ))}
-                 </div>
-               </div>
-
-              {selectedHistoricalAbi && (
-                <button 
-                  onClick={() => handleExport(selectedHistoricalAbi)}
-                  className="flex items-center justify-center gap-2 h-9 px-4 rounded-lg border border-gax-blue bg-gax-blue text-white font-bold hover:bg-gax-blue-hover transition-all text-[12px] shadow-sm w-full sm:w-auto"
-                >
-                  <Download size={14} />
-                  Exportar Dados (ABI {selectedHistoricalAbi})
-                </button>
-              )}
-            </div>
-
             {historicalDataForCharts ? (
               <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 space-y-5">
                 {/* Gráfico de Evolução do Ciclo Histórico */}
-                {historicalEvolutionData?.timeline?.length > 0 && (
+                {((selectedHistoricalAbi === (currentAbiData?.abi_num ? String(currentAbiData.abi_num) : null) ? (currentAbiData?.evolution_timeline?.length > 0) : (historicalEvolutionData?.timeline?.length > 0))) && (
                   <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 overflow-hidden relative">
                     <div className="flex items-center justify-between mb-8">
                       <div>
@@ -891,7 +881,11 @@ export default function AbiHistoryPage() {
                     <div className="h-[240px] w-full">
                       <ResponsiveContainer width="100%" height="100%">
                         <AreaChart 
-                          data={evolutionClientId === "global" ? historicalEvolutionData.timeline : (historicalEvolutionData.client_evolution?.[evolutionClientId] || [])} 
+                          data={
+                            selectedHistoricalAbi === (currentAbiData?.abi_num ? String(currentAbiData.abi_num) : null)
+                              ? (evolutionClientId === "global" ? currentAbiData.evolution_timeline : (currentAbiData.client_evolution?.[evolutionClientId] || []))
+                              : (evolutionClientId === "global" ? historicalEvolutionData.timeline : (historicalEvolutionData.client_evolution?.[evolutionClientId] || []))
+                          } 
                           margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
                         >
                           <defs>
