@@ -107,7 +107,9 @@ export default function CheckImportsPage() {
   // Sorting states
   const [sortField, setSortField] = React.useState<string | null>("name");
   const [sortOrder, setSortOrder] = React.useState<"asc" | "desc">("asc");
-  const [sortCycle, setSortCycle] = React.useState(0); 
+  const [sortCycle, setSortCycle] = React.useState(0);
+  const [currentPage, setCurrentPage] = React.useState(1);
+  const ITEMS_PER_PAGE = 15;
   
   const scrollRef = React.useRef<HTMLDivElement>(null);
 
@@ -626,6 +628,9 @@ export default function CheckImportsPage() {
     return 0;
   });
 
+  // Reset pagination when filter/search changes
+  React.useEffect(() => { setCurrentPage(1); }, [search, filterStatus]);
+
   const handleSortOperadora = () => {
     if (sortCycle === 0) {
       // Já está em Nome, mudar para Grupo
@@ -979,7 +984,7 @@ export default function CheckImportsPage() {
                         </div>
                       </td>
                     </tr>
-                  ) : filteredClients.map((client, idx) => (
+                  ) : filteredClients.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE).map((client, idx) => (
                     <tr 
                       key={client.id} 
                       className={cn(
@@ -1014,7 +1019,24 @@ export default function CheckImportsPage() {
                       </td>
                       <td className="px-4 py-2.5">
                         <div className="flex items-center gap-2">
-                          {getStatusIcon(client.abi_status, client.impugnation_status)}
+                          {(() => {
+                            // Se o ABI do cliente não bate com o ativo, mostra 'Não Importado'
+                            const activeAbiDigits = (activeAbi?.ABI || '').replace(/\D/g, '');
+                            const clientAbiDigits = (client.abi_current || '').replace(/\D/g, '');
+                            const isStale = activeAbiDigits && clientAbiDigits && clientAbiDigits !== activeAbiDigits;
+                            if (isStale) {
+                              return (
+                                <>
+                                  <XCircle className="text-slate-400" size={16} />
+                                  <span className="font-bold text-[9px] uppercase border px-2 py-0.5 rounded-full whitespace-nowrap bg-slate-50 text-slate-500 border-slate-200">
+                                    Não Importado
+                                  </span>
+                                </>
+                              );
+                            }
+                            return (
+                              <>
+                                {getStatusIcon(client.abi_status, client.impugnation_status)}
                           <span className={cn(
                             "font-bold text-[9px] uppercase border px-2 py-0.5 rounded-full whitespace-nowrap",
                             client.impugnation_status === "Finalizou" ? "bg-green-50 text-green-700 border-green-200" :
@@ -1032,6 +1054,9 @@ export default function CheckImportsPage() {
                              client.impugnation_status === "Não Iniciou" ? "Não Iniciou" :
                              (client.abi_status === "Nao Importado" || client.abi_status === "Não Importado" ? "Não Importado" : (client.abi_status || "Não Checado"))}
                           </span>
+                              </>
+                            );
+                          })()}
                         </div>
                       </td>
                       <td className="px-4 py-2.5 whitespace-nowrap">
@@ -1124,6 +1149,55 @@ export default function CheckImportsPage() {
                 </tbody>
               </table>
             </div>
+            {/* Paginação */}
+            {filteredClients.length > ITEMS_PER_PAGE && (
+              <div className="px-4 py-3 border-t border-slate-100 flex items-center justify-between bg-slate-50/40">
+                <span className="text-[10px] font-bold text-slate-400">
+                  {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredClients.length)} de {filteredClients.length} operadoras
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="px-2.5 py-1 rounded-lg border border-slate-200 text-[10px] font-bold text-slate-500 hover:border-gax-blue hover:text-gax-blue transition-colors disabled:opacity-30 disabled:cursor-not-allowed bg-white"
+                  >
+                    ‹ Anterior
+                  </button>
+                  {Array.from({ length: Math.ceil(filteredClients.length / ITEMS_PER_PAGE) }, (_, i) => i + 1)
+                    .filter(p => p === 1 || p === Math.ceil(filteredClients.length / ITEMS_PER_PAGE) || Math.abs(p - currentPage) <= 1)
+                    .reduce<(number | string)[]>((acc, p, idx, arr) => {
+                      if (idx > 0 && (p as number) - (arr[idx - 1] as number) > 1) acc.push('...');
+                      acc.push(p);
+                      return acc;
+                    }, [])
+                    .map((p, i) =>
+                      p === '...' ? (
+                        <span key={`ellipsis-${i}`} className="px-1 text-slate-300 text-[10px] font-bold">…</span>
+                      ) : (
+                        <button
+                          key={p}
+                          onClick={() => setCurrentPage(p as number)}
+                          className={cn(
+                            "w-7 h-7 rounded-lg text-[10px] font-bold transition-colors border",
+                            currentPage === p
+                              ? "bg-gax-blue text-white border-gax-blue shadow-sm"
+                              : "border-slate-200 text-slate-500 hover:border-gax-blue hover:text-gax-blue bg-white"
+                          )}
+                        >
+                          {p}
+                        </button>
+                      )
+                    )}
+                  <button
+                    onClick={() => setCurrentPage(p => Math.min(Math.ceil(filteredClients.length / ITEMS_PER_PAGE), p + 1))}
+                    disabled={currentPage === Math.ceil(filteredClients.length / ITEMS_PER_PAGE)}
+                    className="px-2.5 py-1 rounded-lg border border-slate-200 text-[10px] font-bold text-slate-500 hover:border-gax-blue hover:text-gax-blue transition-colors disabled:opacity-30 disabled:cursor-not-allowed bg-white"
+                  >
+                    Próxima ›
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -1226,7 +1300,7 @@ export default function CheckImportsPage() {
                 <div className="mt-4 pt-4 border-t border-slate-100">
                   <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
                     <CheckCircle2 size={12} className="text-emerald-500" />
-                    Ciclos Finalizados
+                    ABIs Finalizados
                   </h4>
                   <div className="flex flex-wrap gap-2">
                     {schedule
@@ -1240,7 +1314,6 @@ export default function CheckImportsPage() {
                       .map((item, i) => (
                         <div key={i} className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg flex items-center gap-1.5" title={`${item.ABI} - Finalizado`}>
                           <span className="text-[10px] font-bold text-slate-500">{item.ABI}</span>
-                          <div className="h-1 w-1 rounded-full bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.5)]"></div>
                         </div>
                       ))}
                   </div>
