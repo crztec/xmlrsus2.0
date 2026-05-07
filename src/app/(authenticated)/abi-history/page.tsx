@@ -250,11 +250,7 @@ export default function AbiHistoryPage() {
     });
   }, [historicalData]);
 
-  useEffect(() => {
-    if (activeTab === 'history' && !selectedHistoricalAbi && historicalAbisList.length > 0) {
-      setSelectedHistoricalAbi(historicalAbisList[0]);
-    }
-  }, [activeTab, historicalAbisList, selectedHistoricalAbi]);
+  // Sem auto-seleção: o usuário escolhe o ABI clicando no gráfico de volume
 
   const historicalDataForCharts = useMemo(() => {
     if (!selectedHistoricalAbi) return null;
@@ -828,9 +824,8 @@ export default function AbiHistoryPage() {
                 {selectedHistoricalAbi ? (
                   <button
                     onClick={() => setSelectedHistoricalAbi(null)}
-                    className="flex items-center gap-1 text-[11px] font-bold text-slate-500 hover:text-gax-blue transition-colors bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-gax-blue rounded-lg px-2.5 py-1.5 cursor-pointer"
+                    className="text-[11px] text-slate-400 hover:text-slate-700 transition-colors border border-slate-200 hover:border-slate-300 rounded px-2 py-0.5 cursor-pointer bg-white"
                   >
-                    <ChevronLeft size={14} />
                     Voltar
                   </button>
                 ) : null}
