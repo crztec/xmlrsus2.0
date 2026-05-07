@@ -17,7 +17,8 @@ import {
   Activity,
   UserX,
   Hourglass,
-  LayoutGrid
+  LayoutGrid,
+  ChevronLeft
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/apiClient";
@@ -820,144 +821,151 @@ export default function AbiHistoryPage() {
             </div>
           )}
 
-          {/* Gráfico de Evolução de Ciclos - Selecionável */}
+          {/* Gráfico unificado: Histórico de Volume / Evolução do ABI */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
             <div className="flex flex-col sm:flex-row items-center justify-between mb-6 gap-4">
-               <h4 className="text-sm font-bold flex items-center gap-2">
-                <Activity size={16} className="text-gax-blue" />
-                Histórico de Volume por Ciclo
-              </h4>
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
+                {selectedHistoricalAbi ? (
+                  <button
+                    onClick={() => setSelectedHistoricalAbi(null)}
+                    className="flex items-center gap-1 text-[11px] font-bold text-slate-500 hover:text-gax-blue transition-colors bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-gax-blue rounded-lg px-2.5 py-1.5 cursor-pointer"
+                  >
+                    <ChevronLeft size={14} />
+                    Voltar
+                  </button>
+                ) : null}
+                <h4 className="text-sm font-bold flex items-center gap-2">
+                  {selectedHistoricalAbi ? (
+                    <><History size={16} className="text-gax-blue" />Evolução do ABI {selectedHistoricalAbi}</>
+                  ) : (
+                    <><Activity size={16} className="text-gax-blue" />Histórico de Volume por Ciclo</>
+                  )}
+                </h4>
+              </div>
+              {selectedHistoricalAbi ? (
+                <div className="flex items-center gap-2">
+                  <select
+                    value={evolutionClientId}
+                    onChange={(e) => setEvolutionClientId(e.target.value)}
+                    className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-[11px] font-bold text-slate-600 outline-none hover:border-gax-blue transition-colors"
+                  >
+                    <option value="global">Visão Consolidada</option>
+                    {historicalDataForCharts?.clients.map((c: any) => (
+                      <option key={c.client_id} value={c.client_id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
                 <div className="flex items-center gap-1.5">
                   <div className="h-0.5 w-4 bg-gax-blue" />
                   <span className="text-[10px] text-slate-400 font-bold">Volume Total Atendimentos</span>
                 </div>
-              </div>
+              )}
             </div>
-            <div className="h-[200px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart 
-                  data={evolutionData}
-                  onClick={(data: any) => {
-                    if (data && data.activePayload && data.activePayload[0]) {
-                      const abi = data.activePayload[0].payload.rawAbi;
-                      setSelectedHistoricalAbi(abi);
+
+            {selectedHistoricalAbi ? (
+              /* View: Evolução do ABI selecionado */
+              <div className="h-[240px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart
+                    data={
+                      selectedHistoricalAbi === (currentAbiData?.abi_num ? String(currentAbiData.abi_num) : null)
+                        ? (evolutionClientId === "global" ? currentAbiData.evolution_timeline : (currentAbiData.client_evolution?.[evolutionClientId] || []))
+                        : (evolutionClientId === "global" ? historicalEvolutionData?.timeline : (historicalEvolutionData?.client_evolution?.[evolutionClientId] || []))
                     }
-                  }}
-                  className="cursor-pointer"
-                >
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis 
-                    dataKey="abi" 
-                    axisLine={false} 
-                    tickLine={false} 
-                    fontSize={11} 
-                    fontWeight={600} 
-                    tick={{ fill: '#94a3b8' }} 
-                  />
-                  <YAxis hide />
-                  <Tooltip 
-                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }}
-                    cursor={{ stroke: '#3b82f6', strokeWidth: 2, strokeDasharray: '5 5' }}
-                  />
-                  <Line 
-                    type="monotone" 
-                    dataKey="volume" 
-                    name="Atendimentos"
-                    stroke="#3b82f6" 
-                    strokeWidth={3} 
-                    dot={{ r: 5, fill: '#3b82f6', strokeWidth: 2, stroke: '#fff' }} 
-                    activeDot={{ r: 8, fill: '#fff', stroke: '#3b82f6', strokeWidth: 3 }} 
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-            <p className="text-[10px] text-slate-400 text-center mt-4 italic font-medium">Clique nos pontos do gráfico para visualizar os detalhes de cada ciclo.</p>
+                    margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                  >
+                    <defs>
+                      <linearGradient id="colorImpugnadosHist" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                      </linearGradient>
+                      <linearGradient id="colorAguardandoHist" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
+                      </linearGradient>
+                      <linearGradient id="colorNaoImpugnadosHist" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#94a3b8" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#94a3b8" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis
+                      dataKey="date"
+                      tickFormatter={(val) => {
+                        if (!val) return '';
+                        const parts = val.split('-');
+                        return parts.length >= 3 ? `${parts[2]}/${parts[1]}` : val;
+                      }}
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 600 }}
+                      dy={10}
+                    />
+                    <YAxis tickLine={false} axisLine={false} tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 600 }} width={40} />
+                    <Tooltip
+                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }}
+                      labelFormatter={(label) => {
+                        if (!label) return '';
+                        const parts = label.split('-');
+                        return parts.length >= 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : label;
+                      }}
+                    />
+                    <Area type="monotone" name="Não Impugnados" dataKey="nao_impugnando" stroke="#94a3b8" strokeWidth={2} fillOpacity={1} fill="url(#colorNaoImpugnadosHist)" />
+                    <Area type="monotone" name="Aguardando" dataKey="aguardando" stroke="#f59e0b" strokeWidth={3} fillOpacity={1} fill="url(#colorAguardandoHist)" />
+                    <Area type="monotone" name="Impugnados" dataKey="impugnados" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorImpugnadosHist)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              /* View: Histórico de Volume por Ciclo */
+              <>
+                <div className="h-[200px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart
+                      data={evolutionData}
+                      onClick={(data: any) => {
+                        if (data && data.activePayload && data.activePayload[0]) {
+                          const abi = data.activePayload[0].payload.rawAbi;
+                          setSelectedHistoricalAbi(abi);
+                        }
+                      }}
+                      className="cursor-pointer"
+                    >
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis
+                        dataKey="abi"
+                        axisLine={false}
+                        tickLine={false}
+                        fontSize={11}
+                        fontWeight={600}
+                        tick={{ fill: '#94a3b8' }}
+                      />
+                      <YAxis hide />
+                      <Tooltip
+                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }}
+                        cursor={{ stroke: '#3b82f6', strokeWidth: 2, strokeDasharray: '5 5' }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="volume"
+                        name="Atendimentos"
+                        stroke="#3b82f6"
+                        strokeWidth={3}
+                        dot={{ r: 5, fill: '#3b82f6', strokeWidth: 2, stroke: '#fff' }}
+                        activeDot={{ r: 8, fill: '#fff', stroke: '#3b82f6', strokeWidth: 3 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+                <p className="text-[10px] text-slate-400 text-center mt-4 italic font-medium">Clique nos pontos do gráfico para visualizar a evolução de cada ciclo.</p>
+              </>
+            )}
           </div>
 
           <div className="flex flex-col gap-5">
             {historicalDataForCharts ? (
               <div className="space-y-5">
-                {/* Gráfico de Evolução do Ciclo Histórico */}
-                {((selectedHistoricalAbi === (currentAbiData?.abi_num ? String(currentAbiData.abi_num) : null) ? (currentAbiData?.evolution_timeline?.length > 0) : (historicalEvolutionData?.timeline?.length > 0))) && (
-                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 overflow-hidden relative">
-                    <div className="flex items-center justify-between mb-8">
-                      <div>
-                        <h3 className="text-sm font-bold flex items-center gap-2 mb-1">
-                          <History size={18} className="text-gax-blue" />
-                          Evolução do Ciclo {selectedHistoricalAbi}
-                        </h3>
-                        <p className="text-[11px] text-slate-400 font-medium">Acompanhamento diário da situação dos atendimentos</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <select 
-                          value={evolutionClientId} 
-                          onChange={(e) => setEvolutionClientId(e.target.value)}
-                          className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-[11px] font-bold text-slate-600 outline-none hover:border-gax-blue transition-colors"
-                        >
-                          <option value="global">Visão Consolidada</option>
-                          {historicalDataForCharts?.clients.map((c: any) => (
-                            <option key={c.client_id} value={c.client_id}>{c.name}</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="h-[240px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart 
-                          data={
-                            selectedHistoricalAbi === (currentAbiData?.abi_num ? String(currentAbiData.abi_num) : null)
-                              ? (evolutionClientId === "global" ? currentAbiData.evolution_timeline : (currentAbiData.client_evolution?.[evolutionClientId] || []))
-                              : (evolutionClientId === "global" ? historicalEvolutionData.timeline : (historicalEvolutionData.client_evolution?.[evolutionClientId] || []))
-                          } 
-                          margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
-                        >
-                          <defs>
-                            <linearGradient id="colorImpugnadosHist" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                              <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                            </linearGradient>
-                            <linearGradient id="colorAguardandoHist" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3}/>
-                              <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
-                            </linearGradient>
-                            <linearGradient id="colorNaoImpugnadosHist" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#94a3b8" stopOpacity={0.3}/>
-                              <stop offset="95%" stopColor="#94a3b8" stopOpacity={0}/>
-                            </linearGradient>
-                          </defs>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                          <XAxis 
-                            dataKey="date" 
-                            tickFormatter={(val) => {
-                              if (!val) return '';
-                              const parts = val.split('-');
-                              return parts.length >= 3 ? `${parts[2]}/${parts[1]}` : val;
-                            }}
-                            tickLine={false} 
-                            axisLine={false} 
-                            tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 600 }}
-                            dy={10}
-                          />
-                          <YAxis tickLine={false} axisLine={false} tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 600 }} width={40} />
-                          <Tooltip 
-                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }}
-                            labelFormatter={(label) => {
-                              if (!label) return '';
-                              const parts = label.split('-');
-                              return parts.length >= 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : label;
-                            }}
-                          />
-                          <Area type="monotone" name="Não Impugnados" dataKey="nao_impugnando" stroke="#94a3b8" strokeWidth={2} fillOpacity={1} fill="url(#colorNaoImpugnadosHist)" />
-                          <Area type="monotone" name="Aguardando" dataKey="aguardando" stroke="#f59e0b" strokeWidth={3} fillOpacity={1} fill="url(#colorAguardandoHist)" />
-                          <Area type="monotone" name="Impugnados" dataKey="impugnados" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorImpugnadosHist)" />
-                        </AreaChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-                )}
-
                 {/* Grid de Gráficos Analíticos */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                   <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 hover:shadow-md transition-shadow">
