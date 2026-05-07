@@ -1758,59 +1758,86 @@ def save_current_abi_evolution_snapshot(abi_number):
         return False
 
 
+def get_abi_historical_debug():
+    """
+    Diagnóstico: retorna todos os documentos de 'abi_historical_stats' de todos os clientes,
+    incluindo o ID do documento e o valor do campo 'abi'. Útil para inspecionar quais ABIs
+    estão salvos e em qual formato (ex: '105', 'ABI 105', '105/2026', etc.).
+    """
+    try:
+        import re
+        historical_docs = firestore_db.collection_group('abi_historical_stats').get()
+        results = []
+        for doc in historical_docs:
+            client_id = doc.reference.parent.parent.id if doc.reference.parent and doc.reference.parent.parent else "?"
+            data = doc.to_dict()
+            results.append({
+                "document_id": doc.id,
+                "client_id": client_id,
+                "abi_field": data.get("abi"),
+                "has_impugnation_stats": bool(data.get("impugnation_stats")),
+                "archived_at": str(data.get("archived_at", "")),
+            })
+        results.sort(key=lambda x: (str(x.get("abi_field", "")), x.get("client_id", "")))
+        return results
+    except Exception as e:
+        logger.error(f"[debug] Erro ao inspecionar abi_historical_stats: {e}")
+        return []
+
+
 def backfill_abi_snapshot(abi_num: str, date_override: str = None):
     """
     Reconstrói retroativamente o snapshot de evolução de um ABI a partir dos dados
     já salvos em 'abi_historical_stats' (por cliente).
 
-    Útil para ciclos (ex: ABI 105) que foram processados antes do sistema de
-    snapshots de evolução existir, ou quando a transição de ABI não salvou o snapshot final.
-
-    Parâmetros:
-        abi_num: Número do ABI a ser reconstruído (ex: '105').
-        date_override: Data a ser usada para o snapshot (formato 'YYYY-MM-DD').
-                       Se None, usa a data do campo 'archived_at' de cada cliente,
-                       ou a data atual como fallback.
+    Busca documentos cujo CAMPO 'abi' contenha o número alvo (ex: 105), independentemente
+    do ID do documento ou do formato exato do valor (ex: '105', 'ABI 105', '105/2026').
     """
     if not abi_num:
         return {"ok": False, "error": "abi_num é obrigatório"}
 
     try:
+        import re
         from datetime import datetime
         import pytz
 
-        abi_str = str(abi_num)
+        abi_str = str(abi_num).strip()
+        # Extrai apenas os dígitos do número alvo para comparação flexível
+        target_digits = re.sub(r'\D', '', abi_str)
+        if not target_digits:
+            return {"ok": False, "error": f"abi_num inválido: '{abi_str}'"}
+
         tz = pytz.timezone('America/Sao_Paulo')
 
-        # Busca todos os documentos históricos do ABI alvo em todos os clientes
+        # Busca TODOS os documentos históricos de todos os clientes via collection group
+        historical_docs = firestore_db.collection_group('abi_historical_stats').get()
+
+        client_snapshots = []
+        totals = {'impugnados': 0, 'aptos': 0, 'aguardando': 0, 'nao_impugnando': 0, 'total': 0}
+
+        # Mapa de nomes para enriquecer o log
         clients_ref = firestore_db.collection('client_configs').get()
         client_names = {c.id: c.to_dict().get('name', c.id) for c in clients_ref}
 
-        client_snapshots = []  # lista de dicts com dados por cliente
-        totals = {'impugnados': 0, 'aptos': 0, 'aguardando': 0, 'nao_impugnando': 0, 'total': 0}
-
-        for client_id, client_name in client_names.items():
-            doc_id = abi_str.replace("/", "_")
-            hist_ref = (
-                firestore_db
-                .collection('client_configs')
-                .document(client_id)
-                .collection('abi_historical_stats')
-                .document(doc_id)
-                .get()
-            )
-
-            if not hist_ref.exists:
+        for doc in historical_docs:
+            data = doc.to_dict()
+            abi_value = str(data.get('abi', ''))
+            # Compara apenas os dígitos para suportar formatos como "ABI 105", "105/2026", "105"
+            if re.sub(r'\D', '', abi_value) != target_digits:
                 continue
 
-            data = hist_ref.to_dict()
+            client_id = doc.reference.parent.parent.id if doc.reference.parent and doc.reference.parent.parent else None
+            if not client_id:
+                continue
+
+            client_name = client_names.get(client_id, client_id)
             stats = data.get('impugnation_stats', {})
 
-            impugnados    = stats.get('impugnados', 0)
-            aptos         = stats.get('aptos', 0)
-            aguardando    = stats.get('aguardando', 0)
+            impugnados     = stats.get('impugnados', 0)
+            aptos          = stats.get('aptos', 0)
+            aguardando     = stats.get('aguardando', 0)
             nao_impugnando = stats.get('nao_impugnando', 0)
-            total         = stats.get('total', impugnados + aptos + aguardando + nao_impugnando)
+            total          = stats.get('total', impugnados + aptos + aguardando + nao_impugnando)
 
             # Determina a data do snapshot
             if date_override:
@@ -1820,7 +1847,6 @@ def backfill_abi_snapshot(abi_num: str, date_override: str = None):
                 if archived_at and hasattr(archived_at, 'strftime'):
                     snap_date = archived_at.strftime('%Y-%m-%d')
                 elif archived_at and isinstance(archived_at, str):
-                    # Tenta extrair só a data de strings tipo "07/05/2026 14:30"
                     try:
                         snap_date = datetime.strptime(archived_at, "%d/%m/%Y %H:%M").strftime('%Y-%m-%d')
                     except Exception:
@@ -1835,24 +1861,32 @@ def backfill_abi_snapshot(abi_num: str, date_override: str = None):
             totals['total']          += total
 
             client_snapshots.append({
-                'client_id': client_id,
+                'client_id':   client_id,
                 'client_name': client_name,
-                'snap_date': snap_date,
-                'impugnados': impugnados,
-                'aptos': aptos,
-                'aguardando': aguardando,
+                'snap_date':   snap_date,
+                'impugnados':  impugnados,
+                'aptos':       aptos,
+                'aguardando':  aguardando,
                 'nao_impugnando': nao_impugnando,
-                'total': total,
+                'total':       total,
             })
 
         if not client_snapshots:
+            # Retorna também o que existe para ajudar no diagnóstico
+            existing = get_abi_historical_debug()
+            existing_abis = sorted(set(
+                re.sub(r'\D', '', str(e.get('abi_field', '')))
+                for e in existing if e.get('abi_field')
+            ))
             return {
                 "ok": False,
-                "error": f"Nenhum dado histórico encontrado em 'abi_historical_stats' para o ABI {abi_str}. "
-                         "Verifique se o ABI foi processado pelo robô e se o número está correto."
+                "error": (
+                    f"Nenhum dado histórico encontrado para o ABI '{abi_str}' "
+                    f"(buscado por dígitos: '{target_digits}'). "
+                    f"ABIs disponíveis no banco (somente números): {existing_abis}"
+                )
             }
 
-        # Usa a data mais recente entre os clientes para o snapshot global
         final_date = date_override or max(c['snap_date'] for c in client_snapshots)
 
         # Salva snapshot global
@@ -1864,14 +1898,14 @@ def backfill_abi_snapshot(abi_num: str, date_override: str = None):
             .document(final_date)
         )
         global_ref.set({
-            'date': final_date,
-            'timestamp': firestore.SERVER_TIMESTAMP,
+            'date':           final_date,
+            'timestamp':      firestore.SERVER_TIMESTAMP,
             'impugnados':     totals['impugnados'],
             'aptos':          totals['aptos'],
             'aguardando':     totals['aguardando'],
             'nao_impugnando': totals['nao_impugnando'],
             'total':          totals['total'],
-            'backfilled': True  # marcador para auditoria
+            'backfilled':     True,
         })
         logger.info(f"[backfill] Snapshot global do ABI {abi_str} salvo em {final_date}.")
 
@@ -1890,8 +1924,7 @@ def backfill_abi_snapshot(abi_num: str, date_override: str = None):
             )
             parent_ref.set({'name': c_name, 'backfilled': True}, merge=True)
 
-            client_snap_ref = parent_ref.collection('snapshots').document(c_date)
-            client_snap_ref.set({
+            parent_ref.collection('snapshots').document(c_date).set({
                 'date':           c_date,
                 'timestamp':      firestore.SERVER_TIMESTAMP,
                 'impugnados':     cs['impugnados'],
@@ -1899,9 +1932,9 @@ def backfill_abi_snapshot(abi_num: str, date_override: str = None):
                 'aguardando':     cs['aguardando'],
                 'nao_impugnando': cs['nao_impugnando'],
                 'total':          cs['total'],
-                'backfilled':     True
+                'backfilled':     True,
             })
-            logger.info(f"[backfill] Snapshot do cliente {c_name} ({c_id}) para ABI {abi_str} salvo em {c_date}.")
+            logger.info(f"[backfill] Cliente {c_name} ({c_id}) para ABI {abi_str} salvo em {c_date}.")
 
         return {
             "ok": True,

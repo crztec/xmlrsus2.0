@@ -578,16 +578,21 @@ class BackfillSnapshotRequest(BaseModel):
 async def backfill_abi_snapshot(request: BackfillSnapshotRequest, user = Depends(get_current_user)):
     """
     Reconstrói retroativamente o snapshot de evolução de um ABI a partir dos dados
-    históricos já salvos em 'abi_historical_stats' (gerados automaticamente pelo robô
-    durante a transição de ciclo).
-
-    Use para corrigir ciclos que não tiveram seus snapshots de evolução salvos
-    (ex: ABI 105 processado antes desta funcionalidade existir).
+    históricos já salvos em 'abi_historical_stats'.
     """
     result = db.backfill_abi_snapshot(request.abi_num, request.date_override)
     if not result.get("ok"):
         raise HTTPException(status_code=400, detail=result.get("error", "Erro desconhecido ao fazer backfill."))
     return result
+
+@app.get("/admin/abi-historical-debug")
+async def abi_historical_debug(user = Depends(get_current_user)):
+    """
+    Diagnóstico: lista todos os documentos de 'abi_historical_stats' com seu document_id,
+    client_id e valor do campo 'abi'. Use para verificar o formato exato dos ABIs salvos
+    antes de acionar o backfill.
+    """
+    return db.get_abi_historical_debug()
 
 @app.post("/start-abi-check")
 async def start_abi_check(request: ABICheckRequest, background_tasks: BackgroundTasks, user = Depends(get_current_user)):
