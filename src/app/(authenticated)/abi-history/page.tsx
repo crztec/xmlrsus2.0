@@ -186,6 +186,24 @@ export default function AbiHistoryPage() {
         const totalCurrent = currentAbiData.total_atendimentos || 0;
         evo.push({ abi: currentAbi.includes('º') ? currentAbi : `${currentAbi}º`, volume: totalCurrent, rawAbi: currentAbi });
       }
+
+      // Se o ABI anterior (current - 1) não estiver no histórico, usa os dados disponíveis para exibir o ponto
+      const previousAbiNum = parseInt(currentAbi) - 1;
+      if (!isNaN(previousAbiNum) && previousAbiNum > 0) {
+        const prevKey = String(previousAbiNum);
+        if (!evoMap[prevKey]) {
+          // Não temos o volume exato do ABI anterior, mas garantimos que ele apareça no gráfico
+          // para não criar um salto visual (ABI 104 → ABI 106 sem 105)
+          // O volume 0 indica que dados históricos ainda não foram salvos para esse ciclo
+          evo.push({ abi: `${previousAbiNum}º`, volume: 0, rawAbi: prevKey });
+          // Reordena depois de inserir
+          evo.sort((a, b) => {
+            const numA = parseInt(a.abi.replace(/\D/g, '')) || 0;
+            const numB = parseInt(b.abi.replace(/\D/g, '')) || 0;
+            return numA - numB;
+          });
+        }
+      }
     }
 
     if (evo.length === 0) evo.push({ abi: '105º', volume: 0, rawAbi: '105' });
@@ -472,29 +490,29 @@ export default function AbiHistoryPage() {
           </div>
 
           {/* Gráfico de Evolução do ABI Atual */}
-          {(currentAbiData?.evolution_timeline || []).length > 0 && (
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 hover:shadow-md transition-shadow">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-                <h4 className="text-sm font-bold flex items-center gap-2 text-slate-700">
-                  <Activity size={16} className="text-gax-blue" />
-                  Evolução do Ciclo
-                </h4>
-                
-                <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 min-w-[200px]">
-                  <Search size={12} className="text-slate-400" />
-                  <select 
-                    value={evolutionClientId}
-                    onChange={(e) => setEvolutionClientId(e.target.value)}
-                    className="bg-transparent border-none outline-none text-[11px] font-bold text-gax-blue cursor-pointer w-full"
-                  >
-                    <option value="global">Visão Consolidada (Geral)</option>
-                    {currentAbiData?.client_details?.map((c: any) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
-                </div>
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 hover:shadow-md transition-shadow">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+              <h4 className="text-sm font-bold flex items-center gap-2 text-slate-700">
+                <Activity size={16} className="text-gax-blue" />
+                Evolução do Ciclo
+              </h4>
+              
+              <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 min-w-[200px]">
+                <Search size={12} className="text-slate-400" />
+                <select 
+                  value={evolutionClientId}
+                  onChange={(e) => setEvolutionClientId(e.target.value)}
+                  className="bg-transparent border-none outline-none text-[11px] font-bold text-gax-blue cursor-pointer w-full"
+                >
+                  <option value="global">Visão Consolidada (Geral)</option>
+                  {currentAbiData?.client_details?.map((c: any) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
               </div>
-              <div className="h-[320px] w-full">
+            </div>
+            <div className="h-[320px] w-full">
+              {(currentAbiData?.evolution_timeline || []).length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart 
                     data={evolutionClientId === "global" ? currentAbiData.evolution_timeline : (currentAbiData.client_evolution?.[evolutionClientId] || [])} 
@@ -546,9 +564,15 @@ export default function AbiHistoryPage() {
                     <Area type="monotone" name="Impugnados" dataKey="impugnados" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorImpugnados)" />
                   </AreaChart>
                 </ResponsiveContainer>
-              </div>
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center gap-2 text-slate-300">
+                  <Activity size={32} className="text-slate-200" />
+                  <p className="text-[12px] font-semibold text-slate-400">Sem dados de evolução ainda</p>
+                  <p className="text-[11px] text-slate-300 text-center max-w-[280px]">O gráfico será preenchido conforme os snapshots diários forem gerados pelo robô.</p>
+                </div>
+              )}
             </div>
-          )}
+          </div>
 
           {/* Grid de Gráficos Analíticos */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
