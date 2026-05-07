@@ -922,7 +922,7 @@ export default function AbiHistoryPage() {
                       onClick={(data: any) => {
                         if (data && data.activePayload && data.activePayload[0]) {
                           const abi = data.activePayload[0].payload.rawAbi;
-                          setSelectedHistoricalAbi(abi);
+                          if (abi) setSelectedHistoricalAbi(abi);
                         }
                       }}
                       className="cursor-pointer"
@@ -947,8 +947,44 @@ export default function AbiHistoryPage() {
                         name="Atendimentos"
                         stroke="#3b82f6"
                         strokeWidth={3}
-                        dot={{ r: 5, fill: '#3b82f6', strokeWidth: 2, stroke: '#fff' }}
-                        activeDot={{ r: 8, fill: '#fff', stroke: '#3b82f6', strokeWidth: 3 }}
+                        dot={(props: any) => {
+                          const { cx, cy, payload } = props;
+                          return (
+                            <circle
+                              key={`dot-${payload.rawAbi}`}
+                              cx={cx}
+                              cy={cy}
+                              r={7}
+                              fill="#3b82f6"
+                              stroke="#fff"
+                              strokeWidth={2.5}
+                              style={{ cursor: 'pointer' }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (payload.rawAbi) setSelectedHistoricalAbi(payload.rawAbi);
+                              }}
+                            />
+                          );
+                        }}
+                        activeDot={(props: any) => {
+                          const { cx, cy, payload } = props;
+                          return (
+                            <circle
+                              key={`adot-${payload.rawAbi}`}
+                              cx={cx}
+                              cy={cy}
+                              r={10}
+                              fill="#fff"
+                              stroke="#3b82f6"
+                              strokeWidth={3}
+                              style={{ cursor: 'pointer' }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (payload.rawAbi) setSelectedHistoricalAbi(payload.rawAbi);
+                              }}
+                            />
+                          );
+                        }}
                       />
                     </LineChart>
                   </ResponsiveContainer>
