@@ -253,11 +253,11 @@ export default function AbiHistoryPage() {
   // Sem auto-seleção: o usuário escolhe o ABI clicando no gráfico de volume
 
   const historicalDataForCharts = useMemo(() => {
-    if (!selectedHistoricalAbi) return null;
-    
-    const currentAbiNum = currentAbiData?.abi_num ? String(currentAbiData.abi_num) : null;
-    
+    // Quando nenhum ABI específico é selecionado, agrega TODOS os ABIs históricos
     let baseData = [...historicalData];
+    if (historicalData.length === 0) return null;
+
+    const currentAbiNum = currentAbiData?.abi_num ? String(currentAbiData.abi_num) : null;
     
     // Se o ABI selecionado for o atual, injetamos o currentAbiData formatado para ser compatível
     if (selectedHistoricalAbi === currentAbiNum && currentAbiData) {
@@ -283,7 +283,11 @@ export default function AbiHistoryPage() {
       }
     }
 
-    const clients = baseData.filter(item => String(item.abi) === selectedHistoricalAbi).map(item => {
+    // Filtra por ABI selecionado ou agrega tudo (modo consolidado)
+    const clients = (selectedHistoricalAbi
+      ? baseData.filter(item => String(item.abi) === selectedHistoricalAbi)
+      : baseData
+    ).map(item => {
       const stats_raw = item.impugnation_stats || {};
       const status = String(item.abi_status || '').toLowerCase();
       const imp_status = String(item.impugnation_status || '');
@@ -338,7 +342,7 @@ export default function AbiHistoryPage() {
     };
 
     return { topImpugnados: imp, topAguardando: agu, topNaoImpugnados: nImp, distributionData: dist, totalGlobal, summary, clients };
-  }, [historicalData, selectedHistoricalAbi, topLimit]);
+  }, [historicalData, selectedHistoricalAbi, topLimit, currentAbiData]);
 
   const historicalSliceDetails = useMemo(() => {
     if (!selectedHistoricalSlice || !historicalDataForCharts) return [];
@@ -419,6 +423,16 @@ export default function AbiHistoryPage() {
             </select>
           </div>
           <div className="flex items-center gap-2">
+            {/* Botão Voltar - apenas quando há ABI selecionado */}
+            {activeTab === 'history' && selectedHistoricalAbi && (
+              <button
+                onClick={() => setSelectedHistoricalAbi(null)}
+                className="flex items-center gap-1.5 h-8 px-3 rounded-lg border border-slate-200 bg-white text-slate-500 font-bold hover:bg-slate-50 hover:text-gax-blue hover:border-gax-blue transition-all text-[11px] shadow-sm focus:outline-none ring-0"
+              >
+                <ChevronLeft size={13} />
+                Voltar
+              </button>
+            )}
             <button 
               onClick={fetchData} 
               disabled={loading}
@@ -821,14 +835,6 @@ export default function AbiHistoryPage() {
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
             <div className="flex flex-col sm:flex-row items-center justify-between mb-6 gap-4">
               <div className="flex items-center gap-3">
-                {selectedHistoricalAbi ? (
-                  <button
-                    onClick={() => setSelectedHistoricalAbi(null)}
-                    className="text-[11px] text-slate-400 hover:text-slate-700 transition-colors border border-slate-200 hover:border-slate-300 rounded px-2 py-0.5 cursor-pointer bg-white"
-                  >
-                    Voltar
-                  </button>
-                ) : null}
                 <h4 className="text-sm font-bold flex items-center gap-2">
                   {selectedHistoricalAbi ? (
                     <><History size={16} className="text-gax-blue" />Evolução do ABI {selectedHistoricalAbi}</>
@@ -1013,7 +1019,7 @@ export default function AbiHistoryPage() {
                           <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
                           <XAxis type="number" hide />
                           <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} fontSize={9} fontWeight={600} width={70} tick={{ fill: '#64748b' }} />
-                          <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }} formatter={(value: any, name: any, props: any) => [`${value} (${((value / (props.payload.clientTotal || 1)) * 100).toFixed(0)}% do total do cliente)`, 'Qtd.']} />
+                          <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }} formatter={(value: any) => [`${Number(value).toLocaleString()} (${historicalDataForCharts?.totalGlobal > 0 ? ((value / historicalDataForCharts.totalGlobal) * 100).toFixed(1) : 0}% do total)`, 'Qtd.']} />
                           <Bar dataKey="total" fill="#10b981" radius={[0, 4, 4, 0]} barSize={topLimit > 10 ? 12 : 18} />
                         </BarChart>
                       </ResponsiveContainer>
@@ -1033,7 +1039,7 @@ export default function AbiHistoryPage() {
                           <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
                           <XAxis type="number" hide />
                           <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} fontSize={9} fontWeight={600} width={70} tick={{ fill: '#64748b' }} />
-                          <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }} formatter={(value: any, name: any, props: any) => [`${value} (${((value / (props.payload.clientTotal || 1)) * 100).toFixed(0)}% do total do cliente)`, 'Qtd.']} />
+                          <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }} formatter={(value: any) => [`${Number(value).toLocaleString()} (${historicalDataForCharts?.totalGlobal > 0 ? ((value / historicalDataForCharts.totalGlobal) * 100).toFixed(1) : 0}% do total)`, 'Qtd.']} />
                           <Bar dataKey="total" fill="#f59e0b" radius={[0, 4, 4, 0]} barSize={topLimit > 10 ? 12 : 18} />
                         </BarChart>
                       </ResponsiveContainer>
@@ -1053,7 +1059,7 @@ export default function AbiHistoryPage() {
                           <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
                           <XAxis type="number" hide />
                           <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} fontSize={9} fontWeight={600} width={70} tick={{ fill: '#64748b' }} />
-                          <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }} formatter={(value: any, name: any, props: any) => [`${value} (${((value / (props.payload.clientTotal || 1)) * 100).toFixed(0)}% do total do cliente)`, 'Qtd.']} />
+                          <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }} formatter={(value: any) => [`${Number(value).toLocaleString()} (${historicalDataForCharts?.totalGlobal > 0 ? ((value / historicalDataForCharts.totalGlobal) * 100).toFixed(1) : 0}% do total)`, 'Qtd.']} />
                           <Bar dataKey="total" fill="#94a3b8" radius={[0, 4, 4, 0]} barSize={topLimit > 10 ? 12 : 18} />
                         </BarChart>
                       </ResponsiveContainer>
