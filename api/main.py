@@ -589,10 +589,29 @@ async def backfill_abi_snapshot(request: BackfillSnapshotRequest, user = Depends
 async def abi_historical_debug(user = Depends(get_current_user)):
     """
     Diagnóstico: lista todos os documentos de 'abi_historical_stats' com seu document_id,
-    client_id e valor do campo 'abi'. Use para verificar o formato exato dos ABIs salvos
-    antes de acionar o backfill.
+    client_id e valor do campo 'abi'.
     """
     return db.get_abi_historical_debug()
+
+class ArchiveAbiRequest(BaseModel):
+    abi_num: str
+    date_override: str = None  # opcional, formato YYYY-MM-DD
+
+@app.post("/admin/archive-current-abi")
+async def archive_current_abi(request: ArchiveAbiRequest, user = Depends(get_current_user)):
+    """
+    ⚠️ URGENTE: Arquiva os dados ATUAIS dos client_configs como histórico do ABI informado.
+
+    Use quando o robô não salvou o snapshot durante a transição de ABI e os dados
+    ainda estão vivos nos client_configs (antes de serem zerados na próxima execução).
+
+    Salva tanto em 'abi_historical_stats' (histórico por cliente) quanto em
+    'current_abi_evolution' (gráfico de evolução diária).
+    """
+    result = db.archive_current_abi_as_historical(request.abi_num, request.date_override)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Erro ao arquivar ABI."))
+    return result
 
 @app.post("/start-abi-check")
 async def start_abi_check(request: ABICheckRequest, background_tasks: BackgroundTasks, user = Depends(get_current_user)):

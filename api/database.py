@@ -1785,6 +1785,150 @@ def get_abi_historical_debug():
         return []
 
 
+def archive_current_abi_as_historical(abi_num: str, date_override: str = None):
+    """
+    Arquiva os dados ATUAIS de 'impugnation_stats' dos client_configs como histórico
+    do ABI informado. Salva nos dois lugares:
+      1. client_configs/{id}/abi_historical_stats/{abi_num} — formato idêntico ao do robô
+      2. current_abi_evolution/{abi_num}/snapshots/{date} — para o gráfico de evolução
+
+    Use quando o robô não salvou o histórico do ABI anterior (ex: ABI 105) durante a
+    transição, mas os dados ainda estão vivos nos client_configs.
+    ATENÇÃO: execute antes de o robô processar o próximo ABI, pois ele vai zerar os dados.
+    """
+    if not abi_num:
+        return {"ok": False, "error": "abi_num é obrigatório"}
+
+    try:
+        from datetime import datetime
+        import pytz
+
+        abi_str = str(abi_num).strip()
+        doc_id = abi_str.replace("/", "_")
+        tz = pytz.timezone('America/Sao_Paulo')
+        now = datetime.now(tz)
+        snap_date = date_override or now.strftime('%Y-%m-%d')
+
+        clients_ref = firestore_db.collection('client_configs').get()
+
+        archived_clients = []
+        skipped_clients = []
+        totals = {'impugnados': 0, 'aptos': 0, 'aguardando': 0, 'nao_impugnando': 0, 'total': 0}
+
+        for client_doc in clients_ref:
+            client_id = client_doc.id
+            client_data = client_doc.to_dict()
+            client_name = client_data.get('name') or client_data.get('razao_social') or client_id
+
+            stats_raw = client_data.get('impugnation_stats', {})
+
+            # Pula clientes que não têm dados reais (total = 0 e sem nenhum campo)
+            has_data = any(stats_raw.get(f, 0) > 0 for f in ['total', 'impugnados', 'aptos', 'aguardando', 'nao_impugnando'])
+            if not has_data:
+                skipped_clients.append(client_name)
+                continue
+
+            impugnados     = stats_raw.get('impugnados', 0)
+            aptos          = stats_raw.get('aptos', 0)
+            aguardando     = stats_raw.get('aguardando', 0)
+            nao_impugnando = stats_raw.get('nao_impugnando', 0)
+            total          = stats_raw.get('total', impugnados + aptos + aguardando + nao_impugnando)
+
+            # 1. Salva em abi_historical_stats (formato idêntico ao do robô)
+            hist_ref = (
+                firestore_db
+                .collection('client_configs')
+                .document(client_id)
+                .collection('abi_historical_stats')
+                .document(doc_id)
+            )
+            hist_ref.set({
+                'abi': abi_str,
+                'abi_status': client_data.get('abi_status', ''),
+                'impugnation_status': client_data.get('impugnation_status', 'Não Iniciou'),
+                'impugnation_stats': {
+                    'total':          total,
+                    'impugnados':     impugnados,
+                    'aptos':          aptos,
+                    'aguardando':     aguardando,
+                    'nao_impugnando': nao_impugnando,
+                },
+                'archived_at': firestore.SERVER_TIMESTAMP,
+                'archived_by': 'admin_endpoint',
+            })
+
+            # 2. Salva snapshot de evolução para o gráfico de histórico
+            parent_ref = (
+                firestore_db
+                .collection('current_abi_evolution')
+                .document(abi_str)
+                .collection('client_snapshots')
+                .document(client_id)
+            )
+            parent_ref.set({'name': client_name, 'backfilled': True}, merge=True)
+            parent_ref.collection('snapshots').document(snap_date).set({
+                'date':           snap_date,
+                'timestamp':      firestore.SERVER_TIMESTAMP,
+                'impugnados':     impugnados,
+                'aptos':          aptos,
+                'aguardando':     aguardando,
+                'nao_impugnando': nao_impugnando,
+                'total':          total,
+                'backfilled':     True,
+            })
+
+            totals['impugnados']     += impugnados
+            totals['aptos']          += aptos
+            totals['aguardando']     += aguardando
+            totals['nao_impugnando'] += nao_impugnando
+            totals['total']          += total
+
+            archived_clients.append(client_name)
+            logger.info(f"[archive] Cliente {client_name} ({client_id}) arquivado para ABI {abi_str}.")
+
+        if not archived_clients:
+            return {
+                "ok": False,
+                "error": (
+                    f"Nenhum cliente com dados reais encontrado em client_configs para arquivar como ABI {abi_str}. "
+                    f"Clientes pulados (sem dados): {skipped_clients}"
+                )
+            }
+
+        # Salva snapshot global de evolução
+        global_ref = (
+            firestore_db
+            .collection('current_abi_evolution')
+            .document(abi_str)
+            .collection('snapshots')
+            .document(snap_date)
+        )
+        global_ref.set({
+            'date':           snap_date,
+            'timestamp':      firestore.SERVER_TIMESTAMP,
+            'impugnados':     totals['impugnados'],
+            'aptos':          totals['aptos'],
+            'aguardando':     totals['aguardando'],
+            'nao_impugnando': totals['nao_impugnando'],
+            'total':          totals['total'],
+            'backfilled':     True,
+        })
+        logger.info(f"[archive] Snapshot global do ABI {abi_str} salvo em {snap_date}. Total: {totals['total']}")
+
+        return {
+            "ok": True,
+            "abi": abi_str,
+            "snapshot_date": snap_date,
+            "clients_archived": len(archived_clients),
+            "clients_skipped": len(skipped_clients),
+            "totals": totals,
+        }
+
+    except Exception as e:
+        logger.error(f"[archive] Erro ao arquivar ABI {abi_num}: {e}")
+        return {"ok": False, "error": str(e)}
+
+
 def backfill_abi_snapshot(abi_num: str, date_override: str = None):
     """
     Reconstrói retroativamente o snapshot de evolução de um ABI a partir dos dados
