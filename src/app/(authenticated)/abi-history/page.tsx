@@ -54,6 +54,15 @@ export default function AbiHistoryPage() {
   const [evolutionClientId, setEvolutionClientId] = useState<string>("global");
   const [historicalEvolutionData, setHistoricalEvolutionData] = useState<any>(null);
   const [loadingHistoricalSnapshots, setLoadingHistoricalSnapshots] = useState(false);
+  
+  // Componente para mensagens de "Sem Dados"
+  const NoDataMessage = ({ icon: Icon, title, message }: { icon: any, title: string, message: string }) => (
+    <div className="h-full flex flex-col items-center justify-center gap-2 text-slate-300 py-8">
+      <Icon size={32} className="text-slate-200" />
+      <p className="text-[12px] font-semibold text-slate-400">{title}</p>
+      <p className="text-[11px] text-slate-300 text-center max-w-[280px]">{message}</p>
+    </div>
+  );
 
   const fetchData = async () => {
     setLoading(true);
@@ -579,11 +588,11 @@ export default function AbiHistoryPage() {
                   </AreaChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="h-full flex flex-col items-center justify-center gap-2 text-slate-300">
-                  <Activity size={32} className="text-slate-200" />
-                  <p className="text-[12px] font-semibold text-slate-400">Sem dados de evolução ainda</p>
-                  <p className="text-[11px] text-slate-300 text-center max-w-[280px]">O gráfico será preenchido conforme os snapshots diários forem gerados pelo robô.</p>
-                </div>
+                <NoDataMessage 
+                  icon={Activity}
+                  title="Sem dados de evolução ainda"
+                  message="O gráfico será preenchido conforme os snapshots diários forem gerados pelo robô."
+                />
               )}
             </div>
           </div>
@@ -599,28 +608,36 @@ export default function AbiHistoryPage() {
                 </h4>
               </div>
               <div style={{ height: `${chartHeight}px` }} className="w-full transition-all">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={topImpugnados} layout="vertical" margin={{ left: 20, right: 30, top: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
-                    <XAxis type="number" hide />
-                    <YAxis 
-                      dataKey="name" 
-                      type="category" 
-                      axisLine={false} 
-                      tickLine={false} 
-                      fontSize={9} 
-                      fontWeight={600} 
-                      width={70}
-                      tick={{ fill: '#64748b' }}
-                    />
-                    <Tooltip 
-                      cursor={{ fill: '#f8fafc' }}
-                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }}
-                      formatter={(value: any, name: any, props: any) => [`${value} (${((value / (props.payload.clientTotal || 1)) * 100).toFixed(0)}% do total do cliente)`, 'Qtd.']}
-                    />
-                    <Bar dataKey="total" fill="#10b981" radius={[0, 4, 4, 0]} barSize={topLimit > 10 ? 12 : 18} />
-                  </BarChart>
-                </ResponsiveContainer>
+                {topImpugnados.some(i => i.total > 0) ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={topImpugnados} layout="vertical" margin={{ left: 20, right: 30, top: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
+                      <XAxis type="number" hide />
+                      <YAxis 
+                        dataKey="name" 
+                        type="category" 
+                        axisLine={false} 
+                        tickLine={false} 
+                        fontSize={9} 
+                        fontWeight={600} 
+                        width={70}
+                        tick={{ fill: '#64748b' }}
+                      />
+                      <Tooltip 
+                        cursor={{ fill: '#f8fafc' }}
+                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }}
+                        formatter={(value: any, name: any, props: any) => [`${value} (${((value / (props.payload.clientTotal || 1)) * 100).toFixed(0)}% do total do cliente)`, 'Qtd.']}
+                      />
+                      <Bar dataKey="total" fill="#10b981" radius={[0, 4, 4, 0]} barSize={topLimit > 10 ? 12 : 18} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <NoDataMessage 
+                    icon={TrendingUp}
+                    title="Sem dados de impugnação ainda"
+                    message="Nenhum atendimento foi processado ou marcado como impugnado/apto para este ciclo até o momento."
+                  />
+                )}
               </div>
             </div>
 
@@ -633,28 +650,36 @@ export default function AbiHistoryPage() {
                 </h4>
               </div>
               <div style={{ height: `${chartHeight}px` }} className="w-full transition-all">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={topAguardando} layout="vertical" margin={{ left: 20, right: 30, top: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
-                    <XAxis type="number" hide />
-                    <YAxis 
-                      dataKey="name" 
-                      type="category" 
-                      axisLine={false} 
-                      tickLine={false} 
-                      fontSize={9} 
-                      fontWeight={600} 
-                      width={70}
-                      tick={{ fill: '#64748b' }}
-                    />
-                    <Tooltip 
-                      cursor={{ fill: '#f8fafc' }}
-                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }}
-                      formatter={(value: any, name: any, props: any) => [`${value} (${((value / (props.payload.clientTotal || 1)) * 100).toFixed(0)}% do total do cliente)`, 'Qtd.']}
-                    />
-                    <Bar dataKey="total" fill="#f59e0b" radius={[0, 4, 4, 0]} barSize={topLimit > 10 ? 12 : 18} />
-                  </BarChart>
-                </ResponsiveContainer>
+                {topAguardando.some(i => i.total > 0) ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={topAguardando} layout="vertical" margin={{ left: 20, right: 30, top: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
+                      <XAxis type="number" hide />
+                      <YAxis 
+                        dataKey="name" 
+                        type="category" 
+                        axisLine={false} 
+                        tickLine={false} 
+                        fontSize={9} 
+                        fontWeight={600} 
+                        width={70}
+                        tick={{ fill: '#64748b' }}
+                      />
+                      <Tooltip 
+                        cursor={{ fill: '#f8fafc' }}
+                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }}
+                        formatter={(value: any, name: any, props: any) => [`${value} (${((value / (props.payload.clientTotal || 1)) * 100).toFixed(0)}% do total do cliente)`, 'Qtd.']}
+                      />
+                      <Bar dataKey="total" fill="#f59e0b" radius={[0, 4, 4, 0]} barSize={topLimit > 10 ? 12 : 18} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <NoDataMessage 
+                    icon={Hourglass}
+                    title="Sem dados aguardando ainda"
+                    message="Não há atendimentos pendentes de resposta da operadora neste ciclo até o momento."
+                  />
+                )}
               </div>
             </div>
 
@@ -667,28 +692,36 @@ export default function AbiHistoryPage() {
                 </h4>
               </div>
               <div style={{ height: `${chartHeight}px` }} className="w-full transition-all">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={topNaoImpugnados} layout="vertical" margin={{ left: 20, right: 30, top: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
-                    <XAxis type="number" hide />
-                    <YAxis 
-                      dataKey="name" 
-                      type="category" 
-                      axisLine={false} 
-                      tickLine={false} 
-                      fontSize={9} 
-                      fontWeight={600} 
-                      width={70}
-                      tick={{ fill: '#64748b' }}
-                    />
-                    <Tooltip 
-                      cursor={{ fill: '#f8fafc' }}
-                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }}
-                      formatter={(value: any, name: any, props: any) => [`${value} (${((value / (props.payload.clientTotal || 1)) * 100).toFixed(0)}% do total do cliente)`, 'Qtd.']}
-                    />
-                    <Bar dataKey="total" fill="#94a3b8" radius={[0, 4, 4, 0]} barSize={topLimit > 10 ? 12 : 18} />
-                  </BarChart>
-                </ResponsiveContainer>
+                {topNaoImpugnados.some(i => i.total > 0) ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={topNaoImpugnados} layout="vertical" margin={{ left: 20, right: 30, top: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
+                      <XAxis type="number" hide />
+                      <YAxis 
+                        dataKey="name" 
+                        type="category" 
+                        axisLine={false} 
+                        tickLine={false} 
+                        fontSize={9} 
+                        fontWeight={600} 
+                        width={70}
+                        tick={{ fill: '#64748b' }}
+                      />
+                      <Tooltip 
+                        cursor={{ fill: '#f8fafc' }}
+                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }}
+                        formatter={(value: any, name: any, props: any) => [`${value} (${((value / (props.payload.clientTotal || 1)) * 100).toFixed(0)}% do total do cliente)`, 'Qtd.']}
+                      />
+                      <Bar dataKey="total" fill="#94a3b8" radius={[0, 4, 4, 0]} barSize={topLimit > 10 ? 12 : 18} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <NoDataMessage 
+                    icon={UserX}
+                    title="Sem dados pendentes ainda"
+                    message="Todos os atendimentos deste ciclo já foram tratados ou ainda não foram importados."
+                  />
+                )}
               </div>
             </div>
 
@@ -764,9 +797,11 @@ export default function AbiHistoryPage() {
                     </div>
                   </>
                 ) : (
-                  <div className="h-full flex items-center justify-center text-slate-300 italic text-[11px]">
-                    Nenhum dado real para exibir ainda.
-                  </div>
+                  <NoDataMessage 
+                    icon={LayoutGrid}
+                    title="Sem dados de distribuição ainda"
+                    message="A proporção entre tipos de atendimentos será exibida assim que os dados forem processados."
+                  />
                 )}
               </div>
               <div className="grid grid-cols-2 gap-3 mt-4 border-t border-slate-50 pt-4">
