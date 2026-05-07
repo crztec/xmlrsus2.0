@@ -1591,9 +1591,14 @@ def get_abi_historical_snapshots(abi_num):
 def get_abi_dashboard_stats():
     """Calculates stats for the ABI dashboard."""
     try:
-        # A função get_all_clients já retorna as configs atualizadas do doc doc.id
-        # mas precisamos garantir que os campos abi_status existem.
+        import re
+
         clients = get_all_clients()
+
+        # Obtém o ABI ativo ANTES do loop para usar na comparação
+        active_abi = get_active_abi()
+        active_abi_digits = re.sub(r'\D', '', str(active_abi.get('ABI', ''))) if active_abi else ''
+
         stats = {
             'total_clients': len(clients),
             'imported': 0,
@@ -1606,16 +1611,34 @@ def get_abi_dashboard_stats():
             'finalized': 0,
             'not_started': 0
         }
-        
+
         client_details = []
+        abi_started = False  # Indica se algum cliente já foi processado para este ABI
+
         for c in clients:
+            # Verifica se o cliente pertence ao ABI ATUAL.
+            # Se abi_current do cliente for diferente do ABI ativo, seus dados são do ciclo anterior
+            # e não devem aparecer na Visão Geral Atual.
+            client_abi_digits = re.sub(r'\D', '', str(c.get('abi_current', '')))
+            client_is_current = (client_abi_digits == active_abi_digits) if active_abi_digits else True
+
+            if not client_is_current:
+                # Cliente ainda não foi processado para o ABI atual → dados zerados
+                client_details.append({
+                    'id': c.get('id'),
+                    'name': c.get('name') or c.get('razao_social') or c.get('id'),
+                    'total': 0, 'impugnados': 0, 'nao_impugnando': 0, 'aptos': 0, 'aguardando': 0
+                })
+                stats['not_imported'] += 1
+                continue
+
+            abi_started = True
             status = str(c.get('abi_status', 'Pendente')).strip()
             status_lower = status.lower()
             msg = str(c.get('abi_last_message', '')).lower()
             impugnation = str(c.get('impugnation_status', '')).strip()
             stats_raw = c.get('impugnation_stats', {})
-            
-            # Adiciona aos detalhes para gráficos do dashboard
+
             client_details.append({
                 'id': c.get('id'),
                 'name': c.get('name') or c.get('razao_social') or c.get('id'),
@@ -1626,10 +1649,8 @@ def get_abi_dashboard_stats():
                 'aguardando': stats_raw.get('aguardando', 0)
             })
 
-            # Se o cliente finalizou o ABI, conta como finalizado
             if impugnation == 'Finalizou':
                 stats['finalized'] += 1
-            # Se o cliente está impugnando, conta como impugnando (e NÃO como analisado)
             elif impugnation == 'Impugnando':
                 stats['impugnating'] += 1
             elif impugnation == 'Não Iniciou':
@@ -1637,11 +1658,9 @@ def get_abi_dashboard_stats():
             elif status_lower == 'importado e analisado':
                 stats['imported_analyzed'] += 1
             elif status_lower == 'importado':
-                # Se o cliente não realiza análise, ele já está "concluído" (Importado e Analisado)
                 if "nao realiza an" in msg or "não realiza an" in msg:
                     stats['imported_analyzed'] += 1
                 else:
-                    # Se apenas importado e realiza análise, conta como pendente de análise
                     stats['imported'] += 1
                     stats['imported_not_analyzed'] += 1
             elif status_lower == 'importado, falta analisar':
@@ -1653,47 +1672,43 @@ def get_abi_dashboard_stats():
                 stats['not_imported'] += 1
             else:
                 stats['pending'] += 1
-                
+
         # Fetch the evolution timeline for the active ABI
-        active_abi = get_active_abi()
         evolution_timeline = []
-        client_evolution = {} # { client_id: [snapshots] }
-        
+        client_evolution = {}
+
         if active_abi:
             abi_num = active_abi.get('ABI', '')
             if abi_num:
-                # Global Timeline
                 snapshots_ref = firestore_db.collection('current_abi_evolution').document(str(abi_num)).collection('snapshots').order_by('date').get()
                 for doc in snapshots_ref:
                     data = doc.to_dict()
                     if 'timestamp' in data: del data['timestamp']
                     evolution_timeline.append(data)
-                
-                # Per-Client Timeline
-                # Iteramos sobre os clientes que já temos nos detalhes para buscar seus históricos específicos
+
                 for c in client_details:
                     c_id = c.get('id')
                     if not c_id: continue
-                    
                     snaps_ref = firestore_db.collection('current_abi_evolution').document(str(abi_num)).collection('client_snapshots').document(c_id).collection('snapshots').order_by('date').get()
                     timeline = []
                     for s in snaps_ref:
                         s_data = s.to_dict()
                         if 'timestamp' in s_data: del s_data['timestamp']
                         timeline.append(s_data)
-                    
                     if timeline:
                         client_evolution[c_id] = timeline
-        
+
         stats['evolution_timeline'] = evolution_timeline
         stats['client_evolution'] = client_evolution
         stats['client_details'] = client_details
         stats['abi_num'] = active_abi.get('ABI') if active_abi else None
+        stats['abi_started'] = abi_started  # True se o robô já processou algum cliente para este ABI
         stats['total_atendimentos'] = sum(c.get('total', 0) for c in client_details)
         return stats
     except Exception as e:
         logger.error(f"Erro ao calcular estatísticas ABI: {e}")
         return {}
+
 
 def save_current_abi_evolution_snapshot(abi_number):
     """Saves a daily global and per-client snapshot of the current ABI's impugnation stats."""
