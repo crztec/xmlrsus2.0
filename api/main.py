@@ -570,6 +570,25 @@ async def get_abi_historical_data(user = Depends(get_current_user)):
 async def get_abi_historical_snapshots(abi_num: str, user = Depends(get_current_user)):
     return db.get_abi_historical_snapshots(abi_num)
 
+class BackfillSnapshotRequest(BaseModel):
+    abi_num: str
+    date_override: str = None  # opcional, formato YYYY-MM-DD
+
+@app.post("/admin/backfill-abi-snapshot")
+async def backfill_abi_snapshot(request: BackfillSnapshotRequest, user = Depends(get_current_user)):
+    """
+    Reconstrói retroativamente o snapshot de evolução de um ABI a partir dos dados
+    históricos já salvos em 'abi_historical_stats' (gerados automaticamente pelo robô
+    durante a transição de ciclo).
+
+    Use para corrigir ciclos que não tiveram seus snapshots de evolução salvos
+    (ex: ABI 105 processado antes desta funcionalidade existir).
+    """
+    result = db.backfill_abi_snapshot(request.abi_num, request.date_override)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Erro desconhecido ao fazer backfill."))
+    return result
+
 @app.post("/start-abi-check")
 async def start_abi_check(request: ABICheckRequest, background_tasks: BackgroundTasks, user = Depends(get_current_user)):
     """Inicia a checagem de ABIs (lote ou individual) via Cloud Run Job."""
