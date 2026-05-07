@@ -183,7 +183,17 @@ export default function AbiHistoryPage() {
     if (currentAbiData) {
       const currentAbi = String(currentAbiData.abi_num || 'Atual');
       if (!evoMap[currentAbi]) {
-        const totalCurrent = currentAbiData.total_atendimentos || 0;
+        // Só usa total_atendimentos se o ABI realmente foi processado.
+        // Se finalized + impugnating + not_started + not_imported = 0,
+        // o robô ainda não rodou para este ciclo e os dados de impugnation_stats
+        // ainda são do ciclo anterior — usamos 0 para não enganar o gráfico.
+        const hasBeenProcessed = (
+          (currentAbiData.finalized || 0) +
+          (currentAbiData.impugnating || 0) +
+          (currentAbiData.not_started || 0) +
+          (currentAbiData.not_imported || 0)
+        ) > 0;
+        const totalCurrent = hasBeenProcessed ? (currentAbiData.total_atendimentos || 0) : 0;
         evo.push({ abi: currentAbi.includes('º') ? currentAbi : `${currentAbi}º`, volume: totalCurrent, rawAbi: currentAbi });
       }
 
