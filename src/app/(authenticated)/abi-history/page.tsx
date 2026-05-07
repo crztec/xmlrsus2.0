@@ -293,28 +293,52 @@ export default function AbiHistoryPage() {
     }
 
     // Filtra por ABI selecionado ou agrega tudo (modo consolidado)
-    const clients = (selectedHistoricalAbi
+    const rawItems = (selectedHistoricalAbi
       ? baseData.filter(item => String(item.abi) === selectedHistoricalAbi)
       : baseData
-    ).map(item => {
+    );
+
+    // Agrupa por cliente para evitar duplicidade em visão consolidada e garantir totais corretos
+    const groupedMap: Record<string, any> = {};
+    rawItems.forEach(item => {
+      const id = item.client_id || item.client_name;
       const stats_raw = item.impugnation_stats || {};
       const status = String(item.abi_status || '').toLowerCase();
       const imp_status = String(item.impugnation_status || '');
       
-      return {
-        client_id: item.client_id,
-        name: item.client_name,
-        impugnados: stats_raw.impugnados || 0,
-        aptos: stats_raw.aptos || 0,
-        aguardando: stats_raw.aguardando || 0,
-        nao_impugnando: stats_raw.nao_impugnando || 0,
-        total: item.total || 0,
-        finalized: imp_status === 'Finalizou' ? 1 : 0,
-        impugnating: imp_status === 'Impugnando' ? 1 : 0,
-        not_started: imp_status === 'Não Iniciou' ? 1 : 0,
-        not_imported: (status === 'nao importado' || status === 'não importado') ? 1 : 0
-      };
+      // Resiliência: o total real deve ser pelo menos a soma das partes
+      const sumOfParts = (stats_raw.impugnados || 0) + (stats_raw.aptos || 0) + (stats_raw.aguardando || 0) + (stats_raw.nao_impugnando || 0);
+      const itemTotal = Math.max(item.total || 0, sumOfParts);
+
+      if (!groupedMap[id]) {
+        groupedMap[id] = {
+          client_id: id,
+          name: item.client_name,
+          impugnados: 0,
+          aptos: 0,
+          aguardando: 0,
+          nao_impugnando: 0,
+          total: 0,
+          finalized: 0,
+          impugnating: 0,
+          not_started: 0,
+          not_imported: 0
+        };
+      }
+
+      const g = groupedMap[id];
+      g.impugnados += stats_raw.impugnados || 0;
+      g.aptos += stats_raw.aptos || 0;
+      g.aguardando += stats_raw.aguardando || 0;
+      g.nao_impugnando += stats_raw.nao_impugnando || 0;
+      g.total += itemTotal;
+      g.finalized += imp_status === 'Finalizou' ? 1 : 0;
+      g.impugnating += imp_status === 'Impugnando' ? 1 : 0;
+      g.not_started += imp_status === 'Não Iniciou' ? 1 : 0;
+      g.not_imported += (status === 'nao importado' || status === 'não importado') ? 1 : 0;
     });
+
+    const clients = Object.values(groupedMap);
 
     const imp = [...clients]
       .map(c => ({ name: c.name, total: c.impugnados || 0, clientTotal: c.total || 1 }))
