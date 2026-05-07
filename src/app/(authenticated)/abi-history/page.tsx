@@ -166,8 +166,9 @@ export default function AbiHistoryPage() {
     const evoMap: Record<string, number> = {};
     historicalData.forEach(item => {
       const abi = String(item.abi || 'N/A');
-      // A visão principal exibe o TOTAL de atendimentos de cada ABI
-      const volume = item.total || 0;
+      // O total pode estar em impugnation_stats.total (formato do robô/arquivo)
+      // ou em item.total (formato legado de dados de teste)
+      const volume = (item.impugnation_stats?.total ?? item.total) || 0;
       evoMap[abi] = (evoMap[abi] || 0) + volume;
     });
 
@@ -182,31 +183,23 @@ export default function AbiHistoryPage() {
     // Adiciona o atual se houver
     if (currentAbiData) {
       const currentAbi = String(currentAbiData.abi_num || 'Atual');
-      if (!evoMap[currentAbi]) {
-        // Só usa total_atendimentos se o ABI realmente foi processado.
-        // Se finalized + impugnating + not_started + not_imported = 0,
-        // o robô ainda não rodou para este ciclo e os dados de impugnation_stats
-        // ainda são do ciclo anterior — usamos 0 para não enganar o gráfico.
-        const hasBeenProcessed = (
-          (currentAbiData.finalized || 0) +
-          (currentAbiData.impugnating || 0) +
-          (currentAbiData.not_started || 0) +
-          (currentAbiData.not_imported || 0)
-        ) > 0;
+      if (evoMap[currentAbi] === undefined) {
+        // Usa evolution_timeline como indicador confiável de processamento.
+        // Os campos finalized/impugnating/not_started ainda refletem o ABI anterior
+        // enquanto o robô não rodar para o ABI atual — por isso NÃO os usamos aqui.
+        const hasBeenProcessed = (currentAbiData.evolution_timeline || []).length > 0;
         const totalCurrent = hasBeenProcessed ? (currentAbiData.total_atendimentos || 0) : 0;
         evo.push({ abi: currentAbi.includes('º') ? currentAbi : `${currentAbi}º`, volume: totalCurrent, rawAbi: currentAbi });
       }
 
-      // Se o ABI anterior (current - 1) não estiver no histórico, usa os dados disponíveis para exibir o ponto
+      // Se o ABI anterior (current - 1) não estiver no histórico, insere ponto para
+      // evitar salto visual (ex: 104 → 106 sem 105)
       const previousAbiNum = parseInt(currentAbi) - 1;
       if (!isNaN(previousAbiNum) && previousAbiNum > 0) {
         const prevKey = String(previousAbiNum);
-        if (!evoMap[prevKey]) {
-          // Não temos o volume exato do ABI anterior, mas garantimos que ele apareça no gráfico
-          // para não criar um salto visual (ABI 104 → ABI 106 sem 105)
-          // O volume 0 indica que dados históricos ainda não foram salvos para esse ciclo
+        // Usa === undefined para não duplicar quando volume real for 0
+        if (evoMap[prevKey] === undefined) {
           evo.push({ abi: `${previousAbiNum}º`, volume: 0, rawAbi: prevKey });
-          // Reordena depois de inserir
           evo.sort((a, b) => {
             const numA = parseInt(a.abi.replace(/\D/g, '')) || 0;
             const numB = parseInt(b.abi.replace(/\D/g, '')) || 0;
