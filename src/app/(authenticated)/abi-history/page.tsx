@@ -268,8 +268,9 @@ export default function AbiHistoryPage() {
 
     const currentAbiNum = currentAbiData?.abi_num ? String(currentAbiData.abi_num) : null;
     
-    // Se o ABI selecionado for o atual, injetamos o currentAbiData formatado para ser compatível
-    if (selectedHistoricalAbi === currentAbiNum && currentAbiData) {
+    // Se o ABI selecionado for o atual OU se estivermos na visão global (sem ABI selecionado),
+    // injetamos o currentAbiData formatado para ser compatível
+    if ((selectedHistoricalAbi === currentAbiNum || !selectedHistoricalAbi) && currentAbiData) {
       // Evitar duplicidade se já estiver no historicalData (caso venha do backend)
       const exists = historicalData.some(h => String(h.abi) === currentAbiNum);
       if (!exists) {
@@ -1160,7 +1161,11 @@ export default function AbiHistoryPage() {
                     <div className="flex items-center justify-between mb-6">
                       <h4 className="text-sm font-bold flex items-center gap-2">
                         <LayoutGrid size={16} className="text-gax-blue" />
-                        {selectedHistoricalSlice ? `Operadoras: ${selectedHistoricalSlice}` : 'Distribuição Global (Snapshot)'}
+                        {selectedHistoricalSlice 
+                          ? `Operadoras: ${selectedHistoricalSlice}` 
+                          : selectedHistoricalAbi 
+                            ? `Distribuição do ABI ${selectedHistoricalAbi} (Snapshot)`
+                            : 'Distribuição Global (Todos os ABIs)'}
                       </h4>
                       {selectedHistoricalSlice && (
                         <button onClick={() => setSelectedHistoricalSlice(null)} className="text-[11px] text-gax-blue hover:text-blue-700 hover:bg-blue-50 transition-colors font-bold px-2 py-1 bg-slate-50 rounded-md border border-slate-200 cursor-pointer">
