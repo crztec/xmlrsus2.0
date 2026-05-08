@@ -468,7 +468,6 @@ export default function AbiHistoryPage() {
                 onClick={() => setSelectedHistoricalAbi(null)}
                 className="flex items-center gap-1.5 h-8 px-3 rounded-lg border border-slate-200 bg-white text-slate-500 font-bold hover:bg-slate-50 hover:text-gax-blue hover:border-gax-blue transition-all text-[11px] shadow-sm focus:outline-none ring-0"
               >
-                <ChevronLeft size={13} />
                 Voltar
               </button>
             )}
@@ -551,11 +550,10 @@ export default function AbiHistoryPage() {
               </h4>
               
               <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 min-w-[200px]">
-                <Search size={12} className="text-slate-400" />
                 <select 
                   value={evolutionClientId}
                   onChange={(e) => setEvolutionClientId(e.target.value)}
-                  className="bg-transparent border-none outline-none text-[11px] font-bold text-gax-blue cursor-pointer w-full"
+                  className="bg-transparent border-none outline-none text-[11px] font-bold text-slate-600 cursor-pointer w-full"
                 >
                   <option value="global">Visão Consolidada (Geral)</option>
                   {currentAbiData?.client_details?.map((c: any) => (
