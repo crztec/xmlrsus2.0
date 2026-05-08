@@ -332,10 +332,16 @@ export default function AbiHistoryPage() {
       g.aguardando += stats_raw.aguardando || 0;
       g.nao_impugnando += stats_raw.nao_impugnando || 0;
       g.total += itemTotal;
-      g.finalized += imp_status === 'Finalizou' ? 1 : 0;
-      g.impugnating += imp_status === 'Impugnando' ? 1 : 0;
-      g.not_started += imp_status === 'Não Iniciou' ? 1 : 0;
-      g.not_imported += (status === 'nao importado' || status === 'não importado') ? 1 : 0;
+      
+      const isFinalized = imp_status === 'Finalizou';
+      const isImpugnating = imp_status === 'Impugnando';
+      const isNotStarted = imp_status === 'Não Iniciou';
+      const isNotImported = (status === 'nao importado' || status === 'não importado');
+
+      g.finalized += isFinalized ? itemTotal : 0;
+      g.impugnating += isImpugnating ? itemTotal : 0;
+      g.not_started += isNotStarted ? itemTotal : 0;
+      g.not_imported += isNotImported ? itemTotal : 0;
     });
 
     const clients = Object.values(groupedMap);
@@ -368,10 +374,10 @@ export default function AbiHistoryPage() {
     })).filter(d => d.value > 0);
 
     const summary = {
-      finalized: clients.reduce((acc, c) => acc + c.finalized, 0),
-      impugnating: clients.reduce((acc, c) => acc + c.impugnating, 0),
-      not_started: clients.reduce((acc, c) => acc + c.not_started, 0),
-      not_imported: clients.reduce((acc, c) => acc + c.not_imported, 0),
+      finalized: clients.reduce((acc, c) => acc + (c.finalized || 0), 0),
+      impugnating: clients.reduce((acc, c) => acc + (c.impugnating || 0), 0),
+      not_started: clients.reduce((acc, c) => acc + (c.not_started || 0), 0),
+      not_imported: clients.reduce((acc, c) => acc + (c.not_imported || 0), 0),
     };
 
     return { topImpugnados: imp, topAguardando: agu, topNaoImpugnados: nImp, distributionData: dist, totalGlobal, summary, clients };
@@ -1078,7 +1084,7 @@ export default function AbiHistoryPage() {
                           <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
                           <XAxis type="number" hide />
                           <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} fontSize={9} fontWeight={600} width={70} tick={{ fill: '#64748b' }} />
-                          <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }} formatter={(value: any) => [`${Number(value).toLocaleString()} (${historicalDataForCharts?.totalGlobal > 0 ? ((value / historicalDataForCharts.totalGlobal) * 100).toFixed(1) : 0}% do total)`, 'Qtd.']} />
+                          <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }} formatter={(value: any, name: any, props: any) => [`${Number(value).toLocaleString()} (${((value / (props.payload.clientTotal || 1)) * 100).toFixed(1)}% do total do cliente)`, 'Qtd.']} />
                           <Bar dataKey="total" fill="#10b981" radius={[0, 4, 4, 0]} barSize={topLimit > 10 ? 12 : 18} />
                         </BarChart>
                       </ResponsiveContainer>
@@ -1098,7 +1104,7 @@ export default function AbiHistoryPage() {
                           <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
                           <XAxis type="number" hide />
                           <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} fontSize={9} fontWeight={600} width={70} tick={{ fill: '#64748b' }} />
-                          <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }} formatter={(value: any) => [`${Number(value).toLocaleString()} (${historicalDataForCharts?.totalGlobal > 0 ? ((value / historicalDataForCharts.totalGlobal) * 100).toFixed(1) : 0}% do total)`, 'Qtd.']} />
+                          <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }} formatter={(value: any, name: any, props: any) => [`${Number(value).toLocaleString()} (${((value / (props.payload.clientTotal || 1)) * 100).toFixed(1)}% do total do cliente)`, 'Qtd.']} />
                           <Bar dataKey="total" fill="#f59e0b" radius={[0, 4, 4, 0]} barSize={topLimit > 10 ? 12 : 18} />
                         </BarChart>
                       </ResponsiveContainer>
@@ -1118,7 +1124,7 @@ export default function AbiHistoryPage() {
                           <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
                           <XAxis type="number" hide />
                           <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} fontSize={9} fontWeight={600} width={70} tick={{ fill: '#64748b' }} />
-                          <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }} formatter={(value: any) => [`${Number(value).toLocaleString()} (${historicalDataForCharts?.totalGlobal > 0 ? ((value / historicalDataForCharts.totalGlobal) * 100).toFixed(1) : 0}% do total)`, 'Qtd.']} />
+                          <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }} formatter={(value: any, name: any, props: any) => [`${Number(value).toLocaleString()} (${((value / (props.payload.clientTotal || 1)) * 100).toFixed(1)}% do total do cliente)`, 'Qtd.']} />
                           <Bar dataKey="total" fill="#94a3b8" radius={[0, 4, 4, 0]} barSize={topLimit > 10 ? 12 : 18} />
                         </BarChart>
                       </ResponsiveContainer>
