@@ -338,10 +338,10 @@ export default function AbiHistoryPage() {
       const isNotStarted = imp_status === 'Não Iniciou';
       const isNotImported = (status === 'nao importado' || status === 'não importado');
 
-      g.finalized += isFinalized ? itemTotal : 0;
-      g.impugnating += isImpugnating ? itemTotal : 0;
-      g.not_started += isNotStarted ? itemTotal : 0;
-      g.not_imported += isNotImported ? itemTotal : 0;
+      g.finalized += isFinalized ? 1 : 0;
+      g.impugnating += isImpugnating ? 1 : 0;
+      g.not_started += isNotStarted ? 1 : 0;
+      g.not_imported += isNotImported ? 1 : 0;
     });
 
     const clients = Object.values(groupedMap);
@@ -1084,7 +1084,16 @@ export default function AbiHistoryPage() {
                           <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
                           <XAxis type="number" hide />
                           <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} fontSize={9} fontWeight={600} width={70} tick={{ fill: '#64748b' }} />
-                          <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }} formatter={(value: any, name: any, props: any) => [`${Number(value).toLocaleString()} (${((value / (props.payload.clientTotal || 1)) * 100).toFixed(1)}% do total do cliente)`, 'Qtd.']} />
+                          <Tooltip 
+                            cursor={{ fill: '#f8fafc' }} 
+                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }} 
+                            formatter={(value: any, name: any, props: any) => {
+                              const pct = selectedHistoricalAbi 
+                                ? ((value / (props.payload.clientTotal || 1)) * 100).toFixed(1) + "% do total do cliente"
+                                : ((value / (historicalDataForCharts?.totalGlobal || 1)) * 100).toFixed(1) + "% do total geral";
+                              return [`${Number(value).toLocaleString()} (${pct})`, 'Qtd.'];
+                            }} 
+                          />
                           <Bar dataKey="total" fill="#10b981" radius={[0, 4, 4, 0]} barSize={topLimit > 10 ? 12 : 18} />
                         </BarChart>
                       </ResponsiveContainer>
@@ -1104,7 +1113,16 @@ export default function AbiHistoryPage() {
                           <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
                           <XAxis type="number" hide />
                           <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} fontSize={9} fontWeight={600} width={70} tick={{ fill: '#64748b' }} />
-                          <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }} formatter={(value: any, name: any, props: any) => [`${Number(value).toLocaleString()} (${((value / (props.payload.clientTotal || 1)) * 100).toFixed(1)}% do total do cliente)`, 'Qtd.']} />
+                          <Tooltip 
+                            cursor={{ fill: '#f8fafc' }} 
+                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }} 
+                            formatter={(value: any, name: any, props: any) => {
+                              const pct = selectedHistoricalAbi 
+                                ? ((value / (props.payload.clientTotal || 1)) * 100).toFixed(1) + "% do total do cliente"
+                                : ((value / (historicalDataForCharts?.totalGlobal || 1)) * 100).toFixed(1) + "% do total geral";
+                              return [`${Number(value).toLocaleString()} (${pct})`, 'Qtd.'];
+                            }} 
+                          />
                           <Bar dataKey="total" fill="#f59e0b" radius={[0, 4, 4, 0]} barSize={topLimit > 10 ? 12 : 18} />
                         </BarChart>
                       </ResponsiveContainer>
@@ -1124,7 +1142,16 @@ export default function AbiHistoryPage() {
                           <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
                           <XAxis type="number" hide />
                           <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} fontSize={9} fontWeight={600} width={70} tick={{ fill: '#64748b' }} />
-                          <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }} formatter={(value: any, name: any, props: any) => [`${Number(value).toLocaleString()} (${((value / (props.payload.clientTotal || 1)) * 100).toFixed(1)}% do total do cliente)`, 'Qtd.']} />
+                          <Tooltip 
+                            cursor={{ fill: '#f8fafc' }} 
+                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }} 
+                            formatter={(value: any, name: any, props: any) => {
+                              const pct = selectedHistoricalAbi 
+                                ? ((value / (props.payload.clientTotal || 1)) * 100).toFixed(1) + "% do total do cliente"
+                                : ((value / (historicalDataForCharts?.totalGlobal || 1)) * 100).toFixed(1) + "% do total geral";
+                              return [`${Number(value).toLocaleString()} (${pct})`, 'Qtd.'];
+                            }} 
+                          />
                           <Bar dataKey="total" fill="#94a3b8" radius={[0, 4, 4, 0]} barSize={topLimit > 10 ? 12 : 18} />
                         </BarChart>
                       </ResponsiveContainer>
