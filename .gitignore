@@ -12,6 +12,21 @@
 
 # testing
 /coverage
+/.nyc_output
+/.jest
+/test-results
+/playwright-report
+/.playwright
+/cypress/screenshots
+/cypress/videos
+.coverage
+.coverage.*
+*.lcov
+htmlcov/
+pytest.xml
+nosetests.xml
+coverage.xml
+.tox/
 
 # next.js
 /.next/
@@ -22,7 +37,6 @@
 
 # misc
 .DS_Store
-*.pem
 
 # debug
 npm-debug.log*
@@ -32,6 +46,10 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 
 # vercel
 .vercel
@@ -40,10 +58,32 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Firebase Private Keys
-firebase-key.json
+# Firebase Private Keys & Secrets
+*.key
+*.pem
+*.pub
+*.p12
+*.pfx
+*.pkcs12
+*.keystore
+*.jks
+*.gpg
+*.asc
+.secrets*
+secrets.tar.gz
+*secret*.json
+*credentials*.json
+client_secret*.json
+firebase-key*.json
+*service-account*.json
 api/firebase-key.json
 *.json.key
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+db.sqlite3
 
 # Python
 __pycache__/
