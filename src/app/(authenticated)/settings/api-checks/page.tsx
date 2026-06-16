@@ -444,7 +444,7 @@ export default function ApiChecksPage() {
 
             <div className="flex items-center gap-2 shrink-0">
               <button
-                onClick={() => { setViewingTaskId(activeTaskId); setShowLogs(true); setModalTitle("Monitoramento em Tempo Real"); }}
+                onClick={() => { setViewingTaskId(activeTaskId); setShowLogs(true); setModalTitle("Log em Tempo Real - Checagem de APIs"); }}
                 className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 transition-colors"
                 title="Abrir Console"
               >
@@ -797,7 +797,7 @@ export default function ApiChecksPage() {
                 <div>
                   <h3 className="text-sm font-bold text-slate-900">{modalTitle}</h3>
                   <p className="text-[10px] text-gax-blue font-bold uppercase tracking-widest">
-                    {(viewingTaskId && viewingTaskId !== activeTaskId) ? 'Visualizando Histórico' : 'Monitoramento em Tempo Real'}
+                    {(viewingTaskId && viewingTaskId !== activeTaskId) ? 'Visualizando Histórico' : 'Log em Tempo Real - Checagem de APIs'}
                   </p>
                 </div>
               </div>

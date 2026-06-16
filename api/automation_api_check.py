@@ -66,7 +66,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
     try:
         async with async_playwright() as p:
             update_progress(5)
-            log_task(f"Iniciando navegador e buscando credenciais simultaneamente...")
+            logger.info(f"[{client_name}] Iniciando navegador e buscando credenciais simultaneamente...")
             
             browser_args = [
                 "--headless=new",
@@ -115,7 +115,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
             page = await context.new_page()
             
             # Escuta de Erros Críticos do Browser (Raio-X de Erros JS do Portal)
-            page.on("console", lambda msg: log_task(f"[BROWSER JS] {msg.text}", "WARNING") if msg.type == "error" else None)
+            page.on("console", lambda msg: logger.warning(f"[{client_name}] [BROWSER JS] {msg.text}") if msg.type == "error" else None)
             
             # Bloqueio de assets suavizado (apenas imagens e mídias pesadas) para não quebrar SPAs/hidratação
             async def block_assets(route):
@@ -171,7 +171,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                             break
                 
                 await email_field.wait_for(state="visible", timeout=25000)
-                log_task("Campo de login identificado. Preenchendo credenciais...")
+                logger.info(f"[{client_name}] Campo de login identificado. Preenchendo credenciais...")
                 
                 # Usa .type() com delay para compatibilidade com portais AngularJS
                 await email_field.click(force=True)
@@ -190,16 +190,16 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                 try:
                     await page.wait_for_selector("#logIn, button[type='submit']", state="hidden", timeout=15000)
                 except:
-                    log_task("Botão de login ainda visível após clique. Verificando erros na tela...", "WARNING")
+                    logger.warning(f"[{client_name}] Botão de login ainda visível após clique. Verificando erros na tela...")
                 
                 # ESTABILIZAÇÃO DE SESSÃO: Aguarda elemento real em vez de networkidle
                 update_progress(55)
-                log_task("Aguardando carregamento da interface pós-login...")
+                logger.info(f"[{client_name}] Aguardando carregamento da interface pós-login...")
                 try:
                     # Foca em um seletor que indica que a página carregou algo além do rodapé/loading
                     await page.wait_for_selector(".navbar, .main-sidebar, .content-header, #wrapper", timeout=60000)
                 except Exception:
-                    log_task("Interface principal não detectada em 60s. Continuando com pausa de segurança...", "WARNING")
+                    logger.warning(f"[{client_name}] Interface principal não detectada em 60s. Continuando com pausa de segurança...")
                     await asyncio.sleep(5)
                 
                 await asyncio.sleep(2)
@@ -210,16 +210,16 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                     '.ASPXAUTH' in c['name'] or 'Identity' in c['name'] or 'ASP.NET_SessionId' in c['name']
                     for c in cookies
                 )
-
+ 
                 # NOVO: SE ESTAMOS PRESOS NA TELA DE LOGIN MAS TEMOS COOKIE, FORÇAMOS O SALTO TRIPLO
                 if has_session and ("Account/Login" in page.url or "Account/LogOff" in page.url):
-                    log_task("Sessão detectada mas preso na tela de Login. Forçando Salto Triplo (Hiper-Otimizado)...")
+                    logger.info(f"[{client_name}] Sessão detectada mas preso na tela de Login. Forçando Salto Triplo (Hiper-Otimizado)...")
                     # 1. Toca na raiz (wait: commit)
                     await page.goto(url_sistema.split('?')[0].rsplit('/', 1)[0] + "/", wait_until="commit", timeout=15000)
                     # 2. Visita a lista (Index) - O segredo que funcionou no robô de importação
                     # No API Check não temos /novo, então tentamos a raiz novamente ou uma rota conhecida
                     await page.goto(url_sistema, wait_until="commit", timeout=20000)
-                    log_task("Pausa de 2s para processamento de cookies após salto de sessão...")
+                    logger.info(f"[{client_name}] Pausa de 2s para processamento de cookies após salto de sessão...")
                     await asyncio.sleep(2)
                 
                 # Verifica erro de senha/login explícito na tela
@@ -236,7 +236,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                     msg_fail = f"Falha na autenticação RSUS: mensagem de erro detectada ('{login_error}')."
                     log_task(msg_fail, "ERROR")
                     return "offline", msg_fail, None
-
+ 
                 # Se ainda está na tela de login sem sessão detectada, falhou
                 if "Account/Login" in page.url and not has_session:
                     log_task("Falha no login: ainda na tela de login sem sessão válida.", "ERROR")
@@ -250,11 +250,11 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
             except Exception as e:
                 log_task(f"Erro no login: {str(e)}", "ERROR")
                 return "offline", "Erro ao acessar portal RSUS.", None
-
+ 
             # 2. Navegação para Atendimentos através da lista de ABIs (Hambúrguer Direito)
             try:
                 update_progress(85)
-                log_task("Localizando ABI e abrindo menu hambúrguer...")
+                logger.info(f"[{client_name}] Localizando ABI e abrindo menu hambúrguer...")
                 if await is_cancelled(): 
                     if browser: await browser.close()
                     return "offline", "Tarefa cancelada pelo usuário.", None
@@ -317,7 +317,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                     
                     # OTIMIZAÇÃO: Aumentamos a prioridade manual para 30s (6 iterações) antes do salto
                     if i >= 5 and not jump_triggered:
-                        log_task("Grid não detectada manualmente. Tentando 'Triple Jump' como recurso...")
+                        logger.info(f"[{client_name}] Grid não detectada manualmente. Tentando 'Triple Jump' como recurso...")
                         # Limpa sufixos common e força a rota de importação
                         base_url = url_sistema.split('/login')[0]
                         target_url = f"{base_url.rstrip('/')}/importacao"
@@ -329,32 +329,32 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                                 base_url = base_url.rstrip('/')
                                 
                                 # 1º SALTO: Raiz do portal
-                                log_task(f"Salto 1/2: {base_url}/ (Raiz)...")
+                                logger.info(f"[{client_name}] Salto 1/2: {base_url}/ (Raiz)...")
                                 try:
                                     await page.goto(f"{base_url}/", wait_until="commit", timeout=15000)
                                 except Exception: pass
                                 await asyncio.sleep(1)
                                 
                                 # 2º SALTO: Destino Final com wait_until=domcontentloaded para evitar tela branca de SPA (Timeout 30s)
-                                log_task(f"Salto 2/2: {target_url} (Final)...")
+                                logger.info(f"[{client_name}] Salto 2/2: {target_url} (Final)...")
                                 try:
                                     await page.goto(target_url, wait_until="domcontentloaded", timeout=25000)
                                 except Exception: pass
                                 
                                 # Busca agressiva por qualquer sinal de vida (60s timeout)
-                                log_task("Aguardando renderização da grid (max 60s)...")
+                                logger.info(f"[{client_name}] Aguardando renderização da grid (max 60s)...")
                                 try:
                                     await page.wait_for_selector(".fa-bars, button.dropdown-toggle, .grid, .loading", timeout=60000)
                                 except:
                                     # Fallback em caso de tela branca profunda: Reload Tático e IFrame Scroll
-                                    log_task("Tela possivelmente branca. Forçando Reload Tático (domcontentloaded)...", "WARNING")
+                                    logger.warning(f"[{client_name}] Tela possivelmente branca. Forçando Reload Tático (domcontentloaded)...")
                                     try:
                                         await page.reload(wait_until="commit", timeout=15000)
                                         await page.wait_for_load_state("domcontentloaded", timeout=15000)
                                         await asyncio.sleep(2)
                                     except: pass
 
-                                    log_task("Forçando scroll em todos os IFrames disponíveis...", "WARNING")
+                                    logger.warning(f"[{client_name}] Forçando scroll em todos os IFrames disponíveis...")
                                     await page.evaluate("""
                                         () => {
                                             const frames = document.querySelectorAll('iframe');
@@ -370,14 +370,14 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                                     await asyncio.sleep(3)
                                     await page.wait_for_selector(".fa-bars, button.dropdown-toggle", timeout=15000)
 
-                                log_task("Navegação bem-sucedida. Grid detectada.")
+                                logger.info(f"[{client_name}] Navegação bem-sucedida. Grid detectada.")
                                 break
                             except Exception as e_jump:
                                 if attempt == 0:
-                                    log_task(f"Salto demorado ({str(e_jump)[:30]}). Re-tentando salto rápido...", "WARNING")
+                                    logger.warning(f"[{client_name}] Salto demorado ({str(e_jump)[:30]}). Re-tentando salto rápido...")
                                     await asyncio.sleep(2)
                                 else:
-                                    log_task("Salto por URL falhou ou demorou demais. Continuando via polling manual...", "WARNING")
+                                    logger.warning(f"[{client_name}] Salto por URL falhou ou demorou demais. Continuando via polling manual...")
                         
                         jump_triggered = True
                         
@@ -385,7 +385,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                 
                 # FALLBACK DE RECARGA: Se após tudo ainda não achar o menu, tenta dar um refresh
                 if not found_bars:
-                    log_task("Grid ainda não encontrada. Tentando recarregar a página (Reload Fallback)...", "WARNING")
+                    logger.warning(f"[{client_name}] Grid ainda não encontrada. Tentando recarregar a página (Reload Fallback)...")
                     # Usa commit seguido de wait_for_load_state relaxado
                     try:
                         await page.reload(wait_until="commit", timeout=15000)
@@ -393,7 +393,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                     except: pass
                     await asyncio.sleep(3)
                     if await click_in_frames("tr:has-text('Importado') .fa-bars, tr:has-text('Importado') button.dropdown-toggle"):
-                        log_task("Grid encontrada após recarga da página.")
+                        logger.info(f"[{client_name}] Grid encontrada após recarga da página.")
                         found_bars = True
                 
                 if not found_bars:
@@ -401,14 +401,14 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                 
                 # LOG DE MÉTODO DE NAVEGAÇÃO
                 if jump_triggered:
-                    log_task("Acesso realizado via Salto Direto (Triple Jump)")
+                    logger.info(f"[{client_name}] Acesso realizado via Salto Direto (Triple Jump)")
                 else:
-                    log_task("Acesso realizado via Navegação Manual")
+                    logger.info(f"[{client_name}] Acesso realizado via Navegação Manual")
                 
                 # 2. Aguarda o menu aparecer
                 await asyncio.sleep(1)
                 
-                log_task("Menu aberto. Navegando para 'Atendimentos'...")
+                logger.info(f"[{client_name}] Menu aberto. Navegando para 'Atendimentos'...")
                 found_atend = False
                 for _ in range(3):
                     if await click_in_frames('a, button, li', title_match='Atendimentos'):
@@ -427,15 +427,15 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                 # CAPTURA DE SCREENSHOT FORENSE EM CASO DE ERRO (BASE64)
                 screenshot_url = None
                 try:
-                    log_task("Pausa de 2s para renderização antes do print forense...")
+                    logger.info(f"[{client_name}] Pausa de 2s para renderização antes do print forense...")
                     await asyncio.sleep(2)
-                    log_task("Capturando print forense da falha (Formato Base64)...")
+                    logger.info(f"[{client_name}] Capturando print forense da falha (Formato Base64)...")
                     img_bytes = await page.screenshot(full_page=False)
                     base64_img = f"data:image/png;base64,{base64.b64encode(img_bytes).decode('utf-8')}"
-                    log_task(f"Screenshot gerado com sucesso. Tamanho: {len(base64_img)} caracteres.")
+                    logger.info(f"[{client_name}] Screenshot gerado com sucesso. Tamanho: {len(base64_img)} caracteres.")
                     screenshot_url = base64_img
                 except Exception as e_shot:
-                    log_task(f"Erro ao capturar screenshot: {str(e_shot)}", "WARNING")
+                    logger.warning(f"[{client_name}] Erro ao capturar screenshot: {str(e_shot)}")
 
                 log_task(f"Erro de navegação (Atendimentos): {str(e)}", "ERROR")
                 return "error", f"Falha na navegação: {str(e)[:500]}", screenshot_url
@@ -485,7 +485,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
 
             # 4. Ação de Atualização e Verificação Final
             try:
-                log_task("Modal de Beneficiário aberta. Rolando e atualizando...")
+                logger.info(f"[{client_name}] Modal de Beneficiário aberta. Rolando e atualizando...")
                 if await is_cancelled(): 
                     if browser: await browser.close()
                     return "offline", "Tarefa cancelada pelo usuário.", None
