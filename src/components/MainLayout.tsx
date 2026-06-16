@@ -71,7 +71,7 @@ const PAGE_METADATA: Record<string, PageMeta> = {
     icon: <Settings size={24} className="text-gax-blue" />
   },
   "/settings/api-checks": {
-    title: "Monitoramento de APIs",
+    title: "Checar APIs",
     subtitle: "Verificação automática de conexões com os portais RSUS",
     icon: <Puzzle size={24} className="text-gax-blue" />
   },

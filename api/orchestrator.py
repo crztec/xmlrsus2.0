@@ -21,6 +21,26 @@ def trigger_cloud_run_job(task_id: str, background_tasks=None):
             if token_resp.status_code == 200:
                 access_token = token_resp.json().get("access_token")
 
+                # Obtém o Project ID real dinamicamente do Metadata Server
+                try:
+                    project_resp = requests.get("http://metadata.google.internal/computeMetadata/v1/project/project-id", headers={"Metadata-Flavor": "Google"}, timeout=2)
+                    if project_resp.status_code == 200:
+                        project = project_resp.text.strip()
+                        logger.info(f"[TRIGGER] Project ID dinâmico resolvido: {project}")
+                except Exception as proj_err:
+                    logger.warning(f"[TRIGGER] Falha ao obter Project ID dinâmico (usando '{project}'): {proj_err}")
+
+                # Obtém a Região real dinamicamente do Metadata Server
+                try:
+                    region_resp = requests.get("http://metadata.google.internal/computeMetadata/v1/instance/region", headers={"Metadata-Flavor": "Google"}, timeout=2)
+                    if region_resp.status_code == 200:
+                        region_full = region_resp.text.strip()
+                        # Formato retornado: projects/PROJECT_NUM/regions/REGION_NAME
+                        region = region_full.split('/')[-1]
+                        logger.info(f"[TRIGGER] Região dinâmica resolvida: {region}")
+                except Exception as reg_err:
+                    logger.warning(f"[TRIGGER] Falha ao obter Região dinâmica (usando '{region}'): {reg_err}")
+
                 # Chamada REST para disparar o Job
                 url = f"https://{region}-run.googleapis.com/v2/projects/{project}/locations/{region}/jobs/gax-worker-job:run"
                 headers = {
