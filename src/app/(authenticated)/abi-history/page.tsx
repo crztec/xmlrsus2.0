@@ -54,6 +54,24 @@ export default function AbiHistoryPage() {
   const [evolutionClientId, setEvolutionClientId] = useState<string>("global");
   const [historicalEvolutionData, setHistoricalEvolutionData] = useState<any>(null);
   const [loadingHistoricalSnapshots, setLoadingHistoricalSnapshots] = useState(false);
+
+  const defaultPreviousAbi = useMemo(() => {
+    if (currentAbiData?.abi_num) {
+      const currentNum = parseInt(String(currentAbiData.abi_num).replace(/\D/g, ''));
+      if (!isNaN(currentNum)) {
+        return String(currentNum - 1);
+      }
+    }
+    if (historicalData.length > 0) {
+      const abis = historicalData.map(h => parseInt(String(h.abi).replace(/\D/g, ''))).filter(n => !isNaN(n));
+      if (abis.length > 0) {
+        return String(Math.max(...abis));
+      }
+    }
+    return null;
+  }, [currentAbiData, historicalData]);
+
+  const effectiveHistoricalAbi = selectedHistoricalAbi || defaultPreviousAbi;
   
   // Componente para mensagens de "Sem Dados"
   const NoDataMessage = ({ icon: Icon, title, message }: { icon: any, title: string, message: string }) => (
@@ -190,34 +208,7 @@ export default function AbiHistoryPage() {
         return numA - numB;
       });
 
-    // Adiciona o atual se houver
-    if (currentAbiData) {
-      const currentAbi = String(currentAbiData.abi_num || 'Atual');
-      if (evoMap[currentAbi] === undefined) {
-        // Usa evolution_timeline como indicador confiável de processamento.
-        // Os campos finalized/impugnating/not_started ainda refletem o ABI anterior
-        // enquanto o robô não rodar para o ABI atual — por isso NÃO os usamos aqui.
-        const hasBeenProcessed = (currentAbiData.evolution_timeline || []).length > 0;
-        const totalCurrent = hasBeenProcessed ? (currentAbiData.total_atendimentos || 0) : 0;
-        evo.push({ abi: currentAbi.includes('º') ? currentAbi : `${currentAbi}º`, volume: totalCurrent, rawAbi: currentAbi });
-      }
 
-      // Se o ABI anterior (current - 1) não estiver no histórico, insere ponto para
-      // evitar salto visual (ex: 104 → 106 sem 105)
-      const previousAbiNum = parseInt(currentAbi) - 1;
-      if (!isNaN(previousAbiNum) && previousAbiNum > 0) {
-        const prevKey = String(previousAbiNum);
-        // Usa === undefined para não duplicar quando volume real for 0
-        if (evoMap[prevKey] === undefined) {
-          evo.push({ abi: `${previousAbiNum}º`, volume: 0, rawAbi: prevKey });
-          evo.sort((a, b) => {
-            const numA = parseInt(a.abi.replace(/\D/g, '')) || 0;
-            const numB = parseInt(b.abi.replace(/\D/g, '')) || 0;
-            return numA - numB;
-          });
-        }
-      }
-    }
 
     if (evo.length === 0) evo.push({ abi: '105º', volume: 0, rawAbi: '105' });
 
@@ -262,42 +253,14 @@ export default function AbiHistoryPage() {
   // Sem auto-seleção: o usuário escolhe o ABI clicando no gráfico de volume
 
   const historicalDataForCharts = useMemo(() => {
-    // Quando nenhum ABI específico é selecionado, agrega TODOS os ABIs históricos
-    let baseData = [...historicalData];
-    if (historicalData.length === 0) return null;
+    const baseData = [...historicalData];
+    if (baseData.length === 0) return null;
 
-    const currentAbiNum = currentAbiData?.abi_num ? String(currentAbiData.abi_num) : null;
-    
-    // Se o ABI selecionado for o atual OU se estivermos na visão global (sem ABI selecionado),
-    // injetamos o currentAbiData formatado para ser compatível
-    if ((selectedHistoricalAbi === currentAbiNum || !selectedHistoricalAbi) && currentAbiData) {
-      // Evitar duplicidade se já estiver no historicalData (caso venha do backend)
-      const exists = historicalData.some(h => String(h.abi) === currentAbiNum);
-      if (!exists) {
-        // Criar registros sintéticos para cada cliente do ABI atual
-        const syntheticHistory = (currentAbiData.client_details || []).map((client: any) => ({
-          abi: currentAbiNum,
-          client_id: client.client_id,
-          client_name: client.name,
-          impugnation_stats: {
-            impugnados: client.impugnados,
-            aptos: client.aptos,
-            aguardando: client.aguardando,
-            nao_impugnando: client.nao_impugnando
-          },
-          total: client.total,
-          impugnation_status: client.status === 'finalizado' ? 'Finalizou' : client.status === 'impugnando' ? 'Impugnando' : 'Não Iniciou',
-          abi_status: 'importado'
-        }));
-        baseData = [...baseData, ...syntheticHistory];
-      }
-    }
+    const activeAbi = effectiveHistoricalAbi;
+    if (!activeAbi) return null;
 
-    // Filtra por ABI selecionado ou agrega tudo (modo consolidado)
-    const rawItems = (selectedHistoricalAbi
-      ? baseData.filter(item => String(item.abi) === selectedHistoricalAbi)
-      : baseData
-    );
+    // Filtra pelo ABI selecionado ou padrão (anterior ao atual)
+    const rawItems = baseData.filter(item => String(item.abi) === activeAbi);
 
     // Agrupa por cliente para evitar duplicidade em visão consolidada e garantir totais corretos
     const groupedMap: Record<string, any> = {};
@@ -382,7 +345,7 @@ export default function AbiHistoryPage() {
     };
 
     return { topImpugnados: imp, topAguardando: agu, topNaoImpugnados: nImp, distributionData: dist, totalGlobal, summary, clients };
-  }, [historicalData, selectedHistoricalAbi, topLimit, currentAbiData]);
+  }, [historicalData, effectiveHistoricalAbi, topLimit]);
 
   const historicalSliceDetails = useMemo(() => {
     if (!selectedHistoricalSlice || !historicalDataForCharts) return [];
@@ -481,7 +444,7 @@ export default function AbiHistoryPage() {
               <Clock size={14} className={cn(loading && "animate-spin")} />
             </button>
             <button 
-              onClick={() => handleExport(activeTab === 'history' ? selectedHistoricalAbi : null)}
+              onClick={() => handleExport(activeTab === 'history' ? effectiveHistoricalAbi : null)}
               className="flex items-center gap-2 h-8 px-3 rounded-lg border border-slate-200 bg-white text-slate-700 font-bold hover:bg-slate-50 hover:text-gax-blue transition-all text-[11px] sm:text-[12px] shadow-sm focus:outline-none active:outline-none ring-0 focus:ring-0 focus-visible:ring-0 active:ring-0"
             >
               <Download size={13} />
@@ -1087,7 +1050,7 @@ export default function AbiHistoryPage() {
                             cursor={{ fill: '#f8fafc' }} 
                             contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }} 
                             formatter={(value: any, name: any, props: any) => {
-                              const pct = selectedHistoricalAbi 
+                              const pct = effectiveHistoricalAbi 
                                 ? ((value / (props.payload.clientTotal || 1)) * 100).toFixed(1) + "% do total do cliente"
                                 : ((value / (historicalDataForCharts?.totalGlobal || 1)) * 100).toFixed(1) + "% do total geral";
                               return [`${Number(value).toLocaleString()} (${pct})`, 'Qtd.'];
@@ -1116,7 +1079,7 @@ export default function AbiHistoryPage() {
                             cursor={{ fill: '#f8fafc' }} 
                             contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }} 
                             formatter={(value: any, name: any, props: any) => {
-                              const pct = selectedHistoricalAbi 
+                              const pct = effectiveHistoricalAbi 
                                 ? ((value / (props.payload.clientTotal || 1)) * 100).toFixed(1) + "% do total do cliente"
                                 : ((value / (historicalDataForCharts?.totalGlobal || 1)) * 100).toFixed(1) + "% do total geral";
                               return [`${Number(value).toLocaleString()} (${pct})`, 'Qtd.'];
@@ -1145,7 +1108,7 @@ export default function AbiHistoryPage() {
                             cursor={{ fill: '#f8fafc' }} 
                             contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }} 
                             formatter={(value: any, name: any, props: any) => {
-                              const pct = selectedHistoricalAbi 
+                              const pct = effectiveHistoricalAbi 
                                 ? ((value / (props.payload.clientTotal || 1)) * 100).toFixed(1) + "% do total do cliente"
                                 : ((value / (historicalDataForCharts?.totalGlobal || 1)) * 100).toFixed(1) + "% do total geral";
                               return [`${Number(value).toLocaleString()} (${pct})`, 'Qtd.'];
@@ -1163,9 +1126,9 @@ export default function AbiHistoryPage() {
                         <LayoutGrid size={16} className="text-gax-blue" />
                         {selectedHistoricalSlice 
                           ? `Operadoras: ${selectedHistoricalSlice}` 
-                          : selectedHistoricalAbi 
-                            ? `Distribuição do ABI ${selectedHistoricalAbi} (Snapshot)`
-                            : 'Distribuição Global (Todos os ABIs)'}
+                          : effectiveHistoricalAbi 
+                            ? `Distribuição do ABI ${effectiveHistoricalAbi} (Snapshot)`
+                            : 'Distribuição (Snapshot)'}
                       </h4>
                       {selectedHistoricalSlice && (
                         <button onClick={() => setSelectedHistoricalSlice(null)} className="text-[11px] text-gax-blue hover:text-blue-700 hover:bg-blue-50 transition-colors font-bold px-2 py-1 bg-slate-50 rounded-md border border-slate-200 cursor-pointer">
