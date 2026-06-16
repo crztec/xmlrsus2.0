@@ -190,7 +190,20 @@ export default function ApiChecksPage() {
     setActiveTask(null);
     setTaskLogs([]);
     try {
-      const res = await apiClient("/api/check-integrations", { method: "POST" });
+      const res = await apiClient("/api/start-api-check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          client_id: null,
+          client_ids: null
+        })
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        alert(error.detail || "Erro ao iniciar checagem.");
+        setIsExecuting(false);
+        return;
+      }
       const data = await res.json();
       if (data.task_id) {
         setActiveTaskId(data.task_id);
@@ -220,11 +233,20 @@ export default function ApiChecksPage() {
     setActiveTask(null);
     setTaskLogs([]);
     try {
-      const res = await apiClient("/api/check-integrations", {
+      const res = await apiClient("/api/start-api-check", {
         method: "POST",
-        body: JSON.stringify({ client_ids: failedOnes }),
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_id: null,
+          client_ids: failedOnes
+        })
       });
+      if (!res.ok) {
+        const error = await res.json();
+        alert(error.detail || "Erro ao iniciar checagem.");
+        setIsExecuting(false);
+        return;
+      }
       const data = await res.json();
       if (data.task_id) {
         setActiveTaskId(data.task_id);
@@ -253,7 +275,20 @@ export default function ApiChecksPage() {
     setTaskLogs([]);
     setOpenMenuId(null);
     try {
-      const res = await apiClient(`/api/check-integration/${clientId}`, { method: "POST" });
+      const res = await apiClient("/api/start-api-check", {
+        method: "POST",
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_id: clientId,
+          client_ids: null
+        })
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        alert(error.detail || "Erro ao iniciar checagem.");
+        setIsExecuting(false);
+        return;
+      }
       const data = await res.json();
       if (data.task_id) {
         setActiveTaskId(data.task_id);

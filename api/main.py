@@ -662,6 +662,25 @@ async def start_impugnation_check(request: ABICheckRequest, background_tasks: Ba
     trigger_cloud_run_job(task_id, background_tasks)
     return {"status": "pending", "task_id": task_id}
 
+@app.post("/start-api-check")
+async def start_api_check(request: ABICheckRequest, background_tasks: BackgroundTasks, user = Depends(get_current_user)):
+    """Inicia a checagem de APIs (lote ou individual) via Cloud Run Job."""
+    client_id = request.client_id
+    client_ids = request.client_ids
+    
+    if client_id:
+        task_id = db.create_task("api_check_single", f"Checagem API individual: {client_id}")
+        db.update_task(task_id, {"client_id": client_id})
+    elif client_ids:
+        label_unit = "operadora" if len(client_ids) == 1 else "operadoras"
+        task_id = db.create_task("api_check_batch", f"Checagem API parcial ({len(client_ids)} {label_unit})")
+        db.update_task(task_id, {"client_ids": client_ids})
+    else:
+        task_id = db.create_task("api_check_batch", "Checagem Geral de APIs RSUS")
+
+    trigger_cloud_run_job(task_id, background_tasks)
+    return {"status": "pending", "task_id": task_id}
+
 @app.get("/impugnation-dashboard-stats")
 async def get_impugnation_stats(user = Depends(get_current_user)):
     return db.get_impugnation_dashboard_stats()
