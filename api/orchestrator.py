@@ -81,3 +81,11 @@ def _execute_local_fallback(task_id: str, background_tasks):
             background_tasks.add_task(run_single_api_check, task.get("client_id"), task_id)
         else:
             background_tasks.add_task(run_batch_api_check, task_id, task.get("client_ids"))
+    elif t_type == "xml_import":
+        from api.automation_xml_import import background_worker_task
+        background_tasks.add_task(
+            background_worker_task,
+            task_id,
+            task.get("url_sistema", ""),
+            task.get("force", False)
+        )

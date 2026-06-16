@@ -1091,21 +1091,21 @@ class BatchCheckRequest(BaseModel):
     client_ids: Optional[List[str]] = None
 
 @app.post("/check-integrations")
-async def route_run_batch_api_check(request: BatchCheckRequest, user = Depends(get_current_user)):
+async def route_run_batch_api_check(request: BatchCheckRequest, background_tasks: BackgroundTasks, user = Depends(get_current_user)):
     """Dispara checagem de APIs em lote via Cloud Run Job."""
     desc = "Checagem geral de APIs RSUS" if not request.client_ids else f"Checagem parcial ({len(request.client_ids)} clientes)"
     task_id = db.create_task(task_type="batch_api_check", description=desc)
     if request.client_ids:
         db.update_task(task_id, {"client_ids": request.client_ids})
-    trigger_cloud_run_job(task_id)
+    trigger_cloud_run_job(task_id, background_tasks)
     return {"status": "success", "task_id": task_id}
 
 @app.post("/check-integration/{client_id}")
-async def route_run_single_api_check(client_id: str, user = Depends(get_current_user)):
+async def route_run_single_api_check(client_id: str, background_tasks: BackgroundTasks, user = Depends(get_current_user)):
     """Dispara checagem de API individual via Cloud Run Job."""
     task_id = db.create_task(task_type="api_check_single", description=f"Checagem individual: {client_id}", razao_social=client_id)
     db.update_task(task_id, {"client_id": client_id})
-    trigger_cloud_run_job(task_id)
+    trigger_cloud_run_job(task_id, background_tasks)
     return {"status": "success", "task_id": task_id}
 
 # --- RSUS SETTINGS ENDPOINTS ---
@@ -1232,7 +1232,7 @@ async def pre_check_duplicates(files: List[UploadFile] = File(...), user = Depen
         return {"duplicates": [], "error": str(e), "client_exists": False}
 
 @app.post("/upload")
-async def upload_xmls(files: List[UploadFile] = File(...), url_sistema: Optional[str] = Form(None), usuario: Optional[str] = Form(None), senha: Optional[str] = Form(None), gax_user_email: str = Form("Admin/Sistema"), force: bool = Form(False), user = Depends(get_current_user)):
+async def upload_xmls(background_tasks: BackgroundTasks, files: List[UploadFile] = File(...), url_sistema: Optional[str] = Form(None), usuario: Optional[str] = Form(None), senha: Optional[str] = Form(None), gax_user_email: str = Form("Admin/Sistema"), force: bool = Form(False), user = Depends(get_current_user)):
     """Recebe XMLs, persiste no Firestore/Storage e dispara processamento via Cloud Run Job."""
     if not files: return {"error": "Nenhum arquivo enviado."}
     arquivos_upload_data = []
@@ -1266,7 +1266,7 @@ async def upload_xmls(files: List[UploadFile] = File(...), url_sistema: Optional
             files_info.append(row)
     db.add_files_to_task_bulk(task_id, files_info)
     db.update_task_total_files(task_id, len(files_info))
-    trigger_cloud_run_job(task_id)
+    trigger_cloud_run_job(task_id, background_tasks)
     db.add_audit_log(gax_user_email, "Upload e Importação", f"Iniciou a fila de importação para '{razao_social}'", "INFO")
     return {"message": "Arquivos recebidos.", "task_id": task_id, "razao_social": razao_social, "total_files": len(files_info), "status": "Iniciado"}
 

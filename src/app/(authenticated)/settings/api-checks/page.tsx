@@ -203,6 +203,8 @@ export default function ApiChecksPage() {
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         } as any);
+      } else {
+        setIsExecuting(false);
       }
     } catch {
       alert("Erro ao disparar checagem geral.");
@@ -235,6 +237,8 @@ export default function ApiChecksPage() {
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         } as any);
+      } else {
+        setIsExecuting(false);
       }
     } catch {
       alert("Erro ao disparar checagem de falhas.");
@@ -262,6 +266,8 @@ export default function ApiChecksPage() {
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         } as any);
+      } else {
+        setIsExecuting(false);
       }
     } catch {
       alert("Erro ao disparar checagem individual.");
