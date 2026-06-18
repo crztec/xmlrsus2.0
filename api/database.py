@@ -1649,7 +1649,9 @@ def get_abi_dashboard_stats():
                 'aguardando': stats_raw.get('aguardando', 0)
             })
 
-            if impugnation == 'Finalizou':
+            if status_lower in ['nao importado', 'não importado']:
+                stats['not_imported'] += 1
+            elif impugnation == 'Finalizou':
                 stats['finalized'] += 1
             elif impugnation == 'Impugnando':
                 stats['impugnating'] += 1
@@ -1668,8 +1670,6 @@ def get_abi_dashboard_stats():
                 stats['imported_not_analyzed'] += 1
             elif status_lower in ['falha', 'falha na análise', 'falha na analise']:
                 stats['failure'] += 1
-            elif status_lower in ['nao importado', 'não importado']:
-                stats['not_imported'] += 1
             else:
                 stats['pending'] += 1
 

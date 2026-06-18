@@ -297,10 +297,10 @@ export default function AbiHistoryPage() {
       g.nao_impugnando += stats_raw.nao_impugnando || 0;
       g.total += itemTotal;
       
-      const isFinalized = imp_status === 'Finalizou';
-      const isImpugnating = imp_status === 'Impugnando';
-      const isNotStarted = imp_status === 'Não Iniciou';
       const isNotImported = (status === 'nao importado' || status === 'não importado');
+      const isFinalized = !isNotImported && imp_status === 'Finalizou';
+      const isImpugnating = !isNotImported && imp_status === 'Impugnando';
+      const isNotStarted = !isNotImported && imp_status === 'Não Iniciou';
 
       g.finalized += isFinalized ? 1 : 0;
       g.impugnating += isImpugnating ? 1 : 0;
