@@ -1,11 +1,15 @@
 import copy
 import logging
 import os
+import re
 import secrets
 import sys
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
+
+from cachetools import TTLCache
 
 import firebase_admin
 from firebase_admin import credentials, firestore, storage
@@ -61,6 +65,27 @@ if not firestore_db:
     except Exception as e:
         logger.error(f"Falha ao inicializar Firestore client: {e}")
         firestore_db = None
+
+# ============ Performance: In-Memory TTL Caches ============
+# Avoids redundant Firestore reads on frequently-called read-only endpoints.
+# Each cache stores the full response and expires after its TTL.
+_cache_all_clients = TTLCache(maxsize=1, ttl=60)       # 60s — clients change only via robot runs
+_cache_dashboard_stats = TTLCache(maxsize=1, ttl=30)   # 30s — dashboard can tolerate slight staleness
+_cache_historical_data = TTLCache(maxsize=1, ttl=120)  # 120s — historical data rarely changes
+_cache_active_abi = TTLCache(maxsize=1, ttl=60)        # 60s — ABI only changes every few weeks
+_cache_abi_schedule = TTLCache(maxsize=1, ttl=120)     # 120s — schedule changes only on admin uploads
+
+# Thread pool for parallelizing Firestore subcollection reads (N+1 → parallel)
+_firestore_pool = ThreadPoolExecutor(max_workers=10)
+
+def invalidate_abi_caches():
+    """Clears all ABI-related caches. Call after write operations that modify ABI data."""
+    _cache_all_clients.clear()
+    _cache_dashboard_stats.clear()
+    _cache_historical_data.clear()
+    _cache_active_abi.clear()
+    _cache_abi_schedule.clear()
+    logger.info("ABI caches invalidated.")
 
 def upload_xml_to_storage(task_id, filename, file_content_bytes):
     """
@@ -267,7 +292,11 @@ def get_pending_users():
     return get_all_users_by_status('pending')
 
 def get_all_clients():
-    """Returns all clients from client_configs, deduplicated by normalized Name + CNPJ."""
+    """Returns all clients from client_configs, deduplicated by normalized Name + CNPJ.
+    Results are cached for 60s to avoid redundant Firestore reads."""
+    cached = _cache_all_clients.get('all_clients')
+    if cached is not None:
+        return cached
     try:
         docs = firestore_db.collection('client_configs').stream()
         clients = []
@@ -314,6 +343,7 @@ def get_all_clients():
             })
             
         clients.sort(key=lambda x: x['name'])
+        _cache_all_clients['all_clients'] = clients
         return clients
     except Exception as e:
         logger.error(f"Erro ao buscar todos os clientes: {e}")
@@ -561,9 +591,8 @@ def update_client_api_status(client_id, status, message, task_id=None, screensho
     if not client_id: return False
     try:
         client_ref = firestore_db.collection('client_configs').document(client_id)
-        doc = client_ref.get()
         
-        # Gerenciamento de histórico (últimos 10 status)
+        # Single Firestore read instead of two redundant .get() calls
         client_doc = client_ref.get()
         
         update_data = {
@@ -872,7 +901,6 @@ def get_all_xml_data():
 
     # Ordenação por ABI Decrescente (Numérica)
     def extract_num(s):
-        import re
         m = re.search(r'(\d+)', str(s))
         return int(m.group(1)) if m else 0
 
@@ -887,7 +915,6 @@ def check_abi_already_imported(razao_social, numero_abi):
     if not razao_social or not numero_abi:
         return False
     try:
-        import re
         # Extrai apenas os números: '72°' -> '72'
         abi_clean = re.sub(r'\D', '', str(numero_abi))
         if not abi_clean: return False
@@ -1427,23 +1454,29 @@ def get_active_task(category="abi"):
         return None
 
 def get_abi_schedule():
-    """Returns the complete ABI schedule."""
+    """Returns the complete ABI schedule. Cached for 120s."""
+    cached = _cache_abi_schedule.get('schedule')
+    if cached is not None:
+        return cached
     try:
         docs = firestore_db.collection('cronograma_abis').stream()
         schedule = [doc.to_dict() for doc in docs]
         # Ordenação básica por ABI
         def extract_num(s):
-            import re
             m = re.search(r'(\d+)', str(s))
             return int(m.group(1)) if m else 0
         schedule.sort(key=lambda x: extract_num(x.get('ABI', '0')))
+        _cache_abi_schedule['schedule'] = schedule
         return schedule
     except Exception as e:
         logger.error(f"Erro ao buscar cronograma ABI: {e}")
         return []
 
 def get_active_abi():
-    """Identifies the active ABI based on 'Data fim de Ciência'."""
+    """Identifies the active ABI based on 'Data fim de Ciência'. Cached for 60s."""
+    cached = _cache_active_abi.get('active')
+    if cached is not None:
+        return cached
     try:
         schedule = get_abi_schedule()
         if not schedule: return None
@@ -1470,6 +1503,7 @@ def get_active_abi():
         if not active and schedule:
             active = schedule[-1]
             
+        _cache_active_abi['active'] = active
         return active
     except Exception as e:
         logger.error(f"Erro ao identificar ABI ativo: {e}")
@@ -1531,13 +1565,17 @@ def update_client_abi_status(client_id, abi, status, message, task_id=None, is_b
         return False
 
 def get_abi_historical_data():
-    """Recupera o histórico de todos os ABIs finalizados/arquivados para todos os clientes."""
+    """Recupera o histórico de todos os ABIs finalizados/arquivados para todos os clientes.
+    Cached for 120s. Uses get_all_clients() cache for client name resolution."""
+    cached = _cache_historical_data.get('historical')
+    if cached is not None:
+        return cached
     try:
-        import re
         historical_docs = firestore_db.collection_group('abi_historical_stats').get()
         
-        clients_ref = firestore_db.collection('client_configs').get()
-        client_names = {c.id: c.to_dict().get('name', c.id) for c in clients_ref}
+        # Reuse cached client list instead of a separate Firestore read
+        all_clients = get_all_clients()
+        client_names = {c['id']: c['name'] for c in all_clients}
         
         results = []
         for doc in historical_docs:
@@ -1554,13 +1592,15 @@ def get_abi_historical_data():
             
         # Ordenar por ABI decrescente e depois alfabeticamente pelo nome do cliente
         results.sort(key=lambda x: (int(re.sub(r'\D', '', str(x.get('abi', '0')))) if re.sub(r'\D', '', str(x.get('abi', '0'))) else 0, x.get('client_name', '')), reverse=True)
+        _cache_historical_data['historical'] = results
         return results
     except Exception as e:
         logger.error(f"Erro ao buscar histórico de ABIs: {e}")
         return []
 
 def get_abi_historical_snapshots(abi_num):
-    """Recupera os snapshots diários de um ABI específico (ativo ou arquivado)."""
+    """Recupera os snapshots diários de um ABI específico (ativo ou arquivado).
+    Parallelizes client subcollection reads to avoid N+1 sequential queries."""
     try:
         snapshots_ref = firestore_db.collection('current_abi_evolution').document(str(abi_num)).collection('snapshots').order_by('date').get()
         timeline = []
@@ -1569,10 +1609,11 @@ def get_abi_historical_snapshots(abi_num):
             if 'timestamp' in data: del data['timestamp']
             timeline.append(data)
         
-        # Também busca por cliente se houver snapshots individuais
+        # Parallel client snapshot reads (was N+1 sequential queries)
         client_evolution = {}
         client_snaps_docs = firestore_db.collection('current_abi_evolution').document(str(abi_num)).collection('client_snapshots').get()
-        for c_doc in client_snaps_docs:
+        
+        def _fetch_client_snaps(c_doc):
             c_id = c_doc.id
             snaps_ref = c_doc.reference.collection('snapshots').order_by('date').get()
             t = []
@@ -1580,8 +1621,14 @@ def get_abi_historical_snapshots(abi_num):
                 sd = s.to_dict()
                 if 'timestamp' in sd: del sd['timestamp']
                 t.append(sd)
-            if t:
-                client_evolution[c_id] = t
+            return (c_id, t) if t else None
+        
+        if client_snaps_docs:
+            futures = [_firestore_pool.submit(_fetch_client_snaps, c_doc) for c_doc in client_snaps_docs]
+            for future in as_completed(futures):
+                result = future.result()
+                if result:
+                    client_evolution[result[0]] = result[1]
                 
         return {"timeline": timeline, "client_evolution": client_evolution}
     except Exception as e:
@@ -1589,13 +1636,15 @@ def get_abi_historical_snapshots(abi_num):
         return {"timeline": [], "client_evolution": {}}
 
 def get_abi_dashboard_stats():
-    """Calculates stats for the ABI dashboard."""
+    """Calculates stats for the ABI dashboard.
+    Cached for 30s. Uses parallel reads for client evolution snapshots."""
+    cached = _cache_dashboard_stats.get('stats')
+    if cached is not None:
+        return cached
     try:
-        import re
-
         clients = get_all_clients()
 
-        # Obtém o ABI ativo ANTES do loop para usar na comparação
+        # Obtém o ABI ativo ANTES do loop para usar na comparação (also cached)
         active_abi = get_active_abi()
         active_abi_digits = re.sub(r'\D', '', str(active_abi.get('ABI', ''))) if active_abi else ''
 
@@ -1686,17 +1735,24 @@ def get_abi_dashboard_stats():
                     if 'timestamp' in data: del data['timestamp']
                     evolution_timeline.append(data)
 
-                for c in client_details:
-                    c_id = c.get('id')
-                    if not c_id: continue
+                # Parallel client snapshot reads (was N+1 sequential queries)
+                def _fetch_client_evolution(c_detail):
+                    c_id = c_detail.get('id')
+                    if not c_id:
+                        return None
                     snaps_ref = firestore_db.collection('current_abi_evolution').document(str(abi_num)).collection('client_snapshots').document(c_id).collection('snapshots').order_by('date').get()
                     timeline = []
                     for s in snaps_ref:
                         s_data = s.to_dict()
                         if 'timestamp' in s_data: del s_data['timestamp']
                         timeline.append(s_data)
-                    if timeline:
-                        client_evolution[c_id] = timeline
+                    return (c_id, timeline) if timeline else None
+
+                futures = [_firestore_pool.submit(_fetch_client_evolution, c) for c in client_details]
+                for future in as_completed(futures):
+                    result = future.result()
+                    if result:
+                        client_evolution[result[0]] = result[1]
 
         stats['evolution_timeline'] = evolution_timeline
         stats['client_evolution'] = client_evolution
@@ -1704,6 +1760,7 @@ def get_abi_dashboard_stats():
         stats['abi_num'] = active_abi.get('ABI') if active_abi else None
         stats['abi_started'] = abi_started  # True se o robô já processou algum cliente para este ABI
         stats['total_atendimentos'] = sum(c.get('total', 0) for c in client_details)
+        _cache_dashboard_stats['stats'] = stats
         return stats
     except Exception as e:
         logger.error(f"Erro ao calcular estatísticas ABI: {e}")

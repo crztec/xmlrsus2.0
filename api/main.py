@@ -545,6 +545,7 @@ async def upload_abi_schedule(file: UploadFile = File(...), user = Depends(get_c
         data_list = df.to_dict(orient='records')
 
         if db.save_abi_schedule(data_list):
+            db.invalidate_abi_caches()  # Clear stale cached schedule/ABI data
             return {"status": "success", "message": f"{len(data_list)} registros de {current_year} processados com sucesso."}
         raise HTTPException(status_code=500, detail="Erro ao salvar cronograma no banco.")
     except Exception as e:
@@ -583,6 +584,7 @@ async def backfill_abi_snapshot(request: BackfillSnapshotRequest, user = Depends
     result = db.backfill_abi_snapshot(request.abi_num, request.date_override)
     if not result.get("ok"):
         raise HTTPException(status_code=400, detail=result.get("error", "Erro desconhecido ao fazer backfill."))
+    db.invalidate_abi_caches()  # Clear stale cached historical data
     return result
 
 @app.get("/admin/abi-historical-debug")
@@ -611,6 +613,7 @@ async def archive_current_abi(request: ArchiveAbiRequest, user = Depends(get_cur
     result = db.archive_current_abi_as_historical(request.abi_num, request.date_override)
     if not result.get("ok"):
         raise HTTPException(status_code=400, detail=result.get("error", "Erro ao arquivar ABI."))
+    db.invalidate_abi_caches()  # Clear stale cached historical/dashboard data
     return result
 
 @app.post("/start-abi-check")
