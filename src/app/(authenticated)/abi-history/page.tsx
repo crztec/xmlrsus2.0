@@ -63,7 +63,7 @@ export default function AbiHistoryPage() {
       }
     }
     if (historicalData.length > 0) {
-      const abis = historicalData.map(h => parseInt(String(h.abi).replace(/\D/g, ''))).filter(n => !isNaN(n));
+      const abis = historicalData.map((h: any) => parseInt(String(h.abi).replace(/\D/g, ''))).filter((n: number) => !isNaN(n));
       if (abis.length > 0) {
         return String(Math.max(...abis));
       }
@@ -154,7 +154,7 @@ export default function AbiHistoryPage() {
     }
   };
 
-  const filteredHistory = historicalData.filter(item => 
+  const filteredHistory = historicalData.filter((item: any) => 
     item.client_name.toLowerCase().includes(searchQuery.toLowerCase()) || 
     String(item.abi).toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -192,7 +192,7 @@ export default function AbiHistoryPage() {
     })).filter(d => d.value > 0);
 
     const evoMap: Record<string, number> = {};
-    historicalData.forEach(item => {
+    historicalData.forEach((item: any) => {
       const abi = String(item.abi || 'N/A');
       // O total pode estar em impugnation_stats.total (formato do robô/arquivo)
       // ou em item.total (formato legado de dados de teste)
@@ -242,7 +242,7 @@ export default function AbiHistoryPage() {
 
   const historicalAbisList = useMemo(() => {
     const abis = new Set<string>();
-    historicalData.forEach(item => abis.add(String(item.abi)));
+    historicalData.forEach((item: any) => abis.add(String(item.abi)));
     return Array.from(abis).sort((a, b) => {
       const numA = parseInt(a.replace(/\D/g, '')) || 0;
       const numB = parseInt(b.replace(/\D/g, '')) || 0;
@@ -325,23 +325,23 @@ export default function AbiHistoryPage() {
       .sort((a, b) => b.total - a.total)
       .slice(0, topLimit);
 
-    const totalGlobal = clients.reduce((acc, curr) => acc + (curr.total || 0), 0);
+    const totalGlobal = clients.reduce((acc: number, curr: any) => acc + (curr.total || 0), 0);
     
     const dist = [
-      { name: 'Impugnados', value: clients.reduce((acc, curr) => acc + (curr.impugnados || 0), 0) },
-      { name: 'Aptos', value: clients.reduce((acc, curr) => acc + (curr.aptos || 0), 0) },
-      { name: 'Aguardando', value: clients.reduce((acc, curr) => acc + (curr.aguardando || 0), 0) },
-      { name: 'Não Impugnados', value: clients.reduce((acc, curr) => acc + (curr.nao_impugnando || 0), 0) },
-    ].map(d => ({
+      { name: 'Impugnados', value: clients.reduce((acc: number, curr: any) => acc + (curr.impugnados || 0), 0) },
+      { name: 'Aptos', value: clients.reduce((acc: number, curr: any) => acc + (curr.aptos || 0), 0) },
+      { name: 'Aguardando', value: clients.reduce((acc: number, curr: any) => acc + (curr.aguardando || 0), 0) },
+      { name: 'Não Impugnados', value: clients.reduce((acc: number, curr: any) => acc + (curr.nao_impugnando || 0), 0) },
+    ].map((d: any) => ({
       ...d,
       percentage: totalGlobal > 0 ? Math.round((d.value / totalGlobal) * 100) : 0
-    })).filter(d => d.value > 0);
+    })).filter((d: any) => d.value > 0);
 
     const summary = {
-      finalized: clients.reduce((acc, c) => acc + (c.finalized || 0), 0),
-      impugnating: clients.reduce((acc, c) => acc + (c.impugnating || 0), 0),
-      not_started: clients.reduce((acc, c) => acc + (c.not_started || 0), 0),
-      not_imported: clients.reduce((acc, c) => acc + (c.not_imported || 0), 0),
+      finalized: clients.reduce((acc: number, c: any) => acc + (c.finalized || 0), 0),
+      impugnating: clients.reduce((acc: number, c: any) => acc + (c.impugnating || 0), 0),
+      not_started: clients.reduce((acc: number, c: any) => acc + (c.not_started || 0), 0),
+      not_imported: clients.reduce((acc: number, c: any) => acc + (c.not_imported || 0), 0),
     };
 
     return { topImpugnados: imp, topAguardando: agu, topNaoImpugnados: nImp, distributionData: dist, totalGlobal, summary, clients };
@@ -415,7 +415,7 @@ export default function AbiHistoryPage() {
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight whitespace-nowrap">Exibir:</span>
             <select 
               value={topLimit} 
-              onChange={(e) => setTopLimit(Number(e.target.value))}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setTopLimit(Number(e.target.value))}
               className="bg-transparent border-none outline-none text-[12px] font-bold text-gax-blue cursor-pointer w-full"
             >
               <option value={5}>Top 5</option>
@@ -516,7 +516,7 @@ export default function AbiHistoryPage() {
               <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 min-w-[200px]">
                 <select 
                   value={evolutionClientId}
-                  onChange={(e) => setEvolutionClientId(e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setEvolutionClientId(e.target.value)}
                   className="bg-transparent border-none outline-none text-[11px] font-bold text-slate-600 cursor-pointer w-full"
                 >
                   <option value="global">Visão Consolidada (Geral)</option>
@@ -550,7 +550,7 @@ export default function AbiHistoryPage() {
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                     <XAxis 
                       dataKey="date" 
-                      tickFormatter={(val) => {
+                      tickFormatter={(val: string) => {
                         if (!val) return '';
                         const [y, m, d] = val.split('-');
                         return `${d}/${m}`;
@@ -568,7 +568,7 @@ export default function AbiHistoryPage() {
                     />
                     <Tooltip 
                       contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '12px', fontWeight: 'bold' }}
-                      labelFormatter={(label) => {
+                      labelFormatter={(label: any) => {
                         if (!label) return '';
                         const [y, m, d] = label.split('-');
                         return `${d}/${m}/${y}`;
@@ -600,7 +600,7 @@ export default function AbiHistoryPage() {
                 </h4>
               </div>
               <div style={{ height: `${chartHeight}px` }} className="w-full transition-all">
-                {topImpugnados.some(i => i.total > 0) ? (
+                {topImpugnados.some((i: any) => i.total > 0) ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={topImpugnados} layout="vertical" margin={{ left: 20, right: 30, top: 0, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
@@ -642,7 +642,7 @@ export default function AbiHistoryPage() {
                 </h4>
               </div>
               <div style={{ height: `${chartHeight}px` }} className="w-full transition-all">
-                {topAguardando.some(i => i.total > 0) ? (
+                {topAguardando.some((i: any) => i.total > 0) ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={topAguardando} layout="vertical" margin={{ left: 20, right: 30, top: 0, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
@@ -684,7 +684,7 @@ export default function AbiHistoryPage() {
                 </h4>
               </div>
               <div style={{ height: `${chartHeight}px` }} className="w-full transition-all">
-                {topNaoImpugnados.some(i => i.total > 0) ? (
+                {topNaoImpugnados.some((i: any) => i.total > 0) ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={topNaoImpugnados} layout="vertical" margin={{ left: 20, right: 30, top: 0, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
@@ -740,7 +740,7 @@ export default function AbiHistoryPage() {
                           <XAxis type="number" hide />
                           <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} fontSize={10} fontWeight={600} width={80} tick={{ fill: '#64748b' }} />
                           <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }} formatter={(value: any, name: any, props: any) => [`${value} (${((value / (props.payload.clientTotal || 1)) * 100).toFixed(0)}% do total do cliente)`, 'Qtd.']} />
-                          <Bar dataKey="value" fill={DISTRIBUTION_COLORS[distributionData.findIndex(d => d.name === selectedSlice) || 0] || '#94a3b8'} radius={[0, 4, 4, 0]} barSize={12} />
+                          <Bar dataKey="value" fill={DISTRIBUTION_COLORS[distributionData.findIndex((d: any) => d.name === selectedSlice) || 0] || '#94a3b8'} radius={[0, 4, 4, 0]} barSize={12} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -757,7 +757,7 @@ export default function AbiHistoryPage() {
                           dataKey="value"
                           labelLine={false}
                           className="cursor-pointer hover:opacity-90 transition-opacity outline-none"
-                          onClick={(data) => setSelectedSlice(data.name || null)}
+                          onClick={(data: any) => setSelectedSlice(data.name || null)}
                           label={({ cx, cy, midAngle, innerRadius, outerRadius, percent }: any) => {
                             if ((percent || 0) < 0.05) return null;
                             const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
@@ -770,7 +770,7 @@ export default function AbiHistoryPage() {
                             );
                           }}
                         >
-                          {distributionData.map((entry, index) => (
+                          {distributionData.map((entry: any, index: number) => (
                             <Cell key={`cell-${index}`} fill={DISTRIBUTION_COLORS[index % DISTRIBUTION_COLORS.length]} />
                           ))}
                         </Pie>
@@ -797,7 +797,7 @@ export default function AbiHistoryPage() {
                 )}
               </div>
               <div className="grid grid-cols-2 gap-3 mt-4 border-t border-slate-50 pt-4">
-                {distributionData.map((item, idx) => (
+                {distributionData.map((item: any, idx: number) => (
                   <div key={idx} className="flex items-center justify-between group cursor-default">
                     <div className="flex items-center gap-2">
                       <div className="h-2 w-2 rounded-full" style={{ backgroundColor: DISTRIBUTION_COLORS[idx] }} />
@@ -874,7 +874,7 @@ export default function AbiHistoryPage() {
                 <div className="flex items-center gap-2">
                   <select
                     value={evolutionClientId}
-                    onChange={(e) => setEvolutionClientId(e.target.value)}
+                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setEvolutionClientId(e.target.value)}
                     className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-[11px] font-bold text-slate-600 outline-none hover:border-gax-blue transition-colors"
                   >
                     <option value="global">Visão Consolidada</option>
@@ -920,7 +920,7 @@ export default function AbiHistoryPage() {
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                     <XAxis
                       dataKey="date"
-                      tickFormatter={(val) => {
+                      tickFormatter={(val: string) => {
                         if (!val) return '';
                         const parts = val.split('-');
                         return parts.length >= 3 ? `${parts[2]}/${parts[1]}` : val;
@@ -933,7 +933,7 @@ export default function AbiHistoryPage() {
                     <YAxis tickLine={false} axisLine={false} tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 600 }} width={40} />
                     <Tooltip
                       contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }}
-                      labelFormatter={(label) => {
+                      labelFormatter={(label: any) => {
                         if (!label) return '';
                         const parts = label.split('-');
                         return parts.length >= 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : label;
@@ -992,7 +992,7 @@ export default function AbiHistoryPage() {
                               stroke="#fff"
                               strokeWidth={2.5}
                               style={{ cursor: 'pointer' }}
-                              onClick={(e) => {
+                              onClick={(e: any) => {
                                 e.stopPropagation();
                                 if (payload.rawAbi) setSelectedHistoricalAbi(payload.rawAbi);
                               }}
@@ -1011,7 +1011,7 @@ export default function AbiHistoryPage() {
                               stroke="#3b82f6"
                               strokeWidth={3}
                               style={{ cursor: 'pointer' }}
-                              onClick={(e) => {
+                              onClick={(e: any) => {
                                 e.stopPropagation();
                                 if (payload.rawAbi) setSelectedHistoricalAbi(payload.rawAbi);
                               }}
@@ -1146,7 +1146,7 @@ export default function AbiHistoryPage() {
                                 <XAxis type="number" hide />
                                 <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} fontSize={10} fontWeight={600} width={80} tick={{ fill: '#64748b' }} />
                                 <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }} formatter={(value: any, name: any, props: any) => [`${value} (${((value / (props.payload.clientTotal || 1)) * 100).toFixed(0)}% do total do cliente)`, 'Qtd.']} />
-                                <Bar dataKey="value" fill={DISTRIBUTION_COLORS[historicalDataForCharts?.distributionData.findIndex(d => d.name === selectedHistoricalSlice) || 0] || '#94a3b8'} radius={[0, 4, 4, 0]} barSize={12} />
+                                <Bar dataKey="value" fill={DISTRIBUTION_COLORS[historicalDataForCharts?.distributionData.findIndex((d: any) => d.name === selectedHistoricalSlice) || 0] || '#94a3b8'} radius={[0, 4, 4, 0]} barSize={12} />
                               </BarChart>
                             </ResponsiveContainer>
                           </div>
@@ -1163,7 +1163,7 @@ export default function AbiHistoryPage() {
                                 dataKey="value"
                                 labelLine={false}
                                 className="cursor-pointer hover:opacity-90 transition-opacity outline-none"
-                                onClick={(data) => setSelectedHistoricalSlice(data.name || null)}
+                                onClick={(data: any) => setSelectedHistoricalSlice(data.name || null)}
                                 label={({ cx, cy, midAngle, innerRadius, outerRadius, percent }: any) => {
                                   if ((percent || 0) < 0.05) return null;
                                   const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
@@ -1176,7 +1176,7 @@ export default function AbiHistoryPage() {
                                   );
                                 }}
                               >
-                                {historicalDataForCharts?.distributionData.map((entry, index) => (
+                                {historicalDataForCharts?.distributionData.map((entry: any, index: number) => (
                                   <Cell key={`cell-${index}`} fill={DISTRIBUTION_COLORS[index % DISTRIBUTION_COLORS.length]} />
                                 ))}
                               </Pie>
@@ -1199,7 +1199,7 @@ export default function AbiHistoryPage() {
                       )}
                     </div>
                     <div className="grid grid-cols-2 gap-3 mt-4 border-t border-slate-50 pt-4">
-                      {historicalDataForCharts?.distributionData.map((item, idx) => (
+                      {historicalDataForCharts?.distributionData.map((item: any, idx: number) => (
                         <div key={idx} className="flex items-center justify-between group cursor-default">
                           <div className="flex items-center gap-2">
                             <div className="h-2 w-2 rounded-full" style={{ backgroundColor: DISTRIBUTION_COLORS[idx] }} />
