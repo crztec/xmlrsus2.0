@@ -1837,11 +1837,8 @@ def archive_current_abi_as_historical(abi_num: str, date_override: str = None):
 
             stats_raw = client_data.get('impugnation_stats', {})
 
-            # Pula clientes que não têm dados reais (total = 0 e sem nenhum campo)
-            has_data = any(stats_raw.get(f, 0) > 0 for f in ['total', 'impugnados', 'aptos', 'aguardando', 'nao_impugnando'])
-            if not has_data:
-                skipped_clients.append(client_name)
-                continue
+            # Não pula mais os clientes com total = 0 para garantir que todos fiquem registrados no histórico
+
 
             impugnados     = stats_raw.get('impugnados', 0)
             aptos          = stats_raw.get('aptos', 0)
