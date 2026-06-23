@@ -507,7 +507,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                             body = await response.body()
                             text = body.decode('utf-8', errors='ignore').lower()
                             
-                            err_kws = ['error integração', 's0000', 'one or more errors', 'exception', 'ocorreu um erro', 'falha ao salvar']
+                            err_kws = ['error integração', 'one or more errors', 'exception', 'ocorreu um erro', 'falha ao salvar']
                             if any(k in text for k in err_kws) and "sucesso" not in text:
                                 network_status["error"] = f"Erro detectado na integração."
                             
@@ -542,11 +542,11 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                 log_task("Clique em 'Atualizar' realizado. Aguardando resposta do portal...")
                 
                 # --- VERIFICAÇÃO FINAL: ONLINE VS OFFLINE ---
-                log_task("Aguardando resposta do portal (Polling de até 18s)...")
+                log_task("Aguardando resposta do portal...")
                 update_progress(98)
                 
                 # Polling loop para lidar com lentidão no portal
-                for attempt in range(12):
+                for attempt in range(10):
                     await asyncio.sleep(1.5)
                     
                     # 0. Verifica o interceptador de rede
@@ -563,7 +563,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                     # ============================================================
                     popup_result = await page.evaluate("""
                         () => {
-                            const errorPatterns = /error|erro|falha|indispon|fail|exception|timeout|s\\d{4,}/i;
+                            const errorPatterns = /error|erro|falha|indispon|fail|exception|timeout/i;
                             // Keywords estritas para evitar falsos positivos com a grid de fundo
                             const successPatterns = /atualizado com sucesso|dados atualizados|salvo com sucesso|gravado com sucesso/i;
                             
@@ -640,7 +640,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                             try:
                                 popup_result = await frame.evaluate("""
                                     () => {
-                                        const errorPatterns = /error|erro|falha|indispon|fail|exception|timeout|s\\d{4,}/i;
+                                        const errorPatterns = /error|erro|falha|indispon|fail|exception|timeout/i;
                                         const successPatterns = /atualizado com sucesso|dados atualizados|salvo com sucesso|gravado com sucesso/i;
                                         const selectors = ['.modal.show', '.modal.in', '.modal[style*="display: block"]', '.ui-dialog', '[role="dialog"]', '[role="alertdialog"]', '.popup', '.dialog', 'div[class*="popup"]', 'div[class*="dialog"]', 'div[class*="modal"]', 'div[class*="Popup"]', 'div[class*="Dialog"]', 'div[class*="Modal"]', 'div[class*="error"]', 'div[class*="Error"]', '.alert-danger', '.dx-overlay-content', '.dx-popup-content'];
                                         for (const sel of selectors) {
@@ -682,7 +682,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                             return "offline", f"Erro de integração: {popup_text}", screenshot_url
                         
                         elif popup_type == 'success':
-                            log_task(f"Popup de SUCESSO detectado no instante {attempt+1} ({popup_selector}): {popup_text}", "SUCCESS")
+                            log_task(f"Popup de SUCESSO detectado ({popup_selector}): {popup_text}", "SUCCESS")
                             return "online", "Conexão RSUS Ativa e funcional.", None
                             
                     # ============================================================
@@ -702,7 +702,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                         'falha na atualização', 'falha na integração', 'falha ao conectar',
                         'não foi possível', 'indisponível', 'serviço indisponível', 'service unavailable',
                         'internal server error', 'tente novamente', 'conexão recusada',
-                        'connection refused', 'timeout', 'time out', 's0000',
+                        'connection refused', 'timeout', 'time out',
                     ]
                     
                     matched_error = next((k for k in error_keywords if k in all_text_lower), None)
