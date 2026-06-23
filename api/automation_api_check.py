@@ -511,7 +511,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                             if any(k in text for k in err_kws) and "sucesso" not in text:
                                 network_status["error"] = f"Erro detectado na integração."
                             
-                            suc_kws = ['atualizado com sucesso', 'dados atualizados', 'salvo com sucesso']
+                            suc_kws = ['atualizado com sucesso', 'dados atualizados', 'dados foram atualizados', 'salvo com sucesso']
                             if any(k in text for k in suc_kws) and not network_status["error"]:
                                 if response.request.method in ['POST', 'PUT']:
                                     network_status["success"] = "Sucesso detectado no payload."
@@ -542,7 +542,6 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                 log_task("Clique em 'Atualizar' realizado. Aguardando resposta do portal...")
                 
                 # --- VERIFICAÇÃO FINAL: ONLINE VS OFFLINE ---
-                log_task("Aguardando resposta do portal...")
                 update_progress(98)
                 
                 # Polling loop para lidar com lentidão no portal
@@ -565,7 +564,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                         () => {
                             const errorPatterns = /error|erro|falha|indispon|fail|exception|timeout/i;
                             // Keywords estritas para evitar falsos positivos com a grid de fundo
-                            const successPatterns = /atualizado com sucesso|dados atualizados|salvo com sucesso|gravado com sucesso/i;
+                            const successPatterns = /atualizado com sucesso|dados atualizados|dados foram atualizados|salvo com sucesso|gravado com sucesso/i;
                             
                             const popupSelectors = [
                                 '.modal.show', '.modal.in', '.modal[style*="display: block"]',
@@ -641,7 +640,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                                 popup_result = await frame.evaluate("""
                                     () => {
                                         const errorPatterns = /error|erro|falha|indispon|fail|exception|timeout/i;
-                                        const successPatterns = /atualizado com sucesso|dados atualizados|salvo com sucesso|gravado com sucesso/i;
+                                        const successPatterns = /atualizado com sucesso|dados atualizados|dados foram atualizados|salvo com sucesso|gravado com sucesso/i;
                                         const selectors = ['.modal.show', '.modal.in', '.modal[style*="display: block"]', '.ui-dialog', '[role="dialog"]', '[role="alertdialog"]', '.popup', '.dialog', 'div[class*="popup"]', 'div[class*="dialog"]', 'div[class*="modal"]', 'div[class*="Popup"]', 'div[class*="Dialog"]', 'div[class*="Modal"]', 'div[class*="error"]', 'div[class*="Error"]', '.alert-danger', '.dx-overlay-content', '.dx-popup-content'];
                                         for (const sel of selectors) {
                                             try {
@@ -717,7 +716,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                         return "offline", f"Portal retornou erro: {error_context[:200]}", None
                     
                     # Keywords de sucesso estritas (sem palavras soltas como 'sucesso' ou 'concluído')
-                    success_keywords = ['atualizado com sucesso', 'dados atualizados', 'salvo com sucesso', 'gravado com sucesso']
+                    success_keywords = ['atualizado com sucesso', 'dados atualizados', 'dados foram atualizados', 'salvo com sucesso', 'gravado com sucesso']
                     if any(k in all_text_lower for k in success_keywords):
                         log_task(f"Mensagem de sucesso detectada no texto no instante {attempt+1}.", "SUCCESS")
                         return "online", "Conexão RSUS Ativa e funcional.", None
