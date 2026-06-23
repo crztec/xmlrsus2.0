@@ -263,46 +263,51 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                 # Iniciamos polling ativo pelos elementos da grid IMEDIATAMENTE.
                 
                 # Função auxiliar para encontrar e clicar em elementos em qualquer frame (incluindo aninhados)
-                async def click_in_frames(selector, text_match=None, title_match=None):
+                async def click_in_frames(selector, text_match=None, title_match=None, search_frames_first=False, reverse_elements=False):
                     async def try_click_visible(root_locator):
                         try:
-                            # Se o locator tiver múltiplos matches (ex: vários ícones .fa-bars), 
-                            # tentamos clicar no primeiro que estiver visível na tela.
                             items = await root_locator.all()
+                            if reverse_elements:
+                                items.reverse()
                             for item in items:
                                 if await item.is_visible():
+                                    try:
+                                        # Força o scroll em containers problemáticos (DevExpress/Bootstrap)
+                                        await page.evaluate("""
+                                            () => {
+                                                document.querySelectorAll('.dxpc-content, .modal-body, .dxpc-mainDiv, .dx-scrollable-container').forEach(el => el.scrollTo(0, 99999));
+                                            }
+                                        """)
+                                    except: pass
+                                    
                                     await item.scroll_into_view_if_needed()
-                                    await item.click(force=True)
+                                    await item.click(timeout=3000)
                                     return True
                         except: pass
                         return False
 
-                    # 1. Tenta no frame principal primário
-                    target_locator = None
-                    if title_match:
-                        target_locator = page.locator(f"{selector}[title*='{title_match}']")
-                    elif text_match:
-                        target_locator = page.locator(f"{selector}:has-text('{text_match}')")
+                    def build_locator(root):
+                        if title_match: return root.locator(f"{selector}[title*='{title_match}']")
+                        elif text_match: return root.locator(f"{selector}:has-text('{text_match}')")
+                        else: return root.locator(selector)
+                    
+                    async def search_main():
+                        return await try_click_visible(build_locator(page))
+                    
+                    async def search_iframes():
+                        for frame in page.frames:
+                            try:
+                                if await try_click_visible(build_locator(frame)): return True
+                            except: continue
+                        return False
+
+                    if search_frames_first:
+                        if await search_iframes(): return True
+                        if await search_main(): return True
                     else:
-                        target_locator = page.locator(selector)
+                        if await search_main(): return True
+                        if await search_iframes(): return True
                     
-                    if await try_click_visible(target_locator):
-                        return True
-                    
-                    # 2. Varredura recursiva de todos os frames
-                    for frame in page.frames:
-                        try:
-                            f_target = None
-                            if title_match:
-                                f_target = frame.locator(f"{selector}[title*='{title_match}']")
-                            elif text_match:
-                                f_target = frame.locator(f"{selector}:has-text('{text_match}')")
-                            else:
-                                f_target = frame.locator(selector)
-                            
-                            if await try_click_visible(f_target):
-                                return True
-                        except: continue
                     return False
 
                 # 1. Tenta localizar o hambúrguer (.fa-bars ou button.dropdown-toggle)
@@ -411,10 +416,10 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                 logger.info(f"[{client_name}] Menu aberto. Navegando para 'Atendimentos'...")
                 found_atend = False
                 for _ in range(3):
-                    if await click_in_frames('a, button, li', title_match='Atendimentos'):
+                    if await click_in_frames('*', title_match='Atendimentos'):
                         found_atend = True
                         break
-                    if await click_in_frames('a, button, li', text_match='Atendimentos'):
+                    if await click_in_frames('*', text_match='Atendimentos'):
                         found_atend = True
                         break
                     await asyncio.sleep(2)
@@ -490,18 +495,52 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                     if browser: await browser.close()
                     return "offline", "Tarefa cancelada pelo usuário.", None
                 
+                # =====================================================================
+                # NOVO: NETWORK INTERCEPTION PARA LER A RESPOSTA AJAX DO PORTAL
+                # =====================================================================
+                network_status = {"error": None, "success": None, "is_updating": True}
+                
+                async def handle_response(response):
+                    if not network_status.get("is_updating"): return
+                    try:
+                        url = response.url.lower()
+                        if any(ext in url for ext in ['.js', '.css', '.png', '.jpg', '.gif', 'fonts']): return
+                        
+                        status = response.status
+                        if status >= 400:
+                            network_status["error"] = f"HTTP {status} do portal."
+                            return
+                        
+                        content_type = response.headers.get("content-type", "").lower()
+                        if "json" in content_type or "text" in content_type or "html" in content_type:
+                            body = await response.body()
+                            text = body.decode('utf-8', errors='ignore').lower()
+                            
+                            err_kws = ['error integração', 's0000', 'one or more errors', 'exception', 'ocorreu um erro', 'falha ao salvar']
+                            if any(k in text for k in err_kws) and "sucesso" not in text:
+                                network_status["error"] = f"Portal retornou erro no payload."
+                            
+                            suc_kws = ['atualizado com sucesso', 'dados atualizados', 'salvo com sucesso']
+                            if any(k in text for k in suc_kws) and not network_status["error"]:
+                                if response.request.method in ['POST', 'PUT']:
+                                    network_status["success"] = "Sucesso detectado no payload."
+                    except: pass
+                
+                page.on("response", handle_response)
+                # =====================================================================
+
                 found_update = False
                 for _ in range(5):
                     # Tenta encontrar por texto (botões, links, divs)
-                    if await click_in_frames('*', text_match='Atualizar'):
+                    if await click_in_frames('*', text_match='Atualizar', search_frames_first=True, reverse_elements=True):
                         found_update = True
                         break
                     # Tenta encontrar por input value
-                    if await click_in_frames("input[value='Atualizar'], input[value='ATUALIZAR']"):
+                    if await click_in_frames("input[value='Atualizar'], input[value='ATUALIZAR']", search_frames_first=True, reverse_elements=True):
                         found_update = True
                         break
                     # Tenta encontrar com uppercase
-                    if await click_in_frames('*', text_match='ATUALIZAR'):
+                    if await click_in_frames('*', text_match='ATUALIZAR', search_frames_first=True, reverse_elements=True):
                         found_update = True
                         break
                     await asyncio.sleep(2)
@@ -517,6 +556,15 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                 # Polling loop para lidar com lentidão no portal
                 for attempt in range(12):
                     await asyncio.sleep(1.5)
+                    
+                    # 0. Verifica o interceptador de rede
+                    if network_status["error"]:
+                        log_task(f"Erro detectado via Rede (Interceptação AJAX): {network_status['error']}", "ERROR")
+                        return "offline", f"Portal retornou erro: {network_status['error']}", None
+                    
+                    if network_status["success"]:
+                        log_task("Sucesso detectado via Rede (Interceptação AJAX). API ATIVA.")
+                        return "online", "Conexão operacional.", None
                     
                     # ============================================================
                     # CAMADA 1: Detecção de popups/overlays/modais visíveis
