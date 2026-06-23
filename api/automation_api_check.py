@@ -714,9 +714,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                         
                         log_task(f"Erro detectado no texto no instante {attempt+1}: '{error_context}'", "WARNING")
                         
-                        screenshot_url = None
-                        
-                        return "offline", f"Portal retornou erro: {error_context[:200]}", screenshot_url
+                        return "offline", f"Portal retornou erro: {error_context[:200]}", None
                     
                     # Keywords de sucesso estritas (sem palavras soltas como 'sucesso' ou 'concluído')
                     success_keywords = ['atualizado com sucesso', 'dados atualizados', 'salvo com sucesso', 'gravado com sucesso']
