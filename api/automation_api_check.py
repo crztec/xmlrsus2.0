@@ -512,54 +512,154 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                 log_task("Clique em 'Atualizar' realizado. Aguardando resposta do portal...")
                 
                 # --- VERIFICAÇÃO FINAL: ONLINE VS OFFLINE ---
-                # Aguarda modal de sucesso ou erro (plural/singular)
-                await asyncio.sleep(4)
+                log_task("Aguardando resposta do portal (5s)...")
+                await asyncio.sleep(5)
                 
-                # 1. Detecção ativa de modais de erro (DOM-level — mais confiável que texto)
-                #    O portal RSUS exibe modais com títulos como "Error Integração" e botões "Ok".
-                error_modal_detected = await page.evaluate("""
+                # ============================================================
+                # CAMADA 1: Detecção de popups/overlays/modais visíveis
+                # Busca QUALQUER elemento de overlay na tela (não apenas Bootstrap)
+                # ============================================================
+                popup_result = await page.evaluate("""
                     () => {
-                        // Busca modais visíveis que contenham palavras de erro no título ou corpo
-                        const errorPatterns = /error|erro|falha|indispon|fail|exception|timeout/i;
+                        const errorPatterns = /error|erro|falha|indispon|fail|exception|timeout|s\\d{4,}/i;
+                        const successPatterns = /atualizado|sucesso|conclu[ií]do|salvo|gravado/i;
                         
-                        // Checa modais Bootstrap/jQuery UI (.modal, .ui-dialog) visíveis
-                        const modals = document.querySelectorAll('.modal.show, .modal.in, .modal[style*="display: block"], .ui-dialog:not([style*="display: none"]), .bootbox, .swal2-popup, [role="dialog"], [role="alertdialog"]');
-                        for (const m of modals) {
-                            const text = m.innerText || '';
-                            if (errorPatterns.test(text)) {
-                                return text.substring(0, 500);
-                            }
+                        // Seletores genéricos para popups de qualquer framework
+                        const popupSelectors = [
+                            // Bootstrap
+                            '.modal.show', '.modal.in', '.modal[style*="display: block"]',
+                            // jQuery UI
+                            '.ui-dialog:not([style*="display: none"])',
+                            // Bootbox, SweetAlert
+                            '.bootbox', '.swal2-popup',
+                            // ARIA roles
+                            '[role="dialog"]', '[role="alertdialog"]',
+                            // Overlays genéricos de portais .NET/ASP
+                            '.popup', '.dialog', '.overlay:not([style*="display: none"])',
+                            // DevExpress / Telerik / Kendo UI (comuns em portais .NET)
+                            '.dx-overlay-content', '.dx-popup-content',
+                            '.k-window:not(.k-window-minimized)',
+                            '.t-window',
+                            '.RadWindow',
+                            // Genéricos: qualquer div com z-index alto que pareça popup
+                            'div[class*="popup"]', 'div[class*="dialog"]', 'div[class*="modal"]',
+                            'div[class*="Popup"]', 'div[class*="Dialog"]', 'div[class*="Modal"]',
+                            // Alertas genéricos
+                            '.alert-danger', '.alert-error', '.alert-warning',
+                            'div[class*="error"]', 'div[class*="Error"]',
+                        ];
+                        
+                        for (const sel of popupSelectors) {
+                            try {
+                                const els = document.querySelectorAll(sel);
+                                for (const el of els) {
+                                    // Verifica se está realmente visível
+                                    const rect = el.getBoundingClientRect();
+                                    const style = window.getComputedStyle(el);
+                                    if (rect.width === 0 || rect.height === 0) continue;
+                                    if (style.display === 'none' || style.visibility === 'hidden') continue;
+                                    if (parseFloat(style.opacity) < 0.1) continue;
+                                    
+                                    const text = (el.innerText || '').trim();
+                                    if (!text || text.length < 3) continue;
+                                    
+                                    if (errorPatterns.test(text)) {
+                                        return { type: 'error', text: text.substring(0, 500), selector: sel };
+                                    }
+                                    if (successPatterns.test(text)) {
+                                        return { type: 'success', text: text.substring(0, 500), selector: sel };
+                                    }
+                                }
+                            } catch(e) {}
                         }
                         
-                        // Checa títulos de modal explícitos (h1-h5 dentro de modais)
-                        const titles = document.querySelectorAll('.modal-title, .modal-header h1, .modal-header h2, .modal-header h3, .modal-header h4, .modal-header h5, .ui-dialog-title, .bootbox-body');
-                        for (const t of titles) {
-                            const txt = (t.innerText || '').trim();
-                            if (errorPatterns.test(txt)) {
-                                const parentText = t.closest('.modal, .ui-dialog, .bootbox, [role="dialog"]');
-                                return (parentText ? parentText.innerText : txt).substring(0, 500);
-                            }
+                        // Fallback: busca qualquer elemento com z-index alto que pode ser um popup
+                        const allDivs = document.querySelectorAll('div, section, aside');
+                        for (const div of allDivs) {
+                            try {
+                                const style = window.getComputedStyle(div);
+                                const zIndex = parseInt(style.zIndex);
+                                if (isNaN(zIndex) || zIndex < 100) continue;
+                                
+                                const rect = div.getBoundingClientRect();
+                                if (rect.width < 100 || rect.height < 50) continue;
+                                if (style.display === 'none' || style.visibility === 'hidden') continue;
+                                if (style.position !== 'fixed' && style.position !== 'absolute') continue;
+                                
+                                const text = (div.innerText || '').trim();
+                                if (!text || text.length < 5) continue;
+                                
+                                if (errorPatterns.test(text)) {
+                                    return { type: 'error', text: text.substring(0, 500), selector: 'z-index:' + zIndex };
+                                }
+                                if (successPatterns.test(text)) {
+                                    return { type: 'success', text: text.substring(0, 500), selector: 'z-index:' + zIndex };
+                                }
+                            } catch(e) {}
                         }
                         
                         return null;
                     }
                 """)
                 
-                if error_modal_detected:
-                    error_detail = error_modal_detected.strip().replace('\n', ' ')[:200]
-                    log_task(f"Modal de erro detectada no portal: {error_detail}", "WARNING")
-                    
-                    # Captura screenshot forense do erro de integração
-                    screenshot_url = None
-                    try:
-                        img_bytes = await page.screenshot(full_page=False)
-                        base64_img = f"data:image/png;base64,{base64.b64encode(img_bytes).decode('utf-8')}"
-                        screenshot_url = base64_img
-                    except: pass
-                    
-                    return "offline", f"Erro de integração: {error_detail}", screenshot_url
+                # Também verifica popups dentro de iframes
+                if not popup_result:
+                    for frame in page.frames:
+                        if frame == page.main_frame:
+                            continue
+                        try:
+                            popup_result = await frame.evaluate("""
+                                () => {
+                                    const errorPatterns = /error|erro|falha|indispon|fail|exception|timeout|s\\d{4,}/i;
+                                    const successPatterns = /atualizado|sucesso|conclu[ií]do|salvo|gravado/i;
+                                    const selectors = ['.modal.show', '.modal.in', '.modal[style*="display: block"]', '.ui-dialog', '[role="dialog"]', '[role="alertdialog"]', '.popup', '.dialog', 'div[class*="popup"]', 'div[class*="dialog"]', 'div[class*="modal"]', 'div[class*="Popup"]', 'div[class*="Dialog"]', 'div[class*="Modal"]', 'div[class*="error"]', 'div[class*="Error"]', '.alert-danger', '.dx-overlay-content', '.dx-popup-content'];
+                                    for (const sel of selectors) {
+                                        try {
+                                            const els = document.querySelectorAll(sel);
+                                            for (const el of els) {
+                                                const rect = el.getBoundingClientRect();
+                                                if (rect.width === 0 || rect.height === 0) continue;
+                                                const text = (el.innerText || '').trim();
+                                                if (!text || text.length < 3) continue;
+                                                if (errorPatterns.test(text)) return { type: 'error', text: text.substring(0, 500), selector: sel };
+                                                if (successPatterns.test(text)) return { type: 'success', text: text.substring(0, 500), selector: sel };
+                                            }
+                                        } catch(e) {}
+                                    }
+                                    return null;
+                                }
+                            """)
+                            if popup_result:
+                                break
+                        except:
+                            continue
                 
-                # 2. Detecção por texto visível (fallback para modais não-padrão)
+                if popup_result:
+                    popup_type = popup_result.get('type', '')
+                    popup_text = popup_result.get('text', '').strip().replace('\n', ' ')[:200]
+                    popup_selector = popup_result.get('selector', '')
+                    
+                    if popup_type == 'error':
+                        log_task(f"Popup de ERRO detectado ({popup_selector}): {popup_text}", "WARNING")
+                        
+                        # Captura screenshot forense
+                        screenshot_url = None
+                        try:
+                            img_bytes = await page.screenshot(full_page=False)
+                            base64_img = f"data:image/png;base64,{base64.b64encode(img_bytes).decode('utf-8')}"
+                            screenshot_url = base64_img
+                        except: pass
+                        
+                        return "offline", f"Erro de integração: {popup_text}", screenshot_url
+                    
+                    elif popup_type == 'success':
+                        log_task(f"Popup de SUCESSO detectado ({popup_selector}): {popup_text}", "SUCCESS")
+                        return "online", "Conexão RSUS Ativa e funcional.", None
+                
+                # ============================================================
+                # CAMADA 2: Varredura de texto completo (fallback)
+                # Erros são verificados PRIMEIRO para evitar falsos positivos.
+                # ============================================================
                 all_text = await page.evaluate("document.body.innerText")
                 for frame in page.frames:
                     try:
@@ -568,40 +668,44 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                 
                 all_text_lower = all_text.lower()
                 
-                # IMPORTANTE: Erros são verificados ANTES de sucesso para evitar falsos positivos.
-                # Modais de erro frequentemente contêm botões "Ok" que matchavam como sucesso.
+                # Log de debug: registra o que o robô realmente vê (trunc. para 300 chars)
+                visible_summary = all_text.strip().replace('\n', ' | ')[:300]
+                log_task(f"Texto visível na tela (debug): {visible_summary}", "DEBUG")
+                
+                # Keywords de erro — verificadas PRIMEIRO
                 error_keywords = [
-                    'error integra',     # "Error Integração" (EN+PT misturado no portal)
+                    'error integra',     # "Error Integração" (portal EN+PT)
                     'erro integra',      # "Erro Integração" (PT puro)
                     'erro de integração',
-                    'one or more errors', # Mensagem comum de erro .NET do portal
+                    'error integration',
+                    'one or more errors', # .NET error
                     'errors occurred',
                     'erro ao atualizar',
                     'falha na atualização',
                     'falha na integração',
                     'falha ao conectar',
+                    'não foi possível',
                     'indisponível',
+                    'serviço indisponível',
+                    'service unavailable',
+                    'internal server error',
                     'tente novamente',
                     'conexão recusada',
+                    'connection refused',
                     'timeout',
+                    'time out',
                     's0000',             # Código de erro do portal (ex: S0000010)
                 ]
                 
-                # Palavras-chave de sucesso — NÃO inclui 'ok' pois é ambíguo (botão de error modals)
-                success_keywords = ['atualizado com sucesso', 'atualizado', 'sucesso', 'concluído', 'dados atualizados']
-                
-                # Verifica erros PRIMEIRO (prioridade defensiva)
                 matched_error = next((k for k in error_keywords if k in all_text_lower), None)
                 if matched_error:
-                    # Extrai contexto ao redor do erro para log
                     idx = all_text_lower.find(matched_error)
                     context_start = max(0, idx - 30)
                     context_end = min(len(all_text), idx + len(matched_error) + 80)
                     error_context = all_text[context_start:context_end].strip().replace('\n', ' ')
                     
-                    log_task(f"Erro detectado no portal: '{error_context}'", "WARNING")
+                    log_task(f"Erro detectado no texto do portal: '{error_context}'", "WARNING")
                     
-                    # Captura screenshot forense
                     screenshot_url = None
                     try:
                         img_bytes = await page.screenshot(full_page=False)
@@ -611,7 +715,8 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                     
                     return "offline", f"Portal retornou erro: {error_context[:200]}", screenshot_url
                 
-                # Verifica sucesso DEPOIS (só se nenhum erro foi encontrado)
+                # Keywords de sucesso — NÃO inclui 'ok' pois é ambíguo
+                success_keywords = ['atualizado com sucesso', 'dados atualizados', 'atualizado', 'sucesso', 'concluído']
                 if any(k in all_text_lower for k in success_keywords):
                     log_task("Mensagem de sucesso detectada: API configurada no RSUS está ATIVA.", "SUCCESS")
                     return "online", "Conexão RSUS Ativa e funcional.", None
