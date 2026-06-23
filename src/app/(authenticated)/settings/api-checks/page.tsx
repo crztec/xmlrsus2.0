@@ -122,13 +122,13 @@ export default function ApiChecksPage() {
                   setActiveTaskId(null);
                   setIsExecuting(false);
                 }
-              }, 5000);
+              }, 2000);
             }
           }
         } catch (err) {
           console.error("Erro polling status API:", err);
         }
-      }, 10000);
+      }, 3000);
     }
     return () => clearInterval(interval);
   }, [activeTaskId, showLogs, viewingTaskId]);
