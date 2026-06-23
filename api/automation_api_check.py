@@ -412,6 +412,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                 
                 # 2. Aguarda o menu aparecer
                 await asyncio.sleep(1)
+                update_progress(90)
                 
                 logger.info(f"[{client_name}] Menu aberto. Navegando para 'Atendimentos'...")
                 found_atend = False
@@ -490,6 +491,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
 
             # 4. Ação de Atualização e Verificação Final
             try:
+                update_progress(95)
                 logger.info(f"[{client_name}] Modal de Beneficiário aberta. Rolando e atualizando...")
                 if await is_cancelled(): 
                     if browser: await browser.close()
@@ -518,7 +520,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                             
                             err_kws = ['error integração', 's0000', 'one or more errors', 'exception', 'ocorreu um erro', 'falha ao salvar']
                             if any(k in text for k in err_kws) and "sucesso" not in text:
-                                network_status["error"] = f"Portal retornou erro no payload."
+                                network_status["error"] = f"Erro detectado na integração."
                             
                             suc_kws = ['atualizado com sucesso', 'dados atualizados', 'salvo com sucesso']
                             if any(k in text for k in suc_kws) and not network_status["error"]:
@@ -552,6 +554,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                 
                 # --- VERIFICAÇÃO FINAL: ONLINE VS OFFLINE ---
                 log_task("Aguardando resposta do portal (Polling de até 18s)...")
+                update_progress(98)
                 
                 # Polling loop para lidar com lentidão no portal
                 for attempt in range(12):
@@ -559,8 +562,8 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                     
                     # 0. Verifica o interceptador de rede
                     if network_status["error"]:
-                        log_task(f"Erro detectado via Rede (Interceptação AJAX): {network_status['error']}", "ERROR")
-                        return "offline", f"Portal retornou erro: {network_status['error']}", None
+                        log_task("Erro detectado na integração.", "ERROR")
+                        return "offline", "Erro detectado na integração.", None
                     
                     if network_status["success"]:
                         log_task("Sucesso detectado via Rede (Interceptação AJAX). API ATIVA.")
@@ -872,9 +875,10 @@ async def run_single_api_check(client_id, task_id=None):
             db.update_task(task_id, {
                 "status": "completed", 
                 "current": 1,
-                "current_client": "Finalizado"
+                "current_client": "Finalizado",
+                "progress_percent": 100
             })
-            db.add_log(task_id, f"Checagem de {client_name} finalizada: {status}")
+            db.add_log(task_id, f"Checagem de {client_name} finalizada: {status.capitalize()}")
             
     except Exception as e:
         import traceback
