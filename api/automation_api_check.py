@@ -554,7 +554,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                         return "offline", "Erro detectado na integração.", None
                     
                     if network_status["success"]:
-                        log_task("Sucesso detectado via Rede (Interceptação AJAX). API ATIVA.")
+                        log_task("Integração Online, os dados foram atualizados.", "SUCCESS")
                         return "online", "Conexão operacional.", None
                     
                     # ============================================================
@@ -681,7 +681,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                             return "offline", f"Erro de integração: {popup_text}", screenshot_url
                         
                         elif popup_type == 'success':
-                            log_task(f"Popup de SUCESSO detectado ({popup_selector}): {popup_text}", "SUCCESS")
+                            log_task("Integração Online, os dados foram atualizados.", "SUCCESS")
                             return "online", "Conexão RSUS Ativa e funcional.", None
                             
                     # ============================================================
@@ -718,7 +718,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                     # Keywords de sucesso estritas (sem palavras soltas como 'sucesso' ou 'concluído')
                     success_keywords = ['atualizado com sucesso', 'dados atualizados', 'dados foram atualizados', 'salvo com sucesso', 'gravado com sucesso']
                     if any(k in all_text_lower for k in success_keywords):
-                        log_task(f"Mensagem de sucesso detectada no texto no instante {attempt+1}.", "SUCCESS")
+                        log_task("Integração Online, os dados foram atualizados.", "SUCCESS")
                         return "online", "Conexão RSUS Ativa e funcional.", None
                         
                 # Se o loop terminar sem detectar nada (timeout)
