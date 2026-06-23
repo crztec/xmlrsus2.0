@@ -515,24 +515,106 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                 # Aguarda modal de sucesso ou erro (plural/singular)
                 await asyncio.sleep(4)
                 
-                # Pega todo o texto visível (incluindo frames) para detectar a modal
+                # 1. Detecção ativa de modais de erro (DOM-level — mais confiável que texto)
+                #    O portal RSUS exibe modais com títulos como "Error Integração" e botões "Ok".
+                error_modal_detected = await page.evaluate("""
+                    () => {
+                        // Busca modais visíveis que contenham palavras de erro no título ou corpo
+                        const errorPatterns = /error|erro|falha|indispon|fail|exception|timeout/i;
+                        
+                        // Checa modais Bootstrap/jQuery UI (.modal, .ui-dialog) visíveis
+                        const modals = document.querySelectorAll('.modal.show, .modal.in, .modal[style*="display: block"], .ui-dialog:not([style*="display: none"]), .bootbox, .swal2-popup, [role="dialog"], [role="alertdialog"]');
+                        for (const m of modals) {
+                            const text = m.innerText || '';
+                            if (errorPatterns.test(text)) {
+                                return text.substring(0, 500);
+                            }
+                        }
+                        
+                        // Checa títulos de modal explícitos (h1-h5 dentro de modais)
+                        const titles = document.querySelectorAll('.modal-title, .modal-header h1, .modal-header h2, .modal-header h3, .modal-header h4, .modal-header h5, .ui-dialog-title, .bootbox-body');
+                        for (const t of titles) {
+                            const txt = (t.innerText || '').trim();
+                            if (errorPatterns.test(txt)) {
+                                const parentText = t.closest('.modal, .ui-dialog, .bootbox, [role="dialog"]');
+                                return (parentText ? parentText.innerText : txt).substring(0, 500);
+                            }
+                        }
+                        
+                        return null;
+                    }
+                """)
+                
+                if error_modal_detected:
+                    error_detail = error_modal_detected.strip().replace('\n', ' ')[:200]
+                    log_task(f"Modal de erro detectada no portal: {error_detail}", "WARNING")
+                    
+                    # Captura screenshot forense do erro de integração
+                    screenshot_url = None
+                    try:
+                        img_bytes = await page.screenshot(full_page=False)
+                        base64_img = f"data:image/png;base64,{base64.b64encode(img_bytes).decode('utf-8')}"
+                        screenshot_url = base64_img
+                    except: pass
+                    
+                    return "offline", f"Erro de integração: {error_detail}", screenshot_url
+                
+                # 2. Detecção por texto visível (fallback para modais não-padrão)
                 all_text = await page.evaluate("document.body.innerText")
                 for frame in page.frames:
                     try:
                         all_text += " " + await frame.evaluate("document.body.innerText")
                     except: pass
                 
-                all_text = all_text.lower()
+                all_text_lower = all_text.lower()
                 
-                success_keywords = ['atualizado', 'sucesso', 'concluído', 'ok']
-                error_keywords = ['erro', 'falha', 'indisponível', 'tente novamente', 'conexão']
+                # IMPORTANTE: Erros são verificados ANTES de sucesso para evitar falsos positivos.
+                # Modais de erro frequentemente contêm botões "Ok" que matchavam como sucesso.
+                error_keywords = [
+                    'error integra',     # "Error Integração" (EN+PT misturado no portal)
+                    'erro integra',      # "Erro Integração" (PT puro)
+                    'erro de integração',
+                    'one or more errors', # Mensagem comum de erro .NET do portal
+                    'errors occurred',
+                    'erro ao atualizar',
+                    'falha na atualização',
+                    'falha na integração',
+                    'falha ao conectar',
+                    'indisponível',
+                    'tente novamente',
+                    'conexão recusada',
+                    'timeout',
+                    's0000',             # Código de erro do portal (ex: S0000010)
+                ]
                 
-                if any(k in all_text for k in success_keywords):
+                # Palavras-chave de sucesso — NÃO inclui 'ok' pois é ambíguo (botão de error modals)
+                success_keywords = ['atualizado com sucesso', 'atualizado', 'sucesso', 'concluído', 'dados atualizados']
+                
+                # Verifica erros PRIMEIRO (prioridade defensiva)
+                matched_error = next((k for k in error_keywords if k in all_text_lower), None)
+                if matched_error:
+                    # Extrai contexto ao redor do erro para log
+                    idx = all_text_lower.find(matched_error)
+                    context_start = max(0, idx - 30)
+                    context_end = min(len(all_text), idx + len(matched_error) + 80)
+                    error_context = all_text[context_start:context_end].strip().replace('\n', ' ')
+                    
+                    log_task(f"Erro detectado no portal: '{error_context}'", "WARNING")
+                    
+                    # Captura screenshot forense
+                    screenshot_url = None
+                    try:
+                        img_bytes = await page.screenshot(full_page=False)
+                        base64_img = f"data:image/png;base64,{base64.b64encode(img_bytes).decode('utf-8')}"
+                        screenshot_url = base64_img
+                    except: pass
+                    
+                    return "offline", f"Portal retornou erro: {error_context[:200]}", screenshot_url
+                
+                # Verifica sucesso DEPOIS (só se nenhum erro foi encontrado)
+                if any(k in all_text_lower for k in success_keywords):
                     log_task("Mensagem de sucesso detectada: API configurada no RSUS está ATIVA.", "SUCCESS")
                     return "online", "Conexão RSUS Ativa e funcional.", None
-                elif any(k in all_text for k in error_keywords):
-                    log_task("Mensagem de erro detectada no portal após clique em Atualizar.", "WARNING")
-                    return "offline", "Portal retornou erro na atualização (Offline).", None
                 
                 # Fallback: se clicou e não deu erro explícito, assumimos online
                 log_task("Portal processou sem erro explícito. Assumindo conexão ATIVA.", "SUCCESS")
