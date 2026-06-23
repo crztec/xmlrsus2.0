@@ -430,18 +430,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                 
                 await asyncio.sleep(3)
             except Exception as e:
-                # CAPTURA DE SCREENSHOT FORENSE EM CASO DE ERRO (BASE64)
                 screenshot_url = None
-                try:
-                    logger.info(f"[{client_name}] Pausa de 2s para renderização antes do print forense...")
-                    await asyncio.sleep(2)
-                    logger.info(f"[{client_name}] Capturando print forense da falha (Formato Base64)...")
-                    img_bytes = await page.screenshot(full_page=False)
-                    base64_img = f"data:image/png;base64,{base64.b64encode(img_bytes).decode('utf-8')}"
-                    logger.info(f"[{client_name}] Screenshot gerado com sucesso. Tamanho: {len(base64_img)} caracteres.")
-                    screenshot_url = base64_img
-                except Exception as e_shot:
-                    logger.warning(f"[{client_name}] Erro ao capturar screenshot: {str(e_shot)}")
 
                 log_task(f"Erro de navegação (Atendimentos): {str(e)}", "ERROR")
                 return "error", f"Falha na navegação: {str(e)[:500]}", screenshot_url
