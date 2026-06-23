@@ -715,11 +715,6 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                         log_task(f"Erro detectado no texto no instante {attempt+1}: '{error_context}'", "WARNING")
                         
                         screenshot_url = None
-                        try:
-                            img_bytes = await page.screenshot(full_page=False)
-                            base64_img = f"data:image/png;base64,{base64.b64encode(img_bytes).decode('utf-8')}"
-                            screenshot_url = base64_img
-                        except: pass
                         
                         return "offline", f"Portal retornou erro: {error_context[:200]}", screenshot_url
                     
