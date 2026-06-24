@@ -301,7 +301,7 @@ async def whatsapp_instance_qrcode(user = Depends(require_admin)):
     instance = config.get("instance_name", "GaxBot")
     headers = {"apikey": config["api_key"]}
     try:
-        resp = requests.get(f"{base}/instance/connect/{instance}", headers=headers, timeout=30)
+        resp = requests.get(f"{base}/instance/connect/{instance}?b64=true", headers=headers, timeout=30)
         if resp.status_code == 403:
             raise HTTPException(status_code=403, detail="Erro de Autenticação (Forbidden): Verifique sua Global API Key no Evolution.")
         return resp.json()
