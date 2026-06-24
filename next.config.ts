@@ -6,7 +6,8 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/api/:path*',
-        destination: 'http://localhost:8000/:path*',
+        // Aqui usamos a variável de ambiente. Se ela não existir, ele assume o localhost:8000 como backup
+        destination: `${process.env.API_URL || 'http://localhost:8000'}/:path*`,
       },
     ];
   },
