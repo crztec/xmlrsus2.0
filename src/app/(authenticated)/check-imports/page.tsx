@@ -18,6 +18,8 @@ import {
   Terminal,
   FileText,
   X,
+  ChevronLeft,
+  ChevronRight,
   History,
   MoreHorizontal,
   Calendar,
@@ -1149,49 +1151,39 @@ export default function CheckImportsPage() {
             </div>
             {/* Paginação */}
             {filteredClients.length > ITEMS_PER_PAGE && (
-              <div className="px-4 py-3 border-t border-slate-100 flex items-center justify-between bg-slate-50/40">
-                <span className="text-[10px] font-bold text-slate-400">
+              <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/30 px-5 py-3.5">
+                <span className="text-[10px] font-medium text-slate-400">
                   {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredClients.length)} de {filteredClients.length} operadoras
                 </span>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1.5">
                   <button
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    onClick={() => setCurrentPage(1)}
                     disabled={currentPage === 1}
-                    className="px-2.5 py-1 rounded-lg border border-slate-200 text-[10px] font-bold text-slate-500 hover:border-gax-blue hover:text-gax-blue transition-colors disabled:opacity-30 disabled:cursor-not-allowed bg-white"
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-[10px] font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all outline-none"
                   >
-                    ‹ Anterior
+                    Primeira
                   </button>
-                  {Array.from({ length: Math.ceil(filteredClients.length / ITEMS_PER_PAGE) }, (_, i) => i + 1)
-                    .filter(p => p === 1 || p === Math.ceil(filteredClients.length / ITEMS_PER_PAGE) || Math.abs(p - currentPage) <= 1)
-                    .reduce<(number | string)[]>((acc, p, idx, arr) => {
-                      if (idx > 0 && (p as number) - (arr[idx - 1] as number) > 1) acc.push('...');
-                      acc.push(p);
-                      return acc;
-                    }, [])
-                    .map((p, i) =>
-                      p === '...' ? (
-                        <span key={`ellipsis-${i}`} className="px-1 text-slate-300 text-[10px] font-bold">…</span>
-                      ) : (
-                        <button
-                          key={p}
-                          onClick={() => setCurrentPage(p as number)}
-                          className={cn(
-                            "w-7 h-7 rounded-lg text-[10px] font-bold transition-colors border",
-                            currentPage === p
-                              ? "bg-gax-blue text-white border-gax-blue shadow-sm"
-                              : "border-slate-200 text-slate-500 hover:border-gax-blue hover:text-gax-blue bg-white"
-                          )}
-                        >
-                          {p}
-                        </button>
-                      )
-                    )}
                   <button
-                    onClick={() => setCurrentPage(p => Math.min(Math.ceil(filteredClients.length / ITEMS_PER_PAGE), p + 1))}
-                    disabled={currentPage === Math.ceil(filteredClients.length / ITEMS_PER_PAGE)}
-                    className="px-2.5 py-1 rounded-lg border border-slate-200 text-[10px] font-bold text-slate-500 hover:border-gax-blue hover:text-gax-blue transition-colors disabled:opacity-30 disabled:cursor-not-allowed bg-white"
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                    className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all outline-none"
                   >
-                    Próxima ›
+                    <ChevronLeft size={14} />
+                  </button>
+                  <span className="text-[10px] font-bold text-slate-600 px-2">{currentPage} / {Math.ceil(filteredClients.length / ITEMS_PER_PAGE) || 1}</span>
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, Math.ceil(filteredClients.length / ITEMS_PER_PAGE)))}
+                    disabled={currentPage === Math.ceil(filteredClients.length / ITEMS_PER_PAGE) || filteredClients.length === 0}
+                    className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all outline-none"
+                  >
+                    <ChevronRight size={14} />
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage(Math.ceil(filteredClients.length / ITEMS_PER_PAGE))}
+                    disabled={currentPage === Math.ceil(filteredClients.length / ITEMS_PER_PAGE) || Math.ceil(filteredClients.length / ITEMS_PER_PAGE) === 0}
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-[10px] font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all outline-none"
+                  >
+                    Última
                   </button>
                 </div>
               </div>
