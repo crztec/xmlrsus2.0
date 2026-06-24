@@ -146,10 +146,13 @@ export default function IntegrationsPage() {
         return;
       }
       
-      const b64 = data.base64 || (data.qrcode && data.qrcode.base64);
+      let b64 = data.base64 || (data.qrcode && data.qrcode.base64) || data.qrcode;
       const pairing = data.pairingCode || data.code;
       
       if (b64) {
+        if (!b64.startsWith('data:image')) {
+          b64 = 'data:image/png;base64,' + b64;
+        }
         setQrCode(b64);
       } else if (pairing) {
         setQrCode(null);
