@@ -129,7 +129,7 @@ export default function ApiChecksPage() {
         } catch (err) {
           console.error("Erro polling status API:", err);
         }
-      }, 3000);
+      }, 5000);
     }
     return () => clearInterval(interval);
   }, [activeTaskId, showLogs, viewingTaskId]);

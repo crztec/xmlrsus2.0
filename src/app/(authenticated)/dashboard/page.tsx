@@ -63,7 +63,7 @@ export default function DashboardPage() {
     if (savedTaskId) setActiveTaskId(savedTaskId);
   }, []);
 
-  // Sincroniza progresso e logs via polling
+  // Sincroniza progresso via polling (PERFORMANCE: sem logs completos, usa last_log)
   useEffect(() => {
     let interval: any;
     if (activeTaskId) {
@@ -81,15 +81,33 @@ export default function DashboardPage() {
           const data = await res.json();
           setProgress(data.progress);
           
-          if (data.logs && data.logs.length > 0) {
-            setLogs(data.logs.map((l: any) => ({
-              status: l.level.toLowerCase() as any,
-              message: l.message,
-              time: l.timestamp
-            })));
+          // Usa last_log do documento para exibir progresso em tempo real
+          if (data.last_log) {
+            const time = new Date().toLocaleTimeString('pt-BR');
+            setLogs(prev => {
+              const lastMsg = prev.length > 0 ? prev[0]?.message : '';
+              if (data.last_log !== lastMsg) {
+                return [{ status: 'info' as any, message: data.last_log, time }, ...prev].slice(0, 500);
+              }
+              return prev;
+            });
           }
 
           if (data.status === 'CONCLUIDO' || data.status === 'ERRO') {
+            // Busca logs completos UMA VEZ ao finalizar
+            try {
+              const logsRes = await apiClient(`/api/task/${activeTaskId}/logs`);
+              const logsData = await logsRes.json();
+              if (logsData && logsData.length > 0) {
+                setLogs(logsData.map((l: any) => ({
+                  status: l.level.toLowerCase() as any,
+                  message: l.message,
+                  time: l.timestamp
+                })));
+              }
+            } catch (logErr) {
+              console.error("Erro ao buscar logs finais:", logErr);
+            }
             setTimeout(() => {
               localStorage.removeItem("activeTaskId");
               setActiveTaskId(null);

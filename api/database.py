@@ -70,10 +70,11 @@ if not firestore_db:
 # Avoids redundant Firestore reads on frequently-called read-only endpoints.
 # Each cache stores the full response and expires after its TTL.
 _cache_all_clients = TTLCache(maxsize=1, ttl=60)       # 60s — clients change only via robot runs
-_cache_dashboard_stats = TTLCache(maxsize=1, ttl=30)   # 30s — dashboard can tolerate slight staleness
+_cache_dashboard_stats = TTLCache(maxsize=1, ttl=120)  # 120s — dashboard data changes only when robot runs
 _cache_historical_data = TTLCache(maxsize=1, ttl=120)  # 120s — historical data rarely changes
 _cache_active_abi = TTLCache(maxsize=1, ttl=60)        # 60s — ABI only changes every few weeks
 _cache_abi_schedule = TTLCache(maxsize=1, ttl=120)     # 120s — schedule changes only on admin uploads
+_cache_history_logs = TTLCache(maxsize=5, ttl=60)      # 60s — aggregated history logs per category
 
 # Thread pool for parallelizing Firestore subcollection reads (N+1 → parallel)
 _firestore_pool = ThreadPoolExecutor(max_workers=10)
@@ -350,32 +351,16 @@ def get_all_clients():
         return []
 
 def get_clients_paginated(page=1, limit=10, search=""):
-    """Recupera clientes com paginação e busca opcional."""
+    """Recupera clientes com paginação e busca opcional.
+    Reutiliza o cache de get_all_clients() para evitar leituras duplicadas no Firestore."""
     try:
-        query = firestore_db.collection('client_configs')
+        # PERFORMANCE: Reutiliza o cache de get_all_clients() ao invés de query direta
+        all_raw = get_all_clients()
         
-        # Se houver busca, o Firestore tem limitações (precisa de índices complexos para busca parcial).
-        # Por enquanto, carregaremos uma fatia maior e filtraremos para manter a simplicidade,
-        # ou usaremos prefix query se o usuário digitar o início do nome.
-        
-        all_docs = query.get()
         clients = []
-        seen_keys = set()
-        
-        def normalize_name(n):
-            if not n: return ""
-            return "".join(c for c in n.lower() if c.isalnum())
-
-        for doc in all_docs:
-            data = doc.to_dict()
-            name = data.get('name') or data.get('razao_social') or doc.id
+        for data in all_raw:
+            name = data.get('name', '')
             cnpj = data.get('cnpj', '')
-            
-            # Deduplicação agressiva em tempo de execução (enquanto a base não é limpa permanentemente)
-            norm = normalize_name(name)
-            key = f"{norm}_{cnpj}"
-            if key in seen_keys: continue
-            seen_keys.add(key)
             
             if search:
                 s = search.lower()
@@ -409,7 +394,7 @@ def get_clients_paginated(page=1, limit=10, search=""):
                 impugnation_last_check = None
 
             clients.append({
-                'id': doc.id,
+                'id': data.get('id'),
                 'name': name,
                 'cnpj': cnpj,
                 'url_sistema': data.get('url_sistema', ''),
@@ -1178,7 +1163,12 @@ def get_aggregated_history_logs(task_category="abi", limit_tasks=5):
     """
     Recupera logs agregados das últimas N tarefas de uma categoria (abi ou api).
     Usa filtragem e ordenação em memória para ser 100% resiliente a falta de índices no Firestore.
+    Cached for 60s per category to avoid redundant Firestore reads.
     """
+    cache_key = f"{task_category}_{limit_tasks}"
+    cached = _cache_history_logs.get(cache_key)
+    if cached is not None:
+        return cached
     try:
         if task_category == "abi":
             target_types = ["abi_check_batch", "abi_check_single"]
@@ -1239,6 +1229,7 @@ def get_aggregated_history_logs(task_category="abi", limit_tasks=5):
         # 6. Ordenação final por timestamp_precise (absoluta)
         all_aggregated_logs.sort(key=lambda x: x.get('timestamp_precise', 0))
         
+        _cache_history_logs[cache_key] = all_aggregated_logs
         return all_aggregated_logs
     except Exception as e:
         logger.error(f"Erro ao recuperar histórico agregado: {e}")

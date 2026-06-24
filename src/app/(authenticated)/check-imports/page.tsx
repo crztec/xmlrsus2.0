@@ -220,7 +220,7 @@ export default function CheckImportsPage() {
     }
   }, [realtimeLogs, detailedLogs]);
 
-  // Polling logs em tempo real
+  // Polling status em tempo real (PERFORMANCE: sem logs completos, usa last_log do documento)
   React.useEffect(() => {
     let interval: any;
     if (activeTaskId) {
@@ -229,14 +229,30 @@ export default function CheckImportsPage() {
           const res = await apiClient(`/api/task/${activeTaskId}`);
           const data = await res.json();
           setCurrentTaskStatus(data);
-          setRealtimeLogs(data.logs || []);
+          
+          // Usa o campo last_log do documento da tarefa para exibição em tempo real
+          if (data.last_log) {
+            setRealtimeLogs(prev => {
+              const lastMsg = prev.length > 0 ? prev[prev.length - 1]?.message : '';
+              if (data.last_log !== lastMsg) {
+                return [...prev, { level: 'INFO', message: data.last_log, timestamp: new Date().toLocaleTimeString('pt-BR') }];
+              }
+              return prev;
+            });
+          }
           
             if (data.status === "completed" || data.status === "error" || data.status === "CONCLUIDO" || data.status === "CONCLUIDO_COM_RESSALVAS" || data.status === "STOPPED" || data.status === "cancelled") {
               clearInterval(interval);
               
-              // Garante que o modal de logs continue preenchido ao alternar de activeTask -> history
-              if (data.logs && data.logs.length > 0) {
-                setDetailedLogs(data.logs);
+              // Busca logs completos UMA VEZ ao finalizar para preencher o modal de histórico
+              try {
+                const logsRes = await apiClient(`/api/task/${activeTaskId}/logs`);
+                const logsData = await logsRes.json();
+                if (logsData && logsData.length > 0) {
+                  setDetailedLogs(logsData);
+                }
+              } catch (logErr) {
+                console.error("Erro ao buscar logs finais:", logErr);
               }
               
               await fetchData();

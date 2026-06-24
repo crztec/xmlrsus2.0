@@ -1058,7 +1058,8 @@ async def get_tasks(type: Optional[str] = None, exclude_api: bool = False, user 
 
 @app.get("/task/{task_id}")
 async def get_task_status(task_id: str, user = Depends(get_current_user)):
-    """Retorna o status completo, progresso e logs de uma tarefa."""
+    """Retorna o status e progresso de uma tarefa (sem logs completos para economia de leituras).
+    Use GET /task/{task_id}/logs para obter os logs detalhados sob demanda."""
     task = db.firestore_db.collection('tasks').document(task_id).get()
     if not task.exists:
         raise HTTPException(status_code=404, detail="Tarefa não encontrada")
@@ -1083,16 +1084,15 @@ async def get_task_status(task_id: str, user = Depends(get_current_user)):
             progress = int((processed / total) * 100)
         else:
             progress = 0
-            
-    # Recupera logs (agora sempre em ordem ASCENDING por timestamp_precise via database.py)
-    logs = db.get_task_logs(task_id)
     
-    # Atualiza o dicionário de retorno para garantir que a UI tenha todos os campos
+    # PERFORMANCE: Não busca logs completos no polling.
+    # O campo last_log já está no documento da tarefa.
+    # Logs completos são obtidos sob demanda via GET /task/{task_id}/logs.
     response = {
         **task_data,
         "progress": progress,
         "progress_percent": progress,
-        "logs": logs
+        "logs": []
     }
     
     return response
