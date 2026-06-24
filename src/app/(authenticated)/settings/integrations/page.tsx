@@ -145,13 +145,17 @@ export default function IntegrationsPage() {
         alert(data.detail || "Erro ao gerar QR Code.");
         return;
       }
-      if (data.base64) {
-        setQrCode(data.base64);
-      } else if (data.pairingCode) {
+      
+      const b64 = data.base64 || (data.qrcode && data.qrcode.base64);
+      const pairing = data.pairingCode || data.code;
+      
+      if (b64) {
+        setQrCode(b64);
+      } else if (pairing) {
         setQrCode(null);
-        alert(`Código de pareamento: ${data.pairingCode}`);
+        alert(`Código de pareamento: ${pairing}`);
       } else {
-        alert(data.message || data.detail || "Não foi possível gerar QR Code. A instância pode já estar conectada.");
+        alert("Resposta inesperada da Evolution API:\n" + JSON.stringify(data, null, 2));
       }
     } catch { alert("Erro de conexão."); }
     finally { setIsLoadingQR(false); }
