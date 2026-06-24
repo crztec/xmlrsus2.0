@@ -545,7 +545,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                 update_progress(98)
                 
                 # Polling loop para lidar com lentidão no portal
-                for attempt in range(10):
+                for attempt in range(20):
                     await asyncio.sleep(1.5)
                     
                     # 0. Verifica o interceptador de rede
@@ -723,9 +723,9 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                         
                 # Se o loop terminar sem detectar nada (timeout)
                 visible_summary = all_text.strip().replace('\n', ' | ')[:300]
-                log_task(f"Timeout aguardando resposta. Texto visível final: {visible_summary}", "DEBUG")
-                log_task("Portal processou sem erro explícito. Assumindo conexão ATIVA (Fallback).", "SUCCESS")
-                return "online", "Conexão operacional (sem erro reportado).", None
+                log_task(f"Timeout aguardando resposta. Texto visível final: {visible_summary}", "WARNING")
+                log_task("Portal não respondeu a tempo após o clique (Timeout). Assumindo ERRO.", "ERROR")
+                return "error", "Timeout aguardando resposta do portal.", None
                 
             except Exception as e:
                 log_task(f"Erro na etapa final: {str(e)}", "ERROR")
