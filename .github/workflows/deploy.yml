@@ -1,0 +1,32 @@
+name: Deploy to Oracle VM
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to Oracle Server via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd ~/xmlrsus2.0
+            git pull origin main
+            
+            # Atualiza e reinicia o Frontend
+            npm install
+            npm run build
+            pm2 restart xmlrsus-frontend
+            
+            # Atualiza e reinicia o Backend
+            cd api
+            source venv/bin/activate
+            pip install -r requirements.txt
+            pm2 restart xmlrsus-api
