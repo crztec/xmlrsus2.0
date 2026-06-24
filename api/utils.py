@@ -29,12 +29,10 @@ async def send_whatsapp_alert(text_message: str, task_id: str = None, target_num
     for numero in target_numbers:
         jid = numero.strip()
 
-        # O Formato EXATO que a v1.8.2 exige (textMessage)
+        # Formato compatível com Evolution API v2
         payload = {
             "number": jid,
-            "textMessage": {
-                "text": text_message
-            }
+            "text": text_message
         }
         
         try:
