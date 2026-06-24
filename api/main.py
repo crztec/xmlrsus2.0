@@ -282,7 +282,7 @@ async def whatsapp_instance_create(user = Depends(require_admin)):
         resp = requests.post(
             f"{base}/instance/create",
             headers=headers,
-            json={"instanceName": instance, "qrcode": True, "integration": "BAILEYS"},
+            json={"instanceName": instance, "qrcode": True},
             timeout=30
         )
         if resp.status_code == 403:
