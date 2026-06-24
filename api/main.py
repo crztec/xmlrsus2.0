@@ -272,7 +272,7 @@ async def whatsapp_instance_status(user = Depends(require_admin)):
 
 @app.post("/whatsapp/instance/create")
 async def whatsapp_instance_create(user = Depends(require_admin)):
-    """Proxy: creates a new Evolution API v1.8.x instance with the configured name."""
+    """Proxy: creates a new Evolution API v2.x instance with the configured name."""
     import requests
     config = db.get_whatsapp_config()
     base = config["url"].rstrip("/")
