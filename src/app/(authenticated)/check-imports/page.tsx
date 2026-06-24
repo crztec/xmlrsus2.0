@@ -917,10 +917,7 @@ export default function CheckImportsPage() {
         <div className="lg:col-span-2 flex flex-col gap-4">
           <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">
             <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/40">
-              <h2 className="text-xs font-bold text-slate-800 flex items-center gap-2 uppercase tracking-widest">
-                <Activity size={18} className="text-gax-blue" />
-                Status por Cliente
-              </h2>
+              <div className="flex w-full justify-end">
               <div className="relative group w-full max-w-[240px]">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-gax-blue transition-colors" size={14} />
                 <input 
@@ -934,6 +931,7 @@ export default function CheckImportsPage() {
                     setSelectedClients(new Set()); 
                   }}
                 />
+              </div>
               </div>
             </div>
             <div className="overflow-x-auto min-h-[300px]">

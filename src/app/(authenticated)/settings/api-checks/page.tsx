@@ -66,6 +66,7 @@ export default function ApiChecksPage() {
   const [selectedScreenshot, setSelectedScreenshot] = useState<string | null>(null);
   const [selectedClientMessage, setSelectedClientMessage] = useState<string | null>(null);
   const [logFilterClient, setLogFilterClient] = useState<string | null>(null);
+  const [selectedClients, setSelectedClients] = useState<Set<string>>(new Set());
 
   const logEndRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -146,7 +147,7 @@ export default function ApiChecksPage() {
     if (logEndRef.current) logEndRef.current.scrollIntoView({ behavior: "smooth" });
   }, [taskLogs, showLogs]);
 
-  useEffect(() => { setCurrentPage(1); }, [searchTerm, filterStatus]);
+  useEffect(() => { setCurrentPage(1); setSelectedClients(new Set()); }, [searchTerm, filterStatus]);
 
   const fetchClients = async () => {
     setIsLoading(true);
@@ -184,7 +185,7 @@ export default function ApiChecksPage() {
     }
   };
 
-  const handleRunBatchCheck = async () => {
+  const handleRunBatchCheck = async (selectedIds?: string[]) => {
     if (isExecuting) return;
     setIsExecuting(true);
     setActiveTask(null);
@@ -195,7 +196,7 @@ export default function ApiChecksPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           client_id: null,
-          client_ids: null
+          client_ids: selectedIds && selectedIds.length > 0 ? selectedIds : null
         })
       });
       if (!res.ok) {
@@ -225,10 +226,10 @@ export default function ApiChecksPage() {
     }
   };
 
-  const handleRunFailedChecks = async () => {
+  const handleRunFailedChecks = async (statusType: 'offline' | 'error') => {
     if (isExecuting) return;
-    const failedOnes = clients.filter(c => c.api_status !== 'online').map(c => c.id);
-    if (failedOnes.length === 0) { alert("Não há clientes com falha."); return; }
+    const failedOnes = clients.filter(c => c.api_status === statusType).map(c => c.id);
+    if (failedOnes.length === 0) { alert(`Não há clientes com status ${statusType.toUpperCase()}.`); return; }
     setIsExecuting(true);
     setActiveTask(null);
     setTaskLogs([]);
@@ -481,20 +482,35 @@ export default function ApiChecksPage() {
                 Histórico
               </button>
               <button
-                onClick={handleRunFailedChecks}
+                onClick={() => handleRunFailedChecks('offline')}
                 disabled={isExecuting}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-white transition-all disabled:opacity-40 font-display"
               >
                 <RotateCcw size={12} />
-                Re-testar Falhas
+                Testar Offline
               </button>
               <button
-                onClick={handleRunBatchCheck}
+                onClick={() => handleRunFailedChecks('error')}
+                disabled={isExecuting}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-white transition-all disabled:opacity-40 font-display"
+              >
+                <RotateCcw size={12} />
+                Testar Erro
+              </button>
+              <button
+                onClick={() => {
+                  if (selectedClients.size > 0) {
+                     handleRunBatchCheck(Array.from(selectedClients));
+                  } else {
+                     handleRunBatchCheck();
+                  }
+                  setSelectedClients(new Set());
+                }}
                 disabled={isExecuting}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-gax-blue text-white rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-gax-blue-hover transition-all shadow-md shadow-gax-blue/20 disabled:opacity-40 font-display"
               >
                 <Play size={12} className={isExecuting ? 'animate-pulse' : ''} />
-                Checar APIs
+                {selectedClients.size > 0 ? "Checar Selecionados" : "Checar APIs"}
               </button>
             </div>
           </>
@@ -583,6 +599,20 @@ export default function ApiChecksPage() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50/50">
+                <th className="px-5 py-3 w-10 border-b border-slate-100">
+                  <input 
+                    type="checkbox" 
+                    className="h-3.5 w-3.5 rounded border-slate-300 text-gax-blue focus:ring-gax-blue/20 transition-all cursor-pointer"
+                    checked={selectedClients.size === filteredClients.length && filteredClients.length > 0}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedClients(new Set(filteredClients.map(c => c.id)));
+                      } else {
+                        setSelectedClients(new Set());
+                      }
+                    }}
+                  />
+                </th>
                 {["Cliente", "Status", "Uptime (24h)", "Última Verificação", "Ações"].map((h, i) => (
                   <th
                     key={h}
@@ -615,8 +645,24 @@ export default function ApiChecksPage() {
               ) : paginatedClients.map((client, idx) => (
                 <tr
                   key={client.id}
-                  className="group hover:bg-gax-blue/[0.02] transition-colors"
+                  className={cn(
+                    "group transition-colors",
+                    selectedClients.has(client.id) ? "bg-gax-blue/5" : "hover:bg-gax-blue/[0.02]"
+                  )}
                 >
+                  <td className="px-5 py-2.5">
+                    <input 
+                      type="checkbox" 
+                      className="h-3.5 w-3.5 rounded border-slate-300 text-gax-blue focus:ring-gax-blue/20 transition-all cursor-pointer"
+                      checked={selectedClients.has(client.id)}
+                      onChange={() => {
+                        const newSet = new Set(selectedClients);
+                        if (newSet.has(client.id)) newSet.delete(client.id);
+                        else newSet.add(client.id);
+                        setSelectedClients(newSet);
+                      }}
+                    />
+                  </td>
                   {/* Cliente */}
                   <td className="px-5 py-2.5">
                     <div className="flex flex-col">
