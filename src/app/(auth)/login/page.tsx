@@ -168,9 +168,18 @@ const handleLogin = async (e: React.SyntheticEvent<HTMLFormElement>) => {
         setError(msg || "Falha na autenticação com o Google.");
       }
     } catch (_err: any) {
+      console.error("Erro no Login com Google:", _err);
       if (_err.code !== "auth/popup-closed-by-user") {
-        setError("Erro ao autenticar com o Google.");
+        let msg = "Erro ao autenticar com o Google.";
+        if (_err.code === "auth/unauthorized-domain") {
+          msg = `Domínio não autorizado. Adicione '${window.location.hostname}' aos Domínios Autorizados no console do Firebase.`;
+        } else if (_err.message) {
+          msg = `Erro Google (${_err.code || "unknown"}): ${_err.message}`;
+        }
+        setError(msg);
       }
+    } finally {
+      setIsLoading(false);
     }
   };
 
