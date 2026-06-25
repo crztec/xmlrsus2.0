@@ -1,5 +1,5 @@
 # MindSync Memory — Project Context for Antigravity / Gemini
-> Project: **xmlrsus2.0-1** | ID: `96be79ca` | 0 memories | Updated: 6/25/2026
+> Project: **xmlrsus2.0-1** | ID: `96be79ca` | 9 memories | Updated: 6/25/2026
 
 ## ⚠️ CRITICAL SYSTEM DIRECTIVE — PROACTIVE AUTONOMOUS MEMORY
 
@@ -35,17 +35,19 @@ Call `ms_save({ projectId: "96be79ca", title: "<title>", content: "<detailed con
 
 ## 🛡️ Known Gotchas (NEVER violate)
 
-- **1. Strict Security: Credentials in Database Only**: Never hardcode any API keys, passwords, user profiles, or sensitive system configurations in the codebase. All external credentials (e.g. Evolution API, third party system credentials) must be stored in Firestore, and when exposed to the frontend, they must be masked (replaced with `********`). Admin authorization checks must be run dynamically on backend routes.
+- ⚠️ **Strict Security: Credentials and Sensitive Configs in Database Only** — CRITICAL SECURITY RULE: Never hardcode any API key, password, credential, or sensitive user/server configuration in the 
 
 ## 📐 Conventions
 
-- **1. Backend Routing & Swagger Security**: FastAPI backend runs with `root_path="/api-rsus"`. Public Swagger and OpenAPI docs are disabled (`docs_url=None, openapi_url=None`). Custom `/docs` and `/openapi.json` routes are exposed and secured via HTTPBasic Auth, validating credentials against Firebase Auth REST API and verifying `admin` role in Firestore. Timezone is explicitly set to `America/Sao_Paulo`, and global exception handlers sanitize tracebacks in production.
-- **2. Authentication & RBAC System**: User authentication is performed via Firebase Client Auth REST API. Session verification relies on HTTPBearer injecting the Firebase ID token verified through the Admin SDK. Authorization is Role-Based (RBAC) querying the `users` collection in Firestore. Admin checks are cached in memory (`admin_profile_cache`, 300s TTL) to prevent read flooding on every protected endpoint request.
-- **3. Firestore Database Caching & Performance**: No traditional SQL database ORM is used; all operations query Firebase Firestore (via `firestore_db` client). Frequently accessed lists (like clients and stats) use in-memory `TTLCache` objects (60s-120s TTL) to minimize Firebase API usage. Writing operations must invoke `invalidate_abi_caches()` to keep read data synchronized. Thread pools are defined to run parallel reads if needed.
-- **4. Playwright Robust Automation**: Automation tasks launch headless Chromium via `launch_browser_robust` implementing a retry loop (3 attempts) to mitigate SIGSEGV/crash errors in containers. Network interception blocks heavy files (images/analytics). Scrolling actions must target the modal container class (e.g. `.k-window-content` for Kendo UI) instead of standard document scrolling, and click actions must use precise interactive element selectors (e.g. `button, a, span`) rather than wildcard `*` targets to prevent headless misclicks and timeouts.
-- **5. Next.js Subfolder & Client Integration**: Frontend is a Next.js App Router project deployed under reverse proxy subfolder using `basePath: '/rsus'` and rewrites targeting `/api/:path*` to bypass CORS. API communication uses the custom `apiClient` wrapper, which retrieves/renews the Firebase ID token automatically (`forceRefresh=true`), redirects to `/login` on 401, and uses exponential backoff retries for network-level failures to mitigate Cloud Run scale-to-zero cold starts.
-- **6. Frontend Layout & Design Conventions (SaaS High-Density)**: New pages, tables, menus, grids, and charts must follow the Silicon Precision theme: background slate-50 (`#F8FAFC`), foreground slate-900 (`#0F172A`), brand color sky-blue (`#0EA5E9`), headings font Space Grotesk, body font Inter. Components must use rounded-2xl (cards/inputs) or rounded-3xl (modals/tables) with subtle glassmorphic styling, transition animations, and hover-state focus styles to prevent basic visual output.
-- **7. Dynamic Menu Titles (No Duplication)**: To prevent visual duplication, new pages should NEVER hardcode their own `<h2>` page titles at the top of their content area. The main title and subtitle of every page are injected dynamically by the global `MainLayout.tsx` (configured via `PAGE_METADATA` or the `/api/menu-config` endpoint). Individual page components should immediately begin rendering their core content (tables, forms, metrics, etc.) without redefining the title.
+- 📐 **Frontend Layout & Design Conventions (SaaS High-Density)**: All new pages, tables, menus, grids, and charts must follow the GAX Silicon Precision design system: (1) Core Theme: Sky
+- 📐 **Backend Routing & Swagger Security**: FastAPI backend runs with root_path='/api-rsus'. Public Swagger and OpenAPI docs are disabled (docs_url=None, openapi_ur
+- 📐 **Authentication & RBAC System**: User authentication is performed via Firebase Client Auth REST API. Session verification relies on HTTPBearer injecting 
+- 📐 **Firestore Database Caching & Performance**: No traditional SQL database ORM is used; all operations query Firebase Firestore (via firestore_db client). Frequently a
+- 📐 **Playwright Robust Automation**: Automation tasks launch headless Chromium via launch_browser_robust implementing a retry loop (3 attempts) to mitigate S
+- 📐 **Next.js Subfolder & Client Integration**: Frontend is a Next.js App Router project deployed under reverse proxy subfolder using 'basePath: /rsus' and rewrites tar
+- 📐 **7. Dynamic Menu Titles (No Duplication)**: To prevent visual duplication, new pages should NEVER hardcode their own `<h2>` page titles at the top of their content area. The main title and subtitle of every page are injected dynamically by the global `MainLayout.tsx` (configured via `PAGE_METADATA` or the `/api/menu-config` endpoint). Individual page components should immediately begin rendering their core content (tables, forms, metrics, etc.) without redefining the title.
+- 📐 **8. Menu Config Cross-Section Awareness**: The backend `get_menu_config()` must track item keys across ALL sections (`main_menu`, `admin_menu`, `config_menu`) before merging defaults — otherwise items moved between sections get re-added to their original section. The Sidebar and MenusPage must also deduplicate by key across sections. In drag-and-drop, use `useRef` (not `useState`) for `dragSource` to prevent duplicate drops from React's async state batching.
+- 📐 **Test Title**: Test Content
 
 
 
