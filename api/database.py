@@ -186,6 +186,7 @@ def get_friendly_error(technical_error):
 def create_user_profile(email, first_name="", last_name=""):
     """Creates a user document in Firestore. Forces 'admin'/'approved' for the master email."""
     if not email: return
+    email = email.lower().strip()
 
     doc_ref = firestore_db.collection('users').document(email)
     doc = doc_ref.get()
@@ -237,6 +238,26 @@ def update_user_profile(current_email, new_email, first_name, last_name, role=No
         logger.error(f"Failed to update user profile in Firestore: {e}")
         return False
 
+def update_user_status(email, status):
+    if not email: return False
+    email = email.lower().strip()
+    try:
+        firestore_db.collection('users').document(email).update({'status': status})
+        return True
+    except Exception as e:
+        logger.error(f"Failed to update user status: {e}")
+        return False
+
+def delete_user_profile(email):
+    if not email: return False
+    email = email.lower().strip()
+    try:
+        firestore_db.collection('users').document(email).delete()
+        return True
+    except Exception as e:
+        logger.error(f"Failed to delete user profile: {e}")
+        return False
+
 # --- VERIFICATION CODES ---
 def save_verification_code(email, code, action_type):
     """Saves a 6-digit code for email/password change. Expires in 1 minute."""
@@ -273,6 +294,7 @@ def verify_code(email, code, action_type):
 
 def get_user_profile(email):
     if not email: return None
+    email = email.lower().strip()
     doc = firestore_db.collection('users').document(email).get()
     if doc.exists: return doc.to_dict()
     return None

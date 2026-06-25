@@ -50,12 +50,17 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         raise HTTPException(status_code=401, detail="Token inválido ou expirado.")
     return decoded_token
 
-# Cache in-memory para evitar consultas repetitivas ao Firestore para validar roles (Max 500 usuários, expira em 5min)
 admin_profile_cache = TTLCache(maxsize=500, ttl=300)
 
-@cached(cache=admin_profile_cache)
 def _get_cached_profile(email: str):
-    return db.get_user_profile(email)
+    email = email.lower().strip()
+    if email in admin_profile_cache:
+        return admin_profile_cache[email]
+        
+    profile = db.get_user_profile(email)
+    if profile:  # Não faz cache de None para evitar travar o acesso em caso de delay
+        admin_profile_cache[email] = profile
+    return profile
 
 async def require_admin(user = Depends(get_current_user)):
     if not user:
@@ -66,6 +71,7 @@ async def require_admin(user = Depends(get_current_user)):
     if not email:
         raise HTTPException(status_code=401, detail="Token sem email válido.")
         
+    email = email.lower().strip()
     profile = _get_cached_profile(email)
     if not profile or profile.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Acesso negado. Apenas administradores podem realizar esta ação.")
@@ -252,6 +258,7 @@ async def google_auth(id_token: str = Form(...)):
         
         if not email:
             raise Exception("O Google não forneceu um email válido.")
+        email = email.lower().strip()
             
         # Verifica se o perfil existe no Firestore
         user_profile = db.get_user_profile(email)
