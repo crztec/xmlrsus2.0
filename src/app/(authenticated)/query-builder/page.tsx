@@ -117,6 +117,7 @@ export default function QueryBuilderPage() {
       const payload = {
         ...connForm,
         name: connForm.database,
+        port: connForm.port ? Number(connForm.port) : 1433,
         id: connForm.id || undefined
       };
       const res = await apiClient("/api/settings/sql-connections", {
@@ -845,10 +846,13 @@ export default function QueryBuilderPage() {
                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Porta</label>
                   <input
                     type="number"
-                    value={connForm.port}
-                    onChange={(e) => setConnForm({ ...connForm, port: parseInt(e.target.value) || 1433 })}
+                    placeholder="1433"
+                    value={connForm.port || ""}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setConnForm({ ...connForm, port: val === "" ? "" as any : parseInt(val) || 0 });
+                    }}
                     className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-xs outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all font-sans text-slate-700 font-medium"
-                    required
                   />
                 </div>
               </div>
