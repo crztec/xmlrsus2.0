@@ -18,7 +18,7 @@ import {
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { auth, googleProvider } from "@/lib/firebase";
-import { signInWithPopup } from "firebase/auth";
+import { signInWithPopup, GoogleAuthProvider } from "firebase/auth";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -144,11 +144,20 @@ const handleLogin = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     setError("");
     try {
       const result = await signInWithPopup(auth, googleProvider);
-      const user = result.user;
-      const idToken = await user.getIdToken();
+      
+      // Obtém o ID Token REAL do Google (OAuth 2.0) a partir do resultado
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      const googleIdToken = credential?.idToken;
+
+      if (!googleIdToken) {
+        throw new Error("Não foi possível obter o token do Google.");
+      }
+
+      // Obtemos o token do Firebase do usuário como fallback
+      const firebaseIdToken = await result.user.getIdToken();
 
       const formData = new FormData();
-      formData.append("id_token", idToken);
+      formData.append("id_token", googleIdToken);
 
       const res = await fetch("/api/auth/google", {
         method: "POST",
@@ -157,9 +166,10 @@ const handleLogin = async (e: React.SyntheticEvent<HTMLFormElement>) => {
 
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        localStorage.setItem("gax_auth_token", idToken); // Salva o token do Google
-        localStorage.setItem("gax_user_email", user.email || "");
-        localStorage.setItem("gax_user_name", data?.first_name || user.displayName || user.email?.split('@')[0] || "");
+        // Salva o ID token do Firebase retornado pela API (ou o local como fallback)
+        localStorage.setItem("gax_auth_token", data.idToken || firebaseIdToken);
+        localStorage.setItem("gax_user_email", result.user.email || "");
+        localStorage.setItem("gax_user_name", data?.first_name || result.user.displayName || result.user.email?.split('@')[0] || "");
         localStorage.setItem("gax_user_role", data?.role || "user");
         window.location.href = "/";
       } else {
@@ -177,6 +187,8 @@ const handleLogin = async (e: React.SyntheticEvent<HTMLFormElement>) => {
           msg = "Erro de credenciais no servidor de autenticação. Por favor, contate o administrador para verificar as configurações do Google OAuth no Firebase.";
         } else if (_err.code === "auth/popup-blocked") {
           msg = "O popup de login do Google foi bloqueado pelo seu navegador. Por favor, permita popups para este site.";
+        } else if (_err.message) {
+          msg = `Erro Google: ${_err.message}`;
         }
         setError(msg);
       }
