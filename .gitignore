@@ -112,3 +112,20 @@ FIREBASE_SETUP.md
 
 # Local session summary
 SESSION_SUMMARY.md
+
+# IDE / Editor configurations
+.cursor/
+.cursorrules
+.gemini/
+.vscode/
+.windsurfrules
+.mindsync/
+
+# Local test and scratch files
+test_local.py
+/scratch/check_*.py
+/scratch/find_*.py
+/scratch/search_*.py
+/scratch/list_*.py
+/scratch/simulate_*.py
+/scratch/test_*.py

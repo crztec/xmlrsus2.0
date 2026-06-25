@@ -10,3 +10,5 @@ openpyxl
 defusedxml
 cachetools
 google-cloud-run
+pymssql
+cryptography

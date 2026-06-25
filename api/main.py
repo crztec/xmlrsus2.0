@@ -1357,6 +1357,90 @@ async def route_clear_audit_logs(user = Depends(require_admin)):
         return {"status": "success", "message": f"{count} logs deletados."}
     raise HTTPException(status_code=500, detail="Erro ao deletar auditoria")
 
+# --- QUERY BUILDER & SQL CONNECTIONS ENDPOINTS ---
+import api.query_builder as qb
+
+class SQLConnectionSaveRequest(BaseModel):
+    name: str
+    host: str
+    database: str
+    username: str
+    password: str
+    port: int = 1433
+    id: Optional[str] = None
+
+@app.get("/settings/sql-connections")
+async def get_sql_connections_endpoint(user = Depends(require_admin)):
+    return db.list_sql_connections()
+
+@app.post("/settings/sql-connections")
+async def save_sql_connection_endpoint(body: SQLConnectionSaveRequest, user = Depends(require_admin)):
+    conn_id = db.save_sql_connection(
+        name=body.name,
+        host=body.host,
+        database=body.database,
+        username=body.username,
+        password=body.password,
+        port=body.port,
+        conn_id=body.id
+    )
+    if conn_id:
+        return {"status": "success", "id": conn_id}
+    raise HTTPException(status_code=500, detail="Erro ao salvar conexão SQL.")
+
+@app.delete("/settings/sql-connections/{conn_id}")
+async def delete_sql_connection_endpoint(conn_id: str, user = Depends(require_admin)):
+    if db.delete_sql_connection(conn_id):
+        return {"status": "success"}
+    raise HTTPException(status_code=500, detail="Erro ao deletar conexão SQL.")
+
+@app.post("/settings/sql-connections/{conn_id}/extract-schema")
+async def extract_schema_endpoint(conn_id: str, user = Depends(require_admin)):
+    conn_params = db.get_sql_connection_raw(conn_id)
+    if not conn_params:
+        raise HTTPException(status_code=404, detail="Conexão SQL não encontrada.")
+    try:
+        schema_text = qb.extract_sql_schema_ddl(conn_params)
+        return {"status": "success", "schema": schema_text}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+class QueryGenerateRequest(BaseModel):
+    prompt: str
+    schema: str
+    provider: str
+    model_name: str
+    api_key: Optional[str] = None
+
+@app.post("/query-builder/generate")
+async def generate_query_endpoint(body: QueryGenerateRequest, user = Depends(require_admin)):
+    try:
+        sql = qb.generate_sql_query(
+            prompt=body.prompt,
+            schema=body.schema,
+            provider=body.provider,
+            model_name=body.model_name,
+            api_key=body.api_key
+        )
+        return {"status": "success", "sql": sql}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+class QueryExecuteRequest(BaseModel):
+    connection_id: str
+    sql_query: str
+
+@app.post("/query-builder/execute")
+async def execute_query_endpoint(body: QueryExecuteRequest, user = Depends(require_admin)):
+    conn_params = db.get_sql_connection_raw(body.connection_id)
+    if not conn_params:
+        raise HTTPException(status_code=404, detail="Conexão SQL não encontrada.")
+    try:
+        result = qb.execute_select_query(conn_params, body.sql_query)
+        return {"status": "success", "columns": result["columns"], "rows": result["rows"]}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("api.main:app", host="0.0.0.0", port=8005, reload=False)

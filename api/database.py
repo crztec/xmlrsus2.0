@@ -2473,6 +2473,7 @@ MENU_DEFAULTS = {
         {"key": "messages", "label": "Mensagens", "icon": "FileText", "order": 3, "isAdmin": True},
         {"key": "branding", "label": "Identidade Visual", "icon": "Palette", "order": 4, "isAdmin": True},
         {"key": "menus", "label": "Gerenciar Menus", "icon": "LayoutGrid", "order": 5, "isAdmin": True},
+        {"key": "query-builder", "label": "Query Builder", "icon": "Wrench", "order": 6, "isAdmin": True},
     ],
     "section_labels": {
         "main_title": "Importação",
@@ -2552,4 +2553,78 @@ def restore_menu_default():
         return success
     except Exception as e:
         logger.error(f"Erro ao restaurar menu default: {e}")
+        return False
+
+# ============ SQL Connections for Query Builder ============
+
+def save_sql_connection(name, host, database, username, password, port=1433, conn_id=None):
+    """Saves or updates a SQL Server connection configuration. Encrypts the password."""
+    import api.crypto_utils as crypto_utils
+    try:
+        if not conn_id:
+            conn_id = str(uuid.uuid4())[:8]
+        
+        # If editing and password is masked '********', keep the old one
+        if password == "********" or password.startswith("***"):
+            existing = get_sql_connection_raw(conn_id)
+            if existing:
+                password = existing.get("password_encrypted", "")
+            else:
+                password = crypto_utils.encrypt_password("")
+        else:
+            password = crypto_utils.encrypt_password(password)
+
+        data = {
+            "id": conn_id,
+            "name": name,
+            "host": host,
+            "database": database,
+            "username": username,
+            "password_encrypted": password,
+            "port": int(port),
+            "updated_at": get_now_br().isoformat()
+        }
+        firestore_db.collection('sql_connections').document(conn_id).set(data, merge=True)
+        return conn_id
+    except Exception as e:
+        logger.error(f"Erro ao salvar conexão SQL no Firestore: {e}")
+        return None
+
+def list_sql_connections():
+    """Lists all SQL connections, masking passwords for client safety."""
+    try:
+        docs = firestore_db.collection('sql_connections').stream()
+        connections = []
+        for doc in docs:
+            data = doc.to_dict()
+            if "password_encrypted" in data:
+                del data["password_encrypted"]
+            data["password"] = "********"
+            connections.append(data)
+        return sorted(connections, key=lambda x: x.get("name", ""))
+    except Exception as e:
+        logger.error(f"Erro ao listar conexões SQL: {e}")
+        return []
+
+def get_sql_connection_raw(conn_id):
+    """Retrieves connection details with decrypted password (internal only)."""
+    import api.crypto_utils as crypto_utils
+    try:
+        doc = firestore_db.collection('sql_connections').document(conn_id).get()
+        if doc.exists:
+            data = doc.to_dict()
+            encrypted_pw = data.get("password_encrypted", "")
+            data["password"] = crypto_utils.decrypt_password(encrypted_pw)
+            return data
+    except Exception as e:
+        logger.error(f"Erro ao obter conexão SQL {conn_id}: {e}")
+    return None
+
+def delete_sql_connection(conn_id):
+    """Deletes a SQL Server connection from Firestore."""
+    try:
+        firestore_db.collection('sql_connections').document(conn_id).delete()
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao deletar conexão SQL {conn_id}: {e}")
         return False

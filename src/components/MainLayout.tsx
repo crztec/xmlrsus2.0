@@ -119,6 +119,11 @@ const PAGE_METADATA: Record<string, PageMeta> = {
     title: "Gerenciar Menus",
     subtitle: "Personalize a ordem e os nomes dos menus do sistema",
     icon: <LayoutGrid size={24} className="text-gax-blue" />
+  },
+  "/query-builder": {
+    title: "Query Builder",
+    subtitle: "Gere e execute queries SQL Server a partir de linguagem natural",
+    icon: <Wrench size={24} className="text-gax-blue" />
   }
 };
 
@@ -151,6 +156,7 @@ export default function MainLayout({ children, onToggleSidebar }: MainLayoutProp
           messages: "/settings/messages",
           branding: "/settings/branding",
           menus: "/settings/menus",
+          "query-builder": "/query-builder",
         };
         const allItems = [...(data.main_menu || []), ...(data.admin_menu || []), ...(data.config_menu || [])];
         allItems.forEach((item: any) => {

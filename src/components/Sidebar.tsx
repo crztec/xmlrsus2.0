@@ -45,6 +45,7 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   Lock: <Lock size={20} />,
   LayoutDashboard: <LayoutDashboard size={20} />,
   LayoutGrid: <LayoutGrid size={20} />,
+  Wrench: <Wrench size={20} />,
 };
 
 const ICON_MAP_SM: Record<string, React.ReactNode> = {
@@ -61,6 +62,7 @@ const ICON_MAP_SM: Record<string, React.ReactNode> = {
   Lock: <Lock size={18} />,
   LayoutDashboard: <LayoutDashboard size={18} />,
   LayoutGrid: <LayoutGrid size={18} />,
+  Wrench: <Wrench size={18} />,
 };
 
 // Route mapping by key
@@ -81,6 +83,7 @@ const ROUTE_MAP: Record<string, string> = {
   messages: "/settings/messages",
   branding: "/settings/branding",
   menus: "/settings/menus",
+  "query-builder": "/query-builder",
 };
 
 const DEFAULT_MAIN_MENU = [
