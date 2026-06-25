@@ -18,7 +18,7 @@ import {
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { auth, googleProvider } from "@/lib/firebase";
-import { signInWithPopup, GoogleAuthProvider } from "firebase/auth";
+import { signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -176,6 +176,7 @@ const handleLogin = async (e: React.SyntheticEvent<HTMLFormElement>) => {
         const errorDetail = data.detail;
         const msg = typeof errorDetail === 'string' ? errorDetail : JSON.stringify(errorDetail);
         setError(msg || "Falha na autenticação com o Google.");
+        await signOut(auth); // Clear the Firebase SDK state so it doesn't block future logins
       }
     } catch (_err: any) {
       console.error("Erro no Login com Google:", _err);
@@ -191,6 +192,7 @@ const handleLogin = async (e: React.SyntheticEvent<HTMLFormElement>) => {
           msg = `Erro Google: ${_err.message}`;
         }
         setError(msg);
+        await signOut(auth).catch(() => {}); // Clear the Firebase SDK state on error
       }
     } finally {
       setIsLoading(false);
