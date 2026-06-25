@@ -83,7 +83,10 @@ try:
         os.tzset()
 except: pass
 
-app = FastAPI(title="GAX API")
+app = FastAPI(
+    title="API RSUS",
+    root_path="/api-rsus"  # <-- ADICIONE ESTA LINHA
+)
 
 # Configurar CORS para permitir o frontend Next.js
 allowed_origins_raw = os.environ.get("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:3001")
