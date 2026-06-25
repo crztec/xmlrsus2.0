@@ -23,7 +23,7 @@ from email.mime.text import MIMEText
 from typing import List, Optional
 from urllib.parse import urlparse
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile, BackgroundTasks
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from playwright.async_api import async_playwright
@@ -36,7 +36,8 @@ import api.parser as parser
 from api.automation_api_check import run_batch_api_check, run_single_api_check
 from api.orchestrator import trigger_cloud_run_job
 from fastapi import Depends
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, HTTPBasic, HTTPBasicCredentials
+from fastapi.openapi.docs import get_swagger_ui_html
 
 security = HTTPBearer(auto_error=False)
 
@@ -71,6 +72,34 @@ async def require_admin(user = Depends(get_current_user)):
     return user
 
 
+security_basic = HTTPBasic()
+
+async def validate_admin_basic(credentials: HTTPBasicCredentials = Depends(security_basic)):
+    username = credentials.username
+    password = credentials.password
+    
+    # 1. Autenticar usando a função nativa do projeto com o Firebase Auth
+    try:
+        auth.sign_in_with_email_and_password(username, password)
+    except Exception:
+        raise HTTPException(
+            status_code=401,
+            detail="Acesso Negado",
+            headers={"WWW-Authenticate": "Basic"}
+        )
+        
+    # 2. Consultar o perfil no Firestore para confirmar privilégios de administrador
+    profile = db.get_user_profile(username)
+    if not profile or profile.get("role") != "admin":
+        raise HTTPException(
+            status_code=401,
+            detail="Acesso Negado",
+            headers={"WWW-Authenticate": "Basic"}
+        )
+        
+    return username
+
+
 # Configure standard logging
 logging.basicConfig(level=logging.INFO, stream=sys.stdout, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -85,7 +114,10 @@ except: pass
 
 app = FastAPI(
     title="API RSUS",
-    root_path="/api-rsus"  # <-- ADICIONE ESTA LINHA
+    root_path="/api-rsus",
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None
 )
 
 # Configurar CORS para permitir o frontend Next.js
@@ -145,6 +177,23 @@ async def health_check():
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         return {"status": "error", "database": "unavailable"}
+
+
+@app.get("/docs", include_in_schema=False)
+async def get_swagger_documentation(request: Request, username: str = Depends(validate_admin_basic)):
+    root_path = request.scope.get("root_path", "").rstrip("/")
+    openapi_url = f"{root_path}/openapi.json"
+    return get_swagger_ui_html(
+        openapi_url=openapi_url,
+        title=app.title + " - Swagger UI",
+        swagger_js_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js",
+        swagger_css_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css"
+    )
+
+
+@app.get("/openapi.json", include_in_schema=False)
+async def get_open_api_endpoint(username: str = Depends(validate_admin_basic)):
+    return app.openapi()
 
 @app.post("/login")
 async def login(email: str = Form(...), password: str = Form(...)):
