@@ -22,7 +22,8 @@ import {
   X,
   FileCode2,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Pencil
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/apiClient";
@@ -44,6 +45,7 @@ export default function QueryBuilderPage() {
   
   // Connection Form State
   const [connForm, setConnForm] = useState({
+    id: "",
     name: "",
     host: "",
     database: "",
@@ -111,16 +113,22 @@ export default function QueryBuilderPage() {
     setNotifyError("");
     setNotifySuccess("");
     try {
+      // Map name to database, since we removed the first option
+      const payload = {
+        ...connForm,
+        name: connForm.database,
+        id: connForm.id || undefined
+      };
       const res = await apiClient("/api/settings/sql-connections", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(connForm)
+        body: JSON.stringify(payload)
       });
       if (res.ok) {
         const data = await res.json();
-        setNotifySuccess("Conexão salva com sucesso!");
+        setNotifySuccess(connForm.id ? "Conexão atualizada com sucesso!" : "Conexão salva com sucesso!");
         setIsModalOpen(false);
-        setConnForm({ name: "", host: "", database: "", username: "", password: "", port: 1433 });
+        setConnForm({ id: "", name: "", host: "", database: "", username: "", password: "", port: 1433 });
         fetchConnections();
         if (data.id) setSelectedConnId(data.id);
       } else {
@@ -132,6 +140,26 @@ export default function QueryBuilderPage() {
     } finally {
       setIsSavingConn(false);
     }
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setConnForm({ id: "", name: "", host: "", database: "", username: "", password: "", port: 1433 });
+  };
+
+  const handleEditConnectionClick = () => {
+    const conn = connections.find(c => c.id === selectedConnId);
+    if (!conn) return;
+    setConnForm({
+      id: conn.id,
+      name: conn.name || conn.database,
+      host: conn.host,
+      database: conn.database,
+      username: conn.username,
+      password: "********", // Use masked password so backend knows to keep the old one unless changed
+      port: conn.port
+    });
+    setIsModalOpen(true);
   };
 
   const handleDeleteConnection = async (id: string, e: React.MouseEvent) => {
@@ -313,7 +341,10 @@ export default function QueryBuilderPage() {
               </div>
               
               <button
-                onClick={() => setIsModalOpen(true)}
+                onClick={() => {
+                  setConnForm({ id: "", name: "", host: "", database: "", username: "", password: "", port: 1433 });
+                  setIsModalOpen(true);
+                }}
                 className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-gax-blue/10 text-gax-blue hover:bg-gax-blue hover:text-white transition-all text-xs font-bold shadow-sm"
               >
                 <Plus size={14} />
@@ -348,19 +379,28 @@ export default function QueryBuilderPage() {
                     <option value="">Selecione um banco SQL Server...</option>
                     {connections.map((c) => (
                       <option key={c.id} value={c.id}>
-                        {c.name} ({c.host} - {c.database})
+                        {c.name === c.database ? `${c.database} (${c.host})` : `${c.name} (${c.host} - {c.database})`}
                       </option>
                     ))}
                   </select>
 
                   {selectedConnId && (
-                    <button
-                      onClick={(e) => handleDeleteConnection(selectedConnId, e)}
-                      className="flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-50 border border-rose-100 text-rose-500 hover:bg-rose-500 hover:text-white transition-all shadow-sm shrink-0 active:scale-95"
-                      title="Excluir Conexão"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                    <div className="flex gap-1.5">
+                      <button
+                        onClick={handleEditConnectionClick}
+                        className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-50 border border-slate-200 text-slate-500 hover:bg-slate-200 hover:text-slate-700 transition-all shadow-sm shrink-0 active:scale-95"
+                        title="Editar Conexão"
+                      >
+                        <Pencil size={16} />
+                      </button>
+                      <button
+                        onClick={(e) => handleDeleteConnection(selectedConnId, e)}
+                        className="flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-50 border border-rose-100 text-rose-500 hover:bg-rose-500 hover:text-white transition-all shadow-sm shrink-0 active:scale-95"
+                        title="Excluir Conexão"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -776,10 +816,12 @@ export default function QueryBuilderPage() {
             <div className="mb-6 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Server size={20} className="text-gax-blue animate-pulse" />
-                <h3 className="text-lg font-bold text-slate-800">Nova Conexão SQL Server</h3>
+                <h3 className="text-lg font-bold text-slate-800">
+                  {connForm.id ? "Editar Conexão SQL Server" : "Nova Conexão SQL Server"}
+                </h3>
               </div>
               <button
-                onClick={() => setIsModalOpen(false)}
+                onClick={handleCloseModal}
                 className="text-slate-400 hover:text-slate-600 transition-colors"
               >
                 <X size={20} />
@@ -787,18 +829,6 @@ export default function QueryBuilderPage() {
             </div>
 
             <form onSubmit={handleSaveConnection} className="space-y-4">
-              <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Identificador da Conexão</label>
-                <input
-                  type="text"
-                  placeholder="Ex: Servidor de Produção / Homologação"
-                  value={connForm.name}
-                  onChange={(e) => setConnForm({ ...connForm, name: e.target.value })}
-                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-xs outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all font-sans text-slate-700 font-bold"
-                  required
-                />
-              </div>
-
               <div className="grid grid-cols-3 gap-3">
                 <div className="col-span-2 space-y-1">
                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Host / IP</label>
@@ -862,7 +892,7 @@ export default function QueryBuilderPage() {
               <div className="pt-2 flex gap-3">
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={handleCloseModal}
                   className="flex-1 px-4 py-3 rounded-2xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all text-xs font-bold"
                 >
                   Cancelar
