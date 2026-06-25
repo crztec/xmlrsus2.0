@@ -214,7 +214,20 @@ export default function Sidebar({ onOpenProfile, isOpen, onClose }: SidebarProps
       .then(res => res.json())
       .then(data => {
         if (data && data.main_menu) {
-          const sortedMain = [...data.main_menu].sort((a: any, b: any) => a.order - b.order);
+          // Deduplicate items by key across all sections
+          const seen = new Set<string>();
+          const dedupSort = (items: any[]) => {
+            const unique = items
+              .sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
+              .filter((item: any) => {
+                if (seen.has(item.key)) return false;
+                seen.add(item.key);
+                return true;
+              });
+            return unique;
+          };
+
+          const sortedMain = dedupSort([...data.main_menu]);
           setMainMenuItems(sortedMain.map((item: any) => ({
             label: item.label,
             icon: ICON_MAP[item.icon] || <Settings size={20} />,
@@ -228,7 +241,7 @@ export default function Sidebar({ onOpenProfile, isOpen, onClose }: SidebarProps
 
           // Build admin sub-items
           if (data.admin_menu) {
-            const sortedAdmin = [...data.admin_menu].sort((a: any, b: any) => a.order - b.order);
+            const sortedAdmin = dedupSort([...data.admin_menu]);
             setAdminSubItems(sortedAdmin.map((item: any) => ({
               label: item.label,
               icon: ICON_MAP_SM[item.icon] || <Settings size={18} />,
@@ -238,17 +251,12 @@ export default function Sidebar({ onOpenProfile, isOpen, onClose }: SidebarProps
 
           // Build config sub-items
           if (data.config_menu) {
-            const sortedConfig = [...data.config_menu].sort((a: any, b: any) => a.order - b.order);
+            const sortedConfig = dedupSort([...data.config_menu]);
             setConfigSubItems(sortedConfig.map((item: any) => ({
               label: item.label,
               icon: ICON_MAP_SM[item.icon] || <Settings size={18} />,
               href: ROUTE_MAP[item.key] || "/settings",
             })));
-          }
-
-          // Section labels again for safety
-          if (data.section_labels) {
-            setSectionLabels(data.section_labels);
           }
         }
       })

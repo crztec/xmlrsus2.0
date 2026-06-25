@@ -2510,16 +2510,35 @@ def get_menu_config():
         doc = firestore_db.collection('system_config').document('menu_layout').get()
         if doc.exists:
             data = doc.to_dict()
-            # Merge with defaults to fill any missing fields and individual menu items
             defaults = copy.deepcopy(MENU_DEFAULTS)
+            
+            # Collect ALL existing keys across ALL sections to prevent
+            # re-adding items that were moved between sections
+            all_existing_keys = set()
+            for key in ["main_menu", "admin_menu", "config_menu"]:
+                if key in data and isinstance(data.get(key), list):
+                    for item in data[key]:
+                        if isinstance(item, dict) and item.get("key"):
+                            all_existing_keys.add(item["key"])
+            
             for key in defaults:
                 if key not in data or (isinstance(data.get(key), list) and len(data[key]) == 0):
                     data[key] = defaults[key]
                 elif key in ["main_menu", "admin_menu", "config_menu"]:
-                    existing_keys = {item.get("key") for item in data[key] if isinstance(item, dict)}
+                    # Deduplicate within section
+                    seen_in_section = set()
+                    deduped = []
+                    for item in data[key]:
+                        if isinstance(item, dict) and item.get("key") not in seen_in_section:
+                            seen_in_section.add(item["key"])
+                            deduped.append(item)
+                    data[key] = deduped
+                    
+                    # Only add defaults for items not found in ANY section
                     for default_item in defaults[key]:
-                        if default_item.get("key") not in existing_keys:
+                        if default_item.get("key") not in all_existing_keys:
                             data[key].append(default_item)
+                            all_existing_keys.add(default_item["key"])
             return data
         return copy.deepcopy(MENU_DEFAULTS)
     except Exception as e:
