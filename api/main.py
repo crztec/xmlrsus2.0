@@ -205,6 +205,10 @@ async def login(email: str = Form(...), password: str = Form(...)):
 
         user_profile = db.get_user_profile(email)
         if user_profile:
+            if user_profile.get("status") == "pending":
+                db.add_audit_log(email, "Tentativa de Login Falhou", "Conta aguardando aprovação.", "WARNING")
+                raise HTTPException(status_code=403, detail="Sua conta está aguardando aprovação pelo administrador.")
+                
             user["role"] = user_profile.get("role", "user")
             user["first_name"] = user_profile.get("first_name", "")
             user["last_name"] = user_profile.get("last_name", "")
@@ -212,6 +216,8 @@ async def login(email: str = Form(...), password: str = Form(...)):
         db.add_audit_log(email, "Login", "Usuário acessou o sistema com sucesso.", "INFO")
         return user
     except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
         logger.warning(f"Login failed for {email}")
         db.add_audit_log(email, "Tentativa de Login Falhou", "Credenciais inválidas", "WARNING")
         raise HTTPException(status_code=401, detail="Email ou senha incorretos.")
@@ -242,8 +248,40 @@ async def reset_password(email: str = Form(...)):
 async def google_auth(id_token: str = Form(...)):
     try:
         user = auth.sign_in_with_google_id_token(id_token)
+        email = user.get("email")
+        
+        if not email:
+            raise Exception("O Google não forneceu um email válido.")
+            
+        # Verifica se o perfil existe no Firestore
+        user_profile = db.get_user_profile(email)
+        
+        # Se for o primeiro acesso pelo Google, cria o perfil (que ficará como pending)
+        if not user_profile:
+            first_name = user.get("firstName", "")
+            last_name = user.get("lastName", "")
+            if not first_name and "displayName" in user:
+                parts = user.get("displayName", "").split(" ", 1)
+                first_name = parts[0]
+                last_name = parts[1] if len(parts) > 1 else ""
+                
+            db.create_user_profile(email, first_name, last_name)
+            user_profile = db.get_user_profile(email)
+            
+        if user_profile:
+            if user_profile.get("status") == "pending":
+                db.add_audit_log(email, "Tentativa de Login Google Falhou", "Conta aguardando aprovação.", "WARNING")
+                raise HTTPException(status_code=403, detail="Sua conta está aguardando aprovação pelo administrador.")
+                
+            user["role"] = user_profile.get("role", "user")
+            user["first_name"] = user_profile.get("first_name", "")
+            user["last_name"] = user_profile.get("last_name", "")
+            
+        db.add_audit_log(email, "Login (Google)", "Usuário acessou o sistema com sucesso via Google.", "INFO")
         return user
     except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
         raise HTTPException(status_code=401, detail=str(e))
 
 @app.get("/branding")
