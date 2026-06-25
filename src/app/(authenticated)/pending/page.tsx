@@ -64,12 +64,7 @@ export default function PendingUsersPage() {
 
   return (
     <div className="flex flex-col gap-6 p-4 md:p-8 pt-2 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 uppercase tracking-widest">
-          <UserPlus size={18} className="text-gax-blue" />
-          Cadastros Pendentes
-        </h2>
-      </div>
+
 
       {users.length > 0 ? (
         <div className="overflow-hidden rounded-3xl border border-slate-200/60 bg-white/70 shadow-sm backdrop-blur-sm">

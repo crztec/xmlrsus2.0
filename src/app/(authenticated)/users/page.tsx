@@ -147,11 +147,7 @@ export default function UsersPage() {
 
   return (
     <div className="flex flex-col gap-6 p-4 md:p-8 pt-2 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 uppercase tracking-widest">
-          <Users size={18} className="text-gax-blue" />
-          Gerenciamento de Usuários
-        </h2>
+      <div className="flex items-center justify-end gap-4 mb-2">
 
         {error && (
           <div className="flex items-center gap-2 rounded-xl bg-rose-50 px-4 py-2 text-xs font-bold text-rose-600 border border-rose-100 animate-in fade-in slide-in-from-top-1">
