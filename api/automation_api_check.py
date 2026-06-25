@@ -272,10 +272,10 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                             for item in items:
                                 if await item.is_visible():
                                     try:
-                                        # Força o scroll em containers problemáticos (DevExpress/Bootstrap)
+                                        # Força o scroll em containers problemáticos (DevExpress/Bootstrap/Kendo)
                                         await page.evaluate("""
                                             () => {
-                                                document.querySelectorAll('.dxpc-content, .modal-body, .dxpc-mainDiv, .dx-scrollable-container').forEach(el => el.scrollTo(0, 99999));
+                                                document.querySelectorAll('.dxpc-content, .modal-body, .dxpc-mainDiv, .dx-scrollable-container, .k-window-content').forEach(el => el.scrollTo(0, 99999));
                                             }
                                         """)
                                     except: pass
@@ -455,9 +455,10 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                 await asyncio.sleep(1.5)
                 log_task("Menu aberto. Clicando em 'Beneficiário'...")
                 found_benef = False
-                if await click_in_frames('*', title_match='Beneficiário'):
+                menu_selectors = "a, li, button, span, [role='menuitem'], [role='option'], .dropdown-item, .k-item, .k-link"
+                if await click_in_frames(menu_selectors, title_match='Beneficiário'):
                     found_benef = True
-                elif await click_in_frames('*', text_match='Beneficiário'):
+                elif await click_in_frames(menu_selectors, text_match='Beneficiário'):
                     found_benef = True
                 
                 if not found_benef:
@@ -521,9 +522,10 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                 # =====================================================================
 
                 found_update = False
+                update_selectors = "button, a, input, [role='button'], .btn, .k-button"
                 for _ in range(5):
                     # Tenta encontrar por texto (botões, links, divs)
-                    if await click_in_frames('*', text_match='Atualizar', search_frames_first=True, reverse_elements=True):
+                    if await click_in_frames(update_selectors, text_match='Atualizar', search_frames_first=True, reverse_elements=True):
                         found_update = True
                         break
                     # Tenta encontrar por input value
@@ -531,7 +533,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                         found_update = True
                         break
                     # Tenta encontrar com uppercase
-                    if await click_in_frames('*', text_match='ATUALIZAR', search_frames_first=True, reverse_elements=True):
+                    if await click_in_frames(update_selectors, text_match='ATUALIZAR', search_frames_first=True, reverse_elements=True):
                         found_update = True
                         break
                     await asyncio.sleep(2)
