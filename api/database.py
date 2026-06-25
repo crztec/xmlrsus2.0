@@ -2488,11 +2488,16 @@ def get_menu_config():
         doc = firestore_db.collection('system_config').document('menu_layout').get()
         if doc.exists:
             data = doc.to_dict()
-            # Merge with defaults to fill any missing fields
+            # Merge with defaults to fill any missing fields and individual menu items
             defaults = copy.deepcopy(MENU_DEFAULTS)
             for key in defaults:
                 if key not in data or (isinstance(data.get(key), list) and len(data[key]) == 0):
                     data[key] = defaults[key]
+                elif key in ["main_menu", "admin_menu", "config_menu"]:
+                    existing_keys = {item.get("key") for item in data[key] if isinstance(item, dict)}
+                    for default_item in defaults[key]:
+                        if default_item.get("key") not in existing_keys:
+                            data[key].append(default_item)
             return data
         return copy.deepcopy(MENU_DEFAULTS)
     except Exception as e:

@@ -1411,6 +1411,7 @@ class QueryGenerateRequest(BaseModel):
     provider: str
     model_name: str
     api_key: Optional[str] = None
+    reasoning_level: Optional[str] = "standard"
 
 @app.post("/query-builder/generate")
 async def generate_query_endpoint(body: QueryGenerateRequest, user = Depends(require_admin)):
@@ -1420,7 +1421,8 @@ async def generate_query_endpoint(body: QueryGenerateRequest, user = Depends(req
             schema=body.schema,
             provider=body.provider,
             model_name=body.model_name,
-            api_key=body.api_key
+            api_key=body.api_key,
+            reasoning_level=body.reasoning_level
         )
         return {"status": "success", "sql": sql}
     except Exception as e:

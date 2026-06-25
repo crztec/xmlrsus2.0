@@ -176,7 +176,7 @@ def execute_select_query(conn_params: dict, sql_query: str) -> dict:
         logger.error(f"Erro ao executar query SELECT no SQL Server: {e}")
         raise Exception(f"Erro na execução da query no SQL Server: {str(e)}")
 
-def generate_sql_query(prompt: str, schema: str, provider: str, model_name: str, api_key: str = None) -> str:
+def generate_sql_query(prompt: str, schema: str, provider: str, model_name: str, api_key: str = None, reasoning_level: str = "standard") -> str:
     """
     Calls Gemini or Claude to translate natural language prompt into SQL query based on DDL schema.
     """
@@ -198,6 +198,8 @@ def generate_sql_query(prompt: str, schema: str, provider: str, model_name: str,
         api_model = "gemini-2.5-flash"
         if "pro" in model_name.lower() or "3.1" in model_name.lower():
             api_model = "gemini-2.5-pro"
+        elif reasoning_level.lower() == "extended" or reasoning_level.lower() == "estendido":
+            api_model = "gemini-2.0-flash-thinking-exp-01-21"
             
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{api_model}:generateContent?key={key}"
         headers = {"Content-Type": "application/json"}

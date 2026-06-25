@@ -57,6 +57,7 @@ export default function QueryBuilderPage() {
   const [provider, setProvider] = useState<"gemini" | "claude">("gemini");
   const [modelName, setModelName] = useState<string>("Gemini 3.5 Flash");
   const [apiKey, setApiKey] = useState<string>("");
+  const [reasoningLevel, setReasoningLevel] = useState<"standard" | "extended">("standard");
 
   // Extracted Schema State
   const [schemaText, setSchemaText] = useState<string>("");
@@ -198,7 +199,8 @@ export default function QueryBuilderPage() {
           schema: schemaText,
           provider: provider,
           model_name: modelName,
-          api_key: apiKey || null
+          api_key: apiKey || null,
+          reasoning_level: reasoningLevel
         })
       });
       if (res.ok) {
@@ -467,6 +469,39 @@ export default function QueryBuilderPage() {
                 </>
               )}
             </div>
+
+            {/* Reasoning Level Selector (Gemini only) */}
+            {provider === "gemini" && (
+              <div className="flex flex-col gap-1.5 mb-4">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Nível de Raciocínio</label>
+                <div className="flex items-center gap-1.5 rounded-2xl border border-slate-200/60 bg-white p-1.5 shadow-sm">
+                  <button
+                    type="button"
+                    onClick={() => setReasoningLevel("standard")}
+                    className={cn(
+                      "flex-1 flex h-9 items-center justify-center rounded-xl transition-all font-sans text-xs font-bold",
+                      reasoningLevel === "standard"
+                        ? "bg-slate-100 text-slate-700 shadow-inner"
+                        : "text-slate-400 hover:bg-slate-50 hover:text-slate-600"
+                    )}
+                  >
+                    Padrão
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setReasoningLevel("extended")}
+                    className={cn(
+                      "flex-1 flex h-9 items-center justify-center rounded-xl transition-all font-sans text-xs font-bold",
+                      reasoningLevel === "extended"
+                        ? "bg-slate-100 text-slate-700 shadow-inner"
+                        : "text-slate-400 hover:bg-slate-50 hover:text-slate-600"
+                    )}
+                  >
+                    Estendido (Thinking)
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* API Key input */}
