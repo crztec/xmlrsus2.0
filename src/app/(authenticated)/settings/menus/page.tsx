@@ -110,8 +110,8 @@ export default function MenusPage() {
   const [editingSectionKey, setEditingSectionKey] = useState<string | null>(null);
   const [sectionEditValue, setSectionEditValue] = useState("");
 
-  // Drag state
-  const [dragSource, setDragSource] = useState<{ section: string; index: number } | null>(null);
+  // Drag state — ref for dragSource to prevent duplicate drops from async React state
+  const dragSourceRef = useRef<{ section: string; index: number } | null>(null);
   const [dragOverTarget, setDragOverTarget] = useState<{ section: string; index: number } | null>(null);
 
   const editInputRef = useRef<HTMLInputElement>(null);
@@ -130,10 +130,25 @@ export default function MenusPage() {
 
   const normalize = (data: any): MenuConfig => {
     const sort = (items: any[]) => [...items].sort((a, b) => (a.order || 0) - (b.order || 0));
+    // Deduplicate items by key across all sections
+    const dedup = (items: any[], seenKeys: Set<string>) => {
+      const unique: any[] = [];
+      for (const item of items) {
+        if (!seenKeys.has(item.key)) {
+          seenKeys.add(item.key);
+          unique.push(item);
+        }
+      }
+      return unique;
+    };
+    const seen = new Set<string>();
+    const main = sort(dedup(Array.isArray(data.main_menu) && data.main_menu.length > 0 ? data.main_menu : HARDCODED_DEFAULTS.main_menu, seen));
+    const admin = sort(dedup(Array.isArray(data.admin_menu) && data.admin_menu.length > 0 ? data.admin_menu : HARDCODED_DEFAULTS.admin_menu, seen));
+    const config_m = sort(dedup(Array.isArray(data.config_menu) && data.config_menu.length > 0 ? data.config_menu : HARDCODED_DEFAULTS.config_menu, seen));
     return {
-      main_menu: sort(Array.isArray(data.main_menu) && data.main_menu.length > 0 ? data.main_menu : HARDCODED_DEFAULTS.main_menu),
-      admin_menu: sort(Array.isArray(data.admin_menu) && data.admin_menu.length > 0 ? data.admin_menu : HARDCODED_DEFAULTS.admin_menu),
-      config_menu: sort(Array.isArray(data.config_menu) && data.config_menu.length > 0 ? data.config_menu : HARDCODED_DEFAULTS.config_menu),
+      main_menu: main,
+      admin_menu: admin,
+      config_menu: config_m,
       section_labels: { ...HARDCODED_DEFAULTS.section_labels, ...(data.section_labels || {}) },
     };
   };
@@ -171,27 +186,41 @@ export default function MenusPage() {
   }, [editingKey]);
 
   // --- Drag & Drop ---
-  const handleDragStart = (section: string, index: number) => setDragSource({ section, index });
+  const handleDragStart = (section: string, index: number) => {
+    dragSourceRef.current = { section, index };
+  };
   const handleDragOver = (e: React.DragEvent, section: string, index: number) => {
     e.preventDefault();
     setDragOverTarget({ section, index });
   };
   const handleDrop = (e: React.DragEvent, section: string, index: number) => {
     e.preventDefault();
-    if (!dragSource || !config) return;
-    const sourceKey = dragSource.section as "main_menu" | "admin_menu" | "config_menu";
+    e.stopPropagation();
+    // Read and immediately clear the ref to prevent duplicate drops
+    const source = dragSourceRef.current;
+    if (!source || !config) return;
+    dragSourceRef.current = null;
+    
+    const sourceKey = source.section as "main_menu" | "admin_menu" | "config_menu";
     const targetKey = section as "main_menu" | "admin_menu" | "config_menu";
+    
+    // Same position, nothing to do
+    if (sourceKey === targetKey && source.index === index) {
+      setDragOverTarget(null);
+      return;
+    }
     
     if (sourceKey === targetKey) {
       const items = [...config[sourceKey]];
-      const [removed] = items.splice(dragSource.index, 1);
+      const [removed] = items.splice(source.index, 1);
       items.splice(index, 0, removed);
       setConfig({ ...config, [sourceKey]: items.map((item, i) => ({ ...item, order: i })) });
     } else {
       const sourceItems = [...config[sourceKey]];
       const targetItems = [...config[targetKey]];
-      const [removed] = sourceItems.splice(dragSource.index, 1);
+      const [removed] = sourceItems.splice(source.index, 1);
       
+      // Dynamic access level: main_menu = everyone, admin/config = admin only
       removed.isAdmin = targetKey !== "main_menu";
       
       targetItems.splice(index, 0, removed);
@@ -203,10 +232,9 @@ export default function MenusPage() {
     }
     
     setHasChanges(true);
-    setDragSource(null);
     setDragOverTarget(null);
   };
-  const handleDragEnd = () => { setDragSource(null); setDragOverTarget(null); };
+  const handleDragEnd = () => { dragSourceRef.current = null; setDragOverTarget(null); };
 
   // --- Move Up/Down ---
   const moveItem = (sectionKey: "main_menu" | "admin_menu" | "config_menu", index: number, direction: -1 | 1) => {
@@ -462,6 +490,17 @@ export default function MenusPage() {
                   </div>
                 );
               })}
+              {/* Bottom drop zone for appending items */}
+              {sortedItems.length > 0 && (
+                <div
+                  onDragOver={(e) => handleDragOver(e, section.key, sortedItems.length)}
+                  onDrop={(e) => handleDrop(e, section.key, sortedItems.length)}
+                  className={cn(
+                    "h-3 transition-all",
+                    dragOverTarget?.section === section.key && dragOverTarget?.index === sortedItems.length && "h-8 bg-gax-blue/5 border-l-2 border-l-gax-blue"
+                  )}
+                />
+              )}
               </React.Fragment>
             );
           })}
