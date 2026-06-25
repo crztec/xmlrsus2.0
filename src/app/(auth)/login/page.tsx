@@ -170,11 +170,13 @@ const handleLogin = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     } catch (_err: any) {
       console.error("Erro no Login com Google:", _err);
       if (_err.code !== "auth/popup-closed-by-user") {
-        let msg = "Erro ao autenticar com o Google.";
+        let msg = "Falha ao autenticar com o Google. Por favor, tente novamente mais tarde.";
         if (_err.code === "auth/unauthorized-domain") {
           msg = `Domínio não autorizado. Adicione '${window.location.hostname}' aos Domínios Autorizados no console do Firebase.`;
-        } else if (_err.message) {
-          msg = `Erro Google (${_err.code || "unknown"}): ${_err.message}`;
+        } else if (_err.code === "auth/invalid-credential" || _err.code === "auth/unauthorized-client") {
+          msg = "Erro de credenciais no servidor de autenticação. Por favor, contate o administrador para verificar as configurações do Google OAuth no Firebase.";
+        } else if (_err.code === "auth/popup-blocked") {
+          msg = "O popup de login do Google foi bloqueado pelo seu navegador. Por favor, permita popups para este site.";
         }
         setError(msg);
       }
