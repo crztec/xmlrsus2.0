@@ -174,16 +174,34 @@ export default function MenusPage() {
   const handleDragStart = (section: string, index: number) => setDragSource({ section, index });
   const handleDragOver = (e: React.DragEvent, section: string, index: number) => {
     e.preventDefault();
-    if (dragSource?.section === section) setDragOverTarget({ section, index });
+    setDragOverTarget({ section, index });
   };
   const handleDrop = (e: React.DragEvent, section: string, index: number) => {
     e.preventDefault();
-    if (!dragSource || !config || dragSource.section !== section) return;
-    const sectionKey = section as "main_menu" | "admin_menu" | "config_menu";
-    const items = [...config[sectionKey]];
-    const [removed] = items.splice(dragSource.index, 1);
-    items.splice(index, 0, removed);
-    setConfig({ ...config, [sectionKey]: items.map((item, i) => ({ ...item, order: i })) });
+    if (!dragSource || !config) return;
+    const sourceKey = dragSource.section as "main_menu" | "admin_menu" | "config_menu";
+    const targetKey = section as "main_menu" | "admin_menu" | "config_menu";
+    
+    if (sourceKey === targetKey) {
+      const items = [...config[sourceKey]];
+      const [removed] = items.splice(dragSource.index, 1);
+      items.splice(index, 0, removed);
+      setConfig({ ...config, [sourceKey]: items.map((item, i) => ({ ...item, order: i })) });
+    } else {
+      const sourceItems = [...config[sourceKey]];
+      const targetItems = [...config[targetKey]];
+      const [removed] = sourceItems.splice(dragSource.index, 1);
+      
+      removed.isAdmin = targetKey !== "main_menu";
+      
+      targetItems.splice(index, 0, removed);
+      setConfig({ 
+        ...config, 
+        [sourceKey]: sourceItems.map((item, i) => ({ ...item, order: i })),
+        [targetKey]: targetItems.map((item, i) => ({ ...item, order: i }))
+      });
+    }
+    
     setHasChanges(true);
     setDragSource(null);
     setDragOverTarget(null);
@@ -346,6 +364,18 @@ export default function MenusPage() {
               </div>
 
               {/* Menu Items */}
+              {sortedItems.length === 0 && (
+                <div
+                  onDragOver={(e) => handleDragOver(e, section.key, 0)}
+                  onDrop={(e) => handleDrop(e, section.key, 0)}
+                  className={cn(
+                    "flex items-center justify-center p-6 text-xs font-semibold text-slate-300 border-t border-slate-100/60 transition-all",
+                    dragOverTarget?.section === section.key && "bg-gax-blue/5 border-l-2 border-l-gax-blue"
+                  )}
+                >
+                  Arraste um menu para cá
+                </div>
+              )}
               {sortedItems.map((item, idx) => {
                 const isEditing = editingKey === item.key;
                 const isDragOver = dragOverTarget?.section === section.key && dragOverTarget?.index === idx;
