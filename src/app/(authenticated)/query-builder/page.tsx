@@ -228,7 +228,13 @@ export default function QueryBuilderPage() {
   };
 
   const handleSendMessage = async () => {
-    if (!schemaText || !chatInput.trim()) return;
+    if (!chatInput.trim()) return;
+    
+    if (!schemaText) {
+      // Just a warning to the user if they try to ask for queries without schema
+      // We still allow the message to go through so they can chat.
+      console.warn("Nenhum esquema extraído. A IA pode não conseguir gerar queries específicas.");
+    }
     
     const newMessage: ChatMessage = { role: "user", content: chatInput.trim() };
     const updatedMessages = [...messages, newMessage];
