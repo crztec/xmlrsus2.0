@@ -567,21 +567,83 @@ export default function QueryBuilderPage() {
               </div>
               <div>
                 <h2 className="text-sm font-bold text-slate-800">Motor de Inteligência Artificial</h2>
-                <p className="text-[11px] text-slate-400 font-medium">Selecione o provedor e modelo LLM</p>
+                <p className="text-[11px] text-slate-400 font-medium">Selecione o provedor, modelo e raciocínio</p>
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5 rounded-2xl border border-slate-200/60 bg-white p-1.5 shadow-sm mb-4">
+            <div className="flex items-center gap-1.5 rounded-2xl border border-slate-200/60 bg-white p-1.5 shadow-sm mb-4 overflow-x-auto">
               <button
-                onClick={() => { setProvider("gemini"); setModelName("Gemini 3.5 Flash"); }}
-                className={cn("flex-1 flex h-9 items-center justify-center rounded-xl transition-all font-sans text-xs font-bold",
+                onClick={() => { setProvider("gemini"); setModelName("Gemini 2.5 Flash"); }}
+                className={cn("flex-1 min-w-[70px] flex h-9 items-center justify-center rounded-xl transition-all font-sans text-[11px] font-bold",
                   provider === "gemini" ? "bg-gax-blue text-white shadow-md shadow-gax-blue/20" : "text-slate-400 hover:bg-slate-50")}
               >Gemini</button>
               <button
-                onClick={() => { setProvider("claude"); setModelName("Claude Sonnet"); }}
-                className={cn("flex-1 flex h-9 items-center justify-center rounded-xl transition-all font-sans text-xs font-bold",
+                onClick={() => { setProvider("claude"); setModelName("Claude 3.5 Sonnet"); }}
+                className={cn("flex-1 min-w-[70px] flex h-9 items-center justify-center rounded-xl transition-all font-sans text-[11px] font-bold",
                   provider === "claude" ? "bg-gax-blue text-white shadow-md shadow-gax-blue/20" : "text-slate-400 hover:bg-slate-50")}
               >Claude</button>
+              <button
+                onClick={() => { setProvider("openai"); setModelName("GPT-4o"); }}
+                className={cn("flex-1 min-w-[70px] flex h-9 items-center justify-center rounded-xl transition-all font-sans text-[11px] font-bold",
+                  provider === "openai" ? "bg-gax-blue text-white shadow-md shadow-gax-blue/20" : "text-slate-400 hover:bg-slate-50")}
+              >OpenAI</button>
+              <button
+                onClick={() => { setProvider("deepseek"); setModelName("DeepSeek Chat (V3)"); }}
+                className={cn("flex-1 min-w-[70px] flex h-9 items-center justify-center rounded-xl transition-all font-sans text-[11px] font-bold",
+                  provider === "deepseek" ? "bg-gax-blue text-white shadow-md shadow-gax-blue/20" : "text-slate-400 hover:bg-slate-50")}
+              >DeepSeek</button>
+            </div>
+            
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1 block">Modelo</label>
+                <select
+                  value={modelName}
+                  onChange={(e) => setModelName(e.target.value)}
+                  className="w-full rounded-2xl border border-slate-200 px-3 py-2 text-[11px] outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all font-sans text-slate-700 font-bold bg-white"
+                >
+                  {provider === "gemini" && (
+                    <>
+                      <option value="Gemini 2.5 Flash">Gemini 2.5 Flash</option>
+                      <option value="Gemini 2.5 Pro">Gemini 2.5 Pro</option>
+                      <option value="Gemini 2.0 Flash Thinking">Gemini 2.0 Flash Thinking</option>
+                    </>
+                  )}
+                  {provider === "claude" && (
+                    <>
+                      <option value="Claude 3.5 Sonnet">Claude 3.5 Sonnet</option>
+                      <option value="Claude 3 Opus">Claude 3 Opus</option>
+                    </>
+                  )}
+                  {provider === "openai" && (
+                    <>
+                      <option value="GPT-4o">GPT-4o</option>
+                      <option value="GPT-4o-mini">GPT-4o-mini</option>
+                      <option value="o1">o1</option>
+                      <option value="o1-mini">o1-mini</option>
+                      <option value="o3-mini">o3-mini</option>
+                    </>
+                  )}
+                  {provider === "deepseek" && (
+                    <>
+                      <option value="DeepSeek Chat (V3)">DeepSeek Chat (V3)</option>
+                      <option value="DeepSeek Reasoner (R1)">DeepSeek Reasoner (R1)</option>
+                    </>
+                  )}
+                </select>
+              </div>
+              
+              <div className="flex-1">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1 block">Raciocínio</label>
+                <select
+                  value={reasoningLevel}
+                  onChange={(e) => setReasoningLevel(e.target.value as any)}
+                  className="w-full rounded-2xl border border-slate-200 px-3 py-2 text-[11px] outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all font-sans text-slate-700 font-bold bg-white"
+                >
+                  <option value="standard">Padrão</option>
+                  <option value="extended">Avançado (Alto Esforço)</option>
+                </select>
+              </div>
             </div>
         </div>
       </div>

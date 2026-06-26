@@ -236,47 +236,95 @@ def generate_sql_query(messages: list, schema: str, provider: str, model_name: s
         result = resp.json()
         generated_text = result["candidates"][0]["content"]["parts"][0]["text"]
         
-    elif provider.lower() == "claude":
-        key = api_key or os.environ.get("CLAUDE_API_KEY", "") or os.environ.get("ANTHROPIC_API_KEY", "")
+    elif provider.lower() in ["openai", "chatgpt"]:
+        key = api_key or os.environ.get("OPENAI_API_KEY", "")
         if not key:
-            raise ValueError("Chave de API do Claude (CLAUDE_API_KEY) não configurada.")
+            raise ValueError("Chave de API da OpenAI (OPENAI_API_KEY) não configurada.")
             
-        # Map models
-        api_model = "claude-3-5-sonnet-20241022"
-        if "opus" in model_name.lower():
-            api_model = "claude-3-opus-20240229"
+        api_model = "gpt-4o-mini"
+        if "gpt-4o" in model_name.lower() and "mini" not in model_name.lower():
+            api_model = "gpt-4o"
+        elif "o1" in model_name.lower():
+            api_model = "o1-mini" if "mini" in model_name.lower() else "o1"
+        elif "o3" in model_name.lower():
+            api_model = "o3-mini"
 
-        claude_messages = []
+        openai_messages = []
+        # o1 and o3 models don't support system prompts in the same way, but recent API updates allow 'developer' or 'system' role.
+        # We will use 'system' for standard models, and 'user' for o1 if needed, but standard chat completions usually accepts 'system'.
+        if not api_model.startswith("o1") and not api_model.startswith("o3"):
+            openai_messages.append({"role": "system", "content": system_prompt})
+            
         for i, m in enumerate(messages):
-            role = "assistant" if m["role"] == "assistant" else "user"
+            role = m["role"]
             content = m["content"]
             if i == 0 and role == "user":
-                content = f"Contexto - Esquema de Banco de Dados:\n{schema}\n\n---\n\nPergunta do Usuário:\n{content}"
-            claude_messages.append({
-                "role": role,
-                "content": content
-            })
+                schema_ctx = f"Contexto - Esquema de Banco de Dados:\n{schema}\n\n---\n\n"
+                if api_model.startswith("o1") or api_model.startswith("o3"):
+                    # O1/O3 prefer instructions in the user prompt
+                    content = f"{system_prompt}\n\n{schema_ctx}Pergunta do Usuário:\n{content}"
+                else:
+                    content = f"{schema_ctx}Pergunta do Usuário:\n{content}"
+            openai_messages.append({"role": role, "content": content})
             
-        url = "https://api.anthropic.com/v1/messages"
+        url = "https://api.openai.com/v1/chat/completions"
         headers = {
-            "x-api-key": key,
-            "anthropic-version": "2023-06-01",
-            "content-type": "application/json"
+            "Authorization": f"Bearer {key}",
+            "Content-Type": "application/json"
         }
         payload = {
             "model": api_model,
-            "max_tokens": 4096,
-            "system": system_prompt,
-            "messages": claude_messages,
-            "temperature": 0.3
+            "messages": openai_messages,
         }
+        # o1 models don't support temperature
+        if not api_model.startswith("o1") and not api_model.startswith("o3"):
+            payload["temperature"] = 0.3
+            
+        if reasoning_level.lower() == "extended" or reasoning_level.lower() == "high":
+            if api_model.startswith("o1") or api_model.startswith("o3"):
+                payload["reasoning_effort"] = "high"
         
-        resp = requests.post(url, json=payload, headers=headers, timeout=60)
+        resp = requests.post(url, json=payload, headers=headers, timeout=90)
         if resp.status_code != 200:
-            raise Exception(f"Erro na API do Claude: {resp.text}")
+            raise Exception(f"Erro na API da OpenAI: {resp.text}")
             
         result = resp.json()
-        generated_text = result["content"][0]["text"]
+        generated_text = result["choices"][0]["message"]["content"]
+
+    elif provider.lower() == "deepseek":
+        key = api_key or os.environ.get("DEEPSEEK_API_KEY", "")
+        if not key:
+            raise ValueError("Chave de API da DeepSeek (DEEPSEEK_API_KEY) não configurada.")
+            
+        api_model = "deepseek-chat"
+        if "reasoner" in model_name.lower() or "r1" in model_name.lower():
+            api_model = "deepseek-reasoner"
+
+        ds_messages = [{"role": "system", "content": system_prompt}]
+        for i, m in enumerate(messages):
+            role = m["role"]
+            content = m["content"]
+            if i == 0 and role == "user":
+                content = f"Contexto - Esquema de Banco de Dados:\n{schema}\n\n---\n\nPergunta do Usuário:\n{content}"
+            ds_messages.append({"role": role, "content": content})
+            
+        url = "https://api.deepseek.com/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {key}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": api_model,
+            "messages": ds_messages,
+            "temperature": 0.3 if api_model == "deepseek-chat" else 0.0 # R1 might require fixed temp or ignoring it
+        }
+        
+        resp = requests.post(url, json=payload, headers=headers, timeout=90)
+        if resp.status_code != 200:
+            raise Exception(f"Erro na API da DeepSeek: {resp.text}")
+            
+        result = resp.json()
+        generated_text = result["choices"][0]["message"]["content"]
         
     else:
         raise ValueError(f"Provedor de IA desconhecido: {provider}")
