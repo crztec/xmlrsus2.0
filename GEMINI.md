@@ -47,6 +47,7 @@ Call `ms_save({ projectId: "96be79ca", title: "<title>", content: "<detailed con
 - 📐 **Next.js Subfolder & Client Integration**: Frontend is a Next.js App Router project deployed under reverse proxy subfolder using 'basePath: /rsus' and rewrites tar
 - 📐 **Query Builder Chat UI**: The Query Builder uses a Chat UI (messages array) instead of a single prompt. LLMs must return SQL in markdown blocks (```sql), and the frontend parses the blocks to show native Execute/Save/Copy buttons inline with text responses. Saved Queries are stored in Firestore `saved_queries` with global visibility but creator-only deletion.
 - 📐 **Test Title**: Test Content
+- 📐 **Deployment Infrastructure**: The deployment of this project is no longer using Google Cloud Run. It is now handled via GitHub Actions to push modifications to the Oracle server.
 
 
 
