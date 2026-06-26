@@ -1415,7 +1415,7 @@ class SQLConnectionSaveRequest(BaseModel):
     id: Optional[str] = None
 
 @app.get("/settings/sql-connections")
-async def get_sql_connections_endpoint(user = Depends(require_admin)):
+async def get_sql_connections_endpoint(user = Depends(get_current_user)):
     return db.list_sql_connections()
 
 @app.post("/settings/sql-connections")
@@ -1440,7 +1440,7 @@ async def delete_sql_connection_endpoint(conn_id: str, user = Depends(require_ad
     raise HTTPException(status_code=500, detail="Erro ao deletar conexão SQL.")
 
 @app.post("/settings/sql-connections/{conn_id}/extract-schema")
-async def extract_schema_endpoint(conn_id: str, user = Depends(require_admin)):
+async def extract_sql_schema_endpoint(conn_id: str, user = Depends(get_current_user)):
     conn_params = db.get_sql_connection_raw(conn_id)
     if not conn_params:
         raise HTTPException(status_code=404, detail="Conexão SQL não encontrada.")
@@ -1463,7 +1463,7 @@ class QueryGenerateRequest(BaseModel):
     reasoning_level: Optional[str] = "standard"
 
 @app.post("/query-builder/generate")
-async def generate_query_endpoint(body: QueryGenerateRequest, user = Depends(require_admin)):
+async def generate_query_endpoint(body: QueryGenerateRequest, user = Depends(get_current_user)):
     try:
         response_text = qb.generate_sql_query(
             messages=[{"role": m.role, "content": m.content} for m in body.messages],
@@ -1482,7 +1482,7 @@ class QueryExecuteRequest(BaseModel):
     sql_query: str
 
 @app.post("/query-builder/execute")
-async def execute_query_endpoint(body: QueryExecuteRequest, user = Depends(require_admin)):
+async def execute_query_endpoint(body: QueryExecuteRequest, user = Depends(get_current_user)):
     conn_params = db.get_sql_connection_raw(body.connection_id)
     if not conn_params:
         raise HTTPException(status_code=404, detail="Conexão SQL não encontrada.")
@@ -1497,12 +1497,12 @@ class SavedQueryRequest(BaseModel):
     sql_query: str
 
 @app.get("/query-builder/saved")
-async def get_saved_queries(user = Depends(require_admin)):
+async def get_saved_queries(user = Depends(get_current_user)):
     queries = db.list_saved_queries()
     return {"status": "success", "data": queries}
 
 @app.post("/query-builder/saved")
-async def create_saved_query(body: SavedQueryRequest, user = Depends(require_admin)):
+async def create_saved_query(body: SavedQueryRequest, user = Depends(get_current_user)):
     email = user.get("email", "admin") if isinstance(user, dict) else getattr(user, "email", "admin")
     data = db.save_query(body.connection_id, body.name, body.sql_query, email)
     if data:
@@ -1510,14 +1510,14 @@ async def create_saved_query(body: SavedQueryRequest, user = Depends(require_adm
     raise HTTPException(status_code=500, detail="Erro ao salvar consulta.")
 
 @app.put("/query-builder/saved/{query_id}")
-async def update_saved_query_endpoint(query_id: str, body: SavedQueryRequest, user = Depends(require_admin)):
+async def update_saved_query_endpoint(query_id: str, body: SavedQueryRequest, user = Depends(get_current_user)):
     email = user.get("email", "admin") if isinstance(user, dict) else getattr(user, "email", "admin")
     if db.update_saved_query(query_id, body.name, body.sql_query, email):
         return {"status": "success"}
     raise HTTPException(status_code=403, detail="Acesso negado ou consulta não encontrada.")
 
 @app.delete("/query-builder/saved/{query_id}")
-async def delete_saved_query_endpoint(query_id: str, user = Depends(require_admin)):
+async def delete_saved_query_endpoint(query_id: str, user = Depends(get_current_user)):
     email = user.get("email", "admin") if isinstance(user, dict) else getattr(user, "email", "admin")
     if db.delete_saved_query(query_id, email):
         return {"status": "success"}

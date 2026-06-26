@@ -121,10 +121,8 @@ export default function QueryBuilderPage() {
 
   useEffect(() => {
     const role = localStorage.getItem("gax_user_role");
-    if (role !== "admin") {
-      window.location.href = "/dashboard";
-      return;
-    }
+    // Removido o bloqueio para permitir que usuários padrão acessem o query builder
+
     fetchConnections();
     
     // Carregar chat salvo
