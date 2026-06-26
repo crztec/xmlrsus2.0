@@ -1,29 +1,11 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
-  Wrench,
-  Database,
-  Plus,
-  BrainCircuit,
-  Terminal,
-  Play,
-  Copy,
-  Check,
-  Loader2,
-  Trash2,
-  ChevronDown,
-  ChevronUp,
-  AlertCircle,
-  Sparkles,
-  Info,
-  Server,
-  Key,
-  X,
-  FileCode2,
-  ChevronLeft,
-  ChevronRight,
-  Pencil
+  Wrench, Database, Plus, BrainCircuit, Terminal, Play, Copy, Check,
+  Loader2, Trash2, ChevronDown, ChevronUp, AlertCircle, Sparkles,
+  Info, Server, Key, X, FileCode2, ChevronLeft, ChevronRight, Pencil,
+  MessageSquare, Send, Save, Bookmark
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/apiClient";
@@ -37,21 +19,31 @@ interface Connection {
   port: number;
 }
 
+interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+interface SavedQuery {
+  id: string;
+  connection_id: string;
+  name: string;
+  sql_query: string;
+  created_by: string;
+  created_at: string;
+}
+
 export default function QueryBuilderPage() {
   const [connections, setConnections] = useState<Connection[]>([]);
   const [selectedConnId, setSelectedConnId] = useState<string>("");
   const [isLoadingConns, setIsLoadingConns] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSavedQueriesModalOpen, setIsSavedQueriesModalOpen] = useState(false);
+  const [isSaveQueryModalOpen, setIsSaveQueryModalOpen] = useState(false);
   
   // Connection Form State
   const [connForm, setConnForm] = useState({
-    id: "",
-    name: "",
-    host: "",
-    database: "",
-    username: "",
-    password: "",
-    port: 1433
+    id: "", name: "", host: "", database: "", username: "", password: "", port: 1433
   });
   const [isSavingConn, setIsSavingConn] = useState(false);
 
@@ -66,11 +58,21 @@ export default function QueryBuilderPage() {
   const [isExtracting, setIsExtracting] = useState(false);
   const [isSchemaExpanded, setIsSchemaExpanded] = useState(false);
 
-  // Query Generation State
-  const [prompt, setPrompt] = useState("");
-  const [generatedSql, setGeneratedSql] = useState("");
+  // Chat State
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // Saved Queries State
+  const [savedQueries, setSavedQueries] = useState<SavedQuery[]>([]);
+  const [isLoadingSaved, setIsLoadingSaved] = useState(false);
+  const [newQueryName, setNewQueryName] = useState("");
+  const [queryToSave, setQueryToSave] = useState("");
+  const [isSavingQuery, setIsSavingQuery] = useState(false);
+  
+  // Copy state for multiple SQL blocks
+  const [copiedIndex, setCopiedIndex] = useState<string | null>(null);
 
   // Execution Results State
   const [executionResult, setExecutionResult] = useState<{ columns: string[]; rows: any[] } | null>(null);
@@ -82,6 +84,8 @@ export default function QueryBuilderPage() {
   // General Notification Banners
   const [notifySuccess, setNotifySuccess] = useState("");
   const [notifyError, setNotifyError] = useState("");
+
+  const currentUserEmail = typeof window !== "undefined" ? localStorage.getItem("gax_user_email") || "" : "";
 
   const fetchConnections = async () => {
     setIsLoadingConns(true);
@@ -98,6 +102,22 @@ export default function QueryBuilderPage() {
     }
   };
 
+  const fetchSavedQueries = async (connId: string) => {
+    if (!connId) return;
+    setIsLoadingSaved(true);
+    try {
+      const res = await apiClient(`/api/query-builder/saved?connection_id=${connId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setSavedQueries(data.data || []);
+      }
+    } catch (err) {
+      console.error("Erro ao carregar queries salvas:", err);
+    } finally {
+      setIsLoadingSaved(false);
+    }
+  };
+
   useEffect(() => {
     const role = localStorage.getItem("gax_user_role");
     if (role !== "admin") {
@@ -107,13 +127,28 @@ export default function QueryBuilderPage() {
     fetchConnections();
   }, []);
 
+  useEffect(() => {
+    if (selectedConnId) {
+      fetchSavedQueries(selectedConnId);
+      // Reset chat and schema when changing connections
+      setSchemaText("");
+      setMessages([]);
+      setExecutionResult(null);
+    }
+  }, [selectedConnId]);
+
+  useEffect(() => {
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, isGenerating]);
+
   const handleSaveConnection = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSavingConn(true);
     setNotifyError("");
     setNotifySuccess("");
     try {
-      // Map name to database, since we removed the first option
       const payload = {
         ...connForm,
         name: connForm.database,
@@ -129,7 +164,6 @@ export default function QueryBuilderPage() {
         const data = await res.json();
         setNotifySuccess(connForm.id ? "Conexão atualizada com sucesso!" : "Conexão salva com sucesso!");
         setIsModalOpen(false);
-        setConnForm({ id: "", name: "", host: "", database: "", username: "", password: "", port: 1433 });
         fetchConnections();
         if (data.id) setSelectedConnId(data.id);
       } else {
@@ -141,26 +175,6 @@ export default function QueryBuilderPage() {
     } finally {
       setIsSavingConn(false);
     }
-  };
-
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
-    setConnForm({ id: "", name: "", host: "", database: "", username: "", password: "", port: 1433 });
-  };
-
-  const handleEditConnectionClick = () => {
-    const conn = connections.find(c => c.id === selectedConnId);
-    if (!conn) return;
-    setConnForm({
-      id: conn.id,
-      name: conn.name || conn.database,
-      host: conn.host,
-      database: conn.database,
-      username: conn.username,
-      password: "********", // Use masked password so backend knows to keep the old one unless changed
-      port: conn.port
-    });
-    setIsModalOpen(true);
   };
 
   const handleDeleteConnection = async (id: string, e: React.MouseEvent) => {
@@ -177,7 +191,7 @@ export default function QueryBuilderPage() {
         if (selectedConnId === id) {
           setSelectedConnId("");
           setSchemaText("");
-          setGeneratedSql("");
+          setMessages([]);
           setExecutionResult(null);
         }
         fetchConnections();
@@ -213,18 +227,23 @@ export default function QueryBuilderPage() {
     }
   };
 
-  const handleGenerateSql = async () => {
-    if (!schemaText || !prompt.trim()) return;
+  const handleSendMessage = async () => {
+    if (!schemaText || !chatInput.trim()) return;
+    
+    const newMessage: ChatMessage = { role: "user", content: chatInput.trim() };
+    const updatedMessages = [...messages, newMessage];
+    
+    setMessages(updatedMessages);
+    setChatInput("");
     setIsGenerating(true);
-    setGeneratedSql("");
-    setExecutionResult(null);
-    setExecError("");
+    setNotifyError("");
+    
     try {
       const res = await apiClient("/api/query-builder/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          prompt: prompt,
+          messages: updatedMessages,
           schema: schemaText,
           provider: provider,
           model_name: modelName,
@@ -232,12 +251,13 @@ export default function QueryBuilderPage() {
           reasoning_level: reasoningLevel
         })
       });
+      
       if (res.ok) {
         const data = await res.json();
-        setGeneratedSql(data.sql || "");
+        setMessages([...updatedMessages, { role: "assistant", content: data.response }]);
       } else {
         const errData = await res.json();
-        setNotifyError(errData.detail || "Falha na geração do SQL.");
+        setNotifyError(errData.detail || "Falha na geração da resposta.");
       }
     } catch (err) {
       setNotifyError("Erro ao chamar serviço de Inteligência Artificial.");
@@ -246,19 +266,24 @@ export default function QueryBuilderPage() {
     }
   };
 
-  const handleExecuteQuery = async () => {
-    if (!selectedConnId || !generatedSql) return;
+  const handleExecuteQuery = async (sql: string) => {
+    if (!selectedConnId || !sql.trim()) return;
     setIsExecuting(true);
     setExecError("");
     setExecutionResult(null);
     setCurrentPage(1);
+    
+    setTimeout(() => {
+        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    }, 100);
+
     try {
       const res = await apiClient("/api/query-builder/execute", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           connection_id: selectedConnId,
-          sql_query: generatedSql
+          sql_query: sql.trim()
         })
       });
       if (res.ok) {
@@ -278,37 +303,151 @@ export default function QueryBuilderPage() {
     }
   };
 
-  const copyToClipboard = () => {
-    if (!generatedSql) return;
-    navigator.clipboard.writeText(generatedSql);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const copyToClipboard = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedIndex(id);
+    setTimeout(() => setCopiedIndex(null), 2000);
   };
 
-  // Keep model selections synchronized with provider
-  const handleProviderChange = (p: "gemini" | "claude") => {
-    setProvider(p);
-    if (p === "gemini") {
-      setModelName("Gemini 3.5 Flash");
-    } else {
-      setModelName("Claude Sonnet");
+  const handleSaveQuerySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newQueryName.trim() || !queryToSave.trim()) return;
+    
+    setIsSavingQuery(true);
+    setNotifyError("");
+    try {
+      const res = await apiClient("/api/query-builder/saved", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          connection_id: selectedConnId,
+          name: newQueryName.trim(),
+          sql_query: queryToSave.trim()
+        })
+      });
+      
+      if (res.ok) {
+        setNotifySuccess("Consulta salva com sucesso!");
+        setIsSaveQueryModalOpen(false);
+        setNewQueryName("");
+        setQueryToSave("");
+        fetchSavedQueries(selectedConnId);
+      } else {
+        const errData = await res.json();
+        setNotifyError(errData.detail || "Erro ao salvar query.");
+      }
+    } catch (err) {
+      setNotifyError("Erro de comunicação com o servidor.");
+    } finally {
+      setIsSavingQuery(false);
     }
   };
 
-  const selectedConn = connections.find(c => c.id === selectedConnId);
+  const handleDeleteSavedQuery = async (queryId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm("Deseja excluir esta query salva?")) return;
+    
+    try {
+      const res = await apiClient(`/api/query-builder/saved/${queryId}`, {
+        method: "DELETE"
+      });
+      
+      if (res.ok) {
+        setNotifySuccess("Consulta excluída com sucesso.");
+        fetchSavedQueries(selectedConnId);
+      } else {
+        const errData = await res.json();
+        setNotifyError(errData.detail || "Erro ao excluir query.");
+      }
+    } catch (err) {
+      setNotifyError("Erro de comunicação com o servidor.");
+    }
+  };
 
-  // Pagination for Results
+  const renderChatMessage = (msg: ChatMessage, msgIndex: number) => {
+    if (msg.role === "user") {
+      return (
+        <div key={msgIndex} className="flex justify-end mb-4">
+          <div className="max-w-[85%] rounded-2xl rounded-tr-sm bg-gax-blue text-white px-5 py-3 shadow-md shadow-gax-blue/20">
+            <p className="text-[13px] font-medium leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+          </div>
+        </div>
+      );
+    }
+
+    const parts = msg.content.split(/```(?:sql)?\n([\s\S]*?)```/i);
+    
+    return (
+      <div key={msgIndex} className="flex justify-start mb-6">
+        <div className="max-w-[95%] w-full rounded-3xl rounded-tl-sm border border-slate-200/60 bg-white shadow-xl shadow-slate-200/20 overflow-hidden">
+          <div className="flex items-center gap-2 px-5 py-3 bg-slate-50 border-b border-slate-100">
+            <BrainCircuit size={16} className="text-gax-blue" />
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">{modelName}</span>
+          </div>
+          
+          <div className="p-5 text-[13px] font-medium text-slate-700 leading-relaxed">
+            {parts.map((part, index) => {
+              if (index % 2 === 0) {
+                if (!part.trim()) return null;
+                return <p key={index} className="whitespace-pre-wrap mb-4 last:mb-0">{part.trim()}</p>;
+              } else {
+                const sqlCode = part.trim();
+                const blockId = `msg-${msgIndex}-code-${index}`;
+                return (
+                  <div key={index} className="my-4 rounded-xl border border-slate-800 bg-slate-900 overflow-hidden shadow-inner">
+                    <div className="flex flex-wrap items-center justify-between px-4 py-2 bg-slate-800/80 border-b border-slate-700/50 gap-2">
+                      <div className="flex items-center gap-2">
+                        <Terminal size={14} className="text-gax-blue-light" />
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">SQL Gerado</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => copyToClipboard(sqlCode, blockId)}
+                          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-700/50 text-slate-300 hover:bg-slate-700 hover:text-white transition-all text-[11px] font-bold"
+                        >
+                          {copiedIndex === blockId ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                          {copiedIndex === blockId ? "Copiado!" : "Copiar"}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setQueryToSave(sqlCode);
+                            setIsSaveQueryModalOpen(true);
+                          }}
+                          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-500/20 text-blue-300 hover:bg-blue-500/40 hover:text-white transition-all text-[11px] font-bold"
+                        >
+                          <Save size={12} />
+                          Salvar
+                        </button>
+                        <button
+                          onClick={() => handleExecuteQuery(sqlCode)}
+                          disabled={isExecuting}
+                          className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 transition-all text-[11px] font-bold shadow-sm disabled:opacity-50"
+                        >
+                          {isExecuting ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />}
+                          Executar
+                        </button>
+                      </div>
+                    </div>
+                    <pre className="p-4 text-gax-blue-light font-mono text-xs overflow-x-auto whitespace-pre-wrap leading-relaxed">
+                      {sqlCode}
+                    </pre>
+                  </div>
+                );
+              }
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const selectedConn = connections.find(c => c.id === selectedConnId);
   const totalRows = executionResult?.rows.length || 0;
   const totalPages = Math.ceil(totalRows / itemsPerPage);
-  const paginatedRows = (executionResult?.rows || []).slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  const paginatedRows = (executionResult?.rows || []).slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   return (
-    <div className="flex flex-col gap-6 p-4 md:p-8 pt-2 max-w-7xl mx-auto font-sans text-slate-900">
-      
-      {/* Alert Notifications */}
+    <div className="flex flex-col gap-6 p-4 md:p-8 pt-2 max-w-7xl mx-auto font-sans text-slate-900 pb-32">
       {notifySuccess && (
         <div className="flex items-center gap-3 p-4 bg-emerald-50 border border-emerald-100 text-emerald-700 rounded-2xl text-xs font-bold shadow-sm transition-all animate-fadeIn">
           <Check size={18} />
@@ -326,7 +465,6 @@ export default function QueryBuilderPage() {
 
       {/* Grid Layout containing Server selector and LLM Settings */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-        
         {/* SQL Server Connection Selector card */}
         <div className="md:col-span-7 rounded-3xl border border-slate-200/60 bg-white/70 backdrop-blur-sm p-6 shadow-xl shadow-slate-200/20 flex flex-col justify-between">
           <div>
@@ -349,7 +487,7 @@ export default function QueryBuilderPage() {
                 className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-gax-blue/10 text-gax-blue hover:bg-gax-blue hover:text-white transition-all text-xs font-bold shadow-sm"
               >
                 <Plus size={14} />
-                Nova Conexão
+                Nova
               </button>
             </div>
 
@@ -358,37 +496,35 @@ export default function QueryBuilderPage() {
                 <Loader2 className="animate-spin text-gax-blue" size={16} />
                 <span className="text-xs text-slate-400 font-medium">Carregando servidores...</span>
               </div>
-            ) : connections.length === 0 ? (
-              <div className="py-6 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center gap-2 text-center">
-                <Server size={24} className="text-slate-300" />
-                <p className="text-xs font-bold text-slate-400">Nenhuma conexão cadastrada.</p>
-              </div>
             ) : (
               <div className="flex flex-col gap-2">
                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Servidores Ativos</label>
                 <div className="flex gap-2">
                   <select
                     value={selectedConnId}
-                    onChange={(e) => {
-                      setSelectedConnId(e.target.value);
-                      setSchemaText("");
-                      setGeneratedSql("");
-                      setExecutionResult(null);
-                    }}
+                    onChange={(e) => setSelectedConnId(e.target.value)}
                     className="flex-1 rounded-2xl border border-slate-200 px-4 py-3 text-xs outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all font-sans text-slate-700 font-bold bg-white"
                   >
                     <option value="">Selecione um banco SQL Server...</option>
                     {connections.map((c) => (
                       <option key={c.id} value={c.id}>
-                        {c.name === c.database ? `${c.database} (${c.host})` : `${c.name} (${c.host} - {c.database})`}
+                        {c.name === c.database ? `${c.database} (${c.host})` : `${c.name} (${c.host} - ${c.database})`}
                       </option>
                     ))}
                   </select>
 
                   {selectedConnId && (
-                    <div className="flex gap-1.5">
+                    <>
                       <button
-                        onClick={handleEditConnectionClick}
+                        onClick={() => {
+                          const conn = connections.find(c => c.id === selectedConnId);
+                          if (conn) {
+                            setConnForm({
+                              id: conn.id, name: conn.name || conn.database, host: conn.host, database: conn.database, username: conn.username, password: "********", port: conn.port
+                            });
+                            setIsModalOpen(true);
+                          }
+                        }}
                         className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-50 border border-slate-200 text-slate-500 hover:bg-slate-200 hover:text-slate-700 transition-all shadow-sm shrink-0 active:scale-95"
                         title="Editar Conexão"
                       >
@@ -401,25 +537,30 @@ export default function QueryBuilderPage() {
                       >
                         <Trash2 size={16} />
                       </button>
-                    </div>
+                      <button
+                        onClick={() => setIsSavedQueriesModalOpen(true)}
+                        className="flex items-center justify-center h-11 w-11 md:w-auto md:px-4 gap-1.5 rounded-2xl bg-slate-800 text-white hover:bg-slate-700 transition-all text-xs font-bold shadow-md shadow-slate-800/20 shrink-0"
+                        title="Consultas Salvas"
+                      >
+                        <Bookmark size={14} />
+                        <span className="hidden md:inline">Salvas ({savedQueries.length})</span>
+                      </button>
+                    </>
                   )}
                 </div>
               </div>
             )}
           </div>
-
           {selectedConn && (
             <div className="mt-4 p-3 bg-slate-50 rounded-2xl border border-slate-200/50 flex flex-wrap gap-x-4 gap-y-1 text-[11px] font-bold text-slate-500">
               <span>Host: <strong className="text-slate-700">{selectedConn.host}:{selectedConn.port}</strong></span>
               <span>Banco: <strong className="text-slate-700">{selectedConn.database}</strong></span>
-              <span>Usuário: <strong className="text-slate-700">{selectedConn.username}</strong></span>
             </div>
           )}
         </div>
 
         {/* AI Motor Settings card */}
-        <div className="md:col-span-5 rounded-3xl border border-slate-200/60 bg-white/70 backdrop-blur-sm p-6 shadow-xl shadow-slate-200/20 flex flex-col justify-between">
-          <div>
+        <div className="md:col-span-5 rounded-3xl border border-slate-200/60 bg-white/70 backdrop-blur-sm p-6 shadow-xl shadow-slate-200/20">
             <div className="flex items-center gap-3 mb-4">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gax-blue/10 text-gax-blue shadow-inner">
                 <BrainCircuit size={20} />
@@ -430,287 +571,136 @@ export default function QueryBuilderPage() {
               </div>
             </div>
 
-            {/* Provider Tabs */}
             <div className="flex items-center gap-1.5 rounded-2xl border border-slate-200/60 bg-white p-1.5 shadow-sm mb-4">
               <button
-                onClick={() => handleProviderChange("gemini")}
-                className={cn(
-                  "flex-1 flex h-9 items-center justify-center rounded-xl transition-all font-sans text-xs font-bold",
-                  provider === "gemini"
-                    ? "bg-gax-blue text-white shadow-md shadow-gax-blue/20"
-                    : "text-slate-400 hover:bg-slate-50 hover:text-slate-600"
-                )}
-              >
-                Gemini (Padrão)
-              </button>
+                onClick={() => { setProvider("gemini"); setModelName("Gemini 3.5 Flash"); }}
+                className={cn("flex-1 flex h-9 items-center justify-center rounded-xl transition-all font-sans text-xs font-bold",
+                  provider === "gemini" ? "bg-gax-blue text-white shadow-md shadow-gax-blue/20" : "text-slate-400 hover:bg-slate-50")}
+              >Gemini</button>
               <button
-                onClick={() => handleProviderChange("claude")}
-                className={cn(
-                  "flex-1 flex h-9 items-center justify-center rounded-xl transition-all font-sans text-xs font-bold",
-                  provider === "claude"
-                    ? "bg-gax-blue text-white shadow-md shadow-gax-blue/20"
-                    : "text-slate-400 hover:bg-slate-50 hover:text-slate-600"
+                onClick={() => { setProvider("claude"); setModelName("Claude Sonnet"); }}
+                className={cn("flex-1 flex h-9 items-center justify-center rounded-xl transition-all font-sans text-xs font-bold",
+                  provider === "claude" ? "bg-gax-blue text-white shadow-md shadow-gax-blue/20" : "text-slate-400 hover:bg-slate-50")}
+              >Claude</button>
+            </div>
+        </div>
+      </div>
+
+      {/* Schema Extraction Area */}
+      {selectedConnId && !schemaText && (
+        <div className="rounded-3xl border border-slate-200/60 bg-white/70 backdrop-blur-sm p-8 shadow-xl shadow-slate-200/20 text-center flex flex-col items-center gap-4">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gax-blue/10 text-gax-blue mb-2">
+            <Database size={32} />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-slate-800">Extração de Esquema Necessária</h3>
+            <p className="text-sm font-medium text-slate-500 mt-1 max-w-md mx-auto">
+              Para que a Inteligência Artificial possa gerar queries precisas e conversar com o contexto correto, precisamos mapear as tabelas e colunas do seu banco de dados.
+            </p>
+          </div>
+          <button
+            onClick={handleExtractSchema}
+            disabled={isExtracting}
+            className="flex items-center gap-2 px-8 py-3.5 rounded-2xl bg-gax-blue text-white hover:bg-gax-blue-hover transition-all text-sm font-bold shadow-lg shadow-gax-blue/30 disabled:opacity-50 mt-2"
+          >
+            {isExtracting ? (
+              <><Loader2 size={18} className="animate-spin" /> Conectando e Mapeando...</>
+            ) : (
+              <><Sparkles size={18} /> Iniciar Mapeamento do Banco</>
+            )}
+          </button>
+        </div>
+      )}
+
+      {/* Chat UI */}
+      {schemaText && (
+        <div className="flex flex-col rounded-3xl border border-slate-200/60 bg-slate-50/50 backdrop-blur-sm shadow-xl shadow-slate-200/20 overflow-hidden h-[600px]">
+          {/* Chat Header */}
+          <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-slate-200/60">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gax-blue/10 text-gax-blue">
+                <MessageSquare size={20} />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-800">Assistente DBA</h3>
+                <p className="text-[11px] font-medium text-slate-400">Converse com a IA para gerar queries ou tirar dúvidas.</p>
+              </div>
+            </div>
+            
+            <button
+              onClick={() => setIsSchemaExpanded(!isSchemaExpanded)}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-500 hover:bg-slate-50 transition-all"
+            >
+              <FileCode2 size={14} />
+              Esquema DDL
+              {isSchemaExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </button>
+          </div>
+
+          {/* Expanded Schema */}
+          {isSchemaExpanded && (
+            <div className="p-4 border-b border-slate-200 bg-slate-100/50">
+              <pre className="max-h-[150px] overflow-y-auto text-[10px] font-mono text-slate-600 whitespace-pre bg-white p-4 rounded-xl border border-slate-200 shadow-inner">
+                {schemaText}
+              </pre>
+            </div>
+          )}
+
+          {/* Messages Area */}
+          <div className="flex-1 overflow-y-auto p-6 scroll-smooth">
+            {messages.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-center opacity-60">
+                <BrainCircuit size={48} className="text-gax-blue mb-4 opacity-50" />
+                <p className="text-sm font-bold text-slate-600">Esquema mapeado com sucesso!</p>
+                <p className="text-xs font-medium text-slate-400 mt-2 max-w-sm">
+                  Descreva o que você deseja buscar no banco de dados. Ex: "Busque os 10 clientes mais recentes cadastrados."
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {messages.map((msg, idx) => renderChatMessage(msg, idx))}
+                {isGenerating && (
+                  <div className="flex justify-start mb-6">
+                    <div className="rounded-3xl rounded-tl-sm border border-slate-200/60 bg-white shadow-md p-4 flex items-center gap-3 text-slate-500">
+                      <Loader2 size={16} className="animate-spin text-gax-blue" />
+                      <span className="text-xs font-bold">A IA está processando sua solicitação...</span>
+                    </div>
+                  </div>
                 )}
-              >
-                Claude
-              </button>
-            </div>
-
-            {/* Model list based on provider */}
-            <div className="flex flex-wrap gap-2 mb-4">
-              {provider === "gemini" ? (
-                <>
-                  <button
-                    onClick={() => setModelName("Gemini 3.5 Flash")}
-                    className={cn(
-                      "px-3 py-1.5 rounded-xl border text-xs font-bold transition-all",
-                      modelName === "Gemini 3.5 Flash"
-                        ? "bg-gax-blue-light border-gax-blue/30 text-gax-blue"
-                        : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
-                    )}
-                  >
-                    Gemini 3.5 Flash
-                  </button>
-                  <button
-                    onClick={() => setModelName("Gemini 3.1 Pro")}
-                    className={cn(
-                      "px-3 py-1.5 rounded-xl border text-xs font-bold transition-all",
-                      modelName === "Gemini 3.1 Pro"
-                        ? "bg-gax-blue-light border-gax-blue/30 text-gax-blue"
-                        : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
-                    )}
-                  >
-                    Gemini 3.1 Pro
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    onClick={() => setModelName("Claude Sonnet")}
-                    className={cn(
-                      "px-3 py-1.5 rounded-xl border text-xs font-bold transition-all",
-                      modelName === "Claude Sonnet"
-                        ? "bg-gax-blue-light border-gax-blue/30 text-gax-blue"
-                        : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
-                    )}
-                  >
-                    Claude Sonnet
-                  </button>
-                  <button
-                    onClick={() => setModelName("Claude Opus 4.8")}
-                    className={cn(
-                      "px-3 py-1.5 rounded-xl border text-xs font-bold transition-all",
-                      modelName === "Claude Opus 4.8"
-                        ? "bg-gax-blue-light border-gax-blue/30 text-gax-blue"
-                        : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
-                    )}
-                  >
-                    Claude Opus 4.8
-                  </button>
-                </>
-              )}
-            </div>
-
-            {/* Reasoning Level Selector (Gemini only) */}
-            {provider === "gemini" && (
-              <div className="flex flex-col gap-1.5 mb-4">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Nível de Raciocínio</label>
-                <div className="flex items-center gap-1.5 rounded-2xl border border-slate-200/60 bg-white p-1.5 shadow-sm">
-                  <button
-                    type="button"
-                    onClick={() => setReasoningLevel("standard")}
-                    className={cn(
-                      "flex-1 flex h-9 items-center justify-center rounded-xl transition-all font-sans text-xs font-bold",
-                      reasoningLevel === "standard"
-                        ? "bg-slate-100 text-slate-700 shadow-inner"
-                        : "text-slate-400 hover:bg-slate-50 hover:text-slate-600"
-                    )}
-                  >
-                    Padrão
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setReasoningLevel("extended")}
-                    className={cn(
-                      "flex-1 flex h-9 items-center justify-center rounded-xl transition-all font-sans text-xs font-bold",
-                      reasoningLevel === "extended"
-                        ? "bg-slate-100 text-slate-700 shadow-inner"
-                        : "text-slate-400 hover:bg-slate-50 hover:text-slate-600"
-                    )}
-                  >
-                    Estendido (Thinking)
-                  </button>
-                </div>
+                <div ref={chatEndRef} />
               </div>
             )}
           </div>
 
-          {/* API Key input */}
-          <div className="relative group w-full">
-            <Key className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-gax-blue transition-colors" size={16} />
-            <input
-              type="password"
-              placeholder="Chave de API (Opcional - usa do servidor se vazia)"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              className="w-full rounded-2xl border border-slate-200/60 bg-white px-11 py-3 text-xs text-slate-700 outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all font-medium placeholder:text-slate-300"
-            />
-          </div>
-        </div>
-
-      </div>
-
-      {/* Database Schema Extraction Area */}
-      {selectedConnId && (
-        <div className="rounded-3xl border border-slate-200/60 bg-white/70 backdrop-blur-sm p-6 shadow-xl shadow-slate-200/20">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gax-blue/10 text-gax-blue">
-                <Database size={18} />
-              </div>
-              <div>
-                <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Estrutura de Tabelas</h3>
-                <p className="text-xs font-bold text-slate-600">Esquema DDL extraído das tabelas (dbo)</p>
-              </div>
-            </div>
-
-            <button
-              onClick={handleExtractSchema}
-              disabled={isExtracting}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gax-blue text-white hover:bg-gax-blue-hover transition-all text-xs font-bold shadow-md shadow-gax-blue/20 disabled:opacity-50"
-            >
-              {isExtracting ? (
-                <>
-                  <Loader2 size={14} className="animate-spin" />
-                  Conectando e Lendo Banco...
-                </>
-              ) : (
-                <>
-                  <Sparkles size={14} />
-                  Conectar e Ler Banco
-                </>
-              )}
-            </button>
-          </div>
-
-          {schemaText && (
-            <div className="border border-slate-200 rounded-2xl overflow-hidden mt-4 bg-slate-50/50">
+          {/* Input Area */}
+          <div className="p-4 bg-white border-t border-slate-200/60">
+            <div className="relative">
+              <textarea
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendMessage();
+                  }
+                }}
+                placeholder="Escreva sua instrução ou pergunta (Shift+Enter para pular linha)..."
+                className="w-full min-h-[60px] max-h-[150px] rounded-2xl border border-slate-200 pl-4 pr-14 py-4 text-xs outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all font-sans text-slate-700 font-medium placeholder:text-slate-300 resize-none shadow-sm"
+                rows={1}
+              />
               <button
-                onClick={() => setIsSchemaExpanded(!isSchemaExpanded)}
-                className="w-full flex items-center justify-between px-4 py-3 bg-slate-100/50 text-xs font-bold text-slate-600 hover:bg-slate-100 transition-all"
+                onClick={handleSendMessage}
+                disabled={isGenerating || !chatInput.trim()}
+                className="absolute right-3 bottom-3 p-2.5 rounded-xl bg-gax-blue text-white hover:bg-gax-blue-hover transition-all shadow-md disabled:opacity-40 disabled:hover:bg-gax-blue"
               >
-                <div className="flex items-center gap-2">
-                  <FileCode2 size={16} className="text-slate-400" />
-                  <span>DDL do Banco ({schemaText.split("CREATE TABLE").length - 1} tabelas mapeadas)</span>
-                </div>
-                {isSchemaExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-              </button>
-              
-              {isSchemaExpanded && (
-                <div className="p-4 border-t border-slate-200">
-                  <pre className="max-h-[250px] overflow-y-auto text-[10px] font-mono text-slate-600 whitespace-pre bg-white p-4 rounded-xl border border-slate-100 shadow-inner">
-                    {schemaText}
-                  </pre>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Query generation Prompt box */}
-      {schemaText && (
-        <div className="rounded-3xl border border-slate-200/60 bg-white/70 backdrop-blur-sm p-6 shadow-xl shadow-slate-200/20 space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gax-blue/10 text-gax-blue">
-              <BrainCircuit size={18} />
-            </div>
-            <div>
-              <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Escreva sua pergunta</h3>
-              <p className="text-xs font-bold text-slate-600">A Inteligência Artificial traduzirá para SQL Server (T-SQL)</p>
-            </div>
-          </div>
-
-          <textarea
-            placeholder='Ex: "Busque os 10 clientes que mais possuem ABIs processados com sucesso no último mês agrupados por nome e CNPJ"'
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            className="w-full min-h-[100px] rounded-2xl border border-slate-200 px-4 py-3 text-xs outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all font-sans text-slate-700 font-medium placeholder:text-slate-300"
-          />
-
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-[10px] text-slate-400 font-medium">
-              <Info size={14} className="text-gax-blue" />
-              <span>Garante segurança restrita a queries SELECT apenas (Bloqueio de escrita DML/DDL)</span>
-            </div>
-
-            <button
-              onClick={handleGenerateSql}
-              disabled={isGenerating || !prompt.trim()}
-              className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gax-blue text-white hover:bg-gax-blue-hover transition-all text-xs font-bold shadow-md shadow-gax-blue/20 disabled:opacity-50"
-            >
-              {isGenerating ? (
-                <>
-                  <Loader2 size={14} className="animate-spin" />
-                  Gerando SQL...
-                </>
-              ) : (
-                <>
-                  <BrainCircuit size={14} />
-                  Gerar Query SQL
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* SQL Output and Execute query controls */}
-      {generatedSql && (
-        <div className="rounded-3xl border border-slate-200/60 bg-white/70 backdrop-blur-sm p-6 shadow-xl shadow-slate-200/20 space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gax-blue/10 text-gax-blue">
-                <Terminal size={18} />
-              </div>
-              <div>
-                <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Query SQL Gerada</h3>
-                <p className="text-xs font-bold text-slate-600">Código gerado pelo {modelName}</p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={copyToClipboard}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200/60 text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-all text-xs font-bold"
-              >
-                {copied ? (
-                  <>
-                    <Check size={14} className="text-emerald-500" />
-                    Copiado!
-                  </>
-                ) : (
-                  <>
-                    <Copy size={14} />
-                    Copiar
-                  </>
-                )}
-              </button>
-
-              <button
-                onClick={handleExecuteQuery}
-                disabled={isExecuting}
-                className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 transition-all text-xs font-bold shadow-md shadow-emerald-500/20 disabled:opacity-50"
-              >
-                {isExecuting ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
-                Executar Query
+                <Send size={16} />
               </button>
             </div>
+            <p className="text-[10px] text-slate-400 font-medium mt-2 flex items-center gap-1.5 justify-center">
+              <Info size={12} className="text-gax-blue" />
+              Regras de segurança bloqueiam queries destrutivas (DML/DDL). Apenas SELECTs são permitidos.
+            </p>
           </div>
-
-          <pre className="p-4 bg-slate-900 text-gax-blue-light font-mono text-xs rounded-2xl border border-slate-800 shadow-inner overflow-x-auto whitespace-pre-wrap leading-relaxed">
-            {generatedSql}
-          </pre>
         </div>
       )}
 
@@ -776,28 +766,12 @@ export default function QueryBuilderPage() {
                   </table>
                 </div>
               </div>
-
-              {/* Pagination controls for SQL results */}
               {totalPages > 1 && (
                 <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-3 shadow-inner">
-                  <span className="text-[11px] font-medium text-slate-400">
-                    Página {currentPage} de {totalPages}
-                  </span>
+                  <span className="text-[11px] font-medium text-slate-400">Página {currentPage} de {totalPages}</span>
                   <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                      disabled={currentPage === 1}
-                      className="p-1 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all outline-none shrink-0"
-                    >
-                      <ChevronLeft size={16} />
-                    </button>
-                    <button
-                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                      disabled={currentPage === totalPages}
-                      className="p-1 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all outline-none shrink-0"
-                    >
-                      <ChevronRight size={16} />
-                    </button>
+                    <button onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} disabled={currentPage === 1} className="p-1 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all outline-none shrink-0"><ChevronLeft size={16} /></button>
+                    <button onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))} disabled={currentPage === totalPages} className="p-1 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all outline-none shrink-0"><ChevronRight size={16} /></button>
                   </div>
                 </div>
               )}
@@ -806,7 +780,7 @@ export default function QueryBuilderPage() {
         </div>
       )}
 
-      {/* Modal - Cadastrar Nova Conexão SQL Server */}
+      {/* Modal - Conexão SQL */}
       {isModalOpen && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
@@ -822,7 +796,7 @@ export default function QueryBuilderPage() {
                 </h3>
               </div>
               <button
-                onClick={handleCloseModal}
+                onClick={() => setIsModalOpen(false)}
                 className="text-slate-400 hover:text-slate-600 transition-colors"
               >
                 <X size={20} />
@@ -896,7 +870,7 @@ export default function QueryBuilderPage() {
               <div className="pt-2 flex gap-3">
                 <button
                   type="button"
-                  onClick={handleCloseModal}
+                  onClick={() => setIsModalOpen(false)}
                   className="flex-1 px-4 py-3 rounded-2xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all text-xs font-bold"
                 >
                   Cancelar
@@ -908,6 +882,115 @@ export default function QueryBuilderPage() {
                 >
                   {isSavingConn && <Loader2 size={14} className="animate-spin" />}
                   Salvar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      
+      {/* Modal - Consultas Salvas */}
+      {isSavedQueriesModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm" onClick={() => setIsSavedQueriesModalOpen(false)}>
+          <div className="w-full max-w-4xl max-h-[90vh] flex flex-col rounded-3xl bg-white shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-slate-100 bg-slate-50">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-800 text-white shadow-md">
+                  <Bookmark size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-800">Consultas Salvas (Globais)</h3>
+                  <p className="text-[11px] font-medium text-slate-500">Banco: {selectedConn?.database}</p>
+                </div>
+              </div>
+              <button onClick={() => setIsSavedQueriesModalOpen(false)} className="h-8 w-8 flex items-center justify-center rounded-full bg-slate-200/50 text-slate-500 hover:bg-slate-200 transition-colors">
+                <X size={16} />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6 bg-slate-50/30">
+              {isLoadingSaved ? (
+                <div className="flex justify-center p-12"><Loader2 size={32} className="animate-spin text-gax-blue" /></div>
+              ) : savedQueries.length === 0 ? (
+                <div className="flex flex-col items-center justify-center text-center p-12">
+                  <Bookmark size={48} className="text-slate-200 mb-4" />
+                  <p className="text-sm font-bold text-slate-400">Nenhuma consulta salva para este banco de dados.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-4">
+                  {savedQueries.map(q => (
+                    <div key={q.id} className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm hover:shadow-md transition-all">
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <h4 className="text-sm font-bold text-slate-800">{q.name}</h4>
+                          <p className="text-[10px] font-medium text-slate-400">Criado por: {q.created_by} em {q.created_at}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => {
+                              handleExecuteQuery(q.sql_query);
+                              setIsSavedQueriesModalOpen(false);
+                            }}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 transition-all text-[11px] font-bold shadow-sm"
+                          >
+                            <Play size={12} /> Executar
+                          </button>
+                          {currentUserEmail === q.created_by && (
+                            <button
+                              onClick={(e) => handleDeleteSavedQuery(q.id, e)}
+                              className="flex items-center justify-center h-8 w-8 rounded-xl bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white transition-all shadow-sm"
+                              title="Excluir (apenas criador)"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <pre className="p-3 bg-slate-900 text-gax-blue-light font-mono text-[10px] rounded-xl overflow-x-auto whitespace-pre-wrap max-h-32 shadow-inner">
+                        {q.sql_query}
+                      </pre>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal - Salvar Query */}
+      {isSaveQueryModalOpen && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm" onClick={() => setIsSaveQueryModalOpen(false)}>
+          <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="mb-6 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                <Save size={20} className="text-gax-blue" />
+                Salvar Consulta
+              </h3>
+              <button onClick={() => setIsSaveQueryModalOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            <form onSubmit={handleSaveQuerySubmit} className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Nome da Consulta</label>
+                <input
+                  type="text"
+                  placeholder="Ex: Faturamento Mensal por Cliente"
+                  value={newQueryName}
+                  onChange={(e) => setNewQueryName(e.target.value)}
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-xs outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all font-sans text-slate-700 font-bold"
+                  required
+                  autoFocus
+                />
+              </div>
+              <div className="pt-2 flex gap-3">
+                <button type="button" onClick={() => setIsSaveQueryModalOpen(false)} className="flex-1 px-4 py-3 rounded-2xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all text-xs font-bold">
+                  Cancelar
+                </button>
+                <button type="submit" disabled={isSavingQuery || !newQueryName.trim()} className="flex-1 px-4 py-3 rounded-2xl bg-gax-blue text-white hover:bg-gax-blue-hover transition-all text-xs font-bold shadow-md shadow-gax-blue/20 disabled:opacity-50 flex items-center justify-center gap-2">
+                  {isSavingQuery && <Loader2 size={14} className="animate-spin" />}
+                  Salvar Query
                 </button>
               </div>
             </form>

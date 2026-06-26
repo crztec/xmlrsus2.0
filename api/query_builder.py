@@ -176,18 +176,23 @@ def execute_select_query(conn_params: dict, sql_query: str) -> dict:
         logger.error(f"Erro ao executar query SELECT no SQL Server: {e}")
         raise Exception(f"Erro na execução da query no SQL Server: {str(e)}")
 
-def generate_sql_query(prompt: str, schema: str, provider: str, model_name: str, api_key: str = None, reasoning_level: str = "standard") -> str:
+def generate_sql_query(messages: list, schema: str, provider: str, model_name: str, api_key: str = None, reasoning_level: str = "standard") -> str:
     """
     Calls Gemini or Claude to translate natural language prompt into SQL query based on DDL schema.
+    Maintains chat context.
     """
     system_prompt = (
-        "Você é um engenheiro de dados e DBA experiente em Microsoft SQL Server (T-SQL).\n"
-        "Seu objetivo é gerar estritamente consultas SELECT (DQL) compatíveis com SQL Server com base no esquema de banco de dados fornecido.\n\n"
-        "REGRAS DE SEGURANÇA E RETORNO CRÍTICAS:\n"
-        "1. É terminantemente PROIBIDO gerar comandos DML ou DDL de modificação ou destruição, tais como INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE, CREATE, REPLACE ou MERGE.\n"
-        "2. Responda APENAS com o código SQL bruto, sem nenhuma explicação em português, inglês ou formatação adicional.\n"
-        "3. Não inclua blocos de código em markdown (como ```sql ou ```). Retorne o SQL puro diretamente como resposta de texto."
+        "Você é um assistente de banco de dados (Microsoft SQL Server / T-SQL).\n"
+        "Você tem acesso ao esquema do banco de dados (enviado junto à primeira mensagem do usuário).\n"
+        "Você pode conversar com o usuário em português para tirar dúvidas, sugerir otimizações e explicar como os dados estão estruturados.\n\n"
+        "REGRAS DE GERAÇÃO DE SQL:\n"
+        "1. Se o usuário pedir para você criar, gerar, corrigir ou escrever uma query/consulta SQL, forneça a resposta dentro de blocos de código markdown (```sql ... ```).\n"
+        "2. É terminantemente PROIBIDO gerar comandos DML ou DDL de modificação ou destruição (INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE, CREATE, REPLACE, MERGE). Gere apenas comandos de leitura (SELECT, CTEs, etc).\n"
+        "3. Você é livre para responder perguntas normais e enviar o código SQL no meio da sua resposta."
     )
+
+    if not messages:
+        raise ValueError("A lista de mensagens não pode estar vazia.")
 
     if provider.lower() == "gemini":
         key = api_key or os.environ.get("GEMINI_API_KEY", "")
@@ -200,25 +205,31 @@ def generate_sql_query(prompt: str, schema: str, provider: str, model_name: str,
             api_model = "gemini-2.5-pro"
         elif reasoning_level.lower() == "extended" or reasoning_level.lower() == "estendido":
             api_model = "gemini-2.0-flash-thinking-exp-01-21"
+
+        gemini_messages = []
+        for i, m in enumerate(messages):
+            role = "model" if m["role"] == "assistant" else "user"
+            content = m["content"]
+            if i == 0 and role == "user":
+                content = f"Contexto - Esquema de Banco de Dados:\n{schema}\n\n---\n\nPergunta do Usuário:\n{content}"
+            gemini_messages.append({
+                "role": role,
+                "parts": [{"text": content}]
+            })
             
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{api_model}:generateContent?key={key}"
         headers = {"Content-Type": "application/json"}
         payload = {
-            "contents": [
-                {
-                    "role": "user",
-                    "parts": [{"text": f"Pergunta: {prompt}\n\nEsquema de Banco de Dados:\n{schema}"}]
-                }
-            ],
+            "contents": gemini_messages,
             "systemInstruction": {
                 "parts": [{"text": system_prompt}]
             },
             "generationConfig": {
-                "temperature": 0.0
+                "temperature": 0.3
             }
         }
         
-        resp = requests.post(url, json=payload, headers=headers, timeout=45)
+        resp = requests.post(url, json=payload, headers=headers, timeout=60)
         if resp.status_code != 200:
             raise Exception(f"Erro na API do Gemini: {resp.text}")
             
@@ -234,6 +245,17 @@ def generate_sql_query(prompt: str, schema: str, provider: str, model_name: str,
         api_model = "claude-3-5-sonnet-20241022"
         if "opus" in model_name.lower():
             api_model = "claude-3-opus-20240229"
+
+        claude_messages = []
+        for i, m in enumerate(messages):
+            role = "assistant" if m["role"] == "assistant" else "user"
+            content = m["content"]
+            if i == 0 and role == "user":
+                content = f"Contexto - Esquema de Banco de Dados:\n{schema}\n\n---\n\nPergunta do Usuário:\n{content}"
+            claude_messages.append({
+                "role": role,
+                "content": content
+            })
             
         url = "https://api.anthropic.com/v1/messages"
         headers = {
@@ -243,15 +265,13 @@ def generate_sql_query(prompt: str, schema: str, provider: str, model_name: str,
         }
         payload = {
             "model": api_model,
-            "max_tokens": 2048,
+            "max_tokens": 4096,
             "system": system_prompt,
-            "messages": [
-                {"role": "user", "content": f"Pergunta: {prompt}\n\nEsquema de Banco de Dados:\n{schema}"}
-            ],
-            "temperature": 0.0
+            "messages": claude_messages,
+            "temperature": 0.3
         }
         
-        resp = requests.post(url, json=payload, headers=headers, timeout=45)
+        resp = requests.post(url, json=payload, headers=headers, timeout=60)
         if resp.status_code != 200:
             raise Exception(f"Erro na API do Claude: {resp.text}")
             
@@ -261,9 +281,4 @@ def generate_sql_query(prompt: str, schema: str, provider: str, model_name: str,
     else:
         raise ValueError(f"Provedor de IA desconhecido: {provider}")
 
-    # Sanitization (just in case LLM ignored rules and wrapped in markdown blocks)
-    generated_text = re.sub(r'^```sql\s*', '', generated_text, flags=re.IGNORECASE)
-    generated_text = re.sub(r'^```\s*', '', generated_text)
-    generated_text = re.sub(r'\s*```$', '', generated_text)
-    
     return generated_text.strip()

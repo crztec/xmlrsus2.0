@@ -45,8 +45,7 @@ Call `ms_save({ projectId: "96be79ca", title: "<title>", content: "<detailed con
 - 📐 **Firestore Database Caching & Performance**: No traditional SQL database ORM is used; all operations query Firebase Firestore (via firestore_db client). Frequently a
 - 📐 **Playwright Robust Automation**: Automation tasks launch headless Chromium via launch_browser_robust implementing a retry loop (3 attempts) to mitigate S
 - 📐 **Next.js Subfolder & Client Integration**: Frontend is a Next.js App Router project deployed under reverse proxy subfolder using 'basePath: /rsus' and rewrites tar
-- 📐 **7. Dynamic Menu Titles (No Duplication)**: To prevent visual duplication, new pages should NEVER hardcode their own `<h2>` page titles at the top of their content area. The main title and subtitle of every page are injected dynamically by the global `MainLayout.tsx` (configured via `PAGE_METADATA` or the `/api/menu-config` endpoint). Individual page components should immediately begin rendering their core content (tables, forms, metrics, etc.) without redefining the title.
-- 📐 **8. Menu Config Cross-Section Awareness**: The backend `get_menu_config()` must track item keys across ALL sections (`main_menu`, `admin_menu`, `config_menu`) before merging defaults — otherwise items moved between sections get re-added to their original section. The Sidebar and MenusPage must also deduplicate by key across sections. In drag-and-drop, use `useRef` (not `useState`) for `dragSource` to prevent duplicate drops from React's async state batching.
+- 📐 **Query Builder Chat UI**: The Query Builder uses a Chat UI (messages array) instead of a single prompt. LLMs must return SQL in markdown blocks (```sql), and the frontend parses the blocks to show native Execute/Save/Copy buttons inline with text responses. Saved Queries are stored in Firestore `saved_queries` with global visibility but creator-only deletion.
 - 📐 **Test Title**: Test Content
 
 

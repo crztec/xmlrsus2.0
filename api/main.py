@@ -1450,8 +1450,12 @@ async def extract_schema_endpoint(conn_id: str, user = Depends(require_admin)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
 class QueryGenerateRequest(BaseModel):
-    prompt: str
+    messages: list[ChatMessage]
     schema: str
     provider: str
     model_name: str
@@ -1461,15 +1465,15 @@ class QueryGenerateRequest(BaseModel):
 @app.post("/query-builder/generate")
 async def generate_query_endpoint(body: QueryGenerateRequest, user = Depends(require_admin)):
     try:
-        sql = qb.generate_sql_query(
-            prompt=body.prompt,
+        response_text = qb.generate_sql_query(
+            messages=[{"role": m.role, "content": m.content} for m in body.messages],
             schema=body.schema,
             provider=body.provider,
             model_name=body.model_name,
             api_key=body.api_key,
             reasoning_level=body.reasoning_level
         )
-        return {"status": "success", "sql": sql}
+        return {"status": "success", "response": response_text}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

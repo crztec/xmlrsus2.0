@@ -2348,6 +2348,34 @@ def recalculate_client_abis(client_id):
         logger.error(f"Erro ao recalcular estatísticas para {client_id}: {e}")
         return False
 
+# --- QUERY BUILDER SAVED QUERIES ---
+
+def save_query(connection_id: str, name: str, sql_query: str, created_by: str):
+    doc_ref = firestore_db.collection('saved_queries').document()
+    doc_ref.set({
+        'connection_id': connection_id,
+        'name': name,
+        'sql_query': sql_query,
+        'created_by': created_by,
+        'created_at': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    })
+    return doc_ref.id
+
+def get_saved_queries(connection_id: str):
+    docs = firestore_db.collection('saved_queries').where('connection_id', '==', connection_id).stream()
+    return [{"id": d.id, **d.to_dict()} for d in docs]
+
+def delete_saved_query(query_id: str, user_email: str):
+    doc_ref = firestore_db.collection('saved_queries').document(query_id)
+    doc = doc_ref.get()
+    if not doc.exists:
+        raise Exception("Query não encontrada.")
+    data = doc.to_dict()
+    if data.get('created_by') != user_email:
+        raise Exception("Acesso negado. Apenas o criador pode excluir esta query salva.")
+    doc_ref.delete()
+    return True
+
 # --- GESTÃO DE GRUPOS ---
 
 def get_groups():
