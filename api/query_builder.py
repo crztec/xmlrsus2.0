@@ -200,10 +200,10 @@ def generate_sql_query(messages: list, schema: str, provider: str, model_name: s
             raise ValueError("Chave de API do Gemini (GEMINI_API_KEY) não configurada.")
         
         # Map models
-        api_model = "gemini-2.5-flash"
+        api_model = "gemini-2.0-flash"
         if "pro" in model_name.lower() or "3.1" in model_name.lower():
-            api_model = "gemini-2.5-pro"
-        elif reasoning_level.lower() == "extended" or reasoning_level.lower() == "estendido":
+            api_model = "gemini-2.0-pro-exp-02-05"
+        elif reasoning_level.lower() == "extended" or reasoning_level.lower() == "estendido" or "thinking" in model_name.lower():
             api_model = "gemini-2.0-flash-thinking-exp-01-21"
 
         gemini_messages = []
@@ -217,7 +217,8 @@ def generate_sql_query(messages: list, schema: str, provider: str, model_name: s
                 "parts": [{"text": content}]
             })
             
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{api_model}:generateContent?key={key}"
+        url_version = "v1alpha" if "exp" in api_model else "v1beta"
+        url = f"https://generativelanguage.googleapis.com/{url_version}/models/{api_model}:generateContent?key={key}"
         headers = {"Content-Type": "application/json"}
         payload = {
             "contents": gemini_messages,
