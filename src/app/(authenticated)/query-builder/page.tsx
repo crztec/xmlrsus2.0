@@ -812,15 +812,21 @@ export default function QueryBuilderPage() {
             <div className="relative">
               <textarea
                 value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
+                onChange={(e) => {
+                  setChatInput(e.target.value);
+                  e.target.style.height = 'auto';
+                  e.target.style.height = e.target.scrollHeight + 'px';
+                }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
                     handleSendMessage();
+                    // Reset height after send
+                    e.currentTarget.style.height = 'auto';
                   }
                 }}
                 placeholder="Escreva sua instrução ou pergunta (Shift+Enter para pular linha)..."
-                className="w-full min-h-[60px] max-h-[150px] rounded-2xl border border-slate-200 pl-4 pr-14 py-4 text-xs outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all font-sans text-slate-700 font-medium placeholder:text-slate-300 resize-none shadow-sm"
+                className="w-full min-h-[60px] max-h-[600px] rounded-2xl border border-slate-200 pl-4 pr-14 py-4 text-xs outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-colors font-sans text-slate-700 font-medium placeholder:text-slate-300 resize-y shadow-sm"
                 rows={1}
               />
               <button
@@ -1138,6 +1144,15 @@ export default function QueryBuilderPage() {
                   className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-xs outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all font-sans text-slate-700 font-bold"
                   required
                   autoFocus
+                />
+              </div>
+              <div className="space-y-1 mt-3">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Código SQL</label>
+                <textarea
+                  value={queryToSave}
+                  onChange={(e) => setQueryToSave(e.target.value)}
+                  className="w-full min-h-[150px] rounded-2xl border border-slate-200 px-4 py-3 text-[11px] font-mono outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all text-slate-700 bg-slate-50 resize-y"
+                  required
                 />
               </div>
               <div className="pt-2 flex gap-3">
