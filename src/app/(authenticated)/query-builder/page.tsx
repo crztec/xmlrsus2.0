@@ -48,8 +48,8 @@ export default function QueryBuilderPage() {
   const [isSavingConn, setIsSavingConn] = useState(false);
 
   // IA Configuration State
-  const [provider, setProvider] = useState<"gemini" | "claude">("gemini");
-  const [modelName, setModelName] = useState<string>("Gemini 3.5 Flash");
+  const [provider, setProvider] = useState<"gemini" | "claude" | "openai" | "deepseek">("gemini");
+  const [modelName, setModelName] = useState<string>("Gemini 2.5 Flash");
   const [apiKey, setApiKey] = useState<string>("");
   const [reasoningLevel, setReasoningLevel] = useState<"standard" | "extended">("standard");
 
