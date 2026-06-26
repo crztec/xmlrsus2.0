@@ -1497,8 +1497,8 @@ class SavedQueryRequest(BaseModel):
     sql_query: str
 
 @app.get("/query-builder/saved")
-async def get_saved_queries(connection_id: str, user = Depends(require_admin)):
-    queries = db.list_saved_queries(connection_id)
+async def get_saved_queries(user = Depends(require_admin)):
+    queries = db.list_saved_queries()
     return {"status": "success", "data": queries}
 
 @app.post("/query-builder/saved")
@@ -1508,6 +1508,13 @@ async def create_saved_query(body: SavedQueryRequest, user = Depends(require_adm
     if data:
         return {"status": "success", "data": data}
     raise HTTPException(status_code=500, detail="Erro ao salvar consulta.")
+
+@app.put("/query-builder/saved/{query_id}")
+async def update_saved_query_endpoint(query_id: str, body: SavedQueryRequest, user = Depends(require_admin)):
+    email = user.get("email", "admin") if isinstance(user, dict) else getattr(user, "email", "admin")
+    if db.update_saved_query(query_id, body.name, body.sql_query, email):
+        return {"status": "success"}
+    raise HTTPException(status_code=403, detail="Acesso negado ou consulta não encontrada.")
 
 @app.delete("/query-builder/saved/{query_id}")
 async def delete_saved_query_endpoint(query_id: str, user = Depends(require_admin)):

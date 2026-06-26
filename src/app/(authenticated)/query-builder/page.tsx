@@ -40,6 +40,7 @@ export default function QueryBuilderPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSavedQueriesModalOpen, setIsSavedQueriesModalOpen] = useState(false);
   const [isSaveQueryModalOpen, setIsSaveQueryModalOpen] = useState(false);
+  const [editSavedQueryId, setEditSavedQueryId] = useState<string | null>(null);
   
   // Connection Form State
   const [connForm, setConnForm] = useState({
@@ -50,7 +51,7 @@ export default function QueryBuilderPage() {
   // IA Configuration State
   const [provider, setProvider] = useState<"gemini" | "claude" | "openai" | "deepseek">("gemini");
   const [modelName, setModelName] = useState<string>("gemini-3.5-flash");
-  const [apiKey, setApiKey] = useState<string>("");
+  const [apiKeys, setApiKeys] = useState<{ [key: string]: string }>({ gemini: "", claude: "", openai: "", deepseek: "" });
   const [reasoningLevel, setReasoningLevel] = useState<"standard" | "extended">("standard");
 
   // Extracted Schema State
@@ -286,7 +287,7 @@ export default function QueryBuilderPage() {
           schema: schemaText,
           provider: provider,
           model_name: modelName,
-          api_key: apiKey || null,
+          api_key: apiKeys[provider],
           reasoning_level: reasoningLevel
         })
       });
@@ -355,8 +356,10 @@ export default function QueryBuilderPage() {
     setIsSavingQuery(true);
     setNotifyError("");
     try {
-      const res = await apiClient("/api/query-builder/saved", {
-        method: "POST",
+      const url = editSavedQueryId ? `/api/query-builder/saved/${editSavedQueryId}` : "/api/query-builder/saved";
+      const method = editSavedQueryId ? "PUT" : "POST";
+      const res = await apiClient(url, {
+        method: method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           connection_id: selectedConnId,
@@ -450,6 +453,8 @@ export default function QueryBuilderPage() {
                         <button
                           onClick={() => {
                             setQueryToSave(sqlCode);
+                            setEditSavedQueryId(null);
+                            setNewQueryName("");
                             setIsSaveQueryModalOpen(true);
                           }}
                           className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-500/20 text-blue-300 hover:bg-blue-500/40 hover:text-white transition-all text-[11px] font-bold"
@@ -688,6 +693,18 @@ export default function QueryBuilderPage() {
                 </select>
               </div>
             </div>
+
+            <div className="mt-4">
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1 block">Chave de API (Opcional)</label>
+              <input
+                type="password"
+                placeholder={`Chave de API do ${provider === "gemini" ? "Google Gemini" : provider === "claude" ? "Anthropic Claude" : provider === "openai" ? "OpenAI" : "DeepSeek"} (.env por padrão)`}
+                value={apiKeys[provider] || ""}
+                onChange={(e) => setApiKeys({...apiKeys, [provider]: e.target.value})}
+                className="w-full rounded-2xl border border-slate-200 px-3 py-2 text-[11px] outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all font-sans text-slate-700 font-medium bg-white"
+              />
+            </div>
+
         </div>
       </div>
 
@@ -1045,6 +1062,13 @@ export default function QueryBuilderPage() {
                         </div>
                         <div className="flex items-center gap-2">
                           <button
+                            onClick={() => copyToClipboard(q.sql_query, q.id)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all text-[11px] font-bold shadow-sm"
+                          >
+                            {copiedIndex === q.id ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
+                            {copiedIndex === q.id ? 'Copiado!' : 'Copiar'}
+                          </button>
+                          <button
                             onClick={() => {
                               handleExecuteQuery(q.sql_query);
                               setIsSavedQueriesModalOpen(false);
@@ -1054,13 +1078,27 @@ export default function QueryBuilderPage() {
                             <Play size={12} /> Executar
                           </button>
                           {currentUserEmail === q.created_by && (
-                            <button
-                              onClick={(e) => handleDeleteSavedQuery(q.id, e)}
-                              className="flex items-center justify-center h-8 w-8 rounded-xl bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white transition-all shadow-sm"
-                              title="Excluir (apenas criador)"
-                            >
-                              <Trash2 size={14} />
-                            </button>
+                            <>
+                              <button
+                                onClick={() => {
+                                  setEditSavedQueryId(q.id);
+                                  setNewQueryName(q.name);
+                                  setQueryToSave(q.sql_query);
+                                  setIsSaveQueryModalOpen(true);
+                                }}
+                                className="flex items-center justify-center h-8 w-8 rounded-xl bg-blue-50 text-blue-500 hover:bg-blue-500 hover:text-white transition-all shadow-sm"
+                                title="Editar"
+                              >
+                                <Pencil size={14} />
+                              </button>
+                              <button
+                                onClick={(e) => handleDeleteSavedQuery(q.id, e)}
+                                className="flex items-center justify-center h-8 w-8 rounded-xl bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white transition-all shadow-sm"
+                                title="Excluir (apenas criador)"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </>
                           )}
                         </div>
                       </div>

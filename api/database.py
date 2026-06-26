@@ -2707,10 +2707,10 @@ def delete_sql_connection(conn_id):
 # QUERY BUILDER SAVED QUERIES
 # =========================================================================
 
-def list_saved_queries(connection_id: str):
-    """Lists saved queries for a specific database connection."""
+def list_saved_queries():
+    """Lists saved queries globally for all connections."""
     try:
-        docs = firestore_db.collection("saved_queries").where("connection_id", "==", connection_id).stream()
+        docs = firestore_db.collection("saved_queries").stream()
         result = []
         for doc in docs:
             d = doc.to_dict()
@@ -2718,7 +2718,7 @@ def list_saved_queries(connection_id: str):
             result.append(d)
         return sorted(result, key=lambda x: x.get("created_at", ""), reverse=True)
     except Exception as e:
-        logger.error(f"Erro ao listar queries salvas para {connection_id}: {e}")
+        logger.error(f"Erro ao listar queries salvas: {e}")
         return []
 
 def save_query(connection_id: str, name: str, sql_query: str, user_email: str):
@@ -2738,6 +2738,28 @@ def save_query(connection_id: str, name: str, sql_query: str, user_email: str):
     except Exception as e:
         logger.error(f"Erro ao salvar query {name}: {e}")
         return None
+
+def update_saved_query(query_id: str, name: str, sql_query: str, user_email: str):
+    """Updates an existing saved query if the user is the creator."""
+    try:
+        doc_ref = firestore_db.collection("saved_queries").document(query_id)
+        doc = doc_ref.get()
+        if not doc.exists:
+            return False
+            
+        data = doc.to_dict()
+        if data.get("created_by") != user_email:
+            logger.warning(f"Usuário {user_email} tentou editar query de {data.get('created_by')}")
+            return False
+            
+        doc_ref.update({
+            "name": name,
+            "sql_query": sql_query
+        })
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao atualizar query {query_id}: {e}")
+        return False
 
 def delete_saved_query(query_id: str, user_email: str):
     """Deletes a saved query, ensuring only the creator can delete it."""
