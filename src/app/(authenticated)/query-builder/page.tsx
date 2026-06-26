@@ -1023,7 +1023,7 @@ export default function QueryBuilderPage() {
                       <div className="flex items-start justify-between mb-3">
                         <div>
                           <h4 className="text-sm font-bold text-slate-800">{q.name}</h4>
-                          <p className="text-[10px] font-medium text-slate-400">Criado por: {q.created_by} em {q.created_at}</p>
+                          <p className="text-[10px] font-medium text-slate-400">Criado por: {q.created_by} em {new Date(q.created_at).toLocaleString('pt-BR', {day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'}).replace(',', ' as')}</p>
                         </div>
                         <div className="flex items-center gap-2">
                           <button
