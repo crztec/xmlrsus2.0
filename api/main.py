@@ -1491,6 +1491,30 @@ async def execute_query_endpoint(body: QueryExecuteRequest, user = Depends(requi
         return {"status": "success", "columns": result["columns"], "rows": result["rows"]}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+class SavedQueryRequest(BaseModel):
+    connection_id: str
+    name: str
+    sql_query: str
+
+@app.get("/query-builder/saved")
+async def get_saved_queries(connection_id: str, user = Depends(require_admin)):
+    queries = db.list_saved_queries(connection_id)
+    return {"status": "success", "data": queries}
+
+@app.post("/query-builder/saved")
+async def create_saved_query(body: SavedQueryRequest, user = Depends(require_admin)):
+    email = user.get("email", "admin") if isinstance(user, dict) else getattr(user, "email", "admin")
+    data = db.save_query(body.connection_id, body.name, body.sql_query, email)
+    if data:
+        return {"status": "success", "data": data}
+    raise HTTPException(status_code=500, detail="Erro ao salvar consulta.")
+
+@app.delete("/query-builder/saved/{query_id}")
+async def delete_saved_query_endpoint(query_id: str, user = Depends(require_admin)):
+    email = user.get("email", "admin") if isinstance(user, dict) else getattr(user, "email", "admin")
+    if db.delete_saved_query(query_id, email):
+        return {"status": "success"}
+    raise HTTPException(status_code=403, detail="Acesso negado ou consulta não encontrada.")
 
 if __name__ == "__main__":
     import uvicorn

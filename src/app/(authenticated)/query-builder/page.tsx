@@ -125,6 +125,14 @@ export default function QueryBuilderPage() {
       return;
     }
     fetchConnections();
+    
+    // Carregar chat salvo
+    const savedChat = localStorage.getItem("query_builder_chat");
+    if (savedChat) {
+      try {
+        setMessages(JSON.parse(savedChat));
+      } catch (e) {}
+    }
   }, []);
 
   useEffect(() => {
@@ -132,7 +140,6 @@ export default function QueryBuilderPage() {
       fetchSavedQueries(selectedConnId);
       // Reset chat and schema when changing connections
       setSchemaText("");
-      setMessages([]);
       setExecutionResult(null);
     }
   }, [selectedConnId]);
@@ -142,6 +149,14 @@ export default function QueryBuilderPage() {
       chatEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages, isGenerating]);
+
+  useEffect(() => {
+    if (messages.length > 0) {
+      localStorage.setItem("query_builder_chat", JSON.stringify(messages));
+    } else {
+      localStorage.removeItem("query_builder_chat");
+    }
+  }, [messages]);
 
   const handleSaveConnection = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -699,14 +714,27 @@ export default function QueryBuilderPage() {
               </div>
             </div>
             
-            <button
-              onClick={() => setIsSchemaExpanded(!isSchemaExpanded)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-500 hover:bg-slate-50 transition-all"
-            >
-              <FileCode2 size={14} />
-              Esquema DDL
-              {isSchemaExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  if(confirm("Deseja realmente limpar o histórico do chat?")) {
+                    setMessages([]);
+                    setExecutionResult(null);
+                  }
+                }}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-rose-200 text-xs font-bold text-rose-500 hover:bg-rose-50 transition-all"
+              >
+                Limpar Chat
+              </button>
+              <button
+                onClick={() => setIsSchemaExpanded(!isSchemaExpanded)}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-500 hover:bg-slate-50 transition-all"
+              >
+                <FileCode2 size={14} />
+                Esquema DDL
+                {isSchemaExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </button>
+            </div>
           </div>
 
           {/* Expanded Schema */}
