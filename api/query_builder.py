@@ -199,12 +199,14 @@ def generate_sql_query(messages: list, schema: str, provider: str, model_name: s
         if not key:
             raise ValueError("Chave de API do Gemini (GEMINI_API_KEY) não configurada.")
         
-        # Map models
-        api_model = "gemini-2.0-flash"
-        if "pro" in model_name.lower() or "3.1" in model_name.lower():
-            api_model = "gemini-2.0-pro-exp-02-05"
-        elif reasoning_level.lower() == "extended" or reasoning_level.lower() == "estendido" or "thinking" in model_name.lower():
-            api_model = "gemini-2.0-flash-thinking-exp-01-21"
+        # O frontend enviará o ID correto do modelo (ex: gemini-3.5-flash)
+        api_model = model_name
+
+        if reasoning_level.lower() == "extended" or reasoning_level.lower() == "estendido" or "thinking" in model_name.lower():
+            if "3.1" in api_model or "3.5" in api_model:
+                api_model = f"{api_model}-thinking"
+            elif "2.0" in api_model:
+                api_model = "gemini-2.0-flash-thinking-exp-01-21"
 
         gemini_messages = []
         for i, m in enumerate(messages):
