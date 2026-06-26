@@ -138,11 +138,23 @@ export default function QueryBuilderPage() {
   useEffect(() => {
     if (selectedConnId) {
       fetchSavedQueries(selectedConnId);
-      // Reset chat and schema when changing connections
-      setSchemaText("");
+      
+      const selectedConn = connections.find(c => c.id === selectedConnId);
+      if (selectedConn && selectedConn.host.toLowerCase().includes("sdrsus")) {
+        const cachedSchema = localStorage.getItem("shared_sdrsus_schema");
+        if (cachedSchema) {
+          setSchemaText(cachedSchema);
+          setIsSchemaExpanded(true);
+        } else {
+          setSchemaText("");
+        }
+      } else {
+        setSchemaText("");
+      }
+      
       setExecutionResult(null);
     }
-  }, [selectedConnId]);
+  }, [selectedConnId, connections]);
 
   useEffect(() => {
     if (chatEndRef.current) {
@@ -231,6 +243,12 @@ export default function QueryBuilderPage() {
         setSchemaText(data.schema || "");
         setIsSchemaExpanded(true);
         setNotifySuccess("Esquema do banco extraído com sucesso!");
+        
+        // Cache o schema se for da família sdrsus
+        const selectedConn = connections.find(c => c.id === selectedConnId);
+        if (selectedConn && selectedConn.host.toLowerCase().includes("sdrsus") && data.schema) {
+          localStorage.setItem("shared_sdrsus_schema", data.schema);
+        }
       } else {
         const errData = await res.json();
         setNotifyError(errData.detail || "Falha ao ler o banco de dados.");
@@ -529,7 +547,7 @@ export default function QueryBuilderPage() {
                     <option value="">Selecione um banco SQL Server...</option>
                     {connections.map((c) => (
                       <option key={c.id} value={c.id}>
-                        {c.name === c.database ? `${c.database} (${c.host})` : `${c.name} (${c.host} - ${c.database})`}
+                        {c.database}
                       </option>
                     ))}
                   </select>
