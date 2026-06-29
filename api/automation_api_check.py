@@ -534,6 +534,9 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                             body = await response.body()
                             text = body.decode('utf-8', errors='ignore').lower()
                             
+                            if 'importar-beneficiario' in url:
+                                logger.info(f"[DEBUG INTERCEPTOR] URL: {url} | Method: {response.request.method} | Body: {text[:200]}")
+                            
                             err_kws = ['error integração', 'one or more errors', 'exception', 'ocorreu um erro', 'falha ao salvar']
                             if any(k in text for k in err_kws) and "sucesso" not in text:
                                 network_status["error"] = f"Erro detectado na integração."
@@ -548,18 +551,28 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                 # =====================================================================
 
                 found_update = False
-                update_selectors = "button, a, input, [role='button'], .btn, .k-button"
+                
+                # Seletores mais específicos para o modal de Beneficiário (evita clicar no Atualizar do grid de fundo)
+                specific_selectors = ".modal button, .k-window button, .dx-popup button, .ui-dialog button, [ng-click*='atualizar']"
+                generic_selectors = "button, a, input, [role='button'], .btn, .k-button"
+                
                 for _ in range(5):
-                    # Tenta encontrar por texto (botões, links, divs)
-                    if await click_in_frames(update_selectors, text_match='Atualizar', search_frames_first=True, reverse_elements=True):
+                    # Tenta primeiro seletores específicos de modal
+                    if await click_in_frames(specific_selectors, text_match='Atualizar', search_frames_first=True, reverse_elements=True):
                         found_update = True
                         break
-                    # Tenta encontrar por input value
+                    if await click_in_frames(specific_selectors, text_match='ATUALIZAR', search_frames_first=True, reverse_elements=True):
+                        found_update = True
+                        break
+                    
+                    # Fallback para genéricos
+                    if await click_in_frames(generic_selectors, text_match='Atualizar', search_frames_first=True, reverse_elements=True):
+                        found_update = True
+                        break
                     if await click_in_frames("input[value='Atualizar'], input[value='ATUALIZAR']", search_frames_first=True, reverse_elements=True):
                         found_update = True
                         break
-                    # Tenta encontrar com uppercase
-                    if await click_in_frames(update_selectors, text_match='ATUALIZAR', search_frames_first=True, reverse_elements=True):
+                    if await click_in_frames(generic_selectors, text_match='ATUALIZAR', search_frames_first=True, reverse_elements=True):
                         found_update = True
                         break
                     await asyncio.sleep(2)
