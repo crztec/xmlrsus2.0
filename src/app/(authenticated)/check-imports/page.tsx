@@ -1000,81 +1000,77 @@ export default function CheckImportsPage() {
                         </div>
                       </td>
                     </tr>
-                  ) : filteredClients.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE).map((client, idx) => (
-                    <tr 
-                      key={client.id} 
-                      className={cn(
-                        "group transition-colors text-[11px]",
-                        selectedClients.has(client.id) ? "bg-gax-blue/5" : "hover:bg-gax-blue/[0.02]"
-                      )}
-                    >
-                      <td className="px-4 py-2.5">
-                        <input 
-                          type="checkbox" 
-                          className="h-3.5 w-3.5 rounded border-slate-300 text-gax-blue focus:ring-gax-blue/20 transition-all cursor-pointer"
-                          checked={selectedClients.has(client.id)}
-                          onChange={() => {
-                            const newSet = new Set(selectedClients);
-                            if (newSet.has(client.id)) newSet.delete(client.id);
-                            else newSet.add(client.id);
-                            setSelectedClients(newSet);
-                          }}
-                        />
-                      </td>
-                      <td className="px-4 py-2.5 whitespace-nowrap">
-                        <div className="flex flex-col gap-0.5 min-w-0">
-                          <span className="font-bold text-slate-800 text-xs font-display leading-tight truncate max-w-[200px]">{client.name}</span>
-                          {(client as any).group_name ? (
-                            <span className="inline-flex items-center rounded-full bg-gax-blue/5 px-2 py-0.5 text-[8px] font-bold text-gax-blue border border-gax-blue/10 w-fit">
-                              {(client as any).group_name}
-                            </span>
-                          ) : (
-                            <span className="text-[8px] text-slate-300 font-medium italic">Sem grupo</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <div className="flex items-center gap-2">
-                          {(() => {
-                            // Se o ABI do cliente não bate com o ativo, mostra 'Não Importado'
-                            const activeAbiDigits = (activeAbi?.ABI || '').replace(/\D/g, '');
-                            const clientAbiDigits = (client.abi_current || '').replace(/\D/g, '');
-                            const isStale = activeAbiDigits && clientAbiDigits && clientAbiDigits !== activeAbiDigits;
-                            if (isStale) {
-                              return (
-                                <>
-                                  <XCircle className="text-slate-400" size={16} />
-                                  <span className="font-bold text-[9px] uppercase border px-2 py-0.5 rounded-full whitespace-nowrap bg-slate-50 text-slate-500 border-slate-200">
-                                    Não Importado
-                                  </span>
-                                </>
-                              );
-                            }
-                            return (
+                  ) : filteredClients.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE).map((client, idx) => {
+                    const activeAbiDigits = (activeAbi?.ABI || '').replace(/\D/g, '');
+                    const clientAbiDigits = (client.abi_current || '').replace(/\D/g, '');
+                    const isStale = !!(activeAbiDigits && clientAbiDigits && clientAbiDigits !== activeAbiDigits);
+
+                    return (
+                      <tr 
+                        key={client.id} 
+                        className={cn(
+                          "group transition-colors text-[11px]",
+                          selectedClients.has(client.id) ? "bg-gax-blue/5" : "hover:bg-gax-blue/[0.02]"
+                        )}
+                      >
+                        <td className="px-4 py-2.5">
+                          <input 
+                            type="checkbox" 
+                            className="h-3.5 w-3.5 rounded border-slate-300 text-gax-blue focus:ring-gax-blue/20 transition-all cursor-pointer"
+                            checked={selectedClients.has(client.id)}
+                            onChange={() => {
+                              const newSet = new Set(selectedClients);
+                              if (newSet.has(client.id)) newSet.delete(client.id);
+                              else newSet.add(client.id);
+                              setSelectedClients(newSet);
+                            }}
+                          />
+                        </td>
+                        <td className="px-4 py-2.5 whitespace-nowrap">
+                          <div className="flex flex-col gap-0.5 min-w-0">
+                            <span className="font-bold text-slate-800 text-xs font-display leading-tight truncate max-w-[200px]">{client.name}</span>
+                            {(client as any).group_name ? (
+                              <span className="inline-flex items-center rounded-full bg-gax-blue/5 px-2 py-0.5 text-[8px] font-bold text-gax-blue border border-gax-blue/10 w-fit">
+                                {(client as any).group_name}
+                              </span>
+                            ) : (
+                              <span className="text-[8px] text-slate-300 font-medium italic">Sem grupo</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <div className="flex items-center gap-2">
+                            {isStale ? (
+                              <>
+                                <XCircle className="text-slate-400" size={16} />
+                                <span className="font-bold text-[9px] uppercase border px-2 py-0.5 rounded-full whitespace-nowrap bg-slate-50 text-slate-500 border-slate-200">
+                                  Não Importado
+                                </span>
+                              </>
+                            ) : (
                               <>
                                 {getStatusIcon(client.abi_status, client.impugnation_status)}
-                          <span className={cn(
-                            "font-bold text-[9px] uppercase border px-2 py-0.5 rounded-full whitespace-nowrap",
-                            client.impugnation_status === "Finalizou" ? "bg-green-50 text-green-700 border-green-200" :
-                            client.impugnation_status === "Impugnando" ? "bg-yellow-50 text-yellow-700 border-yellow-200" :
-                            client.impugnation_status === "Não Iniciou" ? "bg-purple-50 text-purple-700 border-purple-200" :
-                            client.abi_status === "Importado e Analisado" ? "bg-emerald-50 text-emerald-700 border-emerald-100" : 
-                            client.abi_status === "Importado, falta analisar" ? "bg-orange-50 text-orange-700 border-orange-100" :
-                            client.abi_status === "Importado" ? "bg-sky-50 text-sky-700 border-sky-100" :
-                            client.abi_status === "Falha na Análise" || client.abi_status === "Falha" ? "bg-rose-50 text-rose-700 border-rose-100" :
-                            client.abi_status === "Nao Importado" || client.abi_status === "Não Importado" ? "bg-slate-50 text-slate-500 border-slate-200" :
-                            "bg-slate-100 text-slate-500 border-slate-200"
-                          )}>
-                            {client.impugnation_status === "Finalizou" ? "Finalizou" :
-                             client.impugnation_status === "Impugnando" ? "Impugnando" : 
-                             client.impugnation_status === "Não Iniciou" ? "Não Iniciou" :
-                             (client.abi_status === "Nao Importado" || client.abi_status === "Não Importado" ? "Não Importado" : (client.abi_status || "Não Checado"))}
-                          </span>
+                                <span className={cn(
+                                  "font-bold text-[9px] uppercase border px-2 py-0.5 rounded-full whitespace-nowrap",
+                                  client.impugnation_status === "Finalizou" ? "bg-green-50 text-green-700 border-green-200" :
+                                  client.impugnation_status === "Impugnando" ? "bg-yellow-50 text-yellow-700 border-yellow-200" :
+                                  client.impugnation_status === "Não Iniciou" ? "bg-purple-50 text-purple-700 border-purple-200" :
+                                  client.abi_status === "Importado e Analisado" ? "bg-emerald-50 text-emerald-700 border-emerald-100" : 
+                                  client.abi_status === "Importado, falta analisar" ? "bg-orange-50 text-orange-700 border-orange-100" :
+                                  client.abi_status === "Importado" ? "bg-sky-50 text-sky-700 border-sky-100" :
+                                  client.abi_status === "Falha na Análise" || client.abi_status === "Falha" ? "bg-rose-50 text-rose-700 border-rose-100" :
+                                  client.abi_status === "Nao Importado" || client.abi_status === "Não Importado" ? "bg-slate-50 text-slate-500 border-slate-200" :
+                                  "bg-slate-100 text-slate-500 border-slate-200"
+                                )}>
+                                  {client.impugnation_status === "Finalizou" ? "Finalizou" :
+                                   client.impugnation_status === "Impugnando" ? "Impugnando" : 
+                                   client.impugnation_status === "Não Iniciou" ? "Não Iniciou" :
+                                   (client.abi_status === "Nao Importado" || client.abi_status === "Não Importado" ? "Não Importado" : (client.abi_status || "Não Checado"))}
+                                </span>
                               </>
-                            );
-                          })()}
-                        </div>
-                      </td>
+                            )}
+                          </div>
+                        </td>
                       <td className="px-4 py-2.5 whitespace-nowrap">
                         <div className="flex flex-col">
                            {(() => {
@@ -1112,7 +1108,7 @@ export default function CheckImportsPage() {
 
                           {openMenuId === client.id && (
                             <div className="absolute right-0 mt-1.5 w-52 bg-white rounded-2xl shadow-2xl shadow-slate-200/80 border border-slate-100 z-50 overflow-hidden animate-in zoom-in-95 duration-150 origin-top-right">
-                              {!(client.abi_status === 'Importado e Analisado' || ['Impugnando', 'Finalizou', 'Não Iniciou', 'Nao Iniciou'].includes(client.impugnation_status || '')) && (
+                               {(isStale || !(client.abi_status === 'Importado e Analisado' || ['Impugnando', 'Finalizou', 'Não Iniciou', 'Nao Iniciou'].includes(client.impugnation_status || ''))) && (
                                 <button 
                                   onClick={() => { startCheck(client.id); setOpenMenuId(null); }}
                                   disabled={!!activeTaskId}
@@ -1122,7 +1118,7 @@ export default function CheckImportsPage() {
                                 </button>
                               )}
 
-                              {((client.abi_status === 'Importado e Analisado') || ['Impugnando', 'Não Iniciou', 'Nao Iniciou'].includes(client.impugnation_status || '')) && client.impugnation_status !== 'Finalizou' && (
+                              {!isStale && ((client.abi_status === 'Importado e Analisado') || ['Impugnando', 'Não Iniciou', 'Nao Iniciou'].includes(client.impugnation_status || '')) && client.impugnation_status !== 'Finalizou' && (
                                 <button 
                                   onClick={() => { startImpugnationCheck(client.id); setOpenMenuId(null); }}
                                   disabled={!!activeTaskId}
@@ -1161,7 +1157,8 @@ export default function CheckImportsPage() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                  );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -1412,71 +1409,108 @@ export default function CheckImportsPage() {
         </div>
       )}
       {/* Floating Action Bar for Bulk Actions */}
-      {selectedClients.size > 0 && (
-        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50">
-          <div className="flex items-center gap-6 px-6 py-4 bg-slate-900/90 backdrop-blur-xl rounded-2xl border border-slate-700/50 shadow-2xl shadow-slate-900/40 min-w-[400px]">
-            <div className="flex items-center gap-3 pr-6 border-r border-slate-700/50">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gax-blue/20 text-gax-blue">
-                <LayoutGrid size={16} />
-              </div>
-              <div className="flex flex-col">
-                <span className="text-xs font-bold text-white leading-none">{selectedClients.size} selecionados</span>
-                <span className="text-[10px] text-slate-400 font-medium">Gestão em massa</span>
-              </div>
-            </div>
+      {selectedClients.size > 0 && (() => {
+        const selectedClientsArr = clients.filter(c => selectedClients.has(c.id));
+        
+        const clientNeedsAbi = (c: typeof clients[0]) => {
+          const activeAbiDigits = (activeAbi?.ABI || '').replace(/\D/g, '');
+          const clientAbiDigits = (c.abi_current || '').replace(/\D/g, '');
+          const isStale = !!(activeAbiDigits && clientAbiDigits && clientAbiDigits !== activeAbiDigits);
+          
+          if (isStale) return true;
 
-            <div className="flex items-center gap-3">
-              {filterStatus !== "Finalizou" && (
-                <button 
-                  onClick={() => {
-                    const ids = Array.from(selectedClients);
-                    const selectedClientsArr = clients.filter(c => selectedClients.has(c.id));
-                    
-                    const allReadyForImpugnation = selectedClientsArr.every(c => {
-                      const sABI = c.abi_status || "";
-                      const sIMP = c.impugnation_status || "";
-                      return ["Importado e Analisado"].includes(sABI) || ["Não Iniciou", "Nao Iniciou", "Impugnando", "Finalizou"].includes(sIMP);
-                    });
-                    
-                    const isImpugnContext = ["Não Inic. Impug.", "Impugnando", "Analisados"].includes(filterStatus || "");
-                    const actionType = (allReadyForImpugnation || isImpugnContext) ? "impugnações" : "importações/ABI";
+          const sABI = c.abi_status || "";
+          const sIMP = c.impugnation_status || "";
 
-                    if (window.confirm(`Deseja iniciar a checagem de ${actionType} para ${selectedClients.size} operadoras?`)) {
-                      if (allReadyForImpugnation || isImpugnContext) {
-                        startImpugnationCheck(undefined, ids);
-                      } else {
-                        startCheck(undefined, ids);
+          return !(sABI === "Importado e Analisado" || ["Não Iniciou", "Nao Iniciou", "Impugnando", "Finalizou"].includes(sIMP));
+        };
+
+        const hasAbiNeeded = selectedClientsArr.some(c => clientNeedsAbi(c));
+        const hasImpugnNeeded = selectedClientsArr.some(c => !clientNeedsAbi(c));
+        const isMixed = hasAbiNeeded && hasImpugnNeeded;
+        const actionType = isMixed ? "mixed" : (hasAbiNeeded ? "abi" : "impugn");
+
+        return (
+          <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50">
+            <div className="flex items-center gap-6 px-6 py-4 bg-slate-900/90 backdrop-blur-xl rounded-2xl border border-slate-700/50 shadow-2xl shadow-slate-900/40 min-w-[400px]">
+              <div className="flex items-center gap-3 pr-6 border-r border-slate-700/50">
+                <div className={cn(
+                  "flex h-8 w-8 items-center justify-center rounded-lg font-bold transition-colors duration-300",
+                  isMixed ? "bg-amber-500/20 text-amber-400" : "bg-gax-blue/20 text-gax-blue"
+                )}>
+                  <LayoutGrid size={16} />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-white leading-none">{selectedClients.size} selecionados</span>
+                  {isMixed ? (
+                    <span className="text-[9px] text-amber-400 font-bold uppercase tracking-wider mt-0.5 whitespace-nowrap animate-pulse">ABI & Impugnação Misturados</span>
+                  ) : (
+                    <span className="text-[10px] text-slate-400 font-medium">Gestão em massa</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                {filterStatus !== "Finalizou" && (
+                  <button 
+                    onClick={() => {
+                      if (isMixed) return;
+                      const ids = Array.from(selectedClients);
+                      
+                      const confirmMsg = actionType === "abi" 
+                        ? `Deseja iniciar a checagem de importações/ABI para ${selectedClients.size} operadoras?`
+                        : `Deseja iniciar a checagem de impugnações para ${selectedClients.size} operadoras?`;
+
+                      if (window.confirm(confirmMsg)) {
+                        if (actionType === "abi") {
+                          startCheck(undefined, ids);
+                        } else {
+                          startImpugnationCheck(undefined, ids);
+                        }
+                        setSelectedClients(new Set());
                       }
-                      setSelectedClients(new Set());
-                    }
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gax-blue/10 text-gax-blue hover:bg-gax-blue hover:text-white transition-all text-xs font-bold"
+                    }}
+                    disabled={!!activeTaskId || isMixed}
+                    className={cn(
+                      "flex items-center gap-2 px-4 py-2 rounded-xl transition-all text-xs font-bold",
+                      isMixed
+                        ? "bg-slate-800/50 text-slate-500 border border-slate-800/80 cursor-not-allowed"
+                        : actionType === "abi"
+                          ? "bg-gax-blue/10 text-gax-blue hover:bg-gax-blue hover:text-white"
+                          : "bg-amber-500/20 text-amber-400 hover:bg-amber-500 hover:text-white"
+                    )}
+                  >
+                    {isMixed ? (
+                      <>
+                        <AlertCircle size={14} />
+                        Seleção Mista Inválida
+                      </>
+                    ) : actionType === "abi" ? (
+                      <>
+                        <Play size={14} />
+                        Checar ABI
+                      </>
+                    ) : (
+                      <>
+                        <Scale size={14} />
+                        Checar Impugnações
+                      </>
+                    )}
+                  </button>
+                )}
+                
+                <button 
+                  onClick={() => setSelectedClients(new Set())}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white transition-all text-xs font-bold"
                 >
-                  <Play size={14} />
-                  {(() => {
-                    const selectedClientsArr = clients.filter(c => selectedClients.has(c.id));
-                    const allReadyForImpugnation = selectedClientsArr.every(c => {
-                      const sABI = c.abi_status || "";
-                      const sIMP = c.impugnation_status || "";
-                      return ["Importado e Analisado"].includes(sABI) || ["Não Iniciou", "Nao Iniciou", "Impugnando", "Finalizou"].includes(sIMP);
-                    });
-                    const isImpugnContext = ["Não Inic. Impug.", "Impugnando", "Analisados"].includes(filterStatus || "");
-                    return (allReadyForImpugnation || isImpugnContext) ? "Checar Impugnações" : "Checar ABI";
-                  })()}
+                  <X size={14} />
+                  Desmarcar
                 </button>
-              )}
-              
-              <button 
-                onClick={() => setSelectedClients(new Set())}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white transition-all text-xs font-bold"
-              >
-                <X size={14} />
-                Desmarcar
-              </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
