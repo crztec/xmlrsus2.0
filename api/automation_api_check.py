@@ -554,26 +554,34 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                     if not network_status.get("is_updating"): return
                     try:
                         url = response.url.lower()
-                        if any(ext in url for ext in ['.js', '.css', '.png', '.jpg', '.gif', 'fonts']): return
+                        if any(ext in url for ext in ['.js', '.css', '.png', '.jpg', '.gif', 'fonts', 'favicon', '.woff', '.ttf', '.svg', '.html']): return
                         
                         status = response.status
-                        if status >= 400 and status != 404:
-                            # Ignora erros 404 de assets irrelevantes para não mascarar sucesso
-                            if not any(ext in url for ext in ['.js', '.css', '.png', '.jpg', '.gif', 'fonts', 'favicon']):
-                                network_status["error"] = f"HTTP {status} do portal."
                         
                         try:
                             body = await response.body()
                             text = body.decode('utf-8', errors='ignore').lower()
                             
-                            err_kws = ['error integração', 'one or more errors', 'exception', 'ocorreu um erro', 'falha ao salvar']
-                            if any(k in text for k in err_kws) and "sucesso" not in text and "null" not in text:
-                                network_status["error"] = f"Erro detectado na integração."
-                                
+                            # Palavras-chave de sucesso superam erros (porque muitos portais tem erros de background irrelevantes)
                             suc_kws = ['atualizado com sucesso', 'dados atualizados', 'dados foram atualizados', 'salvo com sucesso', 'gravado com sucesso', 'com sucesso', 'operação realizada', 'operacao realizada', 'sucesso!', 'sis00000']
-                            if any(k in text for k in suc_kws) and not network_status["error"]:
+                            if any(k in text for k in suc_kws):
                                 if response.request.method in ['POST', 'PUT', 'GET']:
                                     network_status["success"] = "Sucesso detectado no payload."
+                                    network_status["error"] = None # Limpa qualquer erro anterior falso positivo
+                                    return
+                                    
+                            err_kws = ['error integração', 'one or more errors', 'exception', 'ocorreu um erro', 'falha ao salvar']
+                            if any(k in text for k in err_kws) and "sucesso" not in text and "null" not in text:
+                                if not network_status["success"]: # Só marca erro se ainda não houve sucesso
+                                    network_status["error"] = f"Erro no payload da integração: {url[:100]}"
+                                
+                            if status >= 400 and status != 404:
+                                # Apenas consideramos HTTP Error fatal se a URL for claramente uma API de integração,
+                                # ou se não houver sucesso detectado. Mas como as URLs variam muito, vamos ser permissivos:
+                                # Só setar erro de HTTP se não acharmos sucesso.
+                                if not network_status["success"] and not network_status["error"]:
+                                    if '/api/' in url or '/beneficiario/' in url or '/importar' in url:
+                                        network_status["error"] = f"HTTP {status} em: {url[:100]}"
                         except:
                             pass
                     except: pass
@@ -655,13 +663,14 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                     await asyncio.sleep(1.5)
                     
                     # 0. Verifica o interceptador de rede
-                    if network_status["error"]:
-                        log_task("Erro detectado na integração.", "ERROR")
-                        return "offline", "Erro detectado na integração.", None
-                    
                     if network_status["success"]:
                         log_task("Integração Online, os dados foram atualizados.", "SUCCESS")
                         return "online", "Conexão operacional.", None
+                    
+                    if network_status["error"]:
+                        err_msg = network_status["error"]
+                        log_task(f"Erro detectado na integração: {err_msg}", "ERROR")
+                        return "offline", err_msg, None
                     
                     # ============================================================
                     # CAMADA 1: Detecção de popups/overlays/modais visíveis
