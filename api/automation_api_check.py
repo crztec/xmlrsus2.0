@@ -540,7 +540,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                             
                             suc_kws = ['atualizado com sucesso', 'dados atualizados', 'dados foram atualizados', 'salvo com sucesso', 'gravado com sucesso', 'com sucesso', 'operação realizada', 'operacao realizada', 'sucesso!']
                             if any(k in text for k in suc_kws) and not network_status["error"]:
-                                if response.request.method in ['POST', 'PUT']:
+                                if response.request.method in ['POST', 'PUT', 'GET']:
                                     network_status["success"] = "Sucesso detectado no payload."
                     except: pass
                 
