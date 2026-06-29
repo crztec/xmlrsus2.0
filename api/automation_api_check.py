@@ -455,43 +455,75 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                 await asyncio.sleep(1.5)
                 log_task("Menu aberto. Clicando em 'Beneficiário'...")
                 found_benef = False
-                menu_selectors = "a, li, button, span, div, [role='menuitem'], [role='option'], .dropdown-item, .k-item, .k-link, .dx-item-content, .menu-item"
                 
-                new_page_opened = None
-                def on_new_page(p):
-                    nonlocal new_page_opened
-                    new_page_opened = p
-                    
-                context.on("page", on_new_page)
+                # AngularJS dropdown items often fail Playwright's is_visible() check
+                # because there are duplicate hidden copies for each row.
+                # Use JavaScript click which reliably finds the visible one in the open dropdown.
+                benef_click = await page.evaluate("""
+                    () => {
+                        // Strategy 1: Find by title attribute (most specific)
+                        const byTitle = document.querySelectorAll('a[title*="Benefici"]');
+                        for (const a of byTitle) {
+                            const rect = a.getBoundingClientRect();
+                            if (rect.width > 0 && rect.height > 0) {
+                                const style = window.getComputedStyle(a);
+                                if (style.visibility !== 'hidden' && style.display !== 'none') {
+                                    a.click();
+                                    return { clicked: true, method: 'title', text: a.textContent.trim() };
+                                }
+                            }
+                        }
+                        // Strategy 2: Find by text content in open dropdown
+                        const links = document.querySelectorAll('.dropdown-menu a, .dropdown.open a, ul.open a');
+                        for (const a of links) {
+                            const text = (a.textContent || '').trim();
+                            if (text === 'Beneficiário' || text === 'Beneficiario') {
+                                const rect = a.getBoundingClientRect();
+                                if (rect.width > 0 && rect.height > 0) {
+                                    a.click();
+                                    return { clicked: true, method: 'dropdown-text', text: text };
+                                }
+                            }
+                        }
+                        // Strategy 3: Any visible link with matching text
+                        const allLinks = document.querySelectorAll('a');
+                        for (const a of allLinks) {
+                            const text = (a.textContent || '').trim();
+                            if (text === 'Beneficiário' || text === 'Beneficiario') {
+                                const rect = a.getBoundingClientRect();
+                                if (rect.width > 0 && rect.height > 0) {
+                                    const style = window.getComputedStyle(a);
+                                    if (style.visibility !== 'hidden' && style.display !== 'none') {
+                                        a.click();
+                                        return { clicked: true, method: 'any-visible', text: text };
+                                    }
+                                }
+                            }
+                        }
+                        return { clicked: false };
+                    }
+                """)
                 
-                for _ in range(4):
-                    if await click_in_frames(menu_selectors, text_match='Beneficiário', reverse_elements=True):
-                        found_benef = True
-                        break
-                    if await click_in_frames(menu_selectors, text_match='Beneficiario', reverse_elements=True):
-                        found_benef = True
-                        break
-                    if await click_in_frames(menu_selectors, title_match='Beneficiário', reverse_elements=True):
-                        found_benef = True
-                        break
-                    if await click_in_frames(menu_selectors, title_match='Beneficiario', reverse_elements=True):
-                        found_benef = True
-                        break
-                    await asyncio.sleep(2)
+                if benef_click and benef_click.get('clicked'):
+                    found_benef = True
+                    logger.info(f"[{client_name}] Beneficiário clicado via JS ({benef_click.get('method')})")
+                else:
+                    # Fallback: try Playwright locators (for other portal versions)
+                    menu_selectors = "a, li, button, span, div, [role='menuitem'], [role='option'], .dropdown-item, .k-item, .k-link, .dx-item-content, .menu-item"
+                    for _ in range(3):
+                        if await click_in_frames(menu_selectors, text_match='Beneficiário', reverse_elements=True):
+                            found_benef = True
+                            break
+                        if await click_in_frames(menu_selectors, title_match='Beneficiário', reverse_elements=True):
+                            found_benef = True
+                            break
+                        await asyncio.sleep(2)
                 
                 if not found_benef:
-                    context.remove_listener("page", on_new_page)
                     raise Exception("Link 'Beneficiário' não encontrado no menu.")
                 
-                # Aguarda modal ou nova tela
-                await asyncio.sleep(4)
-                
-                if new_page_opened:
-                    logger.info(f"[{client_name}] Nova aba detectada. Trocando contexto para a nova aba...")
-                    page = new_page_opened
-                    await page.wait_for_load_state("domcontentloaded", timeout=15000)
-                    
-                context.remove_listener("page", on_new_page)
+                # Aguarda modal carregar
+                await asyncio.sleep(5)
             except Exception as e:
                 # CAPTURA DE SCREENSHOT EM CASO DE ERRO
                 screenshot_url = None
@@ -551,33 +583,64 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
 
                 found_update = False
                 
-                # Seletores mais específicos para o modal de Beneficiário (evita clicar no Atualizar do grid de fundo)
-                specific_selectors = ".modal button, .k-window button, .dx-popup button, .ui-dialog button, [ng-click*='atualizar']"
-                generic_selectors = "button, a, input, [role='button'], .btn, .k-button"
+                # Scroll the modal body to bottom first so the Atualizar button becomes reachable
+                await page.evaluate("""
+                    () => {
+                        // Scroll all scrollable modal containers to bottom
+                        document.querySelectorAll('.modal-body, .dxpc-content, .dxpc-mainDiv, .dx-scrollable-container, .k-window-content, [class*="modal"] [class*="body"]').forEach(el => {
+                            el.scrollTo(0, el.scrollHeight);
+                        });
+                        // Also scroll the main window
+                        window.scrollTo(0, document.body.scrollHeight);
+                    }
+                """)
+                await asyncio.sleep(1)
                 
-                for _ in range(5):
-                    # Tenta primeiro seletores específicos de modal
-                    if await click_in_frames(specific_selectors, text_match='Atualizar', search_frames_first=True, reverse_elements=True):
-                        found_update = True
-                        break
-                    if await click_in_frames(specific_selectors, text_match='ATUALIZAR', search_frames_first=True, reverse_elements=True):
-                        found_update = True
-                        break
-                    if await click_in_frames("button.btn-success, button.btn-primary", text_match='Atualizar', search_frames_first=True, reverse_elements=True):
-                        found_update = True
-                        break
-                    
-                    # Fallback para genéricos
-                    if await click_in_frames(generic_selectors, text_match='Atualizar', search_frames_first=True, reverse_elements=True):
-                        found_update = True
-                        break
-                    if await click_in_frames("input[value='Atualizar'], input[value='ATUALIZAR']", search_frames_first=True, reverse_elements=True):
-                        found_update = True
-                        break
-                    if await click_in_frames(generic_selectors, text_match='ATUALIZAR', search_frames_first=True, reverse_elements=True):
-                        found_update = True
-                        break
-                    await asyncio.sleep(2)
+                # Use JS click for the Atualizar button (handles off-screen buttons in modals)
+                update_click = await page.evaluate("""
+                    () => {
+                        // Strategy 1: Find button with ng-click containing 'atualizar' (AngularJS modal)
+                        const ngBtns = document.querySelectorAll('button[ng-click*="atualizar"], a[ng-click*="atualizar"]');
+                        for (const btn of ngBtns) {
+                            const text = (btn.innerText || '').trim().toLowerCase();
+                            if (text.includes('atualizar') && !text.includes('beneficiários')) {
+                                btn.scrollIntoView({ block: 'center' });
+                                btn.click();
+                                return { clicked: true, method: 'ng-click', text: btn.innerText.trim() };
+                            }
+                        }
+                        // Strategy 2: Find visible button/link with text 'Atualizar'
+                        const allBtns = document.querySelectorAll('button, a.btn, input[type="button"], input[type="submit"]');
+                        for (const btn of allBtns) {
+                            const text = (btn.innerText || btn.value || '').trim();
+                            if (text.toLowerCase() === 'atualizar') {
+                                const rect = btn.getBoundingClientRect();
+                                const style = window.getComputedStyle(btn);
+                                if (style.display !== 'none' && style.visibility !== 'hidden' && (rect.width > 0 || style.display === 'inline-block')) {
+                                    btn.scrollIntoView({ block: 'center' });
+                                    btn.click();
+                                    return { clicked: true, method: 'text-match', text: text, x: rect.x, y: rect.y };
+                                }
+                            }
+                        }
+                        return { clicked: false };
+                    }
+                """)
+                
+                if update_click and update_click.get('clicked'):
+                    found_update = True
+                    logger.info(f"[{client_name}] Atualizar clicado via JS ({update_click.get('method')})")
+                else:
+                    # Fallback: Playwright locators for other portal versions
+                    generic_selectors = "button, a, input, [role='button'], .btn, .k-button"
+                    for _ in range(3):
+                        if await click_in_frames(generic_selectors, text_match='Atualizar', search_frames_first=True, reverse_elements=True):
+                            found_update = True
+                            break
+                        if await click_in_frames("input[value='Atualizar'], input[value='ATUALIZAR']", search_frames_first=True, reverse_elements=True):
+                            found_update = True
+                            break
+                        await asyncio.sleep(2)
                 
                 if not found_update:
                     raise Exception("Botão 'Atualizar' não localizado na tela de Beneficiário.")
