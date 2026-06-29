@@ -525,26 +525,25 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                         if any(ext in url for ext in ['.js', '.css', '.png', '.jpg', '.gif', 'fonts']): return
                         
                         status = response.status
-                        if status >= 400:
-                            network_status["error"] = f"HTTP {status} do portal."
-                            return
+                        if status >= 400 and status != 404:
+                            # Ignora erros 404 de assets irrelevantes para não mascarar sucesso
+                            if not any(ext in url for ext in ['.js', '.css', '.png', '.jpg', '.gif', 'fonts', 'favicon']):
+                                network_status["error"] = f"HTTP {status} do portal."
                         
-                        content_type = response.headers.get("content-type", "").lower()
-                        if "json" in content_type or "text" in content_type or "html" in content_type:
+                        try:
                             body = await response.body()
                             text = body.decode('utf-8', errors='ignore').lower()
                             
-                            if 'importar-beneficiario' in url:
-                                logger.info(f"[DEBUG INTERCEPTOR] URL: {url} | Method: {response.request.method} | Body: {text[:200]}")
-                            
                             err_kws = ['error integração', 'one or more errors', 'exception', 'ocorreu um erro', 'falha ao salvar']
-                            if any(k in text for k in err_kws) and "sucesso" not in text:
+                            if any(k in text for k in err_kws) and "sucesso" not in text and "null" not in text:
                                 network_status["error"] = f"Erro detectado na integração."
-                            
-                            suc_kws = ['atualizado com sucesso', 'dados atualizados', 'dados foram atualizados', 'salvo com sucesso', 'gravado com sucesso', 'com sucesso', 'operação realizada', 'operacao realizada', 'sucesso!']
+                                
+                            suc_kws = ['atualizado com sucesso', 'dados atualizados', 'dados foram atualizados', 'salvo com sucesso', 'gravado com sucesso', 'com sucesso', 'operação realizada', 'operacao realizada', 'sucesso!', 'sis00000']
                             if any(k in text for k in suc_kws) and not network_status["error"]:
                                 if response.request.method in ['POST', 'PUT', 'GET']:
                                     network_status["success"] = "Sucesso detectado no payload."
+                        except:
+                            pass
                     except: pass
                 
                 page.on("response", handle_response)
@@ -562,6 +561,9 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                         found_update = True
                         break
                     if await click_in_frames(specific_selectors, text_match='ATUALIZAR', search_frames_first=True, reverse_elements=True):
+                        found_update = True
+                        break
+                    if await click_in_frames("button.btn-success, button.btn-primary", text_match='Atualizar', search_frames_first=True, reverse_elements=True):
                         found_update = True
                         break
                     
@@ -728,12 +730,28 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                             return "online", "Conexão RSUS Ativa e funcional.", None
                             
                     # ============================================================
-                    # CAMADA 2: Varredura de texto completo
+                    # CAMADA 2: Varredura de texto completo (incluindo Shadow DOM se existir)
                     # ============================================================
-                    all_text = await page.evaluate("document.body.innerText")
+                    all_text = await page.evaluate("""
+                        () => {
+                            function extractText(node) {
+                                let txt = '';
+                                if (node.nodeType === Node.TEXT_NODE) return node.textContent + ' ';
+                                if (node.nodeType === Node.ELEMENT_NODE) {
+                                    if (node.shadowRoot) txt += extractText(node.shadowRoot);
+                                    for (let child of node.childNodes) {
+                                        txt += extractText(child);
+                                    }
+                                }
+                                return txt;
+                            }
+                            return extractText(document.body);
+                        }
+                    """)
                     for frame in page.frames:
                         try:
-                            all_text += " " + await frame.evaluate("document.body.innerText")
+                            frame_text = await frame.evaluate("document.body.innerText")
+                            all_text += " " + frame_text
                         except: pass
                     
                     all_text_lower = all_text.lower()
