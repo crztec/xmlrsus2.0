@@ -326,10 +326,10 @@ async def run_abi_check_for_client(client_id, task_id=None, pre_fetched_creds=No
         technical_keywords = ['timeout', 'erro técnico', 'syntaxerror', 'page.evaluate', 'cancelado', 'falha no login', 'navegação', 'error:']
         is_technical_error = status == 'Falha' and any(kw in message.lower() for kw in technical_keywords)
         
-        if (status != old_status or is_new_abi) and not is_technical_error:
+        if (status != old_status or is_new_abi or not is_batch_run) and not is_technical_error:
             await sync_to_cubeti_management(client_name, status, message, task_id)
             if task_id:
-                reason = "mudança de ABI" if is_new_abi else f"alterado de '{old_status}' para '{status}'"
+                reason = "mudança de ABI" if is_new_abi else ("execução manual" if not is_batch_run else f"alterado de '{old_status}' para '{status}'")
                 db.add_log(task_id, f"[{client_name}] ABI status {reason}. Sincronizando CubeTI...")
         else:
             reason = "erro técnico (sync pulada)" if is_technical_error else "status mantido"

@@ -1063,7 +1063,11 @@ export default function CheckImportsPage() {
                                   "bg-slate-100 text-slate-500 border-slate-200"
                                 )}>
                                   {client.impugnation_status === "Finalizou" ? "Finalizou" :
-                                   client.impugnation_status === "Impugnando" ? "Impugnando" : 
+                                   client.impugnation_status === "Impugnando" ? "Impugnando" :
+                                   client.abi_status === "Importado e Analisado" ? "Importado e Analisado" :
+                                   client.abi_status === "Importado, falta analisar" ? "Falta Analisar" :
+                                   client.abi_status === "Importado" ? "Importado" :
+                                   (client.abi_status === "Falha na Análise" || client.abi_status === "Falha") ? "Falha" :
                                    client.impugnation_status === "Não Iniciou" ? "Não Iniciou" :
                                    (client.abi_status === "Nao Importado" || client.abi_status === "Não Importado" ? "Não Importado" : (client.abi_status || "Não Checado"))}
                                 </span>
