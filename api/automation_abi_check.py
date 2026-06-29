@@ -298,7 +298,7 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
         if browser: await browser.close()
         return False
 
-async def run_abi_check_for_client(client_id, task_id=None, pre_fetched_creds=None, is_batch_run=False):
+async def run_abi_check_for_client(client_id, task_id=None, pre_fetched_creds=None, is_batch_run=False, force_sync=False):
     """Wrapper para a checagem de ABI para um único cliente."""
     client = db.get_client_config(client_id)
     client_name = client.get('name', client_id) if client else client_id
@@ -326,10 +326,10 @@ async def run_abi_check_for_client(client_id, task_id=None, pre_fetched_creds=No
         technical_keywords = ['timeout', 'erro técnico', 'syntaxerror', 'page.evaluate', 'cancelado', 'falha no login', 'navegação', 'error:']
         is_technical_error = status == 'Falha' and any(kw in message.lower() for kw in technical_keywords)
         
-        if (status != old_status or is_new_abi or not is_batch_run) and not is_technical_error:
+        if (status != old_status or is_new_abi or force_sync) and not is_technical_error:
             await sync_to_cubeti_management(client_name, status, message, task_id)
             if task_id:
-                reason = "mudança de ABI" if is_new_abi else ("execução manual" if not is_batch_run else f"alterado de '{old_status}' para '{status}'")
+                reason = "mudança de ABI" if is_new_abi else ("execução manual" if force_sync else f"alterado de '{old_status}' para '{status}'")
                 db.add_log(task_id, f"[{client_name}] ABI status {reason}. Sincronizando CubeTI...")
         else:
             reason = "erro técnico (sync pulada)" if is_technical_error else "status mantido"
@@ -954,7 +954,203 @@ async def run_batch_abi_check(task_id, client_ids=None):
             
             target_creds = creds_vitoria if "vitoria" in client.get('url_sistema', '').lower() else creds_general
             
-            await run_abi_check_for_client(client['id'], task_id=task_id, pre_fetched_creds=target_creds, is_batch_run=True)
+            is_manual = client_ids is not None
+            await run_abi_check_for_client(client['id'], task_id=task_id, pre_fetched_creds=target_creds, is_batch_run=True, force_sync=is_manual)
+
+        db.update_task(task_id, {"status": "completed", "current_client": "Finalizado"})
+        db.add_log(task_id, "Checagem de ABI em lote finalizada.")
+        
+        # Alerta WhatsApp (opcional, mas bom manter o padrão)
+        stats = db.get_abi_dashboard_stats()
+        msg = f"📊 *GAX RSUS - Relatório de ABIs*\n\nProcessamento finalizado!\n✅ Analisados: {stats['imported_analyzed']}\n⚠️ Falta Analisar: {stats['imported_not_analyzed']}\n❌ Falhas: {stats['failure']}"
+        await send_whatsapp_alert(msg, task_id=task_id)
+
+    except Exception as e:
+        db.add_log(task_id, f"Erro estrutural no lote: {str(e)}", "ERROR")
+        db.update_task(task_id, {"status": "error"})
+                            search_field = modal_container.locator("input.searchTerm, input[placeholder*='Pesquisar']").first
+                            if await search_field.count() > 0:
+                                # Busca 1: Parcial
+                                await search_field.click()
+                                await search_field.fill("")
+                                await search_field.type("Parcial", delay=50)
+                                await page.keyboard.press("Enter")
+                                try:
+                                    await modal_container.locator("td").filter(has_text=re.compile(r"Parcial", re.I)).first.wait_for(state="visible", timeout=5000)
+                                except: pass
+                                
+                                modal_text = await modal_container.inner_text(timeout=3000)
+                                if "Parcial" in modal_text or "parcial" in modal_text.lower():
+                                    success_parcial = True
+                                    mensagem_analise = "Análise Sucesso - Parcial"
+                                
+                                if not success_parcial:
+                                    # Busca 2: Falha
+                                    await search_field.fill("")
+                                    await search_field.type("Falha", delay=50)
+                                    await page.keyboard.press("Enter")
+                                    try:
+                                        await modal_container.locator("td").filter(has_text=re.compile(r"Falha", re.I)).first.wait_for(state="visible", timeout=300)
+                                    except: pass
+                                    
+                                    modal_text = await modal_container.inner_text(timeout=3000)
+                                    if "Falha" in modal_text or "falha" in modal_text.lower():
+                                        has_real_error = True
+                                        mensagem_analise = "Erro na análise"
+                                        
+                                    if not has_real_error:
+                                        # Busca 3: Erro
+                                        await search_field.fill("")
+                                        await search_field.type("Erro", delay=50)
+                                        await page.keyboard.press("Enter")
+                                        try:
+                                            await modal_container.locator("td").filter(has_text=re.compile(r"Erro", re.I)).first.wait_for(state="visible", timeout=3000)
+                                        except: pass
+                                        modal_text = await modal_container.inner_text(timeout=3000)
+                                        if "Erro" in modal_text or "erro" in modal_text.lower():
+                                            has_real_error = True
+                                            mensagem_analise = "Erro na análise"
+                            else:
+                                # Fallback para o modo antigo de varredura se o campo de busca não existir
+                                modal_text = await modal_container.inner_text(timeout=5000)
+                                if "Parcial" in modal_text or "parcial" in modal_text.lower():
+                                    success_parcial = True
+                                    mensagem_analise = "Análise Sucesso - Parcial (Varredura)"
+                                elif "Falha" in modal_text or "falha" in modal_text.lower() or "Erro" in modal_text or "erro" in modal_text.lower():
+                                    has_real_error = True
+                                    mensagem_analise = "Erro na análise"
+                            
+                            # Fecha o modal ao final
+                            close_btn = page.locator(".modal button.close, .modal [data-dismiss='modal']").first
+                            if await close_btn.count() > 0:
+                                await close_btn.click()
+                                await asyncio.sleep(1)
+
+                            if success_parcial:
+                                update_progress(100)
+                                log_task(f"Deep Dive: Encontrado Sucesso Parcial no ABI {row_data['abi']}", "SUCCESS")
+                                await browser.close()
+                                return "Importado e Analisado", mensagem_analise, None
+                            elif has_real_error:
+                                log_task(f"Deep Dive: Falha/Erro real confirmado nos detalhes.", "ERROR")
+                                await browser.close()
+                                return "Falha na Análise", mensagem_analise, None
+                            else:
+                                # FALSO POSITIVO: main grid disse "Erro", mas o modal de detalhes não possui erros/falhas
+                                log_task("Deep Dive: Nenhuma falha nos detalhes. Ignorando falso erro e definindo como Sucesso.", "SUCCESS")
+                                update_progress(100)
+                                await browser.close()
+                                return "Importado e Analisado", "Análise feita com sucesso.", None
+                                
+                        except Exception as deep_e:
+                            log_task(f"Aviso no Deep Dive: {str(deep_e)[:100]}", "WARNING")
+                            log_task(f"Falha detectada na análise do ABI {row_data['abi']}.", "ERROR")
+                            await browser.close()
+                            return "Falha na Análise", f"ABI {row_data['abi']}: Erro", None
+                else:
+                    # Fallback para estrutura inesperada (< 7 colunas)
+                    log_text = row_data['fullText']
+                    if "Sucesso" in log_text:
+                        update_progress(100)
+                        log_task(f"Sucesso detectado na análise (fallback, linha {r_idx+1})", "SUCCESS")
+                        await browser.close()
+                        return "Importado e Analisado", "Análise concluída com sucesso.", None
+                    
+                    if "Falha" in log_text or "Erro" in log_text:
+                        log_task(f"Falha detectada na análise (fallback, linha {r_idx+1}): {log_text[:50]}.", "ERROR")
+                        await browser.close()
+                        return "Falha na Análise", f"Erro: {log_text[:50]}", None
+            
+            # FALLBACK: Se nenhuma linha bateu com o ABI filtrado, tenta varredura genérica nos dados já extraídos
+            if not abi_matched_any_row and len(analysis_data) > 0:
+                log_task(f"Nenhuma linha bateu com ABI '{active_abi}' (filtro numérico). Varredura genérica em {len(analysis_data)} linhas...", "WARNING")
+                for r_idx, row_data in enumerate(analysis_data):
+                    row_lower = row_data['fullText'].lower()
+                    
+                    if r_idx < 3:
+                        log_task(f"Fallback linha {r_idx+1}: '{row_data['fullText'][:150]}'", "DEBUG")
+                    
+                    # Busca Sucesso/Parcial/Falha/Erro diretamente no texto da linha
+                    if "sucesso" in row_lower:
+                        update_progress(100)
+                        if "parcial" in row_lower:
+                            log_task(f"Sucesso Parcial detectado (varredura genérica, linha {r_idx+1})", "SUCCESS")
+                            await browser.close()
+                            return "Importado e Analisado", "Análise Sucesso - Parcial", None
+                        log_task(f"Sucesso detectado (varredura genérica, linha {r_idx+1})", "SUCCESS")
+                        await browser.close()
+                        return "Importado e Analisado", "Análise feita com sucesso.", None
+                    
+                    if "falha" in row_lower or "erro" in row_lower:
+                        if "parcial" in row_lower:
+                            log_task(f"Sucesso Parcial detectado (linha com falha+parcial, linha {r_idx+1})", "SUCCESS")
+                            await browser.close()
+                            return "Importado e Analisado", "Análise Sucesso - Parcial", None
+                        log_task(f"Falha detectada (varredura genérica, linha {r_idx+1}): {row_data['fullText'][:80]}", "ERROR")
+                        await browser.close()
+                        return "Falha na Análise", f"Erro: {row_data['fullText'][:80]}", None
+            
+            # Se chegou aqui, não achou Sucesso nem Falha de forma explícita
+            
+            log_task("Conclusão da análise não localizada na grid.", "WARNING")
+            await browser.close()
+            return "Importado, falta analisar", "Arquivo importado, análise não concluída ou não localizada.", None
+
+    except Exception as e:
+        import traceback
+        err_trace = traceback.format_exc()
+        err_msg = f"{type(e).__name__}: {str(e)}" if str(e) else type(e).__name__
+        log_task(f"Erro técnico: {err_msg}", "ERROR")
+        log_task(f"Traceback: {err_trace[-400:]}", "ERROR")
+        logger.error(f"ABI CHECK TRACEBACK:\n{err_trace}")
+        if browser:
+            try: await browser.close()
+            except: pass
+        return "Falha", f"Erro: {err_msg}", None
+
+async def run_batch_abi_check(task_id, client_ids=None):
+    """Executa a checagem de ABI para todos ou alguns clientes específicos."""
+    try:
+        if client_ids:
+            all_clients = db.get_all_clients()
+            clients = [c for c in all_clients if c['id'] in client_ids]
+        else:
+            all_v = db.get_all_clients()
+            # Filtro Inteligente: Processa apenas quem ainda não terminou a importação/análise
+            # e ignora quem já está em fase de monitoramento de impugnação
+            clients = [
+                c for c in all_v 
+                if c.get('abi_status') != 'Importado e Analisado'
+                and c.get('impugnation_status') not in ['Finalizou', 'Impugnando']
+            ]
+            
+        total = len(clients)
+        
+        unit = "operadora" if total == 1 else "operadoras"
+        db.add_log(task_id, f"🚀 Iniciando checagem de ABI em LOTE para {total} {unit}...")
+
+        # Salva o total de clientes na tarefa ANTES do loop para que update_progress
+        # consiga calcular o progresso geral do lote corretamente
+        db.update_task(task_id, {"total": total, "current": 0})
+
+        # Cache de credenciais
+        creds_general = db.get_rsus_credentials('general')
+        creds_vitoria = db.get_rsus_credentials('unimed_vitoria')
+
+        for i, client in enumerate(clients):
+            # Check cancelamento
+            task_doc = db.get_task(task_id)
+            if task_doc and str(task_doc.get('status', '')).upper() in ['STOPPED', 'CANCELLED']:
+                db.add_log(task_id, "⏹️ Processamento interrompido pelo usuário. Encerrando worker.", "WARNING")
+                sys.exit(0)
+
+            client_name = client.get('name', 'Desconhecido')
+            db.update_task(task_id, {"current": i + 1, "current_client": client_name})
+            
+            target_creds = creds_vitoria if "vitoria" in client.get('url_sistema', '').lower() else creds_general
+            
+            is_manual = client_ids is not None
+            await run_abi_check_for_client(client['id'], task_id=task_id, pre_fetched_creds=target_creds, is_batch_run=True, force_sync=is_manual)
 
         db.update_task(task_id, {"status": "completed", "current_client": "Finalizado"})
         db.add_log(task_id, "Checagem de ABI em lote finalizada.")
@@ -972,12 +1168,12 @@ async def run_single_abi_check(client_id, task_id):
     """Executa a checagem individual para um cliente."""
     try:
         client = db.get_client_config(client_id)
-        db.update_task(task_id, {"total": 1, "current": 0, "status": "running", "current_client": client.get('name')})
-        db.add_log(task_id, f"🔍 Iniciando checagem INDIVIDUAL para: {client.get('name')}...")
+        client_name = client.get('name', 'Desconhecido')
+        db.update_task(task_id, {"total": 1, "current": 0, "status": "running", "current_client": client_name})
+        db.add_log(task_id, f"🔍 Iniciando checagem INDIVIDUAL para: {client_name}...")
         
-        await run_abi_check_for_client(client_id, task_id=task_id)
-        
-        db.update_task(task_id, {"status": "completed", "current": 1, "current_client": "Finalizado"})
+        await run_abi_check_for_client(client_id, task_id=task_id, force_sync=True)
+        db.update_task(task_id, {"status": "completed", "current_client": "Finalizado"})
     except Exception as e:
         db.add_log(task_id, f"Erro: {str(e)}", "ERROR")
         db.update_task(task_id, {"status": "error"})
