@@ -1118,7 +1118,7 @@ export default function CheckImportsPage() {
                                   disabled={!!activeTaskId}
                                   className="w-full flex items-center gap-2.5 px-4 py-3 text-[11px] font-bold text-slate-700 hover:bg-gax-blue hover:text-white transition-colors disabled:opacity-40"
                                 >
-                                  <Play size={14} /> Checar Importação
+                                  <Play size={14} /> Checar ABI
                                 </button>
                               )}
 
