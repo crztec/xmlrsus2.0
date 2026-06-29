@@ -351,6 +351,10 @@ def get_all_clients():
                 'url_sistema': data.get('url_sistema', ''),
                 'api_status': data.get('api_status', 'unknown'),
                 'api_last_check': data.get('api_last_check', ''),
+                'api_status_history': data.get('api_status_history', []),
+                'api_last_message': data.get('api_last_message', ''),
+                'api_last_task_id': data.get('api_last_task_id', ''),
+                'api_last_screenshot_url': data.get('api_last_screenshot_url', ''),
                 'total_abis': data.get('total_abis', 0),
                 # Campos ABI
                 'abi_status': data.get('abi_status', ''),
@@ -363,6 +367,8 @@ def get_all_clients():
                 'impugnation_last_message': data.get('impugnation_last_message', ''),
                 'impugnation_last_task_id': data.get('impugnation_last_task_id', ''),
                 'impugnation_stats': data.get('impugnation_stats', {}),
+                'group_id': data.get('group_id'),
+                'group_name': data.get('group_name'),
             })
             
         clients.sort(key=lambda x: x['name'])
@@ -632,6 +638,7 @@ def update_client_api_status(client_id, status, message, task_id=None, screensho
             'screenshot_url': screenshot_url
         })
         
+        _cache_all_clients.clear()
         return True
     except Exception as e:
         logger.error(f"Erro ao atualizar status do cliente {client_id}: {e}")
@@ -1572,6 +1579,7 @@ def update_client_abi_status(client_id, abi, status, message, task_id=None, is_b
             'task_id': task_id
         })
         
+        _cache_all_clients.clear()
         return True
     except Exception as e:
         logger.error(f"Erro ao atualizar status de ABI do cliente {client_id}: {e}")
@@ -2193,6 +2201,7 @@ def update_client_impugnation_status(client_id, status, message, task_id=None, s
             update_data['impugnation_stats'] = stats
             
         client_ref.update(update_data)
+        _cache_all_clients.clear()
         return True
     except Exception as e:
         logger.error(f"Erro ao atualizar status de impugnação do cliente {client_id}: {e}")
