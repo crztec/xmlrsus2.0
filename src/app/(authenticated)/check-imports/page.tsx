@@ -506,16 +506,17 @@ export default function CheckImportsPage() {
   const getStatusIcon = (status?: string, impugnationStatus?: string) => {
     if (impugnationStatus === 'Finalizou') return <CheckCircle2 className="text-green-600" size={16} />;
     if (impugnationStatus === 'Impugnando') return <Scale className="text-yellow-600" size={16} />;
-    if (impugnationStatus === 'Não Iniciou') return <Clock className="text-purple-600" size={16} />;
     
     const s = (status || "").toLowerCase();
     
+    if (s === "importado e analisado") return <CheckCircle2 className="text-green-500" size={16} />;
+    if (s === "importado, falta analisar") return <AlertCircle className="text-orange-500" size={16} />;
+    if (s === "importado") return <CheckCircle2 className="text-sky-500" size={16} />;
+    if (s === "falha" || s === "falha na análise" || s === "falha na analise") return <XCircle className="text-red-500" size={16} />;
+
+    if (impugnationStatus === 'Não Iniciou') return <Clock className="text-purple-600" size={16} />;
+    
     switch (s) {
-      case "importado e analisado": return <CheckCircle2 className="text-green-500" size={16} />;
-      case "importado, falta analisar": return <AlertCircle className="text-orange-500" size={16} />;
-      case "falha":
-      case "falha na análise":
-      case "falha na analise": return <XCircle className="text-red-500" size={16} />;
       case "nao importado":
       case "não importado": return <XCircle className="text-slate-400" size={16} />;
       case "pendente": return <Loader2 className="text-amber-500 animate-spin" size={16} />;

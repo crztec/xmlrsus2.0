@@ -298,7 +298,7 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
         if browser: await browser.close()
         return False
 
-async def run_abi_check_for_client(client_id, task_id=None, pre_fetched_creds=None, is_batch_run=False):
+async def run_abi_check_for_client(client_id, task_id=None, pre_fetched_creds=None, is_batch_run=False, force_sync=False):
     """Wrapper para a checagem de ABI para um único cliente."""
     client = db.get_client_config(client_id)
     client_name = client.get('name', client_id) if client else client_id
@@ -326,10 +326,10 @@ async def run_abi_check_for_client(client_id, task_id=None, pre_fetched_creds=No
         technical_keywords = ['timeout', 'erro técnico', 'syntaxerror', 'page.evaluate', 'cancelado', 'falha no login', 'navegação', 'error:']
         is_technical_error = status == 'Falha' and any(kw in message.lower() for kw in technical_keywords)
         
-        if (status != old_status or is_new_abi or not is_batch_run) and not is_technical_error:
+        if (status != old_status or is_new_abi or force_sync) and not is_technical_error:
             await sync_to_cubeti_management(client_name, status, message, task_id)
             if task_id:
-                reason = "mudança de ABI" if is_new_abi else ("execução manual" if not is_batch_run else f"alterado de '{old_status}' para '{status}'")
+                reason = "mudança de ABI" if is_new_abi else ("execução manual" if force_sync else f"alterado de '{old_status}' para '{status}'")
                 db.add_log(task_id, f"[{client_name}] ABI status {reason}. Sincronizando CubeTI...")
         else:
             reason = "erro técnico (sync pulada)" if is_technical_error else "status mantido"
@@ -954,7 +954,8 @@ async def run_batch_abi_check(task_id, client_ids=None):
             
             target_creds = creds_vitoria if "vitoria" in client.get('url_sistema', '').lower() else creds_general
             
-            await run_abi_check_for_client(client['id'], task_id=task_id, pre_fetched_creds=target_creds, is_batch_run=True)
+            is_manual = client_ids is not None
+            await run_abi_check_for_client(client['id'], task_id=task_id, pre_fetched_creds=target_creds, is_batch_run=True, force_sync=is_manual)
 
         db.update_task(task_id, {"status": "completed", "current_client": "Finalizado"})
         db.add_log(task_id, "Checagem de ABI em lote finalizada.")
@@ -972,10 +973,11 @@ async def run_single_abi_check(client_id, task_id):
     """Executa a checagem individual para um cliente."""
     try:
         client = db.get_client_config(client_id)
-        db.update_task(task_id, {"total": 1, "current": 0, "status": "running", "current_client": client.get('name')})
-        db.add_log(task_id, f"🔍 Iniciando checagem INDIVIDUAL para: {client.get('name')}...")
+        client_name = client.get('name', 'Desconhecido')
+        db.update_task(task_id, {"total": 1, "current": 0, "status": "running", "current_client": client_name})
+        db.add_log(task_id, f"🔍 Iniciando checagem INDIVIDUAL para: {client_name}...")
         
-        await run_abi_check_for_client(client_id, task_id=task_id)
+        await run_abi_check_for_client(client_id, task_id=task_id, force_sync=True)
         
         db.update_task(task_id, {"status": "completed", "current": 1, "current_client": "Finalizado"})
     except Exception as e:
