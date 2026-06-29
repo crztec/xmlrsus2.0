@@ -455,11 +455,22 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                 await asyncio.sleep(1.5)
                 log_task("Menu aberto. Clicando em 'Beneficiário'...")
                 found_benef = False
-                menu_selectors = "a, li, button, span, [role='menuitem'], [role='option'], .dropdown-item, .k-item, .k-link"
-                if await click_in_frames(menu_selectors, title_match='Beneficiário'):
-                    found_benef = True
-                elif await click_in_frames(menu_selectors, text_match='Beneficiário'):
-                    found_benef = True
+                menu_selectors = "a, li, button, span, div, [role='menuitem'], [role='option'], .dropdown-item, .k-item, .k-link, .dx-item-content, .menu-item"
+                
+                for _ in range(4):
+                    if await click_in_frames(menu_selectors, text_match='Beneficiário', reverse_elements=True):
+                        found_benef = True
+                        break
+                    if await click_in_frames(menu_selectors, text_match='Beneficiario', reverse_elements=True):
+                        found_benef = True
+                        break
+                    if await click_in_frames(menu_selectors, title_match='Beneficiário', reverse_elements=True):
+                        found_benef = True
+                        break
+                    if await click_in_frames(menu_selectors, title_match='Beneficiario', reverse_elements=True):
+                        found_benef = True
+                        break
+                    await asyncio.sleep(2)
                 
                 if not found_benef:
                     raise Exception("Link 'Beneficiário' não encontrado no menu.")
