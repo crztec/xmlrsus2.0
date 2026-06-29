@@ -576,8 +576,8 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                     popup_result = await page.evaluate("""
                         () => {
                             const errorPatterns = /error|erro|falha|indispon|fail|exception|timeout/i;
-                            // Keywords estritas para evitar falsos positivos com a grid de fundo
-                            const successPatterns = /atualizado com sucesso|dados atualizados|dados foram atualizados|salvo com sucesso|gravado com sucesso|com sucesso|opera[çc][ãa]o realizada|sucesso!/i;
+                            // Na camada de popup, a verificação pode ser mais flexível, pois sabemos que é uma notificação
+                            const successPatterns = /sucesso|atualizad|salvo|gravado|opera[çc][ãa]o/i;
                             
                             const popupSelectors = [
                                 '.modal.show', '.modal.in', '.modal[style*="display: block"]',
@@ -585,12 +585,14 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                                 '.bootbox', '.swal2-popup',
                                 '[role="dialog"]', '[role="alertdialog"]',
                                 '.popup', '.dialog', '.overlay:not([style*="display: none"])',
-                                '.dx-overlay-content', '.dx-popup-content',
+                                '.dx-overlay-content', '.dx-popup-content', '.dx-toast-content',
                                 '.k-window:not(.k-window-minimized)', '.t-window', '.RadWindow',
                                 'div[class*="popup"]', 'div[class*="dialog"]', 'div[class*="modal"]',
                                 'div[class*="Popup"]', 'div[class*="Dialog"]', 'div[class*="Modal"]',
                                 '.alert-danger', '.alert-error', '.alert-warning',
                                 'div[class*="error"]', 'div[class*="Error"]',
+                                '.toast', '.toast-message', '.alert-success', '.alert-info', '.snackbar',
+                                'div[class*="toast"]', 'div[class*="Toast"]'
                             ];
                             
                             for (const sel of popupSelectors) {
@@ -653,8 +655,8 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                                 popup_result = await frame.evaluate("""
                                     () => {
                                         const errorPatterns = /error|erro|falha|indispon|fail|exception|timeout/i;
-                                        const successPatterns = /atualizado com sucesso|dados atualizados|dados foram atualizados|salvo com sucesso|gravado com sucesso|com sucesso|opera[çc][ãa]o realizada|sucesso!/i;
-                                        const selectors = ['.modal.show', '.modal.in', '.modal[style*="display: block"]', '.ui-dialog', '[role="dialog"]', '[role="alertdialog"]', '.popup', '.dialog', 'div[class*="popup"]', 'div[class*="dialog"]', 'div[class*="modal"]', 'div[class*="Popup"]', 'div[class*="Dialog"]', 'div[class*="Modal"]', 'div[class*="error"]', 'div[class*="Error"]', '.alert-danger', '.dx-overlay-content', '.dx-popup-content'];
+                                        const successPatterns = /sucesso|atualizad|salvo|gravado|opera[çc][ãa]o/i;
+                                        const selectors = ['.modal.show', '.modal.in', '.modal[style*="display: block"]', '.ui-dialog', '[role="dialog"]', '[role="alertdialog"]', '.popup', '.dialog', 'div[class*="popup"]', 'div[class*="dialog"]', 'div[class*="modal"]', 'div[class*="Popup"]', 'div[class*="Dialog"]', 'div[class*="Modal"]', 'div[class*="error"]', 'div[class*="Error"]', '.alert-danger', '.dx-overlay-content', '.dx-popup-content', '.dx-toast-content', '.toast', '.toast-message', '.alert-success', '.alert-info', '.snackbar', 'div[class*="toast"]', 'div[class*="Toast"]'];
                                         for (const sel of selectors) {
                                             try {
                                                 const els = document.querySelectorAll(sel);
