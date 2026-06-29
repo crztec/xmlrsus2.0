@@ -313,14 +313,24 @@ async def run_abi_check_for_client(client_id, task_id=None, pre_fetched_creds=No
         status, message, snap_url = await _run_abi_check_logic(client_id, active_abi, task_id, pre_fetched_creds)
         db.update_client_abi_status(client_id, active_abi, status, message, task_id, is_batch=is_batch_run)
         
-        # Sincroniza status final com Gestaocomercial Cubeti APENAS SE mudou E não for erro técnico
-        # Não sincroniza no caso de falhas técnicas (timeout, navegação, bugs de script, etc)
+        # Sincroniza status final com Gestaocomercial Cubeti APENAS SE mudou (ou virou o mês/ABI) E não for erro técnico
+        old_abi = client.get('abi_current')
+        is_new_abi = False
+        if old_abi:
+            import re
+            old_abi_digits = re.sub(r'\D', '', str(old_abi))
+            new_abi_digits = re.sub(r'\D', '', str(active_abi))
+            if old_abi_digits and new_abi_digits and old_abi_digits != new_abi_digits:
+                is_new_abi = True
+                
         technical_keywords = ['timeout', 'erro técnico', 'syntaxerror', 'page.evaluate', 'cancelado', 'falha no login', 'navegação', 'error:']
         is_technical_error = status == 'Falha' and any(kw in message.lower() for kw in technical_keywords)
-        if status != old_status and not is_technical_error:
+        
+        if (status != old_status or is_new_abi) and not is_technical_error:
             await sync_to_cubeti_management(client_name, status, message, task_id)
             if task_id:
-                db.add_log(task_id, f"[{client_name}] ABI status alterado de '{old_status}' para '{status}'. Sincronizando CubeTI...")
+                reason = "mudança de ABI" if is_new_abi else f"alterado de '{old_status}' para '{status}'"
+                db.add_log(task_id, f"[{client_name}] ABI status {reason}. Sincronizando CubeTI...")
         else:
             reason = "erro técnico (sync pulada)" if is_technical_error else "status mantido"
             if task_id:

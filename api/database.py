@@ -1725,8 +1725,6 @@ def get_abi_dashboard_stats():
                 stats['finalized'] += 1
             elif impugnation == 'Impugnando':
                 stats['impugnating'] += 1
-            elif impugnation == 'Não Iniciou':
-                stats['not_started'] += 1
             elif status_lower == 'importado e analisado':
                 stats['imported_analyzed'] += 1
             elif status_lower == 'importado':
@@ -1740,6 +1738,8 @@ def get_abi_dashboard_stats():
                 stats['imported_not_analyzed'] += 1
             elif status_lower in ['falha', 'falha na análise', 'falha na analise']:
                 stats['failure'] += 1
+            elif impugnation == 'Não Iniciou':
+                stats['not_started'] += 1
             else:
                 stats['pending'] += 1
 
