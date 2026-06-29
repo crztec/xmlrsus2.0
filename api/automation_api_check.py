@@ -457,6 +457,13 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                 found_benef = False
                 menu_selectors = "a, li, button, span, div, [role='menuitem'], [role='option'], .dropdown-item, .k-item, .k-link, .dx-item-content, .menu-item"
                 
+                new_page_opened = None
+                def on_new_page(p):
+                    nonlocal new_page_opened
+                    new_page_opened = p
+                    
+                context.on("page", on_new_page)
+                
                 for _ in range(4):
                     if await click_in_frames(menu_selectors, text_match='Beneficiário', reverse_elements=True):
                         found_benef = True
@@ -473,10 +480,18 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                     await asyncio.sleep(2)
                 
                 if not found_benef:
+                    context.remove_listener("page", on_new_page)
                     raise Exception("Link 'Beneficiário' não encontrado no menu.")
                 
                 # Aguarda modal ou nova tela
                 await asyncio.sleep(4)
+                
+                if new_page_opened:
+                    logger.info(f"[{client_name}] Nova aba detectada. Trocando contexto para a nova aba...")
+                    page = new_page_opened
+                    await page.wait_for_load_state("domcontentloaded", timeout=15000)
+                    
+                context.remove_listener("page", on_new_page)
             except Exception as e:
                 # CAPTURA DE SCREENSHOT EM CASO DE ERRO
                 screenshot_url = None
