@@ -230,15 +230,15 @@ export default function CheckImportsPage() {
           const data = await res.json();
           setCurrentTaskStatus(data);
           
-          // Usa o campo last_log do documento da tarefa para exibição em tempo real
-          if (data.last_log) {
-            setRealtimeLogs(prev => {
-              const lastMsg = prev.length > 0 ? prev[prev.length - 1]?.message : '';
-              if (data.last_log !== lastMsg) {
-                return [...prev, { level: 'INFO', message: data.last_log, timestamp: new Date().toLocaleTimeString('pt-BR') }];
-              }
-              return prev;
-            });
+          // Usa a rota de logs detalhados para não pular etapas no terminal em tempo real
+          try {
+            const logsRes = await apiClient(`/api/task/${activeTaskId}/logs`);
+            const logsData = await logsRes.json();
+            if (logsData && logsData.length > 0) {
+              setRealtimeLogs(logsData);
+            }
+          } catch (logErr) {
+            console.error("Erro ao buscar logs realtime:", logErr);
           }
           
             if (data.status === "completed" || data.status === "error" || data.status === "CONCLUIDO" || data.status === "CONCLUIDO_COM_RESSALVAS" || data.status === "STOPPED" || data.status === "cancelled") {
@@ -263,7 +263,7 @@ export default function CheckImportsPage() {
         } catch (err) {
           console.error("Erro polling status:", err);
         }
-      }, 10000);
+      }, 3000);
     }
     return () => clearInterval(interval);
   }, [activeTaskId]);

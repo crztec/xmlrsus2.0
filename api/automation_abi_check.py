@@ -66,7 +66,7 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
             page = await context.new_page()
             
             # Login com Navegação Defensiva (ERR_ABORTED Mitigation)
-            log_task("Realizando login Gestaocomercial...")
+            log_task("Realizando login no Gestão Comercial CubeTI...")
             if await is_cancelled(): return False
             try:
                 await page.goto("https://gestaocomercial.cubeti.com.br/ABITracker", wait_until="domcontentloaded", timeout=60000)
@@ -144,7 +144,14 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
                 await browser.close()
                 return False
                 
-            target_status = status_gax
+            # Map RSUS status to exact CubeTI dropdown text
+            cubeti_status_map = {
+                "Importado, Falta Analisar": "Importou o ABI",
+                "Importado e Analisado": "Importou e Analisou",
+                "Impugnando": "Impugnando o ABI",
+                "Finalizou": "Finalizou o ABI"
+            }
+            target_status = cubeti_status_map.get(status_gax, status_gax)
             log_task(f"Operadora localizada! Registrando Contato e Atualizando status para '{target_status}'")
             
             # --- INTELIGÊNCIA DE SINCRONIZAÇÃO (Ler estado atual para evitar redundância) ---
