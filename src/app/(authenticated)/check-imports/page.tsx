@@ -514,11 +514,11 @@ export default function CheckImportsPage() {
     if (s === "importado") return <CheckCircle2 className="text-sky-500" size={16} />;
     if (s === "falha" || s === "falha na análise" || s === "falha na analise") return <XCircle className="text-red-500" size={16} />;
 
+    if (s === "nao importado" || s === "não importado") return <XCircle className="text-slate-400" size={16} />;
+    
     if (impugnationStatus === 'Não Iniciou') return <Clock className="text-purple-600" size={16} />;
     
     switch (s) {
-      case "nao importado":
-      case "não importado": return <XCircle className="text-slate-400" size={16} />;
       case "pendente": return <Loader2 className="text-amber-500 animate-spin" size={16} />;
       default: return <Activity className="text-slate-300" size={16} />;
     }
@@ -1064,8 +1064,8 @@ export default function CheckImportsPage() {
                                   client.abi_status === "Importado, falta analisar" ? "bg-orange-50 text-orange-700 border-orange-100" :
                                   client.abi_status === "Importado" ? "bg-sky-50 text-sky-700 border-sky-100" :
                                   (client.abi_status === "Falha na Análise" || client.abi_status === "Falha") ? "bg-rose-50 text-rose-700 border-rose-100" :
-                                  client.impugnation_status === "Não Iniciou" ? "bg-purple-50 text-purple-700 border-purple-200" :
                                   (client.abi_status === "Nao Importado" || client.abi_status === "Não Importado") ? "bg-slate-50 text-slate-500 border-slate-200" :
+                                  client.impugnation_status === "Não Iniciou" ? "bg-purple-50 text-purple-700 border-purple-200" :
                                   "bg-slate-100 text-slate-500 border-slate-200"
                                 )}>
                                   {client.impugnation_status === "Finalizou" ? "Finalizou" :
