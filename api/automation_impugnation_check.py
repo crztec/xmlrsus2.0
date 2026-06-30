@@ -162,7 +162,7 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
                 const cells = Array.from(row.querySelectorAll('td'));
                 return {
                     status: cells[2] ? cells[2].innerText.trim() : "",
-                    andamento: cells[5] ? cells[5].innerText.trim() : ""
+                    andamento: cells.map(c => c.innerText.trim()).join(' | ')
                 };
             }""")
             current_status = current_row_data.get('status', '')
@@ -171,8 +171,10 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
 
             # --- DECISÃO: REGISTRAR CONTATO ---
             if contact_message:
-                # Se a mensagem que vamos enviar (ou similar) já está no "Último Andamento", pulamos.
-                if contact_message.lower() in current_andamento.lower():
+                # Se a mensagem que vamos enviar (ou similar) já está na linha, pulamos.
+                # Usamos os primeiros 20 caracteres para evitar problemas com truncamento (...) na grid
+                short_msg = contact_message[:20].lower()
+                if short_msg in current_andamento.lower():
                     log_task(f"Contato '{contact_message}' já registrado no CubeTI. Pulando registro (+).", "SUCCESS")
                 else:
                     log_task(f"Registrando contato: {contact_message}...")

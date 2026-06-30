@@ -164,7 +164,7 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
                 const cells = Array.from(row.querySelectorAll('td'));
                 return {
                     status: cells[2] ? cells[2].innerText.trim() : "",
-                    andamento: cells[5] ? cells[5].innerText.trim() : ""
+                    andamento: cells.map(c => c.innerText.trim()).join(' | ')
                 };
             }""")
             current_status = current_row_data.get('status', '')
@@ -174,7 +174,8 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
             # --- DECISÃO: REGISTRAR CONTATO ---
             msg_to_check = mensagem_analise if mensagem_analise else target_status
             skip_contact = False
-            if msg_to_check.lower() in current_andamento.lower():
+            short_msg = msg_to_check[:20].lower()
+            if short_msg in current_andamento.lower():
                 log_task(f"Contato '{msg_to_check}' já registrado no CubeTI. Pulando registro (+).", "DEBUG")
                 skip_contact = True
             
