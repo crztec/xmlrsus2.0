@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import {
   Zap, Search, CheckCircle2, XCircle, Clock, Terminal, X,
-  ChevronLeft, ChevronRight, Activity, Camera, MoreHorizontal,
+  ChevronLeft, ChevronRight, Activity, MoreHorizontal,
   RotateCcw, FileText, Ban, RefreshCw, Loader2, ShieldCheck, History, Play, ExternalLink
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
@@ -21,7 +21,6 @@ interface ClientConfig {
   api_last_check: string;
   api_status_history?: string[];
   api_last_task_id?: string;
-  api_last_screenshot_url?: string;
   group_name?: string;
 }
 
@@ -63,7 +62,6 @@ export default function ApiChecksPage() {
   const [isExecuting, setIsExecuting] = useState(false);
 
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const [selectedScreenshot, setSelectedScreenshot] = useState<string | null>(null);
   const [selectedClientMessage, setSelectedClientMessage] = useState<string | null>(null);
   const [logFilterClient, setLogFilterClient] = useState<string | null>(null);
   const [selectedClients, setSelectedClients] = useState<Set<string>>(new Set());
@@ -710,15 +708,6 @@ export default function ApiChecksPage() {
                           {client.api_status || 'Pendente'}
                         </span>
                       )}
-                      {(client.api_status === 'error' || client.api_status === 'offline') && client.api_last_screenshot_url && (
-                        <button
-                          onClick={() => setSelectedScreenshot(client.api_last_screenshot_url || null)}
-                          className="p-1 hover:bg-rose-100 rounded text-rose-400 transition-colors"
-                          title="Ver Screenshot da Falha"
-                        >
-                          <Camera size={13} />
-                        </button>
-                      )}
                     </div>
                   </td>
 
@@ -770,14 +759,6 @@ export default function ApiChecksPage() {
                               className="w-full flex items-center gap-2.5 px-4 py-3 text-[11px] font-bold text-slate-700 hover:bg-gax-blue hover:text-white transition-colors border-t border-slate-50"
                             >
                               <FileText size={14} /> Ver Log Individual
-                            </button>
-                          )}
-                          {(client.api_status === 'error' || client.api_status === 'offline') && client.api_last_screenshot_url && (
-                            <button
-                              onClick={() => { setSelectedScreenshot(client.api_last_screenshot_url!); setOpenMenuId(null); }}
-                              className="w-full flex items-center gap-2.5 px-4 py-3 text-xs font-semibold text-slate-700 hover:bg-gax-blue hover:text-white transition-colors border-t border-slate-50"
-                            >
-                              <Camera size={14} /> Screenshot
                             </button>
                           )}
                         </div>
@@ -904,31 +885,6 @@ export default function ApiChecksPage() {
         </div>
       )}
 
-      {/* ── SCREENSHOT MODAL ── */}
-      {selectedScreenshot && (
-        <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="relative max-w-5xl w-full bg-slate-900 rounded-2xl overflow-hidden shadow-2xl border border-slate-800">
-            <button
-              onClick={() => setSelectedScreenshot(null)}
-              className="absolute top-4 right-4 z-10 p-2 bg-white/20 hover:bg-white/40 text-white rounded-full transition-all"
-            >
-              <X size={18} />
-            </button>
-            <div className="p-1">
-              <img
-                src={selectedScreenshot}
-                alt="Screenshot de Falha"
-                className="w-full h-auto rounded-xl object-contain max-h-[85vh]"
-              />
-              <div className="p-4 bg-slate-900/80 text-white">
-                <div className="flex items-center gap-2 text-rose-400 font-bold uppercase text-[10px] tracking-wider">
-                  <Camera size={14} /> Captura de Falha Detectada
-                </div>
-                <p className="text-xs text-slate-400 mt-1">Imagem capturada pelo robô no momento em que a falha foi detectada.</p>
-              </div>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );

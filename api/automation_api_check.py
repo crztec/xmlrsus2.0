@@ -39,7 +39,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
     """
     client = db.get_client_config(client_id)
     if not client:
-        return "error", "Cliente não encontrado.", None
+        return "error", "Cliente não encontrado."
         
     url_sistema = client.get('url_sistema')
     client_name = client.get('name', client_id)
@@ -57,7 +57,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
             except: pass
 
     if not url_sistema:
-        return "offline", "URL não configurada.", None
+        return "offline", "URL não configurada."
 
     # Otimização de inicialização simultânea: Credenciais + Cold Start do Browser
     cred_type = "unimed_vitoria" if "vitoria" in url_sistema.lower() else "general"
@@ -99,7 +99,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                 msg_erro = f"Credenciais '{cred_type}' não encontradas no sistema. Acesse Configurações > Credenciais RSUS."
                 log_task(msg_erro, "ERROR")
                 if browser: await browser.close()
-                return "offline", msg_erro, None
+                return "offline", msg_erro
 
             usuario = creds['username']
             senha = creds['password']
@@ -145,7 +145,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
             
             if await is_cancelled():
                 if browser: await browser.close()
-                return "offline", "Tarefa cancelada pelo usuário.", None
+                return "offline", "Tarefa cancelada pelo usuário."
 
             # 1. Login (idêntico ao robô de importação)
             try:
@@ -235,21 +235,21 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                 if login_error and ("Account/Login" in page.url):
                     msg_fail = f"Falha na autenticação RSUS: mensagem de erro detectada ('{login_error}')."
                     log_task(msg_fail, "ERROR")
-                    return "offline", msg_fail, None
+                    return "offline", msg_fail
  
                 # Se ainda está na tela de login sem sessão detectada, falhou
                 if "Account/Login" in page.url and not has_session:
                     log_task("Falha no login: ainda na tela de login sem sessão válida.", "ERROR")
-                    return "offline", "Falha na autenticação RSUS.", None
+                    return "offline", "Falha na autenticação RSUS."
                 
                 log_task("Login bem-sucedido. Sessão estabelecida.")
                 update_progress(75)
                 if await is_cancelled(): 
                     if browser: await browser.close()
-                    return "offline", "Tarefa cancelada pelo usuário.", None
+                    return "offline", "Tarefa cancelada pelo usuário."
             except Exception as e:
                 log_task(f"Erro no login: {str(e)}", "ERROR")
-                return "offline", "Erro ao acessar portal RSUS.", None
+                return "offline", "Erro ao acessar portal RSUS."
  
             # 2. Navegação para Atendimentos através da lista de ABIs (Hambúrguer Direito)
             try:
@@ -257,7 +257,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                 logger.info(f"[{client_name}] Localizando ABI e abrindo menu hambúrguer...")
                 if await is_cancelled(): 
                     if browser: await browser.close()
-                    return "offline", "Tarefa cancelada pelo usuário.", None
+                    return "offline", "Tarefa cancelada pelo usuário."
                 
                 # REFINAMENTO FINAL: Removemos esperas globais por domcontentloaded/networkidle
                 # Iniciamos polling ativo pelos elementos da grid IMEDIATAMENTE.
@@ -430,17 +430,15 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                 
                 await asyncio.sleep(3)
             except Exception as e:
-                screenshot_url = None
-
                 log_task(f"Erro de navegação (Atendimentos): {str(e)}", "ERROR")
-                return "error", f"Falha na navegação: {str(e)[:500]}", screenshot_url
-
+                return "error", f"Falha na navegação: {str(e)[:500]}"
+ 
             # 3. Navegação para Beneficiário (Novo hambúrguer na tela de atendimentos)
             try:
                 log_task("Na tela de Atendimentos. Abrindo menu do beneficiário...")
                 if await is_cancelled(): 
                     if browser: await browser.close()
-                    return "offline", "Tarefa cancelada pelo usuário.", None
+                    return "offline", "Tarefa cancelada pelo usuário."
                 found_bars_benef = False
                 for _ in range(5):
                     # Especificidade aumentada: prioriza ícones dentro de tabelas ou grids para evitar o menu lateral
@@ -525,25 +523,16 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                 # Aguarda modal carregar
                 await asyncio.sleep(5)
             except Exception as e:
-                # CAPTURA DE SCREENSHOT EM CASO DE ERRO
-                screenshot_url = None
-                try:
-                    shot_path = f"api_checks/{client_id}_{int(time.time())}.png"
-                    img_bytes = await page.screenshot()
-                    if db.upload_screenshot(shot_path, img_bytes):
-                        screenshot_url = f"https://firebasestorage.googleapis.com/v0/b/{db.FIREBASE_STORAGE_BUCKET}/o/{shot_path.replace('/', '%2F')}?alt=media"
-                except: pass
-
                 log_task(f"Erro ao abrir beneficiário: {str(e)}", "ERROR")
-                return "error", f"Erro no Beneficiário: {str(e)[:500]}", screenshot_url
-
+                return "error", f"Erro no Beneficiário: {str(e)[:500]}"
+ 
             # 4. Ação de Atualização e Verificação Final
             try:
                 update_progress(95)
                 logger.info(f"[{client_name}] Modal de Beneficiário aberta. Rolando e atualizando...")
                 if await is_cancelled(): 
                     if browser: await browser.close()
-                    return "offline", "Tarefa cancelada pelo usuário.", None
+                    return "offline", "Tarefa cancelada pelo usuário."
                 
                 # =====================================================================
                 # NOVO: NETWORK INTERCEPTION PARA LER A RESPOSTA AJAX DO PORTAL
@@ -588,7 +577,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                 
                 page.on("response", handle_response)
                 # =====================================================================
-
+ 
                 found_update = False
                 
                 # Scroll the modal body to bottom first so the Atualizar button becomes reachable
@@ -665,12 +654,12 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                     # 0. Verifica o interceptador de rede
                     if network_status["success"]:
                         log_task("Integração Online, os dados foram atualizados.", "SUCCESS")
-                        return "online", "Conexão operacional.", None
+                        return "online", "Conexão operacional."
                     
                     if network_status["error"]:
                         err_msg = network_status["error"]
                         log_task(f"Erro detectado na integração: {err_msg}", "ERROR")
-                        return "offline", err_msg, None
+                        return "offline", err_msg
                     
                     # ============================================================
                     # CAMADA 1: Detecção de popups/overlays/modais visíveis
@@ -788,18 +777,11 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                         if popup_type == 'error':
                             log_task(f"Popup de ERRO detectado no instante {attempt+1} ({popup_selector}): {popup_text}", "WARNING")
                             
-                            screenshot_url = None
-                            try:
-                                img_bytes = await page.screenshot(full_page=False)
-                                base64_img = f"data:image/png;base64,{base64.b64encode(img_bytes).decode('utf-8')}"
-                                screenshot_url = base64_img
-                            except: pass
-                            
-                            return "offline", f"Erro de integração: {popup_text}", screenshot_url
+                            return "offline", f"Erro de integração: {popup_text}"
                         
                         elif popup_type == 'success':
                             log_task("Integração Online, os dados foram atualizados.", "SUCCESS")
-                            return "online", "Conexão RSUS Ativa e funcional.", None
+                            return "online", "Conexão RSUS Ativa e funcional."
                             
                     # ============================================================
                     # CAMADA 2: Varredura de texto completo (incluindo Shadow DOM se existir)
@@ -846,23 +828,23 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                         
                         log_task(f"Erro detectado no texto no instante {attempt+1}: '{error_context}'", "WARNING")
                         
-                        return "offline", f"Portal retornou erro: {error_context[:200]}", None
+                        return "offline", f"Portal retornou erro: {error_context[:200]}"
                     
                     # Keywords de sucesso estritas (sem palavras soltas como 'sucesso' ou 'concluído')
                     success_keywords = ['atualizado com sucesso', 'dados atualizados', 'dados foram atualizados', 'salvo com sucesso', 'gravado com sucesso', 'com sucesso', 'operação realizada', 'operacao realizada', 'sucesso!']
                     if any(k in all_text_lower for k in success_keywords):
                         log_task("Integração Online, os dados foram atualizados.", "SUCCESS")
-                        return "online", "Conexão RSUS Ativa e funcional.", None
+                        return "online", "Conexão RSUS Ativa e funcional."
                         
                 # Se o loop terminar sem detectar nada (timeout)
                 visible_summary = all_text.strip().replace('\n', ' | ')[:300]
                 log_task(f"Timeout aguardando resposta. Texto visível final: {visible_summary}", "WARNING")
                 log_task("Portal não respondeu a tempo após o clique (Timeout). Assumindo ERRO.", "ERROR")
-                return "error", "Timeout aguardando resposta do portal.", None
+                return "error", "Timeout aguardando resposta do portal."
                 
             except Exception as e:
                 log_task(f"Erro na etapa final: {str(e)}", "ERROR")
-                return "error", f"Erro no formulário final: {str(e)[:50]}", None
+                return "error", f"Erro no formulário final: {str(e)[:50]}"
 
     except Exception as e:
         import traceback
@@ -932,9 +914,9 @@ async def run_batch_api_check(task_id=None, client_ids=None):
             try:
                 # Injeta a credencial pertinente via cache local em memória
                 target_creds = creds_vitoria if "vitoria" in client.get('url_sistema', '').lower() else creds_general
-                status, message, snap_url = await run_api_check_for_client(client['id'], task_id=task_id, pre_fetched_creds=target_creds, is_batch_run=True)
+                status, message = await run_api_check_for_client(client['id'], task_id=task_id, pre_fetched_creds=target_creds, is_batch_run=True)
                 # O status já é atualizado dentro de run_api_check_for_client, mas aqui garantimos o vínculo final
-                db.update_client_api_status(client['id'], status, message, task_id=task_id, screenshot_url=snap_url, is_batch=True)
+                db.update_client_api_status(client['id'], status, message, task_id=task_id, is_batch=True)
             except Exception as e:
                 logger.error(f"Erro ao checar cliente {client.get('id')}: {e}")
                 if task_id:
@@ -982,8 +964,8 @@ async def run_single_api_check(client_id, task_id=None):
             })
             db.add_log(task_id, f"Iniciando checagem individual: {client_name}", "INFO")
         
-        status, message, snap_url = await run_api_check_for_client(client_id, task_id=task_id)
-        db.update_client_api_status(client_id, status, message, task_id=task_id, screenshot_url=snap_url)
+        status, message = await run_api_check_for_client(client_id, task_id=task_id)
+        db.update_client_api_status(client_id, status, message, task_id=task_id)
         
         if task_id:
             db.update_task(task_id, {

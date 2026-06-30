@@ -104,20 +104,6 @@ def upload_xml_to_storage(task_id, filename, file_content_bytes):
     logger.info(f"File uploaded to Storage successfully: {destination_blob_name}")
     return destination_blob_name
 
-def upload_screenshot(screenshot_path, img_bytes):
-    """
-    Uploads a screenshot (PNG) to Firebase Storage for debugging.
-    """
-    try:
-        bucket = storage.bucket()
-        blob = bucket.blob(screenshot_path)
-        blob.upload_from_string(img_bytes, content_type='image/png')
-        logger.info(f"Screenshot uploaded: {screenshot_path}")
-        return True
-    except Exception as e:
-        logger.error(f"Failed to upload screenshot: {e}")
-        return False
-
 def download_xml_from_storage(storage_path, local_destination_path):
     """
     Downloads the XML file from Firebase Storage to a local path.
@@ -354,7 +340,6 @@ def get_all_clients():
                 'api_status_history': data.get('api_status_history', []),
                 'api_last_message': data.get('api_last_message', ''),
                 'api_last_task_id': data.get('api_last_task_id', ''),
-                'api_last_screenshot_url': data.get('api_last_screenshot_url', ''),
                 'total_abis': data.get('total_abis', 0),
                 # Campos ABI
                 'abi_status': data.get('abi_status', ''),
@@ -429,7 +414,6 @@ def get_clients_paginated(page=1, limit=10, search=""):
                 'api_status': data.get('api_status', 'unknown'),
                 'api_last_check': last_check,
                 'api_last_message': data.get('api_last_message', ''),
-                'api_last_screenshot_url': data.get('api_last_screenshot_url', ''),
                 'api_status_history': data.get('api_status_history', []),
                 'api_last_task_id': data.get('api_last_task_id', ''),
                 'total_abis': data.get('total_abis', 0),
@@ -599,7 +583,7 @@ def update_client_config(client_id, update_data):
         logger.error(f"Erro ao atualizar cliente {client_id}: {e}")
         return False
 
-def update_client_api_status(client_id, status, message, task_id=None, screenshot_url=None, is_batch=False):
+def update_client_api_status(client_id, status, message, task_id=None, is_batch=False):
     """Updates the API monitoring status for a client, maintaining history and forensics."""
     if not client_id: return False
     try:
@@ -614,10 +598,8 @@ def update_client_api_status(client_id, status, message, task_id=None, screensho
             'api_last_check': firestore.SERVER_TIMESTAMP
         }
         
-        if task_id and (not is_batch or not client_doc.to_dict().get('api_last_task_id')):
+        if task_id:
             update_data['api_last_task_id'] = task_id
-        if screenshot_url:
-            update_data['api_last_screenshot_url'] = screenshot_url
         
         # Gerenciar Histórico Simples no documento principal (para performance na lista)
         if client_doc.exists:
@@ -634,8 +616,7 @@ def update_client_api_status(client_id, status, message, task_id=None, screensho
             'status': status,
             'message': message,
             'timestamp': firestore.SERVER_TIMESTAMP,
-            'task_id': task_id,
-            'screenshot_url': screenshot_url
+            'task_id': task_id
         })
         
         _cache_all_clients.clear()
