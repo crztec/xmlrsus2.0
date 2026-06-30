@@ -98,6 +98,10 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
                 await asyncio.sleep(2)
                 
             # Busca operadora específica (Isolamento de Grid)
+            try:
+                await page.wait_for_selector("input[placeholder*='Buscar cliente'], input[placeholder*='Pesquisar'], .k-textbox input, .k-input-inner", timeout=15000)
+            except: pass
+            
             search_input = page.locator("input[placeholder*='Buscar cliente'], input[placeholder*='Pesquisar'], .k-textbox input, .k-input-inner").first
             
             async def try_search(name_to_search, quiet=False):
