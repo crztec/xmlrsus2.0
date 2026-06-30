@@ -563,10 +563,10 @@ export default function CheckImportsPage() {
       assignedStatus = "Falta Analisar";
     } else if (sABI === 'falha' || sABI === 'falha na análise' || sABI === 'falha na analise') {
       assignedStatus = "Falhas";
-    } else if (sIMP === 'Não Iniciou' || sIMP === 'Nao Iniciou') {
-      assignedStatus = "Não Inic. Impug.";
     } else if (sABI === 'nao importado' || sABI === 'não importado') {
       assignedStatus = "Não Import.";
+    } else if (sIMP === 'Não Iniciou' || sIMP === 'Nao Iniciou') {
+      assignedStatus = "Não Inic. Impug.";
     }
     
     // Mapeamento extra para cobrir agrupamentos dos cards:
@@ -1074,8 +1074,8 @@ export default function CheckImportsPage() {
                                    client.abi_status === "Importado, falta analisar" ? "Falta Analisar" :
                                    client.abi_status === "Importado" ? "Importado" :
                                    (client.abi_status === "Falha na Análise" || client.abi_status === "Falha") ? "Falha" :
-                                   client.impugnation_status === "Não Iniciou" ? "Não Iniciou" :
-                                   (client.abi_status === "Nao Importado" || client.abi_status === "Não Importado" ? "Não Importado" : (client.abi_status || "Não Checado"))}
+                                   (client.abi_status === "Nao Importado" || client.abi_status === "Não Importado") ? "Não Importado" :
+                                   client.impugnation_status === "Não Iniciou" ? "Não Iniciou" : (client.abi_status || "Não Checado")}
                                 </span>
                               </>
                             )}
