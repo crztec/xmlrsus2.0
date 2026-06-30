@@ -16,7 +16,7 @@ async def run_api_check_for_client(client_id, task_id=None, pre_fetched_creds=No
     client_name = client.get('name', client_id) if client else client_id
     
     try:
-        status, message, snap_url = await _run_api_check_logic(client_id, task_id, pre_fetched_creds)
+        status, message = await _run_api_check_logic(client_id, task_id, pre_fetched_creds)
         
         # Alerta individual se não for lote
         if not is_batch_run:
@@ -25,13 +25,13 @@ async def run_api_check_for_client(client_id, task_id=None, pre_fetched_creds=No
             # Envio aguardado (await) para evitar que a tarefa seja descartada pelo event loop
             await send_whatsapp_alert(msg, task_id=task_id)
             
-        return status, message, snap_url
+        return status, message
     except Exception as e:
         status, message = "error", f"Erro inesperado: {str(e)}"
         if not is_batch_run:
             msg = f"❌ *GAX RSUS - Erro na Checagem*\n\nOperadora: {client_name}\nErro: {str(e)[:500]}"
             await send_whatsapp_alert(msg, task_id=task_id)
-        return status, message, None
+        return status, message
 
 async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
     """
