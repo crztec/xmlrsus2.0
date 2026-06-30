@@ -852,7 +852,7 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
         log_task(f"Erro inesperado: {str(e)}", "ERROR")
         if task_id:
             db.add_log(task_id, f"TRACEBACK: {error_detail}", "ERROR")
-        return "error", f"Erro técnico: {str(e)}", None
+        return "error", f"Erro técnico: {str(e)}"
     finally:
         if browser:
             try:

@@ -884,8 +884,6 @@ export default function ApiChecksPage() {
           </div>
         </div>
       )}
-
-      )}
     </div>
   );
 }
