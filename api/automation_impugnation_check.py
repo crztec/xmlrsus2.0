@@ -161,7 +161,7 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
             current_row_data = await target_row.evaluate("""(row) => {
                 const cells = Array.from(row.querySelectorAll('td'));
                 return {
-                    status: cells[2] ? cells[2].innerText.trim() : "",
+                    status: cells[3] ? cells[3].innerText.trim() : "",
                     andamento: cells.map(c => c.innerText.trim()).join(' | ')
                 };
             }""")
@@ -256,10 +256,12 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
                 
                 log_task(f"Atualizando status para '{target_status}'")
                 
-                # Seletor robusto que ignora se é um span, button ou div, focado no texto de status conhecido
-                status_trigger = target_row.locator("button, [role='combobox'], .cursor-pointer, span.inline-flex, span[aria-haspopup='dialog'], .k-dropdown, .k-dropdown-wrap").filter(
+                # Seletor robusto focado na coluna de status (td.nth(3))
+                status_trigger = target_row.locator("td").nth(3).locator("button, [role='combobox'], .cursor-pointer, span.inline-flex, span[aria-haspopup='dialog'], .k-dropdown, .k-dropdown-wrap").filter(
                     has_text=re.compile(r"Não iniciou|Importou|Impugnando|Impugnado|Finalizou|Agendou|Erro|Analisou", re.IGNORECASE)
                 ).first
+                if await status_trigger.count() == 0:
+                    status_trigger = target_row.locator("td").nth(3).locator("button, .k-dropdown, .cursor-pointer").first
                 
                 if await status_trigger.count() > 0:
                     await status_trigger.scroll_into_view_if_needed()
