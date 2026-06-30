@@ -529,6 +529,8 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
             target_row = page.locator("table tbody tr").nth(target_row_index)
             if status_text != "Importado":
                 if browser: await browser.close()
+                if "análise" in status_text.lower() or "analise" in status_text.lower():
+                    return "Importado, falta analisar", f"Status: {status_text}", None
                 return "Pendente", f"Status: {status_text}", None
             if await is_cancelled():
                 if browser: await browser.close()

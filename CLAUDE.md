@@ -36,6 +36,8 @@ Call `ms_save({ projectId: "96be79ca", title: "<title>", content: "<detailed con
 ## 🛡️ Known Gotchas (NEVER violate)
 
 - ⚠️ **Strict Security: Credentials and Sensitive Configs in Database Only** — CRITICAL SECURITY RULE: Never hardcode any API key, password, credential, or sensitive user/server configuration in the 
+- ⚠️ **CubeTI Status Clicks**: Never use row-wide locators for clicking status elements in CubeTI. The green/red API icons share pointer classes. Always scope the click locator specifically to `td.nth(2)` to avoid clicking the API status icons.
+- ⚠️ **Legacy Log Hook**: Avoid logging 'concluída' when a task is only partially done. `database.py` has a legacy hook that marks tasks as 'completed' if the log contains 'concluída'. Use 'realizada' or similar to avoid premature task closures.
 
 ## 📐 Conventions
 
