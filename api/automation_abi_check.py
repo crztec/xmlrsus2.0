@@ -66,7 +66,7 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
             page = await context.new_page()
             
             # Login com Navegação Defensiva (ERR_ABORTED Mitigation)
-            log_task("Realizando login Gestaocomercial...")
+            log_task("Realizando login Gestaocomercial...", "DEBUG")
             if await is_cancelled(): return False
             try:
                 await page.goto("https://gestaocomercial.cubeti.com.br/ABITracker", wait_until="domcontentloaded", timeout=60000)
@@ -103,7 +103,7 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
             async def try_search(name_to_search, quiet=False):
                 if await search_input.count() > 0:
                     if not quiet:
-                        log_task(f"Pesquisando por '{name_to_search}' no Gestão Comercial CubeTI...", "INFO")
+                        log_task(f"Pesquisando por '{name_to_search}' no Gestão Comercial CubeTI...", "DEBUG")
                     await search_input.click()
                     await search_input.fill("")
                     await asyncio.sleep(0.5)
@@ -145,7 +145,7 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
                 return False
                 
             target_status = status_gax
-            log_task(f"Operadora localizada! Registrando Contato e Atualizando status para '{target_status}'")
+            log_task(f"Operadora localizada! Registrando Contato e Atualizando status para '{target_status}'", "DEBUG")
             
             # --- INTELIGÊNCIA DE SINCRONIZAÇÃO (Ler estado atual para evitar redundância) ---
             current_row_data = await target_row.evaluate("""(row) => {
@@ -258,6 +258,7 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
                             await asyncio.sleep(1)
                             await page.keyboard.press("Enter")
             await browser.close()
+            log_task("Sincronização com CubeTI concluída com sucesso!", "SUCCESS")
             return True
             
     except Exception as e:
