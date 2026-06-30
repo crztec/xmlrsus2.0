@@ -274,6 +274,8 @@ async def run_abi_check_for_client(client_id, task_id=None, pre_fetched_creds=No
     try:
         status, message, snap_url = await _run_abi_check_logic(client_id, active_abi, task_id, pre_fetched_creds)
         db.update_client_abi_status(client_id, active_abi, status, message, task_id, is_batch=is_batch_run)
+        if task_id:
+            db.add_log(task_id, f"[{client_name}] ABI {active_abi} verificado no RSUS: {status}")
         old_abi = client.get('abi_current')
         is_new_abi = False
         if old_abi:
@@ -366,7 +368,7 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
     try:
         async with async_playwright() as p:
             update_progress(5)
-            log_task(f"Iniciando navegador para checar ABI {active_abi}...")
+            log_task(f"Verificando ABI {active_abi} no portal RSUS...")
             browser_args = [
                 "--headless=new", "--no-sandbox", "--disable-setuid-sandbox", 
                 "--disable-dev-shm-usage",
@@ -382,7 +384,7 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                 msg_erro = f"Credenciais '{cred_type}' não encontradas."
                 log_task(msg_erro, "ERROR")
                 return "Falha", msg_erro, None
-            log_task("Credenciais obtidas. Abrindo navegador...")
+            log_task("Credenciais obtidas. Abrindo navegador...", "DEBUG")
             browser = await launch_browser_robust(p, browser_args, task_id=task_id)
             update_progress(15)
             usuario = creds['username']
