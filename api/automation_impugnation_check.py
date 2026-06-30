@@ -152,12 +152,6 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
 
             if await target_row.count() == 0:
                 log_task(f"Operadora '{client_name}' não encontrada na grid da Cubeti após múltiplas tentativas.", "WARNING")
-                # Screenshot de debug se falhar
-                try:
-                    snap_path = f"/tmp/cubeti_search_fail_{int(time.time())}.png"
-                    await page.screenshot(path=snap_path)
-                    log_task(f"Screenshot de falha salvo em: {snap_path}", "DEBUG")
-                except: pass
                 await browser.close()
                 return False
                 

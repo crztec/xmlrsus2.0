@@ -256,9 +256,9 @@ export default function CheckImportsPage() {
               }
               
               await fetchData();
-              
-              // Remove a barra de progresso imediatamente
-              setActiveTaskId(null);
+              clearInterval(interval);
+              // Mantém a barra visível para o usuário ver que finalizou
+              // setActiveTaskId(null);
             }
         } catch (err) {
           console.error("Erro polling status:", err);
@@ -514,7 +514,7 @@ export default function CheckImportsPage() {
     if (s === "importado") return <CheckCircle2 className="text-sky-500" size={16} />;
     if (s === "falha" || s === "falha na análise" || s === "falha na analise") return <XCircle className="text-red-500" size={16} />;
 
-    if (s === "nao importado" || s === "não importado") return <XCircle className="text-slate-400" size={16} />;
+    if (s === "nao importado" || s === "não importado") return <XCircle className="text-slate-500" size={16} />;
     
     if (impugnationStatus === 'Não Iniciou') return <Clock className="text-purple-600" size={16} />;
     
@@ -1048,8 +1048,8 @@ export default function CheckImportsPage() {
                           <div className="flex items-center gap-2">
                             {isStale ? (
                               <>
-                                <XCircle className="text-slate-400" size={16} />
-                                <span className="font-bold text-[9px] uppercase border px-2 py-0.5 rounded-full whitespace-nowrap bg-slate-50 text-slate-500 border-slate-200">
+                                <XCircle className="text-slate-500" size={16} />
+                                <span className="font-bold text-[9px] uppercase border px-2 py-0.5 rounded-full whitespace-nowrap bg-slate-100 text-slate-600 border-slate-200">
                                   Não Importado
                                 </span>
                               </>
@@ -1064,7 +1064,7 @@ export default function CheckImportsPage() {
                                   client.abi_status === "Importado, falta analisar" ? "bg-orange-50 text-orange-700 border-orange-100" :
                                   client.abi_status === "Importado" ? "bg-sky-50 text-sky-700 border-sky-100" :
                                   (client.abi_status === "Falha na Análise" || client.abi_status === "Falha") ? "bg-rose-50 text-rose-700 border-rose-100" :
-                                  (client.abi_status === "Nao Importado" || client.abi_status === "Não Importado") ? "bg-slate-50 text-slate-500 border-slate-200" :
+                                  (client.abi_status === "Nao Importado" || client.abi_status === "Não Importado") ? "bg-slate-100 text-slate-600 border-slate-200" :
                                   client.impugnation_status === "Não Iniciou" ? "bg-purple-50 text-purple-700 border-purple-200" :
                                   "bg-slate-100 text-slate-500 border-slate-200"
                                 )}>

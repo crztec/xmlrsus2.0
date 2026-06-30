@@ -151,6 +151,7 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
             # Map RSUS status to exact CubeTI dropdown text
             cubeti_status_map = {
                 "Importado, Falta Analisar": "Importou o ABI",
+                "Importado, falta analisar": "Importou o ABI",
                 "Importado e Analisado": "Importou e Analisou",
                 "Impugnando": "Impugnando o ABI",
                 "Finalizou": "Finalizou o ABI"
@@ -594,6 +595,7 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                                 await search_field.fill("")
                                 await search_field.type("Parcial", delay=50)
                                 await page.keyboard.press("Enter")
+                                await asyncio.sleep(1.5)
                                 modal_text = await modal_container.inner_text(timeout=3000)
                                 if "Parcial" in modal_text or "parcial" in modal_text.lower():
                                     success_parcial = True
@@ -602,6 +604,7 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                                     await search_field.fill("")
                                     await search_field.type("Falha", delay=50)
                                     await page.keyboard.press("Enter")
+                                    await asyncio.sleep(1.5)
                                     modal_text = await modal_container.inner_text(timeout=3000)
                                     if "Falha" in modal_text or "falha" in modal_text.lower():
                                         has_real_error = True
@@ -610,6 +613,7 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                                         await search_field.fill("")
                                         await search_field.type("Erro", delay=50)
                                         await page.keyboard.press("Enter")
+                                        await asyncio.sleep(1.5)
                                         modal_text = await modal_container.inner_text(timeout=3000)
                                         if "Erro" in modal_text or "erro" in modal_text.lower():
                                             has_real_error = True
