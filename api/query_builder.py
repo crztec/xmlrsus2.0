@@ -227,10 +227,12 @@ def generate_sql_query(messages: list, schema: str, provider: str, model_name: s
             "systemInstruction": {
                 "parts": [{"text": system_prompt}]
             },
-            "generationConfig": {
-                "temperature": 0.3
-            }
+            "generationConfig": {}
         }
+        
+        # Thinking models generally do not support temperature parameter
+        if "thinking" not in api_model.lower():
+            payload["generationConfig"]["temperature"] = 0.3
         
         resp = requests.post(url, json=payload, headers=headers, timeout=60)
         if resp.status_code != 200:

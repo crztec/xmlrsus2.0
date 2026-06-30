@@ -50,7 +50,7 @@ export default function QueryBuilderPage() {
 
   // IA Configuration State
   const [provider, setProvider] = useState<"gemini" | "claude" | "openai" | "deepseek">("gemini");
-  const [modelName, setModelName] = useState<string>("gemini-2.0-flash");
+  const [modelName, setModelName] = useState<string>("gemini-3.5-flash");
   const [apiKeys, setApiKeys] = useState<{ [key: string]: string }>({ gemini: "", claude: "", openai: "", deepseek: "" });
   const [reasoningLevel, setReasoningLevel] = useState<"standard" | "extended">("standard");
 
@@ -615,7 +615,7 @@ export default function QueryBuilderPage() {
 
             <div className="flex items-center gap-1.5 rounded-2xl border border-slate-200/60 bg-white p-1.5 shadow-sm mb-4 overflow-x-auto">
               <button
-                onClick={() => { setProvider("gemini"); setModelName("gemini-2.0-flash"); }}
+                onClick={() => { setProvider("gemini"); setModelName("gemini-3.5-flash"); }}
                 className={cn("flex-1 min-w-[70px] flex h-9 items-center justify-center rounded-xl transition-all font-sans text-[11px] font-bold",
                   provider === "gemini" ? "bg-gax-blue text-white shadow-md shadow-gax-blue/20" : "text-slate-400 hover:bg-slate-50")}
               >Gemini</button>
@@ -646,11 +646,13 @@ export default function QueryBuilderPage() {
                 >
                   {provider === "gemini" && (
                     <>
+                      <option value="gemini-3.5-flash">Gemini 3.5 Flash</option>
+                      <option value="gemini-3.1-pro">Gemini 3.1 Pro</option>
+                      <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite</option>
+                      <option value="gemini-3.0-flash">Gemini 3 Flash</option>
+                      <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                      <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</option>
                       <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
-                      <option value="gemini-2.0-pro-exp-02-05">Gemini 2.0 Pro</option>
-                      <option value="gemini-2.0-flash-lite-preview-02-05">Gemini 2.0 Flash Lite</option>
-                      <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
-                      <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
                     </>
                   )}
                   {provider === "claude" && (
