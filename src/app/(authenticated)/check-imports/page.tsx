@@ -551,8 +551,6 @@ export default function CheckImportsPage() {
       assignedStatus = "Finalizou";
     } else if (sIMP === 'Impugnando') {
       assignedStatus = "Impugnando";
-    } else if (sIMP === 'Não Iniciou' || sIMP === 'Nao Iniciou') {
-      assignedStatus = "Não Inic. Impug.";
     } else if (sABI === 'importado e analisado') {
       assignedStatus = "Analisados";
     } else if (sABI === 'importado') {
@@ -565,6 +563,8 @@ export default function CheckImportsPage() {
       assignedStatus = "Falta Analisar";
     } else if (sABI === 'falha' || sABI === 'falha na análise' || sABI === 'falha na analise') {
       assignedStatus = "Falhas";
+    } else if (sIMP === 'Não Iniciou' || sIMP === 'Nao Iniciou') {
+      assignedStatus = "Não Inic. Impug.";
     } else if (sABI === 'nao importado' || sABI === 'não importado') {
       assignedStatus = "Não Import.";
     }
