@@ -538,11 +538,16 @@ export default function CheckImportsPage() {
     const sABI = (c.abi_status || "").toLowerCase();
     const sIMP = (c.impugnation_status || "");
     const sMSG = (c.abi_last_message || "").toLowerCase();
+    const activeAbiDigits = (activeAbi?.ABI || '').replace(/\D/g, '');
+    const clientAbiDigits = ((c as any).abi_current || '').replace(/\D/g, '');
+    const isStale = !!(activeAbiDigits && clientAbiDigits && clientAbiDigits !== activeAbiDigits);
     
     // Determina o status exato usando a MESMA lógica mutuamente exclusiva (elif chain) do backend
     let assignedStatus = "Pendente";
     
-    if (sIMP === 'Finalizou') {
+    if (isStale) {
+      assignedStatus = "Não Import.";
+    } else if (sIMP === 'Finalizou') {
       assignedStatus = "Finalizou";
     } else if (sIMP === 'Impugnando') {
       assignedStatus = "Impugnando";
