@@ -187,7 +187,8 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
                     "a[data-original-title*='Registrar']",
                     "a.btn-success i.fa-plus",
                     "button.btn-success i.fa-plus",
-                    ".btn-success"
+                    "a:has(i.fa-plus)",
+                    "button:has(i.fa-plus)"
                 ]
                 
                 btn_add = None
@@ -289,7 +290,15 @@ async def run_abi_check_for_client(client_id, task_id=None, pre_fetched_creds=No
         status, message, snap_url = await _run_abi_check_logic(client_id, active_abi, task_id, pre_fetched_creds)
         db.update_client_abi_status(client_id, active_abi, status, message, task_id, is_batch=is_batch_run)
         if task_id:
-            db.add_log(task_id, f"[{client_name}] ABI {active_abi} verificado no RSUS: {status}")
+            resultado_txt = ""
+            if "Sucesso - Parcial" in message:
+                resultado_txt = " (Sucesso Parcial)"
+            elif "sucesso" in message.lower():
+                resultado_txt = " (Sucesso)"
+            elif status == "Falha na Análise" or "erro" in message.lower() or "falha" in message.lower():
+                resultado_txt = " (Erro em todos)"
+                
+            db.add_log(task_id, f"[{client_name}] ABI {active_abi} verificado no RSUS: {status}{resultado_txt}")
         old_abi = client.get('abi_current')
         is_new_abi = False
         if old_abi:

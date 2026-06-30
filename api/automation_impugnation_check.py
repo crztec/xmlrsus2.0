@@ -184,9 +184,8 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
                         "a[title*='Registrar']",
                         "button[data-original-title*='Registrar']",
                         "a[data-original-title*='Registrar']",
-                        "a.btn-success i.fa-plus",
-                        "button.btn-success i.fa-plus",
-                        ".btn-success"
+                        "a:has(i.fa-plus)",
+                        "button:has(i.fa-plus)"
                     ]
                     
                     btn_add = None

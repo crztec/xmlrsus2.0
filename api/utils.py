@@ -24,7 +24,7 @@ async def send_whatsapp_alert(text_message: str, task_id: str = None, target_num
         db.add_log(task_id, f"Iniciando envio de WhatsApp para {len(target_numbers)} destino(s)...")
 
     def _post_request(payload):
-        return requests.post(url, headers=headers, json=payload, timeout=60)
+        return requests.post(url, headers=headers, json=payload, timeout=10)
 
     for numero in target_numbers:
         jid = numero.strip()

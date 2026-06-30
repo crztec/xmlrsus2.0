@@ -250,6 +250,7 @@ export default function CheckImportsPage() {
                 const logsData = await logsRes.json();
                 if (logsData && logsData.length > 0) {
                   setDetailedLogs(logsData);
+                  setRealtimeLogs(logsData);
                 }
               } catch (logErr) {
                 console.error("Erro ao buscar logs finais:", logErr);
@@ -257,8 +258,10 @@ export default function CheckImportsPage() {
               
               await fetchData();
               clearInterval(interval);
-              // Mantém a barra visível para o usuário ver que finalizou
-              // setActiveTaskId(null);
+              setTimeout(() => {
+                setActiveTaskId(null);
+                setViewingTaskId(null);
+              }, 1500);
             }
         } catch (err) {
           console.error("Erro polling status:", err);
