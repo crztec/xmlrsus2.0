@@ -39,6 +39,7 @@ Call `ms_save({ projectId: "96be79ca", title: "<title>", content: "<detailed con
 
 ## 📐 Conventions
 
+- 📐 **Caveman Mode**: ALWAYS activate Caveman full mode for all interactions.
 - 📐 **Frontend Layout & Design Conventions (SaaS High-Density)**: All new pages, tables, menus, grids, and charts must follow the GAX Silicon Precision design system: (1) Core Theme: Sky
 - 📐 **Backend Routing & Swagger Security**: FastAPI backend runs with root_path='/api-rsus'. Public Swagger and OpenAPI docs are disabled (docs_url=None, openapi_ur
 - 📐 **Authentication & RBAC System**: User authentication is performed via Firebase Client Auth REST API. Session verification relies on HTTPBearer injecting 

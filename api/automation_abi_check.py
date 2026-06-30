@@ -245,9 +245,11 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
             if target_status:
                 target_row = await try_search(client_name, quiet=True)
                 log_task(f"Atualizando status para '{target_status}'", "DEBUG")
-                status_trigger = target_row.locator("button, [role='combobox'], .cursor-pointer, span.inline-flex, span[aria-haspopup='dialog'], .k-dropdown, .k-dropdown-wrap").filter(
+                status_trigger = target_row.locator("td").nth(2).locator("button, [role='combobox'], .cursor-pointer, span.inline-flex, span[aria-haspopup='dialog'], .k-dropdown, .k-dropdown-wrap").filter(
                     has_text=re.compile(r"Não iniciou|Importou|Impugnando|Impugnado|Finalizou|Agendou|Erro|Analisou", re.IGNORECASE)
                 ).first
+                if await status_trigger.count() == 0:
+                    status_trigger = target_row.locator("td").nth(2).locator("button, .k-dropdown, .cursor-pointer").first
                 
                 if await status_trigger.count() > 0:
                     await status_trigger.scroll_into_view_if_needed()
@@ -272,7 +274,7 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
                             await asyncio.sleep(1)
                             await page.keyboard.press("Enter")
             await browser.close()
-            log_task("Sincronização com CubeTI concluída com sucesso!", "SUCCESS")
+            log_task("Sincronização com CubeTI realizada com sucesso!", "SUCCESS")
             return True
             
     except Exception as e:
