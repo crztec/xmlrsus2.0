@@ -472,7 +472,7 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
     try:
         async with async_playwright() as p:
             update_progress(5)
-            log_task(f"Iniciando checagem de impugnações para ABI {active_abi}...")
+            log_task(f"Iniciando checagem de impugnações para o ABI {active_abi}...")
             
             browser_args = [
                 "--no-sandbox", "--disable-setuid-sandbox", 
@@ -807,6 +807,7 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
 
             # ─── 6. EXECUTAR PESQUISAS SEQUENCIAIS E VALIDAR REGRAS ───
             update_progress(80)
+            log_task("Analisando status dos atendimentos...", "INFO")
             
             # Obtém Total Geral
             _, count_total = await search_grid("", [""])
