@@ -632,12 +632,12 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
 
             # ─── 3. ABRIR ATENDIMENTOS ───
             update_progress(60)
-            log_task("ABI Importado. Abrindo menu de ações...", "DEBUG")
+            log_task("ABI Importado. Abrindo menu de ações...", "INFO")
             hamburger = target_row.locator("td").last.locator("button, a, .fa-bars").first
             await hamburger.click(force=True)
             await asyncio.sleep(1.5)
             
-            log_task("Clicando em 'Atendimentos'...", "DEBUG")
+            log_task("Clicando em 'Atendimentos'...", "INFO")
             atend_btn = page.locator(".dropdown-menu a:has-text('Atendimentos'), a:has-text('Atendimentos'), a[title='Atendimentos']").first
             try:
                 await atend_btn.wait_for(state="visible", timeout=7000)
@@ -648,7 +648,7 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
                 return "Erro", "Link Atendimentos não encontrado.", default_stats
             
             is_bh = "Belo Horizonte" in client_name
-            log_task("Aguardando carregamento da tela de Atendimentos...", "DEBUG")
+            log_task("Aguardando carregamento da tela de Atendimentos...", "INFO")
             
             # Aguarda a grid de atendimentos carregar dinamicamente sem longos sleeps manuais
             try:
@@ -670,7 +670,7 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
 
             # ─── 4. BUSCAR "IMPUGNADO" NO CAMPO DE PESQUISA ───
             update_progress(75)
-            log_task("Buscando campo de pesquisa para filtrar 'Impugnado'...", "DEBUG")
+            log_task("Buscando campo de pesquisa para filtrar 'Impugnado'...", "INFO")
             
             # O campo de pesquisa fica no canto superior direito da grid de atendimentos
             search_selectors = [
@@ -705,7 +705,7 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
 
             # ─── 5. DEFINIR FUNÇÃO DE PESQUISA NA GRID ───
             async def search_grid(term, target_keywords):
-                log_task(f"Pesquisando por '{term}' na grid...", "DEBUG")
+                log_task(f"Pesquisando por '{term}' na grid...", "INFO")
                 
                 current_search_field = await get_search_field()
                 if not current_search_field:

@@ -409,7 +409,7 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                 msg_erro = f"Credenciais '{cred_type}' não encontradas."
                 log_task(msg_erro, "ERROR")
                 return "Falha", msg_erro, None
-            log_task("Credenciais obtidas. Abrindo navegador...", "DEBUG")
+            log_task("Credenciais obtidas. Abrindo navegador...", "INFO")
             browser = await launch_browser_robust(p, browser_args, task_id=task_id)
             update_progress(15)
             usuario = creds['username']
