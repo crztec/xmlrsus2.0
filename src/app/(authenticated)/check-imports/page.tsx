@@ -554,6 +554,8 @@ export default function CheckImportsPage() {
       assignedStatus = "Finalizou";
     } else if (sIMP === 'Impugnando') {
       assignedStatus = "Impugnando";
+    } else if (sIMP === 'Não Iniciou' || sIMP === 'Nao Iniciou') {
+      assignedStatus = "Não Inic. Impug.";
     } else if (sABI === 'importado e analisado') {
       assignedStatus = "Analisados";
     } else if (sABI === 'importado') {
@@ -568,8 +570,6 @@ export default function CheckImportsPage() {
       assignedStatus = "Falhas";
     } else if (sABI === 'nao importado' || sABI === 'não importado') {
       assignedStatus = "Não Import.";
-    } else if (sIMP === 'Não Iniciou' || sIMP === 'Nao Iniciou') {
-      assignedStatus = "Não Inic. Impug.";
     }
     
     // Mapeamento extra para cobrir agrupamentos dos cards:
