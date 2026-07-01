@@ -3,7 +3,7 @@ import json
 import urllib.request
 
 PROJECT_ID = "96be79ca"
-URL = "http://127.0.0.1:8300/mcp"
+URL = "http://127.0.0.1:3101/mcp"
 
 def call_mindsync(tool_name, arguments):
     payload = {

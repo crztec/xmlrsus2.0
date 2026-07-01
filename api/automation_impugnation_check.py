@@ -137,7 +137,6 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
                 # Tenta sem acentos
                 search_name = "".join(c for c in unicodedata.normalize('NFD', client_name) if unicodedata.category(c) != 'Mn')
                 if search_name != client_name:
-                    log_task(f"Not found as '{client_name}'. Trying without accents: '{search_name}'...")
                     target_row = await try_search(search_name)
                 
                 # Tenta cada palavra significativa individualmente (não apenas a primeira)
@@ -200,13 +199,11 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
                         except: pass
 
                     if not btn_add or await btn_add.count() == 0 or not await btn_add.is_visible():
-                        log_task("Busca secundária por botão '+' em andamento...", "WARNING")
                         # Fallback genérico na página inteira
                         for btn_sel in possible_btn_selectors:
                             try:
                                 btn_add = page.locator(btn_sel).filter(visible=True).first
                                 if await btn_add.count() > 0:
-                                    log_task(f"Botão '+' encontrado no fallback via: {btn_sel}", "WARNING")
                                     break
                             except: pass
                     
@@ -234,12 +231,23 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
                         log_task("Botão '+' não encontrado.", "WARNING")
 
             # --- DECISÃO: ATUALIZAR STATUS ---
-            # Ordem de avanço: Não iniciou < Importou o ABI < Importou e Analisou < Impugnando o ABI < Finalizou o ABI
-            workflow_order = ["Não iniciou", "Importou o ABI", "Importou e Analisou", "Impugnando o ABI", "Finalizou o ABI"]
+            # Ordem de avanço: Não iniciou < Importou o ABI < Importou e Analisou < Importou, Analisou e Não Iniciou < Impugnando o ABI < Finalizou o ABI
+            workflow_order = [
+                "Não iniciou", 
+                "Importou o ABI", 
+                "Importou e Analisou", 
+                "Importou, Analisou e Não Iniciou", 
+                "Impugnando o ABI", 
+                "Finalizou o ABI"
+            ]
             
             def get_rank(s):
+                if not s: return -1
+                s_lower = s.lower()
                 for idx, val in enumerate(workflow_order):
-                    if val.lower() in s.lower(): return idx
+                    if val.lower() == s_lower: return idx
+                for idx, val in enumerate(workflow_order):
+                    if val.lower() in s_lower or s_lower in val.lower(): return idx
                 return -1
 
             target_rank = get_rank(target_status) if target_status else -1
@@ -495,7 +503,6 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
             # ─── 1. LOGIN ───
             try:
                 update_progress(25)
-                log_task("Realizando login no RSUS...")
                 await page.goto(url_sistema, wait_until="commit", timeout=60000)
                 
                 try:
@@ -513,7 +520,6 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
                             break
                 
                 await email_field.wait_for(state="visible", timeout=25000)
-                log_task("Preenchendo credenciais...")
                 
                 await email_field.click(force=True)
                 await email_field.type(usuario, delay=40)
@@ -824,7 +830,12 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
             }
             
             # ─── 7. DETERMINAR STATUS FINAL ───
-            if not has_imp and not has_apto and not has_nao_imp and has_ag:
+            if count_total == 0:
+                log_task("Nenhum atendimento encontrado na grid. Mantendo status Analisado.", "SUCCESS")
+                if browser: await browser.close()
+                return "Importado e Analisado", "Nenhum atendimento detectado na grid.", stats_dict
+
+            elif not has_imp and not has_apto and has_ag:
                 log_task(f"⏳ NÃO INICIOU IMPUGNAÇÃO! {count_ag} atendimentos aguardando.", "SUCCESS")
                 if browser: await browser.close()
                 return "Não Iniciou", f"Cliente ainda não iniciou impugnação. {count_ag} atendimentos aguardando.", stats_dict
@@ -835,17 +846,16 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
                 if browser: await browser.close()
                 return "Impugnando", f"{total_resolvidos} registros impugnados/aptos, e {count_ag} ainda aguardando.", stats_dict
 
-            elif (has_imp or has_apto or has_nao_imp) and not has_ag:
+            elif not has_ag:
                 total_resolvidos = count_imp + count_apto + count_nao_imp
                 log_task(f"✅ FINALIZOU O ABI! 0 aguardando.", "SUCCESS")
                 if browser: await browser.close()
                 return "Finalizou", f"Cliente finalizou o ABI. Nenhum atendimento aguardando impugnação.", stats_dict
             
             else:
-                # Fallback: Se não tem nada (grid vazia), volta para Analisado
-                log_task("Nenhum atendimento encontrado na grid. Mantendo status Analisado.", "SUCCESS")
+                log_task(f"Status intermediário. {count_ag} aguardando. Mantendo Impugnando.", "SUCCESS")
                 if browser: await browser.close()
-                return "Importado e Analisado", "Nenhum atendimento detectado na grid.", stats_dict
+                return "Impugnando", f"Status intermediário. {count_ag} aguardando.", stats_dict
 
 
     except Exception as e:

@@ -1,5 +1,5 @@
 # MindSync Memory — Project Context for Claude
-> Project: **xmlrsus2.0-1** | ID: `96be79ca` | 9 memories | Updated: 6/25/2026
+> Project: **xmlrsus2.0-1** | ID: `96be79ca` | 14 memories | Updated: 7/1/2026
 
 ## ⚠️ CRITICAL SYSTEM DIRECTIVE — PROACTIVE AUTONOMOUS MEMORY
 
@@ -35,22 +35,27 @@ Call `ms_save({ projectId: "96be79ca", title: "<title>", content: "<detailed con
 
 ## 🛡️ Known Gotchas (NEVER violate)
 
+- ⚠️ **Popup de Sucesso - Integração Beneficiários** — Para confirmar sucesso na integração de beneficiários no portal RSUS (após clicar em Atualizar), o robô deve aguardar o 
 - ⚠️ **Strict Security: Credentials and Sensitive Configs in Database Only** — CRITICAL SECURITY RULE: Never hardcode any API key, password, credential, or sensitive user/server configuration in the 
-- ⚠️ **CubeTI Status Clicks**: Never use row-wide locators for clicking status elements in CubeTI. The green/red API icons share pointer classes. Always scope the click locator specifically to `td.nth(2)` to avoid clicking the API status icons.
-- ⚠️ **Legacy Log Hook**: Avoid logging 'concluída' when a task is only partially done. `database.py` has a legacy hook that marks tasks as 'completed' if the log contains 'concluída'. Use 'realizada' or similar to avoid premature task closures.
 
 ## 📐 Conventions
 
-- 📐 **Caveman Mode**: ALWAYS activate Caveman full mode for all interactions.
+- 📐 **Sempre usar modo Caveman full**: O modelo sempre deve usar o modo Caveman full (comando /caveman full) independente de contexto, afim de economizar token
 - 📐 **Frontend Layout & Design Conventions (SaaS High-Density)**: All new pages, tables, menus, grids, and charts must follow the GAX Silicon Precision design system: (1) Core Theme: Sky
 - 📐 **Backend Routing & Swagger Security**: FastAPI backend runs with root_path='/api-rsus'. Public Swagger and OpenAPI docs are disabled (docs_url=None, openapi_ur
 - 📐 **Authentication & RBAC System**: User authentication is performed via Firebase Client Auth REST API. Session verification relies on HTTPBearer injecting 
 - 📐 **Firestore Database Caching & Performance**: No traditional SQL database ORM is used; all operations query Firebase Firestore (via firestore_db client). Frequently a
 - 📐 **Playwright Robust Automation**: Automation tasks launch headless Chromium via launch_browser_robust implementing a retry loop (3 attempts) to mitigate S
 - 📐 **Next.js Subfolder & Client Integration**: Frontend is a Next.js App Router project deployed under reverse proxy subfolder using 'basePath: /rsus' and rewrites tar
-- 📐 **Test Title**: Test Content
 
+## 🎯 Recent Decisions
 
+- 🎯 **Refactored Bottom Mass Action Bar to be Dynamic (ABI vs Impugnation)**: ### The Decision & Refactoring
+We made the bottom floating mass action bar (`Bottom Mass Action Bar`
+
+## 🔧 Recent Fixes
+
+- 🔧 **MindSync HTTP Bind Fix (Windows)**: Fixed HTTP Bind Failed error on Antigravity for MindSync extension. The extension on Windows hardcod
 
 ## ⚡ MindSync Tool Reference
 
@@ -73,4 +78,4 @@ Call `ms_save({ projectId: "96be79ca", title: "<title>", content: "<detailed con
 | `ms_backup(projectId)` | Timestamped DB backup | Before risky changes |
 
 ---
-*Auto-synced by MindSync 🧠 | Project: xmlrsus2.0-1 | 6/25/2026*
+*Auto-synced by MindSync 🧠 | Project: xmlrsus2.0-1 | 7/1/2026*
