@@ -506,9 +506,12 @@ export default function CheckImportsPage() {
     }
   };
 
-  const getStatusIcon = (status?: string, impugnationStatus?: string) => {
+  const getStatusIcon = (c: any) => {
+    const status = c.abi_status;
+    const impugnationStatus = c.impugnation_status;
     if (impugnationStatus === 'Finalizou') return <CheckCircle2 className="text-green-600" size={16} />;
     if (impugnationStatus === 'Impugnando') return <Scale className="text-yellow-600" size={16} />;
+    if ((impugnationStatus === 'Não Iniciou' || impugnationStatus === 'Nao Iniciou') && isImpugnationFresh(c)) return <Clock className="text-purple-600" size={16} />;
     
     const s = (status || "").toLowerCase();
     
@@ -518,8 +521,6 @@ export default function CheckImportsPage() {
     if (s === "falha" || s === "falha na análise" || s === "falha na analise") return <XCircle className="text-red-500" size={16} />;
 
     if (s === "nao importado" || s === "não importado") return <XCircle className="text-slate-500" size={16} />;
-    
-    if (impugnationStatus === 'Não Iniciou') return <Clock className="text-purple-600" size={16} />;
     
     switch (s) {
       case "pendente": return <Loader2 className="text-amber-500 animate-spin" size={16} />;
@@ -1070,7 +1071,7 @@ export default function CheckImportsPage() {
                               </>
                             ) : (
                               <>
-                                {getStatusIcon(client.abi_status, client.impugnation_status)}
+                                {getStatusIcon(client)}
                                 <span className={cn(
                                   "font-bold text-[9px] uppercase border px-2 py-0.5 rounded-full whitespace-nowrap",
                                   client.impugnation_status === "Finalizou" ? "bg-green-50 text-green-700 border-green-200" :
