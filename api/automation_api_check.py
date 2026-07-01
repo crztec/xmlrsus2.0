@@ -16,7 +16,7 @@ async def run_api_check_for_client(client_id, task_id=None, pre_fetched_creds=No
     client_name = client.get('name', client_id) if client else client_id
     
     if task_id:
-        db.add_log(task_id, f"[{client_name}] Verificando API de Integração no RSUS...")
+        db.add_log(task_id, f"[{client_name}] Verificando API de Integração no portal RSUS...")
         
     try:
         status, message = await _run_api_check_logic(client_id, task_id, pre_fetched_creds)
@@ -886,7 +886,7 @@ async def run_batch_api_check(task_id=None, client_ids=None):
         
         if task_id:
             db.update_task(task_id, {"total": total, "current": 0, "status": "running"})
-            db.add_log(task_id, f"Iniciando checagem em lote para {total} clientes...")
+            db.add_log(task_id, f"Iniciando checagem em lote para {total} operadoras...")
             
         if total == 0:
             if task_id:
