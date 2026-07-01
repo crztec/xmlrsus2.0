@@ -100,16 +100,18 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
                     await asyncio.sleep(0.5)
                     await search_input.fill("")
                     
-                    # Digita com delay para disparar eventos AJAX (Kendo UI)
-                    await search_input.type(name_to_search, delay=60)
-                    await asyncio.sleep(1)
+                    await search_input.fill(name_to_search)
+                    await asyncio.sleep(0.2)
                     await page.keyboard.press("Enter")
                     
                     # Aguarda o "spinner" se houver ou uma pequena pausa
+                    await asyncio.sleep(0.5)
                     try:
-                        await page.wait_for_selector(".k-loading-mask, .loading-mask, .spinner", state="hidden", timeout=5000)
+                        loading = page.locator(".k-loading-mask, .loading-mask, .spinner").first
+                        if await loading.is_visible(timeout=1000):
+                            await loading.wait_for(state="hidden", timeout=10000)
                     except: pass
-                    await asyncio.sleep(3) 
+                    await asyncio.sleep(0.5) 
 
                 # Extração via JS para validar se o item apareceu na grid após o filtro
                 grid_results = await page.evaluate("""() => {
@@ -159,7 +161,7 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
             current_row_data = await target_row.evaluate("""(row) => {
                 const cells = Array.from(row.querySelectorAll('td'));
                 return {
-                    status: cells[2] ? cells[2].innerText.trim() : "",
+                    status: cells[3] ? cells[3].innerText.trim() : "",
                     andamento: cells.map(c => c.innerText.trim()).join(' | ')
                 };
             }""")
@@ -260,12 +262,12 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
                 # Re-localiza a linha caso o DOM tenha mudado após o salvamento do contato (Kendo UI Re-render)
                 target_row = await try_search(client_name)
                 
-                # Seletor robusto focado na coluna de status (td.nth(2))
-                status_trigger = target_row.locator("td").nth(2).locator("button, [role='combobox'], .cursor-pointer, span.inline-flex, span[aria-haspopup='dialog'], .k-dropdown, .k-dropdown-wrap").filter(
+                # Seletor robusto focado na coluna de status (td.nth(3))
+                status_trigger = target_row.locator("td").nth(3).locator("button, [role='combobox'], .cursor-pointer, span.inline-flex, span[aria-haspopup='dialog'], .k-dropdown, .k-dropdown-wrap").filter(
                     has_text=re.compile(r"Não iniciou|Importou|Impugnando|Impugnado|Finalizou|Agendou|Erro|Analisou", re.IGNORECASE)
                 ).first
                 if await status_trigger.count() == 0:
-                    status_trigger = target_row.locator("td").nth(2).locator("button, .k-dropdown, .cursor-pointer").first
+                    status_trigger = target_row.locator("td").nth(3).locator("button, .k-dropdown, .cursor-pointer").first
                 
                 if await status_trigger.count() > 0:
                     await status_trigger.scroll_into_view_if_needed()
@@ -518,12 +520,11 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
                 await email_field.wait_for(state="visible", timeout=25000)
                 
                 await email_field.click(force=True)
-                await email_field.type(usuario, delay=40)
-                await asyncio.sleep(0.5)
+                await email_field.fill(usuario)
                 
                 pwd_field = page.locator("input#password, input#Password, #password, input[type='password']").first
                 await pwd_field.click(force=True)
-                await pwd_field.type(senha, delay=40)
+                await pwd_field.fill(senha)
                 await asyncio.sleep(0.5)
                 
                 btn_login = page.locator("#logIn, button[type='submit']").first
@@ -639,19 +640,21 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
                 if browser: await browser.close()
                 return "Erro", "Link Atendimentos não encontrado.", default_stats
             
-            is_bh = "Belo Horizonte" in client_name
-            wait_nav = 30 if is_bh else 5
-            wait_grid = 15 if is_bh else 2
-
-            log_task(f"Aguardando carregamento da tela de Atendimentos ({wait_nav}s)...", "DEBUG")
-            await asyncio.sleep(wait_nav)
+            log_task("Aguardando carregamento da tela de Atendimentos...", "DEBUG")
             
-            # Aguarda a grid de atendimentos carregar
+            # Aguarda a grid de atendimentos carregar dinamicamente sem longos sleeps manuais
             try:
-                await page.wait_for_selector("table tbody tr, .grid", timeout=60000)
-                await asyncio.sleep(wait_grid)
+                await page.wait_for_selector("table tbody tr, .grid", state="attached", timeout=60000)
+                await asyncio.sleep(1 if not is_bh else 2) # Delay inicial para Kendo processar
+                
+                # Trata a máscara de carregamento dinamicamente
+                loading = page.locator(".k-loading-mask, .k-loading-image").first
+                if await loading.is_visible(timeout=1500):
+                    await loading.wait_for(state="hidden", timeout=45000)
+                    
+                await asyncio.sleep(0.5 if not is_bh else 1.5)
             except:
-                log_task("Grid de atendimentos não carregou completamente.", "WARNING")
+                log_task("Grid de atendimentos não carregou completamente ou timeout excedido.", "WARNING")
 
             if await is_cancelled():
                 await browser.close()
