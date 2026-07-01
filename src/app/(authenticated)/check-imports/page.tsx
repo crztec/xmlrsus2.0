@@ -818,6 +818,12 @@ export default function CheckImportsPage() {
               {(!filterStatus || !["Não Inic. Impug.", "Impugnando", "Finalizou", "Analisados"].includes(filterStatus)) && (
                 <button 
                   onClick={() => {
+                    if (filterStatus === "Falhas") {
+                      handleRunFailedChecks();
+                      setSelectedClients(new Set());
+                      return;
+                    }
+
                     // Prioridade: Checkboxes > Filtro atual
                     const selectedIds = selectedClients.size > 0 
                       ? Array.from(selectedClients)
@@ -837,8 +843,12 @@ export default function CheckImportsPage() {
                   disabled={!!activeTaskId}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-gax-blue text-white rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-gax-blue-hover transition-all shadow-md shadow-gax-blue/20 disabled:opacity-40 font-display shrink-0"
                 >
-                  <Play size={12} className={activeTaskId ? 'animate-pulse' : ''} />
-                  {(filterStatus || selectedClients.size > 0) ? "Checar Selecionados" : "Checar ABIs"}
+                  {filterStatus === "Falhas" ? (
+                    <RotateCcw size={12} className={activeTaskId ? 'animate-spin-slow' : ''} />
+                  ) : (
+                    <Play size={12} className={activeTaskId ? 'animate-pulse' : ''} />
+                  )}
+                  {filterStatus === "Falhas" ? "Checar Falhas" : (filterStatus || selectedClients.size > 0) ? "Checar Selecionados" : "Checar ABIs"}
                 </button>
               )}
 
@@ -849,14 +859,6 @@ export default function CheckImportsPage() {
                 <input type="file" className="hidden" accept=".xlsx,.xls" onChange={handleUpload} />
               </label>
 
-              <button 
-                onClick={handleRunFailedChecks}
-                disabled={!!activeTaskId}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-white transition-all disabled:opacity-40 font-display shrink-0"
-              >
-                <RotateCcw size={12} />
-                Checar Falhas
-              </button>
 
               <div className="relative">
                 <button 
