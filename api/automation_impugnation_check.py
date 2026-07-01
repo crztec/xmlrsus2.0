@@ -662,7 +662,6 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
             log_task("Buscando campo de pesquisa para filtrar 'Impugnado'...", "DEBUG")
             
             # O campo de pesquisa fica no canto superior direito da grid de atendimentos
-            search_field = None
             search_selectors = [
                 "input.searchTerm",
                 "input[placeholder*='Pesquisar']",
@@ -673,26 +672,22 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
                 "input[name*='search']"
             ]
             
-            for selector in search_selectors:
-                candidate = page.locator(selector).first
-                if await candidate.count() > 0 and await candidate.is_visible():
-                    search_field = candidate
-                    break
-            
-            # Tenta em frames se não encontrou na página principal
-            if not search_field:
+            async def get_search_field():
+                for selector in search_selectors:
+                    candidate = page.locator(selector).filter(visible=True).first
+                    if await candidate.count() > 0:
+                        return candidate
                 for frame in page.frames:
                     for selector in search_selectors:
                         try:
-                            candidate = frame.locator(selector).first
-                            if await candidate.count() > 0 and await candidate.is_visible():
-                                search_field = candidate
-                                break
+                            candidate = frame.locator(selector).filter(visible=True).first
+                            if await candidate.count() > 0:
+                                return candidate
                         except: continue
-                    if search_field:
-                        break
+                return None
             
-            if not search_field:
+            initial_search = await get_search_field()
+            if not initial_search:
                 log_task("Campo de pesquisa não encontrado na tela de Atendimentos.", "WARNING")
                 if browser: await browser.close()
                 return "Não Verificado", "Campo de pesquisa não encontrado.", default_stats
@@ -701,14 +696,19 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
             async def search_grid(term, target_keywords):
                 log_task(f"Pesquisando por '{term}' na grid...", "DEBUG")
                 
+                current_search_field = await get_search_field()
+                if not current_search_field:
+                    log_task(f"Falha ao encontrar campo de busca para '{term}'.", "WARNING")
+                    return False, 0
+
                 # Limpeza robusta do campo de busca
-                await search_field.click(click_count=3)
+                await current_search_field.click(click_count=3, timeout=10000)
                 await page.keyboard.press("Control+A")
                 await page.keyboard.press("Backspace")
                 await asyncio.sleep(0.3)
                 
                 if term:
-                    await search_field.type(term, delay=60)
+                    await current_search_field.type(term, delay=60, timeout=10000)
                     await asyncio.sleep(0.5)
                     await page.keyboard.press("Enter")
                 else:
