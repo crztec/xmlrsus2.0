@@ -60,7 +60,6 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
             page = await context.new_page()
             
             # Login com Navegação Defensiva (evita quebra por ERR_ABORTED do Firewall)
-            log_task("Realizando login no Gestao Comercial...")
             try:
                 await page.goto("https://gestaocomercial.cubeti.com.br/ABITracker", wait_until="domcontentloaded", timeout=60000)
             except Exception as e_nav:
@@ -94,7 +93,6 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
             
             async def try_search(name_to_search):
                 if await search_input.count() > 0:
-                    log_task(f"Procurando por: {name_to_search}")
                     await search_input.click()
                     # Limpeza agressiva
                     await page.keyboard.press("Control+A")
@@ -130,6 +128,7 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
                 
                 return page.locator("table tbody tr.NOT_FOUND_VIRTUAL").first # Retorna algo que .count() == 0
 
+            log_task(f"Procurando por: {client_name}")
             target_row = await try_search(client_name)
             
             if await target_row.count() == 0:
@@ -160,7 +159,7 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
             current_row_data = await target_row.evaluate("""(row) => {
                 const cells = Array.from(row.querySelectorAll('td'));
                 return {
-                    status: cells[3] ? cells[3].innerText.trim() : "",
+                    status: cells[2] ? cells[2].innerText.trim() : "",
                     andamento: cells.map(c => c.innerText.trim()).join(' | ')
                 };
             }""")
@@ -176,7 +175,7 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
                 if short_msg in current_andamento.lower():
                     log_task(f"Contato '{contact_message}' já registrado no CubeTI. Pulando registro (+).", "SUCCESS")
                 else:
-                    log_task(f"Registrando contato: {contact_message}...")
+                    log_task(f"Registrando contato e atualizando status para '{target_status}'...")
                     # Seletores ultra-robustos para o botão + (Lida com variações de DOM no CubeTI)
                     possible_btn_selectors = [
                         "button[title*='Registrar']",
@@ -226,7 +225,6 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
                         if await save_btn.count() > 0:
                             await save_btn.click()
                             await asyncio.sleep(2)
-                        log_task("Registro de contato processado.")
                     else:
                         log_task("Botão '+' não encontrado.", "WARNING")
 
@@ -262,14 +260,12 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
                 # Re-localiza a linha caso o DOM tenha mudado após o salvamento do contato (Kendo UI Re-render)
                 target_row = await try_search(client_name)
                 
-                log_task(f"Atualizando status para '{target_status}'")
-                
-                # Seletor robusto focado na coluna de status (td.nth(3))
-                status_trigger = target_row.locator("td").nth(3).locator("button, [role='combobox'], .cursor-pointer, span.inline-flex, span[aria-haspopup='dialog'], .k-dropdown, .k-dropdown-wrap").filter(
+                # Seletor robusto focado na coluna de status (td.nth(2))
+                status_trigger = target_row.locator("td").nth(2).locator("button, [role='combobox'], .cursor-pointer, span.inline-flex, span[aria-haspopup='dialog'], .k-dropdown, .k-dropdown-wrap").filter(
                     has_text=re.compile(r"Não iniciou|Importou|Impugnando|Impugnado|Finalizou|Agendou|Erro|Analisou", re.IGNORECASE)
                 ).first
                 if await status_trigger.count() == 0:
-                    status_trigger = target_row.locator("td").nth(3).locator("button, .k-dropdown, .cursor-pointer").first
+                    status_trigger = target_row.locator("td").nth(2).locator("button, .k-dropdown, .cursor-pointer").first
                 
                 if await status_trigger.count() > 0:
                     await status_trigger.scroll_into_view_if_needed()
@@ -835,16 +831,16 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
                 if browser: await browser.close()
                 return "Importado e Analisado", "Nenhum atendimento detectado na grid.", stats_dict
 
-            elif not has_imp and not has_apto and has_ag:
+            elif not has_imp and not has_apto and not has_nao_imp and has_ag:
                 log_task(f"⏳ NÃO INICIOU IMPUGNAÇÃO! {count_ag} atendimentos aguardando.", "SUCCESS")
                 if browser: await browser.close()
                 return "Não Iniciou", f"Cliente ainda não iniciou impugnação. {count_ag} atendimentos aguardando.", stats_dict
 
-            elif (has_imp or has_apto) and has_ag:
-                total_resolvidos = count_imp + count_apto
-                log_task(f"⚖️ IMPUGNANDO! {total_resolvidos} resolvidos (imp/apto), {count_ag} aguardando.", "SUCCESS")
+            elif (has_imp or has_apto or has_nao_imp) and has_ag:
+                total_resolvidos = count_imp + count_apto + count_nao_imp
+                log_task(f"⚖️ IMPUGNANDO! {total_resolvidos} resolvidos (imp/apto/não imp), {count_ag} aguardando.", "SUCCESS")
                 if browser: await browser.close()
-                return "Impugnando", f"{total_resolvidos} registros impugnados/aptos, e {count_ag} ainda aguardando.", stats_dict
+                return "Impugnando", f"{total_resolvidos} registros resolvidos, e {count_ag} ainda aguardando.", stats_dict
 
             elif not has_ag:
                 total_resolvidos = count_imp + count_apto + count_nao_imp
