@@ -1,6 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { useTaskPolling } from "@/hooks/useTaskPolling";
+import { TaskLogsModal } from "@/components/check-imports/TaskLogsModal";
+import { ClientTableRow } from "@/components/check-imports/ClientTableRow";
 import { 
   CloudUpload, 
   Play, 
@@ -213,63 +216,23 @@ export default function CheckImportsPage() {
     }
   }, [realtimeLogs, detailedLogs]);
 
-  // Auto-scroll logs
-  React.useEffect(() => {
-    if (logEndRef.current) {
-      logEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [realtimeLogs, detailedLogs]);
-
-  // Polling status em tempo real (PERFORMANCE: sem logs completos, usa last_log do documento)
-  React.useEffect(() => {
-    let interval: any;
-    if (activeTaskId) {
-      interval = setInterval(async () => {
-        try {
-          const res = await apiClient(`/api/task/${activeTaskId}`);
-          const data = await res.json();
-          setCurrentTaskStatus(data);
-          
-          // Usa a rota de logs detalhados para não pular etapas no terminal em tempo real
-          try {
-            const logsRes = await apiClient(`/api/task/${activeTaskId}/logs`);
-            const logsData = await logsRes.json();
-            if (logsData && logsData.length > 0) {
-              setRealtimeLogs(logsData);
-            }
-          } catch (logErr) {
-            console.error("Erro ao buscar logs realtime:", logErr);
-          }
-          
-            if (data.status === "completed" || data.status === "error" || data.status === "CONCLUIDO" || data.status === "CONCLUIDO_COM_RESSALVAS" || data.status === "STOPPED" || data.status === "cancelled") {
-              clearInterval(interval);
-              
-              // Busca logs completos UMA VEZ ao finalizar para preencher o modal de histórico
-              try {
-                const logsRes = await apiClient(`/api/task/${activeTaskId}/logs`);
-                const logsData = await logsRes.json();
-                if (logsData && logsData.length > 0) {
-                  setDetailedLogs(logsData);
-                  setRealtimeLogs(logsData);
-                }
-              } catch (logErr) {
-                console.error("Erro ao buscar logs finais:", logErr);
-              }
-              
-              await fetchData();
-              clearInterval(interval);
-              setTimeout(() => {
-                setActiveTaskId(null);
-                setViewingTaskId(null);
-              }, 1500);
-            }
-        } catch (err) {
-          console.error("Erro polling status:", err);
-        }
-      }, 3000);
-    }
-    return () => clearInterval(interval);
-  }, [activeTaskId]);
+  // Polling via custom hook (extracted from inline useEffect)
+  useTaskPolling({
+    activeTaskId,
+    onStatusUpdate: setCurrentTaskStatus,
+    onLogsUpdate: setRealtimeLogs,
+    onComplete: async (finalLogs) => {
+      if (finalLogs.length > 0) {
+        setDetailedLogs(finalLogs);
+        setRealtimeLogs(finalLogs);
+      }
+      await fetchData();
+      setTimeout(() => {
+        setActiveTaskId(null);
+        setViewingTaskId(null);
+      }, 1500);
+    },
+  });
 
   const openDetailedLogs = async (taskId: string, title: string, clientName?: string) => {
     setViewingTaskId(taskId);
@@ -540,7 +503,7 @@ export default function CheckImportsPage() {
     return getTs(c.impugnation_last_check) >= getTs(c.abi_last_check);
   };
 
-  const filteredClients = clients.filter(c => {
+  const filteredClients = useMemo(() => clients.filter(c => {
     const s = search.toLowerCase();
     const matchesSearch = 
       (c.name && c.name.toLowerCase().includes(s)) || 
@@ -666,7 +629,7 @@ export default function CheckImportsPage() {
     }
     
     return 0;
-  });
+  }), [clients, search, filterStatus, activeAbi, sortField, sortOrder, sortCycle]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reset pagination when filter/search changes
   React.useEffect(() => { setCurrentPage(1); }, [search, filterStatus]);
@@ -1024,171 +987,29 @@ export default function CheckImportsPage() {
                         </div>
                       </td>
                     </tr>
-                  ) : filteredClients.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE).map((client, idx) => {
-                    const activeAbiDigits = (activeAbi?.ABI || '').replace(/\D/g, '');
-                    const clientAbiDigits = (client.abi_current || '').replace(/\D/g, '');
-                    const isStale = !!(activeAbiDigits && clientAbiDigits && clientAbiDigits !== activeAbiDigits);
-
-                    return (
-                      <tr 
-                        key={client.id} 
-                        className={cn(
-                          "group transition-colors text-[11px]",
-                          selectedClients.has(client.id) ? "bg-gax-blue/5" : "hover:bg-gax-blue/[0.02]"
-                        )}
-                      >
-                        <td className="px-4 py-2.5">
-                          <input 
-                            type="checkbox" 
-                            className="h-3.5 w-3.5 rounded border-slate-300 text-gax-blue focus:ring-gax-blue/20 transition-all cursor-pointer"
-                            checked={selectedClients.has(client.id)}
-                            onChange={() => {
-                              const newSet = new Set(selectedClients);
-                              if (newSet.has(client.id)) newSet.delete(client.id);
-                              else newSet.add(client.id);
-                              setSelectedClients(newSet);
-                            }}
-                          />
-                        </td>
-                        <td className="px-4 py-2.5 whitespace-nowrap">
-                          <div className="flex flex-col gap-0.5 min-w-0">
-                            <span className="font-bold text-slate-800 text-xs font-display leading-tight truncate max-w-[200px]">{client.name}</span>
-                            {(client as any).group_name ? (
-                              <span className="inline-flex items-center rounded-full bg-gax-blue/5 px-2 py-0.5 text-[8px] font-bold text-gax-blue border border-gax-blue/10 w-fit">
-                                {(client as any).group_name}
-                              </span>
-                            ) : (
-                              <span className="text-[8px] text-slate-300 font-medium italic">Sem grupo</span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <div className="flex items-center gap-2">
-                            {isStale ? (
-                              <>
-                                <XCircle className="text-slate-500" size={16} />
-                                <span className="font-bold text-[9px] uppercase border px-2 py-0.5 rounded-full whitespace-nowrap bg-slate-100 text-slate-600 border-slate-200">
-                                  Não Importado
-                                </span>
-                              </>
-                            ) : (
-                              <>
-                                {getStatusIcon(client)}
-                                <span className={cn(
-                                  "font-bold text-[9px] uppercase border px-2 py-0.5 rounded-full whitespace-nowrap",
-                                  client.impugnation_status === "Finalizou" ? "bg-green-50 text-green-700 border-green-200" :
-                                  client.impugnation_status === "Impugnando" ? "bg-yellow-50 text-yellow-700 border-yellow-200" :
-                                  (client.impugnation_status === "Não Iniciou" || client.impugnation_status === "Nao Iniciou") && isImpugnationFresh(client) ? "bg-purple-50 text-purple-700 border-purple-200" :
-                                  client.abi_status === "Importado e Analisado" ? "bg-emerald-50 text-emerald-700 border-emerald-100" : 
-                                  client.abi_status === "Importado, falta analisar" ? "bg-orange-50 text-orange-700 border-orange-100" :
-                                  client.abi_status === "Importado" ? "bg-sky-50 text-sky-700 border-sky-100" :
-                                  (client.abi_status === "Falha na Análise" || client.abi_status === "Falha") ? "bg-rose-50 text-rose-700 border-rose-100" :
-                                  (client.abi_status === "Nao Importado" || client.abi_status === "Não Importado") ? "bg-slate-100 text-slate-600 border-slate-200" :
-                                  client.abi_status === "Pendente" ? "bg-amber-50 text-amber-700 border-amber-200" :
-                                  "bg-slate-100 text-slate-500 border-slate-200"
-                                )}>
-                                  {client.impugnation_status === "Finalizou" ? "Finalizou" :
-                                   client.impugnation_status === "Impugnando" ? "Impugnando" :
-                                   (client.impugnation_status === "Não Iniciou" || client.impugnation_status === "Nao Iniciou") && isImpugnationFresh(client) ? "Não Iniciou" :
-                                   client.abi_status === "Importado e Analisado" ? "Importado e Analisado" :
-                                   client.abi_status === "Importado, falta analisar" ? "Falta Analisar" :
-                                   client.abi_status === "Importado" ? "Importado" :
-                                   (client.abi_status === "Falha na Análise" || client.abi_status === "Falha") ? "Falha" :
-                                   (client.abi_status === "Nao Importado" || client.abi_status === "Não Importado") ? "Não Importado" :
-                                   client.abi_status === "Pendente" ? "Pendente" : (client.abi_status || "Não Checado")}
-                                </span>
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      <td className="px-4 py-2.5 whitespace-nowrap">
-                        <div className="flex flex-col">
-                           {(() => {
-                             const lastCheck = [client.abi_last_check, (client as any).impugnation_last_check]
-                               .filter(Boolean)
-                               .map(d => new Date(d as string))
-                               .sort((a, b) => b.getTime() - a.getTime())[0];
-
-                             if (!lastCheck) return <span className="text-[10px] font-bold text-slate-300 italic">Nunca checado</span>;
-
-                             return (
-                               <>
-                                 <span className="text-[10px] font-bold text-slate-600">
-                                   {formatDistanceToNow(lastCheck, { addSuffix: true, locale: ptBR })}
-                                 </span>
-                                 <span className="text-[8px] text-slate-400 font-medium font-display leading-none">
-                                   {lastCheck.toLocaleDateString('pt-BR')} às {lastCheck.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                                 </span>
-                               </>
-                             );
-                           })()}
-                        </div>
-                      </td>
-                      <td className="px-4 py-2.5 text-right">
-                        <div className="relative inline-block text-left" ref={openMenuId === client.id ? dropdownRef : null}>
-                          <button 
-                            onClick={() => setOpenMenuId(openMenuId === client.id ? null : client.id)}
-                            className="p-2 text-slate-300 hover:text-gax-blue hover:bg-gax-blue/10 rounded-xl transition-all outline-none focus-visible:ring-2 focus-visible:ring-gax-blue/50"
-                            aria-label="Ações da operadora"
-                            aria-expanded={openMenuId === client.id}
-                            aria-haspopup="menu"
-                          >
-                            <MoreHorizontal size={16} />
-                          </button>
-
-                          {openMenuId === client.id && (
-                            <div className="absolute right-0 mt-1.5 w-52 bg-white rounded-2xl shadow-2xl shadow-slate-200/80 border border-slate-100 z-50 overflow-hidden animate-in zoom-in-95 duration-150 origin-top-right">
-                               {(isStale || !(client.abi_status === 'Importado e Analisado' || ['Impugnando', 'Finalizou'].includes(client.impugnation_status || ''))) && (
-                                <button 
-                                  onClick={() => { startCheck(client.id); setOpenMenuId(null); }}
-                                  disabled={!!activeTaskId}
-                                  className="w-full flex items-center gap-2.5 px-4 py-3 text-[11px] font-bold text-slate-700 hover:bg-gax-blue hover:text-white transition-colors disabled:opacity-40"
-                                >
-                                  <Play size={14} /> Checar ABI
-                                </button>
-                              )}
-
-                               {!isStale && (client.abi_status === 'Importado e Analisado' || ['Impugnando'].includes(client.impugnation_status || '')) && client.impugnation_status !== 'Finalizou' && (
-                                <button 
-                                  onClick={() => { startImpugnationCheck(client.id); setOpenMenuId(null); }}
-                                  disabled={!!activeTaskId}
-                                  className="w-full flex items-center gap-2.5 px-4 py-3 text-[11px] font-bold text-amber-700 hover:bg-amber-50 transition-colors disabled:opacity-30 border-t border-slate-50"
-                                  title={client.abi_status !== 'Importado e Analisado' ? 'Disponível apenas para clientes que já analisaram o ABI' : ''}
-                                >
-                                  <Scale size={14} /> Checar Impugnações
-                                </button>
-                              )}
-                              
-                              {client.abi_last_task_id ? (
-                                <button 
-                                  onClick={() => { openDetailedLogs(client.abi_last_task_id!, `Log da ABI: ${client.name}`, client.name); setOpenMenuId(null); }}
-                                  className="w-full flex items-center gap-2.5 px-4 py-3 text-[11px] font-bold text-slate-700 hover:bg-gax-blue hover:text-white transition-colors border-t border-slate-50"
-                                >
-                                  <FileText size={14} /> Ver Log ABI
-                                </button>
-                              ) : (
-                                <button 
-                                  onClick={handleViewGlobalLog}
-                                  className="w-full flex items-center gap-2.5 px-4 py-3 text-[11px] font-bold text-slate-400 hover:bg-slate-50 transition-colors border-t border-slate-50"
-                                >
-                                  <History size={14} /> Sem Log ABI
-                                </button>
-                              )}
-                              {client.impugnation_last_task_id && (
-                                <button 
-                                  onClick={() => { openDetailedLogs(client.impugnation_last_task_id!, `Log Impugnação: ${client.name}`, client.name); setOpenMenuId(null); }}
-                                  className="w-full flex items-center gap-2.5 px-4 py-3 text-[11px] font-bold text-yellow-700 hover:bg-yellow-50 transition-colors border-t border-slate-50"
-                                >
-                                  <Scale size={14} /> Ver Log Impugnação
-                                </button>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                  })}
+                  ) : filteredClients.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE).map((client) => (
+                    <ClientTableRow
+                      key={client.id}
+                      client={client}
+                      activeAbi={activeAbi}
+                      isSelected={selectedClients.has(client.id)}
+                      openMenuId={openMenuId}
+                      rowDropdownRef={openMenuId === client.id ? dropdownRef : null}
+                      activeTaskId={activeTaskId}
+                      isImpugnationFresh={isImpugnationFresh}
+                      getStatusIcon={getStatusIcon}
+                      onToggleSelect={(id) => {
+                        const newSet = new Set(selectedClients);
+                        if (newSet.has(id)) newSet.delete(id); else newSet.add(id);
+                        setSelectedClients(newSet);
+                      }}
+                  onOpenMenu={setOpenMenuId}
+                      onStartCheck={startCheck}
+                      onStartImpugnationCheck={startImpugnationCheck}
+                      onOpenDetailedLogs={openDetailedLogs}
+                      onViewGlobalLog={handleViewGlobalLog}
+                    />
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -1357,87 +1178,19 @@ export default function CheckImportsPage() {
         </div>
       </div>
 
-      {/* LOG MODAL (Aligned with API Check) */}
-      {showLogsModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-100 flex flex-col max-h-[85vh] overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-gax-blue text-white rounded-xl shadow-lg shadow-gax-blue/20">
-                  <Terminal size={16} />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">{modalTitle}</h3>
-                  <p className="text-[10px] text-gax-blue font-bold uppercase tracking-widest">
-                    {(viewingTaskId && viewingTaskId !== activeTaskId) ? 'Visualizando Histórico' : 'Monitoramento em Tempo Real'}
-                  </p>
-                </div>
-              </div>
-              <button 
-                onClick={() => { setShowLogsModal(false); setViewingTaskId(null); setLogFilterClient(null); }} 
-                className="p-2 hover:bg-slate-100 rounded-xl transition-colors text-slate-400"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            <div 
-              ref={scrollRef}
-              className="flex-1 overflow-y-auto p-5 space-y-3 bg-slate-50/20"
-            >
-              {(() => {
-                const displayLogs = (viewingTaskId === activeTaskId) 
-                  ? [...realtimeLogs]
-                  : [...detailedLogs];
-
-                return displayLogs.length > 0 ? (
-                  displayLogs
-                    .filter(log => !logFilterClient || log.message.includes(`[${logFilterClient}]`))
-                    .map((log, idx) => (
-                    <div key={idx} className="flex gap-3.5">
-                      <div className={cn(
-                        "w-1.5 h-1.5 rounded-full mt-1.5 shrink-0",
-                        log.level === 'ERROR' ? 'bg-rose-500' :
-                        log.level === 'SUCCESS' ? 'bg-emerald-500' :
-                        log.level === 'WARNING' ? 'bg-amber-500' :
-                        'bg-gax-blue'
-                      )} />
-                      <div className="flex-1">
-                        <div className="flex items-baseline justify-between gap-2">
-                          <span className={cn(
-                            "text-[12.5px] font-medium leading-relaxed",
-                            log.level === 'ERROR' ? 'text-rose-700' : 
-                            log.level === 'WARNING' ? 'text-amber-700' :
-                            'text-slate-700'
-                          )}>
-                            {log.message}
-                          </span>
-                          <span className="text-[9px] text-slate-300 font-mono italic shrink-0">{log.timestamp}</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="h-40 flex flex-col items-center justify-center gap-3">
-                    <Loader2 size={24} className="animate-spin text-gax-blue" />
-                    <p className="text-xs text-slate-400 italic font-display">Carregando logs...</p>
-                  </div>
-                );
-              })()}
-              <div ref={logEndRef} />
-            </div>
-
-            <div className="px-6 py-3.5 border-t border-slate-100 flex justify-end bg-slate-50/60">
-              <button 
-                onClick={() => { setShowLogsModal(false); setViewingTaskId(null); setLogFilterClient(null); }}
-                className="px-5 py-2 text-xs font-bold text-slate-600 hover:bg-white border border-transparent hover:border-slate-200 rounded-xl transition-all font-display"
-              >
-                Fechar Console
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* LOG MODAL */}
+      <TaskLogsModal
+        show={showLogsModal}
+        title={modalTitle}
+        viewingTaskId={viewingTaskId}
+        activeTaskId={activeTaskId}
+        realtimeLogs={realtimeLogs}
+        detailedLogs={detailedLogs}
+        logFilterClient={logFilterClient}
+        scrollRef={scrollRef}
+        logEndRef={logEndRef}
+        onClose={() => { setShowLogsModal(false); setViewingTaskId(null); setLogFilterClient(null); }}
+      />
       {/* Floating Action Bar for Bulk Actions */}
       {selectedClients.size > 0 && (() => {
         const selectedClientsArr = clients.filter(c => selectedClients.has(c.id));
