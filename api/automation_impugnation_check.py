@@ -857,17 +857,17 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
                 return "Importado e Analisado", "Nenhum atendimento detectado na grid.", stats_dict
 
             elif not has_imp and not has_apto and not has_nao_imp and has_ag:
-                log_task(f"⏳ NÃO INICIOU IMPUGNAÇÃO! (0 Impug l 0 Aptos l 0 Não Imp l {count_ag} Aguard).", "SUCCESS")
+                log_task(f"⏳ NÃO INICIOU IMPUGNAÇÃO! (0 Impug | 0 Aptos | 0 Não Imp | {count_ag} Aguard).", "SUCCESS")
                 if browser: await browser.close()
                 return "Não Iniciou", f"Cliente ainda não iniciou impugnação. {count_ag} atendimentos aguardando.", stats_dict
 
             elif (has_imp or has_apto or has_nao_imp) and has_ag:
-                log_task(f"⚖️ IMPUGNANDO! ({count_imp} Impug l {count_apto} Aptos l {count_nao_imp} Não Imp l {count_ag} Aguard).", "SUCCESS")
+                log_task(f"⚖️ IMPUGNANDO! ({count_imp} Impug | {count_apto} Aptos | {count_nao_imp} Não Imp | {count_ag} Aguard).", "SUCCESS")
                 if browser: await browser.close()
                 return "Impugnando", f"{count_imp + count_apto + count_nao_imp} registros resolvidos, e {count_ag} ainda aguardando.", stats_dict
 
             elif not has_ag:
-                log_task(f"✅ FINALIZOU O ABI! ({count_imp} Impug l {count_apto} Aptos l {count_nao_imp} Não Imp l 0 Aguard).", "SUCCESS")
+                log_task(f"✅ FINALIZOU O ABI! ({count_imp} Impug | {count_apto} Aptos | {count_nao_imp} Não Imp | 0 Aguard).", "SUCCESS")
                 if browser: await browser.close()
                 return "Finalizou", f"Cliente finalizou o ABI. Nenhum atendimento aguardando impugnação.", stats_dict
             
