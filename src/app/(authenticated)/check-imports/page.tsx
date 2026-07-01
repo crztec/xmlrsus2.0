@@ -527,6 +527,18 @@ export default function CheckImportsPage() {
     }
   };
 
+  const isImpugnationFresh = (c: any) => {
+    if (!c.impugnation_last_check) return false;
+    if (!c.abi_last_check) return true;
+    
+    const getTs = (d: any) => {
+      if (d && typeof d === 'object' && d._seconds) return d._seconds * 1000;
+      return new Date(d).getTime();
+    };
+    
+    return getTs(c.impugnation_last_check) >= getTs(c.abi_last_check);
+  };
+
   const filteredClients = clients.filter(c => {
     const s = search.toLowerCase();
     const matchesSearch = 
@@ -554,7 +566,7 @@ export default function CheckImportsPage() {
       assignedStatus = "Finalizou";
     } else if (sIMP === 'Impugnando') {
       assignedStatus = "Impugnando";
-    } else if (sIMP === 'Não Iniciou' || sIMP === 'Nao Iniciou') {
+    } else if ((sIMP === 'Não Iniciou' || sIMP === 'Nao Iniciou') && isImpugnationFresh(c)) {
       assignedStatus = "Não Inic. Impug.";
     } else if (sABI === 'importado e analisado') {
       assignedStatus = "Analisados";
@@ -1063,7 +1075,7 @@ export default function CheckImportsPage() {
                                   "font-bold text-[9px] uppercase border px-2 py-0.5 rounded-full whitespace-nowrap",
                                   client.impugnation_status === "Finalizou" ? "bg-green-50 text-green-700 border-green-200" :
                                   client.impugnation_status === "Impugnando" ? "bg-yellow-50 text-yellow-700 border-yellow-200" :
-                                  (client.impugnation_status === "Não Iniciou" || client.impugnation_status === "Nao Iniciou") ? "bg-purple-50 text-purple-700 border-purple-200" :
+                                  (client.impugnation_status === "Não Iniciou" || client.impugnation_status === "Nao Iniciou") && isImpugnationFresh(client) ? "bg-purple-50 text-purple-700 border-purple-200" :
                                   client.abi_status === "Importado e Analisado" ? "bg-emerald-50 text-emerald-700 border-emerald-100" : 
                                   client.abi_status === "Importado, falta analisar" ? "bg-orange-50 text-orange-700 border-orange-100" :
                                   client.abi_status === "Importado" ? "bg-sky-50 text-sky-700 border-sky-100" :
@@ -1074,7 +1086,7 @@ export default function CheckImportsPage() {
                                 )}>
                                   {client.impugnation_status === "Finalizou" ? "Finalizou" :
                                    client.impugnation_status === "Impugnando" ? "Impugnando" :
-                                   (client.impugnation_status === "Não Iniciou" || client.impugnation_status === "Nao Iniciou") ? "Não Iniciou" :
+                                   (client.impugnation_status === "Não Iniciou" || client.impugnation_status === "Nao Iniciou") && isImpugnationFresh(client) ? "Não Iniciou" :
                                    client.abi_status === "Importado e Analisado" ? "Importado e Analisado" :
                                    client.abi_status === "Importado, falta analisar" ? "Falta Analisar" :
                                    client.abi_status === "Importado" ? "Importado" :
