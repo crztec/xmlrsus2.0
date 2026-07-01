@@ -640,21 +640,22 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
                 if browser: await browser.close()
                 return "Erro", "Link Atendimentos não encontrado.", default_stats
             
+            is_bh = "Belo Horizonte" in client_name
             log_task("Aguardando carregamento da tela de Atendimentos...", "DEBUG")
             
             # Aguarda a grid de atendimentos carregar dinamicamente sem longos sleeps manuais
             try:
-                await page.wait_for_selector("table tbody tr, .grid", state="attached", timeout=60000)
+                await page.wait_for_selector("table tbody tr, .grid", state="attached", timeout=90000)
                 await asyncio.sleep(1 if not is_bh else 2) # Delay inicial para Kendo processar
                 
                 # Trata a máscara de carregamento dinamicamente
                 loading = page.locator(".k-loading-mask, .k-loading-image").first
-                if await loading.is_visible(timeout=1500):
-                    await loading.wait_for(state="hidden", timeout=45000)
+                if await loading.is_visible(timeout=2000):
+                    await loading.wait_for(state="hidden", timeout=60000)
                     
-                await asyncio.sleep(0.5 if not is_bh else 1.5)
-            except:
-                log_task("Grid de atendimentos não carregou completamente ou timeout excedido.", "WARNING")
+                await asyncio.sleep(1.0 if not is_bh else 2.5)
+            except Exception as e:
+                log_task(f"Grid de atendimentos não carregou completamente ou timeout excedido: {str(e)}", "WARNING")
 
             if await is_cancelled():
                 await browser.close()
