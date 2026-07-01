@@ -11,6 +11,21 @@ from api.utils import send_whatsapp_alert, launch_browser_robust
 
 logger = logging.getLogger(__name__)
 
+def set_task_progress(task_id, percent):
+    if not task_id: return
+    try:
+        task = db.get_task(task_id)
+        if task:
+            t_total = task.get('total', 0)
+            if t_total > 1:
+                t_curr = task.get('current', 1) - 1
+                t_curr = max(0, t_curr)
+                scaled = int(((t_curr + (percent / 100)) / t_total) * 100)
+                db.update_task(task_id, {"progress_percent": scaled})
+            else: db.update_task(task_id, {"progress_percent": percent})
+        else: db.update_task(task_id, {"progress_percent": percent})
+    except: pass
+
 async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, task_id=None):
     def log_task(msg, level="INFO"):
         full_msg = f"[{client_name}] [SYNC CUBETI] {msg}"
@@ -38,6 +53,7 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
             db.add_log(task_id, f"[{client_name}] [SYNC CUBETI] {msg}", level)
 
         log_task("Iniciando sincronização com Gestão Comercial CubeTI...")
+        set_task_progress(task_id, 60)
         
         # Inicia Playwrighth Avançado + Flags de Sandbox
         browser_args = [
@@ -67,6 +83,7 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
             
             # Login com Navegação Defensiva (ERR_ABORTED Mitigation)
             log_task("Realizando login no Gestão Comercial CubeTI...")
+            set_task_progress(task_id, 70)
             if await is_cancelled(): return False
             try:
                 await page.goto("https://gestaocomercial.cubeti.com.br/ABITracker", wait_until="domcontentloaded", timeout=60000)
@@ -275,6 +292,7 @@ async def sync_to_cubeti_management(client_name, status_gax, mensagem_analise, t
                             await page.keyboard.press("Enter")
             await browser.close()
             log_task("Sincronização com CubeTI realizada com sucesso!", "SUCCESS")
+            set_task_progress(task_id, 100)
             return True
             
     except Exception as e:
@@ -301,6 +319,7 @@ async def run_abi_check_for_client(client_id, task_id=None, pre_fetched_creds=No
                 resultado_txt = " (Erro em todos)"
                 
             db.add_log(task_id, f"[{client_name}] ABI {active_abi} verificado no RSUS: {status}{resultado_txt}")
+            set_task_progress(task_id, 50)
         old_abi = client.get('abi_current')
         is_new_abi = False
         if old_abi:
@@ -320,6 +339,7 @@ async def run_abi_check_for_client(client_id, task_id=None, pre_fetched_creds=No
             reason = "erro técnico (sync pulada)" if is_technical_error else "status mantido"
             if task_id:
                 db.add_log(task_id, f"[{client_name}] ABI status '{status}' ({reason}). Sincronização CubeTI pulada.", "DEBUG")
+                set_task_progress(task_id, 100)
         if not is_batch_run:
             status_emoji = "✅" if status == 'Importado e Analisado' else "⚠️" if "Importado" in status else "❌"
             whatsapp_msg = (
@@ -372,27 +392,13 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
         elif level == "WARNING": logger.warning(full_msg)
         elif level == "SUCCESS": logger.info(f"✅ {full_msg}")
         else: logger.info(full_msg)
-    def update_progress(percent):
-        if task_id:
-            try:
-                task = db.get_task(task_id)
-                if task:
-                    t_total = task.get('total', 0)
-                    if t_total > 1:
-                        t_curr = task.get('current', 1) - 1
-                        t_curr = max(0, t_curr)
-                        scaled = int(((t_curr + (percent / 100)) / t_total) * 100)
-                        db.update_task(task_id, {"progress_percent": scaled})
-                    else: db.update_task(task_id, {"progress_percent": percent})
-                else: db.update_task(task_id, {"progress_percent": percent})
-            except: pass
     if not url_sistema: return "Falha", "URL não configurada.", None
     cred_type = "unimed_vitoria" if "vitoria" in url_sistema.lower() else "general"
     if await is_task_stopped(task_id): return "Falha", "Tarefa parada pelo usuário.", None
     browser = None
     try:
         async with async_playwright() as p:
-            update_progress(5)
+            set_task_progress(task_id, 5)
             log_task(f"Verificando ABI {active_abi} no portal RSUS...")
             browser_args = [
                 "--headless=new", "--no-sandbox", "--disable-setuid-sandbox", 
@@ -573,7 +579,6 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                     result_text = row_data['resultado']
                     row_lower = row_data['fullText'].lower()
                     if re.search(r'\bsucesso\b', row_lower):
-                        update_progress(100)
                         await browser.close()
                         return "Importado e Analisado", "Análise feita com sucesso.", None
                     if re.search(r'\b(falha|erro)\b', row_lower):
@@ -641,14 +646,14 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                                 await close_btn.click()
                                 await asyncio.sleep(1)
                             if success_parcial:
-                                update_progress(100)
+                                
                                 await browser.close()
                                 return "Importado e Analisado", mensagem_analise, None
                             elif has_real_error:
                                 await browser.close()
                                 return "Falha na Análise", mensagem_analise, None
                             else:
-                                update_progress(100)
+                                
                                 await browser.close()
                                 return "Importado e Analisado", "Análise feita com sucesso.", None
                         except Exception as deep_e:
@@ -658,7 +663,6 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                 for r_idx, row_data in enumerate(analysis_data):
                     row_lower = row_data['fullText'].lower()
                     if "sucesso" in row_lower:
-                        update_progress(100)
                         if "parcial" in row_lower:
                             await browser.close()
                             return "Importado e Analisado", "Análise Sucesso - Parcial", None
