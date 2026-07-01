@@ -63,7 +63,18 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
     def update_progress(percent):
         if task_id:
             try:
-                db.update_task(task_id, {"progress_percent": percent})
+                task = db.get_task(task_id)
+                if task:
+                    t_total = task.get('total', 0)
+                    if t_total > 1:
+                        t_curr = task.get('current', 1) - 1
+                        t_curr = max(0, t_curr)
+                        scaled = int(((t_curr + (percent / 100)) / t_total) * 100)
+                        db.update_task(task_id, {"progress_percent": scaled})
+                    else:
+                        db.update_task(task_id, {"progress_percent": percent})
+                else:
+                    db.update_task(task_id, {"progress_percent": percent})
             except: pass
 
     if not url_sistema:
@@ -931,7 +942,7 @@ async def run_batch_api_check(task_id=None, client_ids=None):
                     db.add_log(task_id, f"ERRO CRÍTICO no cliente {client_name}: {str(e)}", "ERROR")
 
         if task_id:
-            db.update_task(task_id, {"status": "completed", "current_client": "Finalizado"})
+            db.update_task(task_id, {"status": "completed", "current_client": "Finalizado", "progress_percent": 100})
             db.add_log(task_id, "Checagem em lote finalizada.")
             
         # Alerta de Resumo de WhatsApp (Padrão sugerido)
