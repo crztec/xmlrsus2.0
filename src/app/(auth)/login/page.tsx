@@ -18,7 +18,7 @@ import {
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { auth, googleProvider } from "@/lib/firebase";
-import { signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
+import { signInWithPopup, GoogleAuthProvider, signOut, signInWithEmailAndPassword } from "firebase/auth";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -103,10 +103,15 @@ const handleLogin = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     }
 
     try {
+      // 1. Autentica localmente via Firebase SDK para garantir persistência e auto-refresh do token
+      const userCredential = await signInWithEmailAndPassword(auth, emailValue, passwordValue);
+      const firebaseIdToken = await userCredential.user.getIdToken();
+
       const formData = new FormData();
       formData.append("email", emailValue);
       formData.append("password", passwordValue);
 
+      // 2. Chama a API para registrar log de auditoria e validar role
       const res = await fetch("/api/login", {
         method: "POST",
         body: formData,
@@ -114,7 +119,7 @@ const handleLogin = async (e: React.SyntheticEvent<HTMLFormElement>) => {
 
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        localStorage.setItem("gax_auth_token", data.idToken); // Salva o token JWT
+        localStorage.setItem("gax_auth_token", data.idToken || firebaseIdToken); // Salva o token JWT
         localStorage.setItem("gax_user_email", emailValue);
         localStorage.setItem("gax_user_name", data?.first_name || emailValue.split('@')[0]);
         localStorage.setItem("gax_user_role", data?.role || "user");
@@ -131,6 +136,7 @@ const handleLogin = async (e: React.SyntheticEvent<HTMLFormElement>) => {
         }
         
         setError(msg);
+        await signOut(auth); // Desloga do Firebase se a API backend recusou o login (ex: pendente)
       }
     } catch (_err: any) {
       setError(`Falha de Conexão: ${_err.message || "Servidor offline"}`);
