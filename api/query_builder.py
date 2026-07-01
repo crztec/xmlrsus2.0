@@ -98,28 +98,46 @@ def extract_sql_schema_ddl(conn_params: dict) -> str:
         logger.error(f"Erro ao extrair esquema do banco SQL Server: {e}")
         raise Exception(f"Falha ao conectar ou extrair esquema do SQL Server: {str(e)}")
 
+import sqlparse
+
 def validate_select_query_only(sql_query: str):
     """
-    Validates if a query consists purely of DQL (SELECT) statements.
-    Throws ValueError if DML/DDL or any forbidden instruction is found.
+    Validates if a query consists purely of a single DQL (SELECT) statement.
+    Throws ValueError if DML/DDL, multiple statements, or any forbidden instruction is found.
     """
-    # Remove comments
-    clean_sql = re.sub(r'--.*$', '', sql_query, flags=re.MULTILINE)
-    clean_sql = re.sub(r'/\*.*?\*/', '', clean_sql, flags=re.DOTALL)
+    statements = sqlparse.parse(sql_query)
     
-    forbidden_keywords = [
+    # Filter out empty or whitespace-only statements
+    valid_statements = [stmt for stmt in statements if str(stmt).strip() and stmt.get_type() != 'UNKNOWN']
+    
+    if len(valid_statements) > 1:
+        raise ValueError("Apenas uma instrução SQL é permitida por vez. Múltiplas instruções detectadas.")
+        
+    if not valid_statements:
+        raise ValueError("Nenhuma instrução SQL válida detectada.")
+        
+    stmt = valid_statements[0]
+    
+    if stmt.get_type() != 'SELECT':
+        raise ValueError(f"Apenas consultas de seleção (SELECT) são permitidas. Comando detectado: {stmt.get_type()}")
+    
+    forbidden_keywords = {
         'insert', 'update', 'delete', 'drop', 'alter', 'truncate', 
-        'create', 'replace', 'merge', 'exec', 'execute', 'grant', 'revoke'
-    ]
+        'create', 'replace', 'merge', 'exec', 'execute', 'grant', 'revoke',
+        'sp_executesql', 'xp_cmdshell', 'into', 'dbcc', 'backup', 'restore', 'declare', 'set'
+    }
     
-    words = re.findall(r'\b\w+\b', clean_sql.lower())
-    for word in words:
-        if word in forbidden_keywords:
-            raise ValueError(f"Comando proibido ou destrutivo detectado no SQL: {word.upper()}")
-            
-    stripped = clean_sql.strip().lower()
-    if not (stripped.startswith("select") or stripped.startswith("with")):
-        raise ValueError("Apenas consultas de seleção (SELECT) são permitidas para execução.")
+    def check_tokens(tokens):
+        for token in tokens:
+            if token.is_group:
+                check_tokens(token.tokens)
+            else:
+                if str(token.ttype).startswith('Token.Keyword') or str(token.ttype).startswith('Token.Name') or token.ttype is None:
+                    val = str(token.value).lower().strip()
+                    if val in forbidden_keywords:
+                        raise ValueError(f"Comando proibido ou destrutivo detectado no SQL: {val.upper()}")
+                        
+    check_tokens(stmt.tokens)
 
 def execute_select_query(conn_params: dict, sql_query: str) -> dict:
     """

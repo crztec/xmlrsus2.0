@@ -512,9 +512,9 @@ export default function Sidebar({ onOpenProfile, isOpen, onClose }: SidebarProps
                 localStorage.removeItem("gax_branding");
                 localStorage.removeItem("gax_auth_token");
                 signOut(auth).then(() => {
-                  window.location.href = "/login";
+                  window.location.href = "/rsus/login";
                 }).catch(() => {
-                  window.location.href = "/login";
+                  window.location.href = "/rsus/login";
                 });
               }
             }}

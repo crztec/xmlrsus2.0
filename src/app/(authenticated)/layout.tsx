@@ -21,7 +21,7 @@ export default function AuthenticatedLayout({
       
       if (!token || token === "null" || token === "undefined") {
         setIsAuthorized(false);
-        window.location.href = "/login";
+        window.location.href = "/rsus/login";
         return;
       }
 

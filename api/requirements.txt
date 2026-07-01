@@ -12,3 +12,5 @@ cachetools
 google-cloud-run
 pymssql
 cryptography
+psycopg2-binary
+sqlparse

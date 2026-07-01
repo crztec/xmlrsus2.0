@@ -168,81 +168,225 @@ def get_friendly_error(technical_error):
     # Fallback para o erro original mas sem o rastro técnico se for muito longo
     return str(technical_error)[:100]
 
-# --- RBAC & USER MANAGEMENT ---
+# --- PostgreSQL Initialization ---
+import psycopg2
+import psycopg2.extras
+import json
+
+def get_pg_connection():
+    db_url = os.environ.get("DATABASE_URL")
+    if not db_url:
+        logger.error("DATABASE_URL não configurada no .env.local")
+        return None
+    try:
+        return psycopg2.connect(db_url)
+    except Exception as e:
+        logger.error(f"Erro ao conectar no PostgreSQL: {e}")
+        return None
+
+def init_pg_table(table_name):
+    """Ensures table exists and has a GIN index on 'dados'."""
+    conn = get_pg_connection()
+    if not conn: return
+    try:
+        with conn.cursor() as cur:
+            cur.execute(f"CREATE TABLE IF NOT EXISTS {table_name} (id VARCHAR PRIMARY KEY, dados JSONB)")
+            cur.execute(f"CREATE INDEX IF NOT EXISTS idx_{table_name}_dados ON {table_name} USING gin (dados)")
+            conn.commit()
+    except psycopg2.errors.UndefinedTable:
+        pass # Ignore table not existing during some checks
+    except Exception as e:
+        logger.error(f"Failed to init PG table {table_name}: {e}")
+    finally:
+        conn.close()
+
+def pg_get_doc(table_name, doc_id):
+    conn = get_pg_connection()
+    if not conn: return None
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            cur.execute(f"SELECT dados FROM {table_name} WHERE id = %s", (doc_id,))
+            row = cur.fetchone()
+            if row:
+                data = row['dados']
+                data['id'] = doc_id
+                return data
+            return None
+    except psycopg2.errors.UndefinedTable:
+        return None
+    except Exception as e:
+        logger.error(f"Failed to get doc {doc_id} from {table_name}: {e}")
+        return None
+    finally:
+        conn.close()
+
+def pg_set_doc(table_name, doc_id, data, merge=False):
+    init_pg_table(table_name)
+    conn = get_pg_connection()
+    if not conn: return False
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            if merge:
+                cur.execute(f"SELECT dados FROM {table_name} WHERE id = %s", (doc_id,))
+                row = cur.fetchone()
+                if row:
+                    existing = row['dados']
+                    existing.update(data)
+                    data = existing
+            cur.execute(f"""
+                INSERT INTO {table_name} (id, dados) VALUES (%s, %s)
+                ON CONFLICT (id) DO UPDATE SET dados = EXCLUDED.dados
+            """, (doc_id, json.dumps(data)))
+            conn.commit()
+            return True
+    except Exception as e:
+        logger.error(f"Failed to set doc {doc_id} in {table_name}: {e}")
+        return False
+    finally:
+        conn.close()
+
+def pg_delete_doc(table_name, doc_id):
+    conn = get_pg_connection()
+    if not conn: return False
+    try:
+        with conn.cursor() as cur:
+            cur.execute(f"DELETE FROM {table_name} WHERE id = %s", (doc_id,))
+            conn.commit()
+            return True
+    except psycopg2.errors.UndefinedTable:
+        return True
+    except Exception as e:
+        logger.error(f"Failed to delete doc {doc_id} from {table_name}: {e}")
+        return False
+    finally:
+        conn.close()
+
+def pg_get_all(table_name, order_by=None, limit=None):
+    conn = get_pg_connection()
+    if not conn: return []
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            query = f"SELECT id, dados FROM {table_name}"
+            if order_by:
+                field, direction = order_by
+                query += f" ORDER BY dados->>'{field}' {direction}"
+            if limit:
+                query += f" LIMIT {int(limit)}"
+            
+            cur.execute(query)
+            results = []
+            for row in cur.fetchall():
+                data = row['dados']
+                data['id'] = row['id']
+                results.append(data)
+            return results
+    except psycopg2.errors.UndefinedTable:
+        return []
+    except Exception as e:
+        logger.error(f"Failed to get all from {table_name}: {e}")
+        return []
+    finally:
+        conn.close()
+
+# --- RBAC & USER MANAGEMENT (POSTGRES MIGRATION) ---
 def create_user_profile(email, first_name="", last_name=""):
-    """Creates a user document in Firestore. Forces 'admin'/'approved' for the master email."""
+    """Creates a user document in Postgres (JSONB). Forces 'admin'/'approved' for the master email."""
     if not email: return
     email = email.lower().strip()
 
-    doc_ref = firestore_db.collection('users').document(email)
-    doc = doc_ref.get()
+    conn = get_pg_connection()
+    if not conn: return
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id FROM users WHERE id = %s", (email,))
+            if cur.fetchone() is None:
+                if email.lower() == "victor@cubeti.com.br":
+                    role = "admin"
+                    status = "approved"
+                else:
+                    role = "user"
+                    status = "pending"
 
-    if not doc.exists:
-        if email.lower() == "victor@cubeti.com.br":
-            role = "admin"
-            status = "approved"
-        else:
-            role = "user"
-            status = "pending"
-
-        doc_ref.set({
-            'email': email,
-            'first_name': first_name,
-            'last_name': last_name,
-            'role': role,
-            'status': status,
-            'created_at': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        })
+                data = {
+                    'email': email,
+                    'first_name': first_name,
+                    'last_name': last_name,
+                    'role': role,
+                    'status': status,
+                    'created_at': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                }
+                # Create table implicitly or assume it exists, let's ensure it exists
+                cur.execute("CREATE TABLE IF NOT EXISTS users (id VARCHAR PRIMARY KEY, dados JSONB)")
+                cur.execute("INSERT INTO users (id, dados) VALUES (%s, %s)", (email, json.dumps(data)))
+                conn.commit()
+    except Exception as e:
+        logger.error(f"Failed to create user profile in Postgres: {e}")
+    finally:
+        conn.close()
 
 def update_user_profile(current_email, new_email, first_name, last_name, role=None, status=None):
     if not current_email: return False
+    conn = get_pg_connection()
+    if not conn: return False
     try:
-        old_doc_ref = firestore_db.collection('users').document(current_email)
-        doc = old_doc_ref.get()
-        if not doc.exists: return False
+        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            cur.execute("SELECT dados FROM users WHERE id = %s", (current_email,))
+            row = cur.fetchone()
+            if not row: return False
 
-        data = doc.to_dict()
-        data['first_name'] = first_name
-        data['last_name'] = last_name
-        if role: data['role'] = role
-        if status: data['status'] = status
+            data = row['dados']
+            data['first_name'] = first_name
+            data['last_name'] = last_name
+            if role: data['role'] = role
+            if status: data['status'] = status
 
-        if new_email and new_email != current_email:
-            data['email'] = new_email
-            new_doc_ref = firestore_db.collection('users').document(new_email)
-            new_doc_ref.set(data)
-            old_doc_ref.delete()
-        else:
-            old_doc_ref.update({
-                'first_name': first_name,
-                'last_name': last_name,
-                'role': data['role'],
-                'status': data['status']
-            })
+            if new_email and new_email != current_email:
+                data['email'] = new_email
+                cur.execute("INSERT INTO users (id, dados) VALUES (%s, %s)", (new_email, json.dumps(data)))
+                cur.execute("DELETE FROM users WHERE id = %s", (current_email,))
+            else:
+                cur.execute("UPDATE users SET dados = %s WHERE id = %s", (json.dumps(data), current_email))
+            conn.commit()
         return True
     except Exception as e:
-        logger.error(f"Failed to update user profile in Firestore: {e}")
+        logger.error(f"Failed to update user profile in Postgres: {e}")
         return False
+    finally:
+        conn.close()
 
 def update_user_status(email, status):
     if not email: return False
     email = email.lower().strip()
+    conn = get_pg_connection()
+    if not conn: return False
     try:
-        firestore_db.collection('users').document(email).update({'status': status})
+        with conn.cursor() as cur:
+            # Using jsonb_set to update just the status
+            status_json = json.dumps(status)
+            cur.execute("UPDATE users SET dados = jsonb_set(dados, '{status}', %s::jsonb) WHERE id = %s", (status_json, email))
+            conn.commit()
         return True
     except Exception as e:
-        logger.error(f"Failed to update user status: {e}")
+        logger.error(f"Failed to update user status in Postgres: {e}")
         return False
+    finally:
+        conn.close()
 
 def delete_user_profile(email):
     if not email: return False
     email = email.lower().strip()
+    conn = get_pg_connection()
+    if not conn: return False
     try:
-        firestore_db.collection('users').document(email).delete()
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM users WHERE id = %s", (email,))
+            conn.commit()
         return True
     except Exception as e:
-        logger.error(f"Failed to delete user profile: {e}")
+        logger.error(f"Failed to delete user profile in Postgres: {e}")
         return False
+    finally:
+        conn.close()
 
 # --- VERIFICATION CODES ---
 def save_verification_code(email, code, action_type):
@@ -281,17 +425,37 @@ def verify_code(email, code, action_type):
 def get_user_profile(email):
     if not email: return None
     email = email.lower().strip()
-    doc = firestore_db.collection('users').document(email).get()
-    if doc.exists: return doc.to_dict()
+    conn = get_pg_connection()
+    if not conn: return None
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            cur.execute("CREATE TABLE IF NOT EXISTS users (id VARCHAR PRIMARY KEY, dados JSONB)")
+            cur.execute("SELECT dados FROM users WHERE id = %s", (email,))
+            row = cur.fetchone()
+            if row: return row['dados']
+    except Exception as e:
+        logger.error(f"Failed to get user profile in Postgres: {e}")
+    finally:
+        conn.close()
     return None
 
 def get_all_users():
     users = []
-    docs = firestore_db.collection('users').stream()
-    for doc in docs:
-        data = doc.to_dict()
-        data['id'] = doc.id
-        users.append(data)
+    conn = get_pg_connection()
+    if not conn: return users
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            cur.execute("CREATE TABLE IF NOT EXISTS users (id VARCHAR PRIMARY KEY, dados JSONB)")
+            cur.execute("SELECT id, dados FROM users")
+            rows = cur.fetchall()
+            for row in rows:
+                data = row['dados']
+                data['id'] = row['id']
+                users.append(data)
+    except Exception as e:
+        logger.error(f"Failed to get all users in Postgres: {e}")
+    finally:
+        conn.close()
     return users
 
 def get_all_users_by_status(status):
@@ -307,7 +471,7 @@ def get_all_clients():
     if cached is not None:
         return cached
     try:
-        docs = firestore_db.collection('client_configs').stream()
+        docs = pg_get_all('client_configs')
         clients = []
         seen_keys = set()
         
@@ -319,9 +483,8 @@ def get_all_clients():
             n = n.replace("COOPERATIVA DE TRABALHO", "").strip()
             return n
 
-        for doc in docs:
-            data = doc.to_dict()
-            name = data.get('name') or data.get('razao_social') or doc.id
+        for data in docs:
+            name = data.get('name') or data.get('razao_social') or data.get('id')
             cnpj = data.get('cnpj', '')
             
             # Deduplicação baseada no nome normalizado e CNPJ
@@ -331,7 +494,7 @@ def get_all_clients():
             seen_keys.add(key)
             
             clients.append({
-                'id': doc.id,
+                'id': data.get('id'),
                 'name': name,
                 'cnpj': cnpj,
                 'url_sistema': data.get('url_sistema', ''),
@@ -446,13 +609,11 @@ def get_clients_paginated(page=1, limit=10, search=""):
 
 def get_client_config(client_id):
     """Returns a single client config by ID."""
-    doc = firestore_db.collection('client_configs').document(client_id).get()
-    if doc.exists:
-        data = doc.to_dict()
-        data['id'] = doc.id
+    data = pg_get_doc('client_configs', client_id)
+    if data:
         # Garante campo 'name' consistente para logs e UI
         if 'name' not in data:
-            data['name'] = data.get('razao_social') or doc.id
+            data['name'] = data.get('razao_social') or data.get('id')
         return data
     return None
 
@@ -485,12 +646,12 @@ def create_task(task_type, description="", url_sistema="", razao_social="", usua
         task_data['arquivos_processados'] = 0
         task_data['status'] = 'PENDENTE'
 
-    firestore_db.collection('tasks').document(task_id).set(task_data)
+    pg_set_doc('tasks', task_id, task_data)
     return task_id
 
 def update_task(task_id, data):
     """Updates task status/metadata."""
-    firestore_db.collection('tasks').document(task_id).set(data, merge=True)
+    pg_set_doc('tasks', task_id, data, merge=True)
 
 def add_log(task_id, message, level="INFO"):
     """Adiciona um log a uma tarefa e atualiza o log resumido.
@@ -508,25 +669,27 @@ def add_log(task_id, message, level="INFO"):
         timestamp = now.strftime("%H:%M:%S")
         
         log_entry = {
+            'task_id': task_id,
             'timestamp': timestamp,
             'timestamp_precise': time.time(),
             'message': message,
             'level': level.upper()
         }
         
-        task_ref = firestore_db.collection('tasks').document(task_id)
-        task_ref.collection('logs').add(log_entry)
+        import uuid
+        pg_set_doc('task_logs', str(uuid.uuid4()), log_entry)
         
         # Atualiza o último log na tarefa (para log resumido na UI)
-        task_ref.update({
+        update_data = {
             'last_log': message,
             'updated_at': now.strftime("%Y-%m-%d %H:%M:%S")
-        })
+        }
         
-        # Atualiza status se for conclusão (apenas para tipos legados ou logs explícitos)
-        # O robô de monitoramento de API gerencia o próprio status agora.
+        # Atualiza status se for conclusão
         if ("finalizada" in message.lower() or "concluída" in message.lower()) and "api_check" not in task_id:
-            task_ref.update({'status': 'completed'})
+            update_data['status'] = 'completed'
+            
+        pg_set_doc('tasks', task_id, update_data, merge=True)
             
     except Exception as e:
         logger.error(f"Erro ao adicionar log à tarefa {task_id}: {e}")
@@ -536,12 +699,18 @@ def add_log(task_id, message, level="INFO"):
 def get_task_logs(task_id, client_filter=None):
     """Recupera todos os logs de uma tarefa específica, com filtro opcional por cliente."""
     try:
-        logs_ref = firestore_db.collection('tasks').document(task_id).collection('logs')
-        docs = logs_ref.get()
+        conn = get_pg_connection()
+        docs = []
+        if conn:
+            try:
+                with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+                    cur.execute("SELECT dados FROM task_logs WHERE dados->>'task_id' = %s", (task_id,))
+                    docs = [row['dados'] for row in cur.fetchall()]
+            finally:
+                conn.close()
         
         logs = []
-        for doc in docs:
-            log_data = doc.to_dict()
+        for log_data in docs:
             msg = log_data.get('message', '')
             
             # Se houver filtro por cliente, filtra por [Nome] ou mensagens globais
@@ -577,7 +746,7 @@ def update_client_config(client_id, update_data):
             'whatsapp_numbers': update_data.get('whatsapp_numbers', []),
             'updated_at': get_now_br().strftime("%Y-%m-%d %H:%M:%S")
         }
-        firestore_db.collection('client_configs').document(client_id).set(clean_data, merge=True)
+        pg_set_doc('client_configs', client_id, clean_data, merge=True)
         return True
     except Exception as e:
         logger.error(f"Erro ao atualizar cliente {client_id}: {e}")
@@ -587,35 +756,34 @@ def update_client_api_status(client_id, status, message, task_id=None, is_batch=
     """Updates the API monitoring status for a client, maintaining history and forensics."""
     if not client_id: return False
     try:
-        client_ref = firestore_db.collection('client_configs').document(client_id)
-        
-        # Single Firestore read instead of two redundant .get() calls
-        client_doc = client_ref.get()
+        client_doc = pg_get_doc('client_configs', client_id)
         
         update_data = {
             'api_status': status,
             'api_last_message': message,
-            'api_last_check': firestore.SERVER_TIMESTAMP
+            'api_last_check': get_now_br().isoformat()
         }
         
         if task_id:
             update_data['api_last_task_id'] = task_id
         
-        # Gerenciar Histórico Simples no documento principal (para performance na lista)
-        if client_doc.exists:
-            history = client_doc.to_dict().get('api_status_history', [])
+        if client_doc:
+            history = client_doc.get('api_status_history', [])
             history.append(status)
-            if len(history) > 15: # Aumentado para 15 conforme solicitado
+            if len(history) > 15:
                 history = history[-15:]
             update_data['api_status_history'] = history
         
-        client_ref.update(update_data)
+        pg_set_doc('client_configs', client_id, update_data, merge=True)
         
-        # Gravar na sub-coleção 'history' para auditoria detalhada e gráficos
-        client_ref.collection('history').add({
+        # Gravar na tabela plana de history
+        import time
+        hist_id = f"{client_id}_{int(time.time()*1000)}"
+        pg_set_doc('api_status_history', hist_id, {
+            'client_id': client_id,
             'status': status,
             'message': message,
-            'timestamp': firestore.SERVER_TIMESTAMP,
+            'timestamp': get_now_br().isoformat(),
             'task_id': task_id
         })
         
@@ -628,13 +796,14 @@ def update_client_api_status(client_id, status, message, task_id=None, is_batch=
 def save_rsus_credentials(cred_type, username, password):
     """Saves global RSUS credentials (general or unimed_vitoria)."""
     try:
-        firestore_db.collection('system_settings').document('rsus_credentials').set({
+        data = {
             cred_type: {
                 'username': username,
                 'password': password,
                 'updated_at': get_now_br().strftime("%Y-%m-%d %H:%M:%S")
             }
-        }, merge=True)
+        }
+        pg_set_doc('system_settings', 'rsus_credentials', data, merge=True)
         return True
     except Exception as e:
         logger.error(f"Erro ao salvar credenciais RSUS ({cred_type}): {e}")
@@ -643,9 +812,8 @@ def save_rsus_credentials(cred_type, username, password):
 def get_rsus_credentials(cred_type):
     """Retrieves global RSUS credentials by type."""
     try:
-        doc = firestore_db.collection('system_settings').document('rsus_credentials').get()
-        if doc.exists:
-            creds = doc.to_dict()
+        creds = pg_get_doc('system_settings', 'rsus_credentials')
+        if creds:
             return creds.get(cred_type)
     except Exception as e:
         logger.error(f"Erro ao buscar credenciais RSUS ({cred_type}): {e}")
@@ -656,9 +824,9 @@ def get_rsus_credentials(cred_type):
 def get_cubeti_credentials():
     """Retrieves CubeTI Gestão Comercial credentials."""
     try:
-        doc = firestore_db.collection('system_settings').document('cubeti_credentials').get()
-        if doc.exists:
-            return doc.to_dict()
+        creds = pg_get_doc('system_settings', 'cubeti_credentials')
+        if creds:
+            return creds
     except Exception as e:
         logger.error(f"Erro ao buscar credenciais CubeTI: {e}")
     return {"email": "", "password": ""}
@@ -666,11 +834,12 @@ def get_cubeti_credentials():
 def save_cubeti_credentials(email, password):
     """Saves CubeTI Gestão Comercial credentials."""
     try:
-        firestore_db.collection('system_settings').document('cubeti_credentials').set({
+        data = {
             "email": email,
             "password": password,
             "updated_at": get_now_br().isoformat()
-        }, merge=True)
+        }
+        pg_set_doc('system_settings', 'cubeti_credentials', data, merge=True)
         return True
     except Exception as e:
         logger.error(f"Erro ao salvar credenciais CubeTI: {e}")
@@ -681,9 +850,9 @@ def save_cubeti_credentials(email, password):
 def get_whatsapp_config():
     """Retrieves WhatsApp Evolution API configuration."""
     try:
-        doc = firestore_db.collection('system_settings').document('whatsapp_config').get()
-        if doc.exists:
-            return doc.to_dict()
+        doc = pg_get_doc('system_settings', 'whatsapp_config')
+        if doc:
+            return doc
     except Exception as e:
         logger.error(f"Erro ao buscar config WhatsApp: {e}")
     return {"url": "", "api_key": "", "instance_name": "GaxBot", "target_numbers": []}
@@ -691,13 +860,14 @@ def get_whatsapp_config():
 def save_whatsapp_config(url, api_key, instance_name, target_numbers):
     """Saves WhatsApp Evolution API configuration."""
     try:
-        firestore_db.collection('system_settings').document('whatsapp_config').set({
+        data = {
             "url": url,
             "api_key": api_key,
             "instance_name": instance_name,
             "target_numbers": target_numbers,
             "updated_at": get_now_br().isoformat()
-        }, merge=True)
+        }
+        pg_set_doc('system_settings', 'whatsapp_config', data, merge=True)
         return True
     except Exception as e:
         logger.error(f"Erro ao salvar config WhatsApp: {e}")
@@ -715,9 +885,9 @@ def save_message_template(name, content, template_id=None):
             "id": template_id,
             "name": name,
             "content": content,
-            "updated_at": firestore.SERVER_TIMESTAMP
+            "updated_at": get_now_br().isoformat()
         }
-        firestore_db.collection('message_templates').document(template_id).set(data, merge=True)
+        pg_set_doc('message_templates', template_id, data, merge=True)
         return template_id
     except Exception as e:
         logger.error(f"Erro ao salvar template: {e}")
@@ -726,8 +896,7 @@ def save_message_template(name, content, template_id=None):
 def get_message_templates():
     """Recupera todos os templates de mensagem."""
     try:
-        docs = firestore_db.collection('message_templates').order_by("name").stream()
-        return [doc.to_dict() for doc in docs]
+        return pg_get_all('message_templates', order_by=('name', 'ASC'))
     except Exception as e:
         logger.error(f"Erro ao buscar templates: {e}")
         return []
@@ -735,7 +904,7 @@ def get_message_templates():
 def delete_message_template(template_id):
     """Remove um template de mensagem."""
     try:
-        firestore_db.collection('message_templates').document(template_id).delete()
+        pg_delete_doc('message_templates', template_id)
         return True
     except Exception as e:
         logger.error(f"Erro ao deletar template {template_id}: {e}")
@@ -752,9 +921,10 @@ def save_message_log(client_id, client_name, recipient, message, status, error_d
             "full_message": message,
             "status": status,
             "error_details": error_details,
-            "created_at": firestore.SERVER_TIMESTAMP
+            "created_at": get_now_br().isoformat()
         }
-        firestore_db.collection('message_logs').add(log_data)
+        import uuid
+        pg_set_doc('message_logs', str(uuid.uuid4()), log_data)
         return True
     except Exception as e:
         logger.error(f"Erro ao salvar log de mensagem: {e}")
@@ -790,43 +960,23 @@ def get_xml_data_paginated(page=1, limit=10, search="", client_filter=""):
     """Recupera metadados de XML com paginação e busca, com deduplicação por ABI."""
     try:
         # Cache de mapeamento de clientes para grupos para busca por grupo
-        clients_ref = firestore_db.collection('client_configs').get()
-        client_to_group = {c.to_dict().get('name'): c.to_dict().get('group_name') for c in clients_ref if c.to_dict().get('name')}
+        clients_ref = pg_get_all('client_configs')
+        client_to_group = {c.get('name'): c.get('group_name') for c in clients_ref if c.get('name')}
 
-        query = firestore_db.collection('task_files').order_by('data_processamento', direction=firestore.Query.DESCENDING)
-        
         # Estratégia resiliente: Buscar um lote grande e filtrar em memória para evitar falhas de indexação/case-sensitive
-        if client_filter:
-            # 1. Tenta buscar tarefas vinculadas se for um nome simples
-            tasks = firestore_db.collection('tasks').where('razao_social', '==', client_filter.strip()).limit(50).stream()
-            task_ids = [t.id for t in tasks]
-            
-            if task_ids:
-                # Se achou tarefas, busca os arquivos delas
-                docs_by_task = firestore_db.collection('task_files').where('task_id', 'in', task_ids[:30]).limit(500).get()
-            else:
-                docs_by_task = []
-                
-            # 2. Busca também os últimos 1000 arquivos para garantir que pegamos os recentes mesmo com nome diferente
-            docs_recent = query.limit(1000).get()
-            
-            # Combina os docs (mantendo a ordenação por data de processamento se possível)
-            docs = list(docs_by_task) + [d for d in docs_recent if d.id not in [x.id for x in docs_by_task]]
-        else:
-            docs = query.limit(1000).get()
+        docs = pg_get_all('task_files', order_by=('data_processamento', 'DESC'), limit=2000)
         
         xml_list = []
         seen_abis = set()
         
-        for doc in docs:
-            d = doc.to_dict()
-            abi = d.get("numero_abi") or doc.id
+        for d in docs:
+            doc_id = d.get('id')
+            abi = d.get("numero_abi") or doc_id
             file_name = d.get("nome_arquivo") or "-"
             client = d.get("razao_social") or "Desconhecido"
             
             # FILTRO CRÍTICO: Se houver filtro de cliente, ignorar qualquer doc que não seja dele
             if client_filter:
-                # print(f"DEBUG: Comparing '{client_filter.strip().lower()}' with '{client.lower()}'")
                 if client_filter.strip().lower() not in client.lower():
                     continue
                 
@@ -868,18 +1018,18 @@ def get_xml_data_paginated(page=1, limit=10, search="", client_filter=""):
 
 def get_all_xml_data():
     xml_data_list = []
-    docs = firestore_db.collection('task_files').order_by('data_processamento', direction=firestore.Query.DESCENDING).limit(500).stream()
+    docs = pg_get_all('task_files', order_by=('data_processamento', 'DESC'), limit=500)
 
     seen_abis = set()
-    for doc in docs:
-        data = doc.to_dict()
-        abi = data.get("numero_abi") or doc.id
+    for data in docs:
+        doc_id = data.get('id')
+        abi = data.get("numero_abi") or doc_id
 
         # Deduplicação: Mantém apenas a entrada mais recente para cada ABI
         if abi not in seen_abis:
             seen_abis.add(abi)
             xml_data_list.append({
-                "id": doc.id,
+                "id": doc_id,
                 "file_name": data.get("nome_arquivo") or "-",
                 "abi": abi,
                 "client": data.get("razao_social") or "Desconhecido",
@@ -952,8 +1102,8 @@ def delete_user_profile(email):
 
 def get_branding():
     try:
-        doc = firestore_db.collection('system_settings').document('branding').get()
-        if doc.exists: return doc.to_dict()
+        doc = pg_get_doc('system_settings', 'branding')
+        if doc: return doc
     except Exception as e:
         logger.error(f"Erro ao buscar branding: {e}")
     return {}
@@ -962,7 +1112,7 @@ def save_branding(system_name, logo_base64=None):
     try:
         data = {'system_name': system_name}
         if logo_base64: data['logo_base64'] = logo_base64
-        firestore_db.collection('system_settings').document('branding').set(data, merge=True)
+        pg_set_doc('system_settings', 'branding', data, merge=True)
     except Exception as e:
         logger.error(f"Erro ao salvar branding: {e}")
 
@@ -1006,8 +1156,7 @@ def save_client_config(razao_social, url_sistema):
     if not razao_social: return False
     try:
         client_id = normalize_client_id(razao_social)
-        doc_ref = firestore_db.collection('client_configs').document(client_id)
-        doc_ref.set({
+        pg_set_doc('client_configs', client_id, {
             'name': client_id,
             'razao_social': razao_social, # Mantém o formal original para referência
             'url_sistema': url_sistema,
@@ -1037,48 +1186,46 @@ def add_file_to_task(task_id, file_info):
         'error_message': '',
         'storage_path': file_info.get('storage_path', '')
     }
-    file_ref.set(file_data)
+    import uuid
+    pg_set_doc('task_files', str(uuid.uuid4()), file_data)
 
 def add_files_to_task_bulk(task_id, files_info_list):
     if not files_info_list: return
-    for i in range(0, len(files_info_list), 500):
-        batch = firestore_db.batch()
-        chunk = files_info_list[i:i + 500]
-        for file_info in chunk:
-            file_ref = firestore_db.collection('task_files').document()
-            file_data = {
-                'task_id': task_id,
-                'nome_arquivo': file_info.get('Nome do Arquivo', '') or file_info.get('nome_arquivo', ''),
-                'numero_abi': file_info.get('Número ABI', '') or file_info.get('numero_abi', ''),
-                'numero_processo': file_info.get('Número do Processo', '') or file_info.get('numero_processo', ''),
-                'data_registro_transacao': file_info.get('Data de Registro da Transação', '') or file_info.get('data_registro_transacao', ''),
-                'competencias': file_info.get('Datas de Competência', '') or file_info.get('competencias', ''),
-                'data_recebimento_oficio': file_info.get('Data Recebimento Ofício', '') or file_info.get('data_recebimento_oficio', ''),
-                'quantidade_processo': file_info.get('Quantidade de Processo', '') or file_info.get('quantidade_processo', ''),
-                'valor_total_processo': file_info.get('Valor Total do Processo', '') or file_info.get('valor_total_processo', ''),
-                'status_importacao': 'Pendente',
-                'data_processamento': '',
-                'error_message': '',
-                'storage_path': file_info.get('storage_path', ''),
-                'razao_social': file_info.get('razao_social', '')
-            }
-            batch.set(file_ref, file_data)
-        batch.commit()
+    
+    import uuid
+    for file_info in files_info_list:
+        file_data = {
+            'task_id': task_id,
+            'nome_arquivo': file_info.get('Nome do Arquivo', '') or file_info.get('nome_arquivo', ''),
+            'numero_abi': file_info.get('Número ABI', '') or file_info.get('numero_abi', ''),
+            'numero_processo': file_info.get('Número do Processo', '') or file_info.get('numero_processo', ''),
+            'data_registro_transacao': file_info.get('Data de Registro da Transação', '') or file_info.get('data_registro_transacao', ''),
+            'competencias': file_info.get('Datas de Competência', '') or file_info.get('competencias', ''),
+            'data_recebimento_oficio': file_info.get('Data Recebimento Ofício', '') or file_info.get('data_recebimento_oficio', ''),
+            'quantidade_processo': file_info.get('Quantidade de Processo', '') or file_info.get('quantidade_processo', ''),
+            'valor_total_processo': file_info.get('Valor Total do Processo', '') or file_info.get('valor_total_processo', ''),
+            'status_importacao': 'Pendente',
+            'data_processamento': '',
+            'error_message': '',
+            'storage_path': file_info.get('storage_path', ''),
+            'razao_social': file_info.get('razao_social', '')
+        }
+        pg_set_doc('task_files', str(uuid.uuid4()), file_data)
 
 def update_task_total_files(task_id, total):
-    firestore_db.collection('tasks').document(task_id).update({
+    pg_set_doc('tasks', task_id, {
         'total_arquivos': total,
         'updated_at': get_now_br().strftime("%Y-%m-%d %H:%M:%S")
-    })
+    }, merge=True)
 
 # Redirecionado para a função unificada no topo
 
 def get_pending_task():
-    results = firestore_db.collection('tasks').where('status', '==', 'PENDENTE').limit(1).stream()
-    task_doc = None
-    for doc in results:
-        task_doc = doc
-        break
+    tasks = pg_get_all('tasks')
+    for task in tasks:
+        if task.get('status') == 'PENDENTE':
+            return task
+    return None
     if task_doc:
         task_ref = firestore_db.collection('tasks').document(task_doc.id)
         task_ref.update({
@@ -1094,11 +1241,7 @@ def get_tasks_for_dashboard(limit=50, task_type=None, exclude_api_checks=False):
     """
     Recupera tarefas para o dashboard de forma index-resiliente.
     """
-    # 1. Busca documentos da coleção tasks ordenados por data (Firestore aceita order_by sozinho sem índice composto)
-    # Pegamos 300 para garantir que encontraremos tarefas filtradas mesmo se houver muitas outras
-    query = firestore_db.collection('tasks').order_by('created_at', direction=firestore.Query.DESCENDING).limit(300)
-    
-    docs = query.get()
+    docs = pg_get_all('tasks', order_by=('created_at', 'DESC'), limit=300)
     tasks = []
     
     monitoring_types = [
@@ -1117,10 +1260,10 @@ def get_tasks_for_dashboard(limit=50, task_type=None, exclude_api_checks=False):
         if exclude_api_checks and task_dict.get('type') in monitoring_types:
             continue
             
-        task_data = {**task_dict, 'id': doc.id}
-        # Buscar arquivos desta tarefa para ver status individuais
-        files = firestore_db.collection('task_files').where('task_id', '==', doc.id).stream()
-        task_data['file_results'] = [{'abi': f.to_dict().get('numero_abi'), 'status': f.to_dict().get('status_importacao')} for f in files]
+        task_data = {**task_dict, 'id': task_dict.get('id')}
+        # Buscar arquivos desta tarefa
+        files = [f for f in pg_get_all('task_files') if f.get('task_id') == task_dict.get('id')]
+        task_data['file_results'] = [{'abi': f.get('numero_abi'), 'status': f.get('status_importacao')} for f in files]
         tasks.append(task_data)
         
         if len(tasks) >= limit:
@@ -1129,17 +1272,17 @@ def get_tasks_for_dashboard(limit=50, task_type=None, exclude_api_checks=False):
     return tasks
 
 def get_files_for_task(task_id):
-    docs = firestore_db.collection('task_files').where('task_id', '==', task_id).stream()
-    return [{**doc.to_dict(), 'id': doc.id} for doc in docs]
+    docs = pg_get_all('task_files')
+    return [d for d in docs if d.get('task_id') == task_id]
 
 def mark_all_task_files_as_error(task_id, error_message):
     try:
         files = get_files_for_task(task_id)
         for f in files:
-            firestore_db.collection('task_files').document(f['id']).update({
+            pg_set_doc('task_files', f['id'], {
                 'status_importacao': 'ERRO',
                 'error_message': error_message
-            })
+            }, merge=True)
         return True
     except Exception as e:
         logger.error(f"Erro ao marcar arquivos como erro: {e}")
@@ -1147,12 +1290,18 @@ def mark_all_task_files_as_error(task_id, error_message):
 
 def get_logs_for_task(task_id, limit=2000, client_filter=None):
     try:
-        # Recupera logs e ordena em memória para consistência
-        docs = firestore_db.collection('tasks').document(task_id).collection('logs').limit(limit).get()
-        
+        conn = get_pg_connection()
+        raw_logs = []
+        if conn:
+            try:
+                with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+                    cur.execute("SELECT dados FROM task_logs WHERE dados->>'task_id' = %s", (task_id,))
+                    raw_logs = [row['dados'] for row in cur.fetchall()]
+            finally:
+                conn.close()
+                
         logs = []
-        for doc in docs:
-            log_data = doc.to_dict()
+        for log_data in raw_logs:
             msg = log_data.get('message', '')
             
             # Se houver filtro por cliente, mostra APENAS logs desse cliente
@@ -1310,7 +1459,7 @@ def update_task(task_id, data):
     """Updates task metadata in Firestore."""
     if not task_id: return False
     try:
-        firestore_db.collection('tasks').document(task_id).update(data)
+        pg_set_doc('tasks', task_id, data, merge=True)
         return True
     except Exception as e:
         logger.error(f"Error updating task {task_id}: {e}")
@@ -1320,9 +1469,9 @@ def get_task(task_id):
     """Fetches a task document from Firestore."""
     if not task_id: return None
     try:
-        doc = firestore_db.collection('tasks').document(task_id).get()
-        if doc.exists:
-            return doc.to_dict()
+        doc = pg_get_doc('tasks', task_id)
+        if doc:
+            return doc
     except Exception as e:
         logger.error(f"Error fetching task {task_id}: {e}")
     return None
@@ -1343,7 +1492,7 @@ def add_audit_log(user_email, action, details, level="INFO"):
             "details": details,
             "level": level.upper()
         }
-        firestore_db.collection('audit_logs').add(log_entry)
+        pg_set_doc('audit_logs', log_entry['id'], log_entry)
         logger.info(f"[AUDIT] {user_email} - {action} - {level}")
         return True
     except Exception as e:
@@ -1352,9 +1501,7 @@ def add_audit_log(user_email, action, details, level="INFO"):
 
 def get_audit_logs(limit=1000):
     try:
-        docs = firestore_db.collection('audit_logs').order_by('timestamp_val', direction=firestore.Query.DESCENDING).limit(limit).stream()
-        logs = [doc.to_dict() for doc in docs]
-        return logs
+        return pg_get_all('audit_logs', order_by=('timestamp_val', 'DESC'), limit=limit)
     except Exception as e:
         logger.error(f"Erro ao recuperar logs de auditoria: {e}")
         return []
@@ -1362,19 +1509,16 @@ def get_audit_logs(limit=1000):
 def clear_audit_logs():
     """Manual clear function for the system audit logs."""
     try:
-        docs = firestore_db.collection('audit_logs').stream()
-        batch = firestore_db.batch()
-        count = 0
+        conn = get_pg_connection()
+        if not conn: return False, 0
         deleted_count = 0
-        for doc in docs:
-            batch.delete(doc.reference)
-            count += 1
-            deleted_count += 1
-            if count >= 500:
-                batch.commit()
-                batch = firestore_db.batch()
-                count = 0
-        if count > 0: batch.commit()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM audit_logs")
+                deleted_count = cur.rowcount
+            conn.commit()
+        finally:
+            conn.close()
         return True, deleted_count
     except Exception as e:
         logger.error(f"Erro ao limpar logs de auditoria: {e}")
@@ -1385,18 +1529,19 @@ def auto_delete_old_audit_logs():
     try:
         thirty_days_ago = get_now_br() - timedelta(days=30)
         thirty_days_ago_ts = int(thirty_days_ago.timestamp())
-        # To avoid creating a composite index, we can just fetch without order
-        docs = firestore_db.collection('audit_logs').where('timestamp_val', '<', thirty_days_ago_ts).stream()
-        batch = firestore_db.batch()
+        
+        conn = get_pg_connection()
+        if not conn: return
         count = 0
-        for doc in docs:
-            batch.delete(doc.reference)
-            count += 1
-            if count >= 500:
-                batch.commit()
-                batch = firestore_db.batch()
-                count = 0
-        if count > 0: batch.commit()
+        try:
+            with conn.cursor() as cur:
+                # The timestamp_val is an integer
+                cur.execute("DELETE FROM audit_logs WHERE (dados->>'timestamp_val')::numeric < %s", (thirty_days_ago_ts,))
+                count = cur.rowcount
+            conn.commit()
+        finally:
+            conn.close()
+            
         if count > 0:
             logger.info(f"[AUDIT] {count} logs antigos (>30 dias) deletados automaticamente.")
     except Exception as e:
@@ -1406,25 +1551,20 @@ def auto_delete_old_audit_logs():
 def save_abi_schedule(data_list):
     """Saves ABI schedule to Firestore."""
     try:
-        # Limpa o cronograma anterior para manter apenas o novo upload
-        docs = firestore_db.collection('cronograma_abis').stream()
-        batch = firestore_db.batch()
-        count = 0
-        for doc in docs:
-            batch.delete(doc.reference)
-            count += 1
-            if count >= 500:
-                batch.commit()
-                batch = firestore_db.batch()
-                count = 0
-        if count > 0: batch.commit()
+        conn = get_pg_connection()
+        if not conn: return False
+        try:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM cronograma_abis")
+            conn.commit()
+        finally:
+            conn.close()
 
         # Salva novos dados
-        batch = firestore_db.batch()
+        import uuid
         for item in data_list:
-            doc_ref = firestore_db.collection('cronograma_abis').document()
-            batch.set(doc_ref, item)
-        batch.commit()
+            pg_set_doc('cronograma_abis', str(uuid.uuid4()), item)
+        return True
         return True
     except Exception as e:
         logger.error(f"Erro ao salvar cronograma ABI: {e}")
@@ -1460,8 +1600,7 @@ def get_abi_schedule():
     if cached is not None:
         return cached
     try:
-        docs = firestore_db.collection('cronograma_abis').stream()
-        schedule = [doc.to_dict() for doc in docs]
+        schedule = pg_get_all('cronograma_abis')
         # Ordenação básica por ABI
         def extract_num(s):
             m = re.search(r'(\d+)', str(s))
@@ -1573,23 +1712,33 @@ def get_abi_historical_data():
     if cached is not None:
         return cached
     try:
-        historical_docs = firestore_db.collection_group('abi_historical_stats').get()
+        historical_docs = pg_get_all('abi_historical_stats')
         
         # Reuse cached client list instead of a separate Firestore read
         all_clients = get_all_clients()
         client_names = {c['id']: c['name'] for c in all_clients}
         
         results = []
-        for doc in historical_docs:
-            client_id = doc.reference.parent.parent.id if doc.reference.parent and doc.reference.parent.parent else "Desconhecido"
+        for data in historical_docs:
+            client_id = data.get('client_id') or "Desconhecido"
             client_name = client_names.get(client_id, client_id)
             
-            data = doc.to_dict()
             data['client_id'] = client_id
             data['client_name'] = client_name
+            # In PG, archived_at may be stored as ISO string, so we convert it if needed
             ts = data.get('archived_at')
-            if ts:
-                data['archived_at'] = ts.strftime("%d/%m/%Y %H:%M")
+            if ts and not isinstance(ts, str):
+                try:
+                    data['archived_at'] = ts.strftime("%d/%m/%Y %H:%M")
+                except:
+                    pass
+            elif ts and isinstance(ts, str):
+                try:
+                    from datetime import datetime
+                    data['archived_at'] = datetime.fromisoformat(ts.replace('Z', '+00:00')).strftime("%d/%m/%Y %H:%M")
+                except:
+                    pass
+
             results.append(data)
             
         # Ordenar por ABI decrescente e depois alfabeticamente pelo nome do cliente
@@ -1604,33 +1753,29 @@ def get_abi_historical_snapshots(abi_num):
     """Recupera os snapshots diários de um ABI específico (ativo ou arquivado).
     Parallelizes client subcollection reads to avoid N+1 sequential queries."""
     try:
-        snapshots_ref = firestore_db.collection('current_abi_evolution').document(str(abi_num)).collection('snapshots').order_by('date').get()
+        conn = get_pg_connection()
+        docs = []
+        if conn:
+            try:
+                with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+                    cur.execute("SELECT dados FROM abi_evolution_snapshots WHERE dados->>'abi' = %s ORDER BY dados->>'date' ASC", (str(abi_num),))
+                    docs = [row['dados'] for row in cur.fetchall()]
+            finally:
+                conn.close()
+                
         timeline = []
-        for doc in snapshots_ref:
-            data = doc.to_dict()
-            if 'timestamp' in data: del data['timestamp']
-            timeline.append(data)
-        
-        # Parallel client snapshot reads (was N+1 sequential queries)
         client_evolution = {}
-        client_snaps_docs = firestore_db.collection('current_abi_evolution').document(str(abi_num)).collection('client_snapshots').get()
         
-        def _fetch_client_snaps(c_doc):
-            c_id = c_doc.id
-            snaps_ref = c_doc.reference.collection('snapshots').order_by('date').get()
-            t = []
-            for s in snaps_ref:
-                sd = s.to_dict()
-                if 'timestamp' in sd: del sd['timestamp']
-                t.append(sd)
-            return (c_id, t) if t else None
-        
-        if client_snaps_docs:
-            futures = [_firestore_pool.submit(_fetch_client_snaps, c_doc) for c_doc in client_snaps_docs]
-            for future in as_completed(futures):
-                result = future.result()
-                if result:
-                    client_evolution[result[0]] = result[1]
+        for data in docs:
+            if 'timestamp' in data: del data['timestamp']
+            
+            client_id = data.get('client_id')
+            if client_id == 'global':
+                timeline.append(data)
+            elif client_id:
+                if client_id not in client_evolution:
+                    client_evolution[client_id] = []
+                client_evolution[client_id].append(data)
                 
         return {"timeline": timeline, "client_evolution": client_evolution}
     except Exception as e:
@@ -1742,30 +1887,9 @@ def get_abi_dashboard_stats():
         if active_abi:
             abi_num = active_abi.get('ABI', '')
             if abi_num:
-                snapshots_ref = firestore_db.collection('current_abi_evolution').document(str(abi_num)).collection('snapshots').order_by('date').get()
-                for doc in snapshots_ref:
-                    data = doc.to_dict()
-                    if 'timestamp' in data: del data['timestamp']
-                    evolution_timeline.append(data)
-
-                # Parallel client snapshot reads (was N+1 sequential queries)
-                def _fetch_client_evolution(c_detail):
-                    c_id = c_detail.get('id')
-                    if not c_id:
-                        return None
-                    snaps_ref = firestore_db.collection('current_abi_evolution').document(str(abi_num)).collection('client_snapshots').document(c_id).collection('snapshots').order_by('date').get()
-                    timeline = []
-                    for s in snaps_ref:
-                        s_data = s.to_dict()
-                        if 'timestamp' in s_data: del s_data['timestamp']
-                        timeline.append(s_data)
-                    return (c_id, timeline) if timeline else None
-
-                futures = [_firestore_pool.submit(_fetch_client_evolution, c) for c in client_details]
-                for future in as_completed(futures):
-                    result = future.result()
-                    if result:
-                        client_evolution[result[0]] = result[1]
+                snaps = get_abi_historical_snapshots(abi_num)
+                evolution_timeline = snaps.get("timeline", [])
+                client_evolution = snaps.get("client_evolution", {})
 
         stats['evolution_timeline'] = evolution_timeline
         stats['client_evolution'] = client_evolution
@@ -1804,38 +1928,38 @@ def save_current_abi_evolution_snapshot(abi_number):
         date_str = now.strftime('%Y-%m-%d')
         
         # Save Global Snapshot
-        global_ref = firestore_db.collection('current_abi_evolution').document(str(abi_number)).collection('snapshots').document(date_str)
+        global_doc_id = f"{abi_number}_global_{date_str}"
         snapshot_data = {
+            'abi': str(abi_number),
+            'client_id': 'global',
             'date': date_str,
-            'timestamp': firestore.SERVER_TIMESTAMP,
+            'timestamp': now.isoformat(),
             'impugnados': total_impugnados,
             'aptos': total_aptos,
             'aguardando': total_aguardando,
             'nao_impugnando': total_nao_impugnando,
             'total': total_atendimentos
         }
-        global_ref.set(snapshot_data)
+        pg_set_doc('abi_evolution_snapshots', global_doc_id, snapshot_data)
 
         # Save Per-Client Snapshots
         for c in clients:
             c_id = c.get('id') or c.get('name') # name is used as fallback in get_abi_dashboard_stats
             if not c_id: continue
             
-            # Garantimos que o documento pai exista (Firestore virtual doc fix)
-            parent_ref = firestore_db.collection('current_abi_evolution').document(str(abi_number)).collection('client_snapshots').document(c_id)
-            parent_ref.set({'updated_at': now.strftime('%Y-%m-%d %H:%M:%S'), 'name': c.get('name')}, merge=True)
-            
-            client_ref = parent_ref.collection('snapshots').document(date_str)
+            client_doc_id = f"{abi_number}_{c_id}_{date_str}"
             client_data = {
+                'abi': str(abi_number),
+                'client_id': c_id,
+                'name': c.get('name'),
                 'date': date_str,
-                'timestamp': firestore.SERVER_TIMESTAMP,
+                'timestamp': now.isoformat(),
                 'impugnados': c.get('impugnados', 0),
-                'aptos': c.get('aptos', 0),
                 'aguardando': c.get('aguardando', 0),
                 'nao_impugnando': c.get('nao_impugnando', 0),
                 'total': c.get('total', 0)
             }
-            client_ref.set(client_data)
+            pg_set_doc('abi_evolution_snapshots', client_doc_id, client_data)
             
         return True
     except Exception as e:
@@ -1851,13 +1975,12 @@ def get_abi_historical_debug():
     """
     try:
         import re
-        historical_docs = firestore_db.collection_group('abi_historical_stats').get()
+        historical_docs = pg_get_all('abi_historical_stats')
         results = []
-        for doc in historical_docs:
-            client_id = doc.reference.parent.parent.id if doc.reference.parent and doc.reference.parent.parent else "?"
-            data = doc.to_dict()
+        for data in historical_docs:
+            client_id = data.get('client_id', "?")
             results.append({
-                "document_id": doc.id,
+                "document_id": data.get('id', '?'),
                 "client_id": client_id,
                 "abi_field": data.get("abi"),
                 "has_impugnation_stats": bool(data.get("impugnation_stats")),
@@ -1894,21 +2017,17 @@ def archive_current_abi_as_historical(abi_num: str, date_override: str = None):
         now = datetime.now(tz)
         snap_date = date_override or now.strftime('%Y-%m-%d')
 
-        clients_ref = firestore_db.collection('client_configs').get()
+        clients = get_all_clients()
 
         archived_clients = []
         skipped_clients = []
         totals = {'impugnados': 0, 'aptos': 0, 'aguardando': 0, 'nao_impugnando': 0, 'total': 0}
 
-        for client_doc in clients_ref:
-            client_id = client_doc.id
-            client_data = client_doc.to_dict()
+        for client_data in clients:
+            client_id = client_data.get('id')
             client_name = client_data.get('name') or client_data.get('razao_social') or client_id
 
             stats_raw = client_data.get('impugnation_stats', {})
-
-            # Não pula mais os clientes com total = 0 para garantir que todos fiquem registrados no histórico
-
 
             impugnados     = stats_raw.get('impugnados', 0)
             aptos          = stats_raw.get('aptos', 0)
@@ -1916,15 +2035,11 @@ def archive_current_abi_as_historical(abi_num: str, date_override: str = None):
             nao_impugnando = stats_raw.get('nao_impugnando', 0)
             total          = stats_raw.get('total', impugnados + aptos + aguardando + nao_impugnando)
 
-            # 1. Salva em abi_historical_stats (formato idêntico ao do robô)
-            hist_ref = (
-                firestore_db
-                .collection('client_configs')
-                .document(client_id)
-                .collection('abi_historical_stats')
-                .document(doc_id)
-            )
-            hist_ref.set({
+            # 1. Salva em abi_historical_stats
+            hist_id = f"{client_id}_{doc_id}"
+            pg_set_doc('abi_historical_stats', hist_id, {
+                'id': hist_id,
+                'client_id': client_id,
                 'abi': abi_str,
                 'abi_status': client_data.get('abi_status', ''),
                 'impugnation_status': client_data.get('impugnation_status', 'Não Iniciou'),
@@ -1935,28 +2050,24 @@ def archive_current_abi_as_historical(abi_num: str, date_override: str = None):
                     'aguardando':     aguardando,
                     'nao_impugnando': nao_impugnando,
                 },
-                'archived_at': firestore.SERVER_TIMESTAMP,
+                'archived_at': now.isoformat(),
                 'archived_by': 'admin_endpoint',
             })
 
             # 2. Salva snapshot de evolução para o gráfico de histórico
-            parent_ref = (
-                firestore_db
-                .collection('current_abi_evolution')
-                .document(abi_str)
-                .collection('client_snapshots')
-                .document(client_id)
-            )
-            parent_ref.set({'name': client_name, 'backfilled': True}, merge=True)
-            parent_ref.collection('snapshots').document(snap_date).set({
-                'date':           snap_date,
-                'timestamp':      firestore.SERVER_TIMESTAMP,
-                'impugnados':     impugnados,
-                'aptos':          aptos,
-                'aguardando':     aguardando,
+            client_doc_id = f"{abi_str}_{client_id}_{snap_date}"
+            pg_set_doc('abi_evolution_snapshots', client_doc_id, {
+                'abi': abi_str,
+                'client_id': client_id,
+                'name': client_name,
+                'date': snap_date,
+                'timestamp': now.isoformat(),
+                'impugnados': impugnados,
+                'aptos': aptos,
+                'aguardando': aguardando,
                 'nao_impugnando': nao_impugnando,
-                'total':          total,
-                'backfilled':     True,
+                'total': total,
+                'backfilled': True,
             })
 
             totals['impugnados']     += impugnados
@@ -1978,22 +2089,18 @@ def archive_current_abi_as_historical(abi_num: str, date_override: str = None):
             }
 
         # Salva snapshot global de evolução
-        global_ref = (
-            firestore_db
-            .collection('current_abi_evolution')
-            .document(abi_str)
-            .collection('snapshots')
-            .document(snap_date)
-        )
-        global_ref.set({
-            'date':           snap_date,
-            'timestamp':      firestore.SERVER_TIMESTAMP,
-            'impugnados':     totals['impugnados'],
-            'aptos':          totals['aptos'],
-            'aguardando':     totals['aguardando'],
+        global_doc_id = f"{abi_str}_global_{snap_date}"
+        pg_set_doc('abi_evolution_snapshots', global_doc_id, {
+            'abi': abi_str,
+            'client_id': 'global',
+            'date': snap_date,
+            'timestamp': now.isoformat(),
+            'impugnados': totals['impugnados'],
+            'aptos': totals['aptos'],
+            'aguardando': totals['aguardando'],
             'nao_impugnando': totals['nao_impugnando'],
-            'total':          totals['total'],
-            'backfilled':     True,
+            'total': totals['total'],
+            'backfilled': True,
         })
         logger.info(f"[archive] Snapshot global do ABI {abi_str} salvo em {snap_date}. Total: {totals['total']}")
 
@@ -2035,24 +2142,23 @@ def backfill_abi_snapshot(abi_num: str, date_override: str = None):
 
         tz = pytz.timezone('America/Sao_Paulo')
 
-        # Busca TODOS os documentos históricos de todos os clientes via collection group
-        historical_docs = firestore_db.collection_group('abi_historical_stats').get()
+        # Busca TODOS os documentos históricos de todos os clientes
+        historical_docs = pg_get_all('abi_historical_stats')
 
         client_snapshots = []
         totals = {'impugnados': 0, 'aptos': 0, 'aguardando': 0, 'nao_impugnando': 0, 'total': 0}
 
         # Mapa de nomes para enriquecer o log
-        clients_ref = firestore_db.collection('client_configs').get()
-        client_names = {c.id: c.to_dict().get('name', c.id) for c in clients_ref}
+        clients = get_all_clients()
+        client_names = {c.get('id'): c.get('name', c.get('id')) for c in clients}
 
-        for doc in historical_docs:
-            data = doc.to_dict()
+        for data in historical_docs:
             abi_value = str(data.get('abi', ''))
             # Compara apenas os dígitos para suportar formatos como "ABI 105", "105/2026", "105"
             if re.sub(r'\D', '', abi_value) != target_digits:
                 continue
 
-            client_id = doc.reference.parent.parent.id if doc.reference.parent and doc.reference.parent.parent else None
+            client_id = data.get('client_id')
             if not client_id:
                 continue
 
@@ -2116,16 +2222,12 @@ def backfill_abi_snapshot(abi_num: str, date_override: str = None):
         final_date = date_override or max(c['snap_date'] for c in client_snapshots)
 
         # Salva snapshot global
-        global_ref = (
-            firestore_db
-            .collection('current_abi_evolution')
-            .document(abi_str)
-            .collection('snapshots')
-            .document(final_date)
-        )
-        global_ref.set({
+        global_doc_id = f"{abi_str}_global_{final_date}"
+        pg_set_doc('abi_evolution_snapshots', global_doc_id, {
+            'abi': abi_str,
+            'client_id': 'global',
             'date':           final_date,
-            'timestamp':      firestore.SERVER_TIMESTAMP,
+            'timestamp':      datetime.now(tz).isoformat(),
             'impugnados':     totals['impugnados'],
             'aptos':          totals['aptos'],
             'aguardando':     totals['aguardando'],
@@ -2141,18 +2243,13 @@ def backfill_abi_snapshot(abi_num: str, date_override: str = None):
             c_name = cs['client_name']
             c_date = cs['snap_date']
 
-            parent_ref = (
-                firestore_db
-                .collection('current_abi_evolution')
-                .document(abi_str)
-                .collection('client_snapshots')
-                .document(c_id)
-            )
-            parent_ref.set({'name': c_name, 'backfilled': True}, merge=True)
-
-            parent_ref.collection('snapshots').document(c_date).set({
+            client_doc_id = f"{abi_str}_{c_id}_{c_date}"
+            pg_set_doc('abi_evolution_snapshots', client_doc_id, {
+                'abi': abi_str,
+                'client_id': c_id,
+                'name': c_name,
                 'date':           c_date,
-                'timestamp':      firestore.SERVER_TIMESTAMP,
+                'timestamp':      datetime.now(tz).isoformat(),
                 'impugnados':     cs['impugnados'],
                 'aptos':          cs['aptos'],
                 'aguardando':     cs['aguardando'],
@@ -2178,12 +2275,10 @@ def update_client_impugnation_status(client_id, status, message, task_id=None, s
     """Updates impugnation check status for a client."""
     if not client_id: return False
     try:
-        client_ref = firestore_db.collection('client_configs').document(client_id)
-        
         update_data = {
             'impugnation_status': status,
             'impugnation_last_message': message,
-            'impugnation_last_check': firestore.SERVER_TIMESTAMP
+            'impugnation_last_check': get_now_br().isoformat()
         }
         
         if task_id:
@@ -2192,7 +2287,7 @@ def update_client_impugnation_status(client_id, status, message, task_id=None, s
         if stats:
             update_data['impugnation_stats'] = stats
             
-        client_ref.update(update_data)
+        pg_set_doc('client_configs', client_id, update_data, merge=True)
         _cache_all_clients.clear()
         return True
     except Exception as e:
@@ -2258,22 +2353,23 @@ def mark_abis_as_substituted(razao_social, abis):
             # Normalização básica para busca (remove o º se houver)
             abi_str = str(abi).replace("º", "").replace("°", "").strip()
             
-            # Busca as tasks do cliente para pegar os task_ids vinculados
-            tasks = firestore_db.collection('tasks').where('razao_social', '==', razao_social.strip()).stream()
+            conn = get_pg_connection()
+            if not conn: continue
             
-            for task_doc in tasks:
-                task_id = task_doc.id
-                # Busca na coleção RAIZ 'task_files' pelo task_id
-                files = firestore_db.collection('task_files').where('task_id', '==', task_id).stream()
-                for doc in files:
-                    data = doc.to_dict()
-                    if data.get('status_importacao') != 'SUCESSO':
-                        continue
-                        
-                    doc_abi = str(data.get('numero_abi', '')).replace("º", "").replace("°", "").strip()
-                    if doc_abi == abi_str:
-                        doc.reference.update({'status_importacao': 'SUBSTITUIDO'})
-                        count_marked += 1
+            try:
+                with conn.cursor() as cur:
+                    cur.execute('''
+                        UPDATE task_files 
+                        SET dados = jsonb_set(dados, '{status_importacao}', '"SUBSTITUIDO"')
+                        WHERE dados->>'task_id' IN (
+                            SELECT id FROM tasks WHERE dados->>'razao_social' = %s
+                        ) AND dados->>'status_importacao' = 'SUCESSO'
+                        AND replace(replace(dados->>'numero_abi', 'º', ''), '°', '') = %s
+                    ''', (razao_social.strip(), abi_str))
+                    count_marked += cur.rowcount
+                conn.commit()
+            finally:
+                conn.close()
                 
         if count_marked > 0:
             logger.info(f"Sucesso: {count_marked} ABIs para '{razao_social}' marcadas como SUBSTITUIDO.")
@@ -2287,46 +2383,49 @@ def recalculate_client_abis(client_id):
     Reconta o total de ABIs importadas com sucesso para um cliente e atualiza o documento do cliente.
     """
     try:
-        client_ref = firestore_db.collection('client_configs').document(client_id)
-        doc = client_ref.get()
-        if not doc.exists:
+        data = pg_get_doc('client_configs', client_id)
+        if not data:
             # Tenta buscar pelo campo 'name' se o client_id não for o ID do documento
-            query = firestore_db.collection('client_configs').where('name', '==', client_id).limit(1).stream()
-            client_doc = next(query, None)
-            if client_doc:
-                client_ref = client_doc.reference
-                doc = client_doc
-            else:
+            all_configs = pg_get_all('client_configs')
+            for c in all_configs:
+                if c.get('name') == client_id:
+                    data = c
+                    break
+            if not data:
                 logger.warning(f"Cliente {client_id} não encontrado para recalcular estatísticas.")
                 return False
 
-        data = doc.to_dict()
         name = data.get('name', client_id)
+        doc_id = data.get('id', client_id)
         
-        # Busca manual iterando pelas tasks para obter IDs vinculados
-        tasks = firestore_db.collection('tasks').where('razao_social', '==', name.strip()).stream()
-            
         success_abis = []
         last_abi = data.get('abi_current')
         last_date = None
         
-        for task_doc in tasks:
-            task_id = task_doc.id
-            files = firestore_db.collection('task_files').where('task_id', '==', task_id).stream()
-            for f in files:
-                fdata = f.to_dict()
-                if fdata.get('status_importacao') != 'SUCESSO':
-                    continue
-                    
-                abi = fdata.get('numero_abi')
-                if abi:
-                    success_abis.append(str(abi))
-                    # Tenta pegar a data de criação para definir o atual
-                    created_at = fdata.get('created_at')
-                    if created_at:
-                        if not last_date or created_at > last_date:
-                            last_date = created_at
-                            last_abi = str(abi)
+        conn = get_pg_connection()
+        if not conn: return False
+        
+        try:
+            with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+                cur.execute('''
+                    SELECT f.dados FROM task_files f
+                    JOIN tasks t ON f.dados->>'task_id' = t.id
+                    WHERE t.dados->>'razao_social' = %s
+                    AND f.dados->>'status_importacao' = 'SUCESSO'
+                ''', (name.strip(),))
+                
+                for row in cur.fetchall():
+                    fdata = row['dados']
+                    abi = fdata.get('numero_abi')
+                    if abi:
+                        success_abis.append(str(abi))
+                        created_at = fdata.get('created_at')
+                        if created_at:
+                            if not last_date or created_at > last_date:
+                                last_date = created_at
+                                last_abi = str(abi)
+        finally:
+            conn.close()
         
         unique_abis = list(set(success_abis))
         count = len(unique_abis)
@@ -2342,7 +2441,7 @@ def recalculate_client_abis(client_id):
         if last_date:
             update_payload['abi_last_check'] = last_date
             
-        client_ref.update(update_payload)
+        pg_set_doc('client_configs', doc_id, update_payload, merge=True)
         logger.info(f"Contagem do cliente '{name}' atualizada: {count} ABIs.")
         return True
     except Exception as e:
@@ -2382,13 +2481,7 @@ def delete_saved_query(query_id: str, user_email: str):
 def get_groups():
     """Retorna todos os grupos cadastrados."""
     try:
-        docs = firestore_db.collection('groups').order_by('name').get()
-        groups = []
-        for doc in docs:
-            d = doc.to_dict()
-            d['id'] = doc.id
-            groups.append(d)
-        return groups
+        return pg_get_all('groups', order_by=('name', 'ASC'))
     except Exception as e:
         logger.error(f"Erro ao buscar grupos: {e}")
         return []
@@ -2396,22 +2489,23 @@ def get_groups():
 def create_group(data):
     """Cria um novo grupo e associa os clientes listados."""
     try:
-        group_ref = firestore_db.collection('groups').document()
-        group_id = group_ref.id
+        import uuid
+        group_id = str(uuid.uuid4())[:8]
         
         group_payload = {
+            'id': group_id,
             'name': data.get('name'),
             'client_ids': data.get('client_ids', []),
             'created_at': get_now_br().strftime("%Y-%m-%d %H:%M:%S")
         }
-        group_ref.set(group_payload)
+        pg_set_doc('groups', group_id, group_payload)
         
         # Atualiza a referência de grupo em cada cliente associado
         for client_id in data.get('client_ids', []):
-            firestore_db.collection('client_configs').document(client_id).update({
+            pg_set_doc('client_configs', client_id, {
                 'group_id': group_id,
                 'group_name': data.get('name')
-            })
+            }, merge=True)
             
         return group_id
     except Exception as e:
@@ -2421,32 +2515,33 @@ def create_group(data):
 def update_group(group_id, data):
     """Atualiza um grupo e as associações de clientes."""
     try:
-        group_ref = firestore_db.collection('groups').document(group_id)
-        old_group = group_ref.get().to_dict()
+        old_group = pg_get_doc('groups', group_id)
+        if not old_group: return False
+        
         old_clients = set(old_group.get('client_ids', []))
         new_clients = set(data.get('client_ids', []))
         
         # 1. Atualiza o documento do grupo
-        group_ref.update({
+        pg_set_doc('groups', group_id, {
             'name': data.get('name'),
             'client_ids': list(new_clients),
             'updated_at': get_now_br().strftime("%Y-%m-%d %H:%M:%S")
-        })
+        }, merge=True)
         
         # 2. Clientes removidos do grupo: limpa a ref no cliente
         removed = old_clients - new_clients
         for cid in removed:
-            firestore_db.collection('client_configs').document(cid).update({
+            pg_set_doc('client_configs', cid, {
                 'group_id': None,
                 'group_name': None
-            })
+            }, merge=True)
             
         # 3. Clientes novos ou existentes: garante grupo_id/group_name correto
         for cid in new_clients:
-            firestore_db.collection('client_configs').document(cid).update({
+            pg_set_doc('client_configs', cid, {
                 'group_id': group_id,
                 'group_name': data.get('name')
-            })
+            }, merge=True)
             
         return True
     except Exception as e:
@@ -2456,16 +2551,15 @@ def update_group(group_id, data):
 def delete_group(group_id):
     """Remove um grupo e limpa as referências nos clientes."""
     try:
-        group_ref = firestore_db.collection('groups').document(group_id)
-        group_data = group_ref.get().to_dict()
+        group_data = pg_get_doc('groups', group_id)
         if group_data:
             client_ids = group_data.get('client_ids', [])
             for cid in client_ids:
-                firestore_db.collection('client_configs').document(cid).update({
+                pg_set_doc('client_configs', cid, {
                     'group_id': None,
                     'group_name': None
-                })
-        group_ref.delete()
+                }, merge=True)
+        pg_delete_doc('groups', group_id)
         return True
     except Exception as e:
         logger.error(f"Erro ao excluir grupo {group_id}: {e}")
@@ -2474,24 +2568,19 @@ def delete_group(group_id):
 def delete_clients_batch(client_ids):
     """Exclui vários clientes e os remove de qualquer grupo associado."""
     try:
-        batch = firestore_db.batch()
         for cid in client_ids:
             # Pega o cliente para ver se ele pertence a um grupo
-            cref = firestore_db.collection('client_configs').document(cid)
-            cdat = cref.get().to_dict()
+            cdat = pg_get_doc('client_configs', cid)
             if cdat and cdat.get('group_id'):
                 gid = cdat.get('group_id')
                 # Remove o cid da lista de client_ids do grupo
-                gref = firestore_db.collection('groups').document(gid)
-                gdat = gref.get().to_dict()
+                gdat = pg_get_doc('groups', gid)
                 if gdat:
                     new_g_clients = [x for x in gdat.get('client_ids', []) if x != cid]
-                    batch.update(gref, {'client_ids': new_g_clients})
+                    pg_set_doc('groups', gid, {'client_ids': new_g_clients}, merge=True)
             
             # Deleta o cliente
-            batch.delete(cref)
-            
-        batch.commit()
+            pg_delete_doc('client_configs', cid)
         return True
     except Exception as e:
         logger.error(f"Erro na exclusão em massa de clientes: {e}")
@@ -2536,9 +2625,9 @@ MENU_DEFAULTS = {
 def get_menu_config():
     """Returns the active menu configuration, falling back to defaults."""
     try:
-        doc = firestore_db.collection('system_config').document('menu_layout').get()
-        if doc.exists:
-            data = doc.to_dict()
+        doc = pg_get_doc('system_config', 'menu_layout')
+        if doc:
+            data = doc
             defaults = copy.deepcopy(MENU_DEFAULTS)
             
             # Collect ALL existing keys across ALL sections to prevent
@@ -2584,7 +2673,7 @@ def save_menu_config_detailed(config: dict):
             "section_labels": config.get("section_labels", {}),
             "updated_at": get_now_br().isoformat()
         }
-        firestore_db.collection('system_config').document('menu_layout').set(clean_config)
+        pg_set_doc('system_config', 'menu_layout', clean_config)
         return True, None
     except Exception as e:
         err = str(e)
@@ -2594,9 +2683,9 @@ def save_menu_config_detailed(config: dict):
 def get_menu_default():
     """Returns the custom default, or hardcoded defaults if none set."""
     try:
-        doc = firestore_db.collection('system_config').document('menu_layout_default').get()
-        if doc.exists:
-            data = doc.to_dict()
+        doc = pg_get_doc('system_config', 'menu_layout_default')
+        if doc:
+            data = doc
             defaults = copy.deepcopy(MENU_DEFAULTS)
             for key in defaults:
                 if key not in data or (isinstance(data.get(key), list) and len(data[key]) == 0):
@@ -2611,7 +2700,7 @@ def save_menu_default(config: dict):
     """Saves the current config as the new custom default."""
     try:
         config['saved_as_default_at'] = get_now_br().isoformat()
-        firestore_db.collection('system_config').document('menu_layout_default').set(config)
+        pg_set_doc('system_config', 'menu_layout_default', config)
         return True
     except Exception as e:
         logger.error(f"Erro ao salvar menu default: {e}")
@@ -2621,7 +2710,7 @@ def restore_menu_default():
     """Restores the active config to hardcoded defaults by deleting the custom default document."""
     try:
         # Delete the custom default document to force use of hardcoded defaults next time
-        firestore_db.collection('system_config').document('menu_layout_default').delete()
+        pg_delete_doc('system_config', 'menu_layout_default')
         
         # Save a copy of hardcoded defaults as active current config
         success, _ = save_menu_config_detailed(copy.deepcopy(MENU_DEFAULTS))
@@ -2659,7 +2748,7 @@ def save_sql_connection(name, host, database, username, password, port=1433, con
             "port": int(port),
             "updated_at": get_now_br().isoformat()
         }
-        firestore_db.collection('sql_connections').document(conn_id).set(data, merge=True)
+        pg_set_doc('sql_connections', conn_id, data, merge=True)
         return conn_id
     except Exception as e:
         logger.error(f"Erro ao salvar conexão SQL no Firestore: {e}")
@@ -2668,10 +2757,9 @@ def save_sql_connection(name, host, database, username, password, port=1433, con
 def list_sql_connections():
     """Lists all SQL connections, masking passwords for client safety."""
     try:
-        docs = firestore_db.collection('sql_connections').stream()
+        docs = pg_get_all('sql_connections')
         connections = []
-        for doc in docs:
-            data = doc.to_dict()
+        for data in docs:
             if "password_encrypted" in data:
                 del data["password_encrypted"]
             data["password"] = "********"
@@ -2685,9 +2773,8 @@ def get_sql_connection_raw(conn_id):
     """Retrieves connection details with decrypted password (internal only)."""
     import api.crypto_utils as crypto_utils
     try:
-        doc = firestore_db.collection('sql_connections').document(conn_id).get()
-        if doc.exists:
-            data = doc.to_dict()
+        data = pg_get_doc('sql_connections', conn_id)
+        if data:
             encrypted_pw = data.get("password_encrypted", "")
             data["password"] = crypto_utils.decrypt_password(encrypted_pw)
             return data
@@ -2698,7 +2785,7 @@ def get_sql_connection_raw(conn_id):
 def delete_sql_connection(conn_id):
     """Deletes a SQL Server connection from Firestore."""
     try:
-        firestore_db.collection('sql_connections').document(conn_id).delete()
+        pg_delete_doc('sql_connections', conn_id)
         return True
     except Exception as e:
         logger.error(f"Erro ao deletar conexão SQL {conn_id}: {e}")
@@ -2711,12 +2798,10 @@ def delete_sql_connection(conn_id):
 def list_saved_queries():
     """Lists saved queries globally for all connections."""
     try:
-        docs = firestore_db.collection("saved_queries").stream()
+        docs = pg_get_all("saved_queries")
         result = []
-        for doc in docs:
-            d = doc.to_dict()
-            d["id"] = doc.id
-            result.append(d)
+        for data in docs:
+            result.append(data)
         return sorted(result, key=lambda x: x.get("created_at", ""), reverse=True)
     except Exception as e:
         logger.error(f"Erro ao listar queries salvas: {e}")
@@ -2725,16 +2810,17 @@ def list_saved_queries():
 def save_query(connection_id: str, name: str, sql_query: str, user_email: str):
     """Saves a new query generated by the AI for a specific connection."""
     try:
-        new_doc = firestore_db.collection("saved_queries").document()
+        import uuid
+        query_id = str(uuid.uuid4())
         data = {
-            "id": new_doc.id,
+            "id": query_id,
             "connection_id": connection_id,
             "name": name,
             "sql_query": sql_query,
             "created_by": user_email,
             "created_at": get_now_br().isoformat()
         }
-        new_doc.set(data)
+        pg_set_doc("saved_queries", query_id, data)
         return data
     except Exception as e:
         logger.error(f"Erro ao salvar query {name}: {e}")
@@ -2743,20 +2829,18 @@ def save_query(connection_id: str, name: str, sql_query: str, user_email: str):
 def update_saved_query(query_id: str, name: str, sql_query: str, user_email: str):
     """Updates an existing saved query if the user is the creator."""
     try:
-        doc_ref = firestore_db.collection("saved_queries").document(query_id)
-        doc = doc_ref.get()
-        if not doc.exists:
+        data = pg_get_doc("saved_queries", query_id)
+        if not data:
             return False
             
-        data = doc.to_dict()
         if data.get("created_by") != user_email:
             logger.warning(f"Usuário {user_email} tentou editar query de {data.get('created_by')}")
             return False
             
-        doc_ref.update({
+        pg_set_doc("saved_queries", query_id, {
             "name": name,
             "sql_query": sql_query
-        })
+        }, merge=True)
         return True
     except Exception as e:
         logger.error(f"Erro ao atualizar query {query_id}: {e}")
@@ -2765,17 +2849,15 @@ def update_saved_query(query_id: str, name: str, sql_query: str, user_email: str
 def delete_saved_query(query_id: str, user_email: str):
     """Deletes a saved query, ensuring only the creator can delete it."""
     try:
-        doc_ref = firestore_db.collection("saved_queries").document(query_id)
-        doc = doc_ref.get()
-        if not doc.exists:
+        data = pg_get_doc("saved_queries", query_id)
+        if not data:
             return False
         
-        data = doc.to_dict()
         if data.get("created_by") != user_email:
             logger.warning(f"Usuário {user_email} tentou deletar query de {data.get('created_by')}")
             return False
             
-        doc_ref.delete()
+        pg_delete_doc("saved_queries", query_id)
         return True
     except Exception as e:
         logger.error(f"Erro ao deletar query {query_id}: {e}")

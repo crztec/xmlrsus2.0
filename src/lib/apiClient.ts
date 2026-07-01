@@ -32,11 +32,18 @@ export async function apiClient(url: string, options: RequestInit = {}) {
 
   const requestOptions: RequestInit = { ...options, headers };
 
+  // Garante que o basePath '/rsus' seja incluído nas chamadas da API
+  // para que o Next.js intercepte no rewrite configurado
+  let finalUrl = url;
+  if (finalUrl.startsWith("/api/")) {
+    finalUrl = `/rsus${finalUrl}`;
+  }
+
   // Tentativas com backoff exponencial para lidar com cold starts do Cloud Run
   let lastError: unknown;
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
-      const response = await fetch(url, requestOptions);
+      const response = await fetch(finalUrl, requestOptions);
 
       if (response.status === 401) {
         // Cenário de token expirado ou inválido: limpa localStorage e redireciona para login
@@ -46,7 +53,7 @@ export async function apiClient(url: string, options: RequestInit = {}) {
           localStorage.removeItem("gax_user_name");
           localStorage.removeItem("gax_user_email");
           localStorage.removeItem("gax_user_id");
-          window.location.href = "/login?expired=true";
+          window.location.href = "/rsus/login?expired=true";
         }
       }
 

@@ -112,7 +112,7 @@ const handleLogin = async (e: React.SyntheticEvent<HTMLFormElement>) => {
       formData.append("password", passwordValue);
 
       // 2. Chama a API para registrar log de auditoria e validar role
-      const res = await fetch("/api/login", {
+      const res = await fetch("/rsus/api/login", {
         method: "POST",
         body: formData,
       });
@@ -123,7 +123,7 @@ const handleLogin = async (e: React.SyntheticEvent<HTMLFormElement>) => {
         localStorage.setItem("gax_user_email", emailValue);
         localStorage.setItem("gax_user_name", data?.first_name || emailValue.split('@')[0]);
         localStorage.setItem("gax_user_role", data?.role || "user");
-        window.location.href = "/";
+        window.location.href = "/rsus";
       } else {
         // Tratamento de Erro Amigável
         const errorDetail = data.detail;
@@ -177,7 +177,7 @@ const handleLogin = async (e: React.SyntheticEvent<HTMLFormElement>) => {
         localStorage.setItem("gax_user_email", result.user.email || "");
         localStorage.setItem("gax_user_name", data?.first_name || result.user.displayName || result.user.email?.split('@')[0] || "");
         localStorage.setItem("gax_user_role", data?.role || "user");
-        window.location.href = "/";
+        window.location.href = "/rsus";
       } else {
         const errorDetail = data.detail;
         const msg = typeof errorDetail === 'string' ? errorDetail : JSON.stringify(errorDetail);
