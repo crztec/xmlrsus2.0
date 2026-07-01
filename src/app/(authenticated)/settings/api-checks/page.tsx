@@ -342,7 +342,12 @@ export default function ApiChecksPage() {
 
   const filteredClients = clients.filter(c => {
     const matchesSearch = c.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesFilter = filterStatus === "all" || c.api_status === filterStatus;
+    let matchesFilter = true;
+    if (filterStatus === "failed") {
+      matchesFilter = c.api_status === "offline" || c.api_status === "error";
+    } else if (filterStatus !== "all") {
+      matchesFilter = c.api_status === filterStatus;
+    }
     return matchesSearch && matchesFilter;
   });
 
@@ -519,12 +524,14 @@ export default function ApiChecksPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[
           {
+            id: "all",
             label: "Total de Clientes",
             value: stats.total,
             icon: <Activity size={18} />,
             color: "text-gax-blue bg-gax-blue/10"
           },
           {
+            id: "online",
             label: "Conexões Ativas",
             value: stats.online,
             icon: <CheckCircle2 size={18} />,
@@ -532,15 +539,29 @@ export default function ApiChecksPage() {
             pulse: true
           },
           {
+            id: "failed",
             label: "Falhas Detectadas",
             value: stats.offline,
             icon: <XCircle size={18} />,
             color: "text-rose-600 bg-rose-50"
           }
         ].map((card, i) => (
-          <div
+          <button
             key={i}
-            className="rounded-2xl bg-white border border-slate-200 p-5 flex items-center gap-4 shadow-sm"
+            onClick={() => {
+              setFilterStatus(card.id);
+              if (card.id === "all") {
+                setSelectedClients(new Set());
+              } else if (card.id === "online") {
+                setSelectedClients(new Set(clients.filter(c => c.api_status === 'online').map(c => c.id)));
+              } else if (card.id === "failed") {
+                setSelectedClients(new Set(clients.filter(c => c.api_status === 'offline' || c.api_status === 'error').map(c => c.id)));
+              }
+            }}
+            className={cn(
+              "rounded-2xl bg-white border p-5 flex items-center gap-4 shadow-sm text-left transition-all hover:shadow-md cursor-pointer",
+              filterStatus === card.id ? "border-gax-blue ring-1 ring-gax-blue/20" : "border-slate-200 hover:border-gax-blue/40"
+            )}
           >
             <div className={cn("flex h-10 w-10 items-center justify-center rounded-xl shrink-0", card.color)}>
               {card.icon}
@@ -557,7 +578,7 @@ export default function ApiChecksPage() {
                 )}
               </p>
             </div>
-          </div>
+          </button>
         ))}
       </div>
 
@@ -574,22 +595,6 @@ export default function ApiChecksPage() {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 py-2.5 text-xs font-medium text-slate-700 outline-none focus:border-gax-blue focus:ring-4 focus:ring-gax-blue/10 transition-all placeholder:text-slate-300"
             />
-          </div>
-          <div className="flex items-center gap-2">
-            {["all", "online", "offline", "error", "pending"].map(s => (
-              <button
-                key={s}
-                onClick={() => setFilterStatus(s)}
-                className={cn(
-                  "px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all",
-                  filterStatus === s
-                    ? "bg-gax-blue text-white shadow-sm"
-                    : "bg-white border border-slate-200 text-slate-500 hover:border-gax-blue/30 hover:text-gax-blue"
-                )}
-              >
-                {s === 'all' ? 'Todos' : s}
-              </button>
-            ))}
           </div>
         </div>
 
