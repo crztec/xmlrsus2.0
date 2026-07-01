@@ -485,25 +485,16 @@ export default function ApiChecksPage() {
                 Histórico
               </button>
               <button
-                onClick={() => handleRunFailedChecks('offline')}
-                disabled={isExecuting}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-white transition-all disabled:opacity-40 font-display"
-              >
-                <RotateCcw size={12} />
-                Testar Offline
-              </button>
-              <button
-                onClick={() => handleRunFailedChecks('error')}
-                disabled={isExecuting}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-white transition-all disabled:opacity-40 font-display"
-              >
-                <RotateCcw size={12} />
-                Testar Erro
-              </button>
-              <button
                 onClick={() => {
                   if (selectedClients.size > 0) {
                      handleRunBatchCheck(Array.from(selectedClients));
+                  } else if (filterStatus === 'failed' || filterStatus === 'online') {
+                     const idsToTest = filteredClients.map(c => c.id);
+                     if (idsToTest.length > 0) {
+                         handleRunBatchCheck(idsToTest);
+                     } else {
+                         alert("Nenhum cliente para checar nesse filtro.");
+                     }
                   } else {
                      handleRunBatchCheck();
                   }
@@ -513,7 +504,14 @@ export default function ApiChecksPage() {
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-gax-blue text-white rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-gax-blue-hover transition-all shadow-md shadow-gax-blue/20 disabled:opacity-40 font-display"
               >
                 <Play size={12} className={isExecuting ? 'animate-pulse' : ''} />
-                {selectedClients.size > 0 ? "Checar Selecionados" : "Checar APIs"}
+                {selectedClients.size > 0 
+                  ? "Checar Selecionados" 
+                  : filterStatus === 'failed' 
+                    ? "Checar Falhas Detectadas"
+                    : filterStatus === 'online'
+                      ? "Checar Conexões Ativas"
+                      : "Checar Todas APIs"
+                }
               </button>
             </div>
           </>
@@ -550,13 +548,7 @@ export default function ApiChecksPage() {
             key={i}
             onClick={() => {
               setFilterStatus(card.id);
-              if (card.id === "all") {
-                setSelectedClients(new Set());
-              } else if (card.id === "online") {
-                setSelectedClients(new Set(clients.filter(c => c.api_status === 'online').map(c => c.id)));
-              } else if (card.id === "failed") {
-                setSelectedClients(new Set(clients.filter(c => c.api_status === 'offline' || c.api_status === 'error').map(c => c.id)));
-              }
+              setSelectedClients(new Set());
             }}
             className={cn(
               "rounded-2xl bg-white border p-5 flex items-center gap-4 shadow-sm text-left transition-all hover:shadow-md cursor-pointer",
