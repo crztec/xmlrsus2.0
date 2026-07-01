@@ -15,9 +15,18 @@ async def run_api_check_for_client(client_id, task_id=None, pre_fetched_creds=No
     client = db.get_client_config(client_id)
     client_name = client.get('name', client_id) if client else client_id
     
+    if task_id:
+        db.add_log(task_id, f"[{client_name}] Verificando API de Integração no RSUS...")
+        
     try:
         status, message = await _run_api_check_logic(client_id, task_id, pre_fetched_creds)
         
+        if task_id:
+            if status == 'online':
+                db.add_log(task_id, f"[{client_name}] Integração Online, os dados foram atualizados.")
+            else:
+                db.add_log(task_id, f"[{client_name}] Erro: {message}")
+                
         # Alerta individual se não for lote
         if not is_batch_run:
             status_emoji = "✅" if status == 'online' else "❌"
@@ -28,6 +37,9 @@ async def run_api_check_for_client(client_id, task_id=None, pre_fetched_creds=No
         return status, message
     except Exception as e:
         status, message = "error", f"Erro inesperado: {str(e)}"
+        if task_id:
+            db.add_log(task_id, f"[{client_name}] Erro: {message}")
+            
         if not is_batch_run:
             msg = f"❌ *GAX RSUS - Erro na Checagem*\n\nOperadora: {client_name}\nErro: {str(e)[:500]}"
             await send_whatsapp_alert(msg, task_id=task_id)
@@ -46,8 +58,6 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
     
     def log_task(msg, level="INFO"):
         full_msg = f"[{client_name}] {msg}"
-        if task_id:
-            db.add_log(task_id, full_msg)
         logger.info(full_msg)
 
     def update_progress(percent):
@@ -850,8 +860,6 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
         import traceback
         error_detail = traceback.format_exc()
         log_task(f"Erro inesperado: {str(e)}", "ERROR")
-        if task_id:
-            db.add_log(task_id, f"TRACEBACK: {error_detail}", "ERROR")
         return "error", f"Erro técnico: {str(e)}"
     finally:
         if browser:
@@ -962,7 +970,6 @@ async def run_single_api_check(client_id, task_id=None):
                 "status": "running",
                 "current_client": client_name
             })
-            db.add_log(task_id, f"Iniciando checagem individual: {client_name}", "INFO")
         
         status, message = await run_api_check_for_client(client_id, task_id=task_id)
         db.update_client_api_status(client_id, status, message, task_id=task_id)
@@ -974,7 +981,6 @@ async def run_single_api_check(client_id, task_id=None):
                 "current_client": "Finalizado",
                 "progress_percent": 100
             })
-            db.add_log(task_id, f"Checagem de {client_name} finalizada: {status.capitalize()}")
             
     except Exception as e:
         import traceback
