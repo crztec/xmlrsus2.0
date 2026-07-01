@@ -36,7 +36,7 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
         if await is_cancelled(): return False
 
         async with async_playwright() as p:
-            log_task("Iniciando sincronização com Gestao Comercial...")
+            log_task(f"Iniciando sincronização com Gestao Comercial CubeTI para {client_name}...")
             # Stealth Avançado + Flags de Sandbox para Cloud Run
             browser_args = [
                 "--no-sandbox", "--disable-setuid-sandbox", 
@@ -130,7 +130,6 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
                 
                 return page.locator("table tbody tr.NOT_FOUND_VIRTUAL").first # Retorna algo que .count() == 0
 
-            log_task(f"Procurando por: {client_name}")
             target_row = await try_search(client_name)
             
             if await target_row.count() == 0:
@@ -155,8 +154,6 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
                 await browser.close()
                 return False
                 
-            log_task("Operadora localizada!")
-            
             # --- INTELIGÊNCIA DE SINCRONIZAÇÃO (Ler estado atual para evitar redundância) ---
             current_row_data = await target_row.evaluate("""(row) => {
                 const cells = Array.from(row.querySelectorAll('td'));
@@ -289,7 +286,6 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
                     
                     if await option.count() > 0:
                         await option.click(force=True)
-                        log_task(f"Status '{target_status}' selecionado com sucesso.", "SUCCESS")
                         await asyncio.sleep(2)
                     else:
                         # Fallback por texto visível
@@ -815,33 +811,33 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
             # Obtém Total Geral
             _, count_total = await search_grid("", [""])
             if count_total > 0:
-                log_task(f"Encontrados {count_total} registros no total de atendimentos.", "INFO")
+                # Log resumido mais à frente
+                pass
                 
             update_progress(82)
             
             # 1. Pesquisa "Não Impugnado"
             has_nao_imp, count_nao_imp = await search_grid("Não Impugnado", ['não impugnado'])
             if has_nao_imp:
-                log_task(f"Encontrados {count_nao_imp} registros Não Impugnados.", "INFO")
-            
+                pass
             # 2. Pesquisa "Impugnado" (abrange 'Impugnado' e 'Não Impugnado' no Kendo UI)
             has_imp_geral, count_imp_geral = await search_grid("Impugnado", ['impugnado', 'não impugnado'])
             count_imp = max(0, count_imp_geral - count_nao_imp)
             has_imp = count_imp > 0
             if has_imp_geral:
-                log_task(f"Encontrados {count_imp} registros puramente Impugnados.", "INFO")
+                pass
                 
             update_progress(85)
             # 3. Pesquisa "Apto"
             has_apto, count_apto = await search_grid("Apto", ['apto'])
             if has_apto:
-                log_task(f"Encontrados {count_apto} registros Aptos para Impugnação.", "INFO")
+                pass
                 
             update_progress(90)
             # 4. Pesquisa "Aguardando"
             has_ag, count_ag = await search_grid("Aguardando", ['aguardando'])
             if has_ag:
-                log_task(f"Encontrados {count_ag} registros Aguardando Impugnação.", "INFO")
+                pass
                 
             update_progress(95)
             
@@ -860,19 +856,17 @@ async def _run_impugnation_logic(client_id, active_abi, task_id=None, pre_fetche
                 return "Importado e Analisado", "Nenhum atendimento detectado na grid.", stats_dict
 
             elif not has_imp and not has_apto and not has_nao_imp and has_ag:
-                log_task(f"⏳ NÃO INICIOU IMPUGNAÇÃO! {count_ag} atendimentos aguardando.", "SUCCESS")
+                log_task(f"⏳ NÃO INICIOU IMPUGNAÇÃO! (0 Impug l 0 Aptos l 0 Não Imp l {count_ag} Aguard).", "SUCCESS")
                 if browser: await browser.close()
                 return "Não Iniciou", f"Cliente ainda não iniciou impugnação. {count_ag} atendimentos aguardando.", stats_dict
 
             elif (has_imp or has_apto or has_nao_imp) and has_ag:
-                total_resolvidos = count_imp + count_apto + count_nao_imp
-                log_task(f"⚖️ IMPUGNANDO! {total_resolvidos} resolvidos (imp/apto/não imp), {count_ag} aguardando.", "SUCCESS")
+                log_task(f"⚖️ IMPUGNANDO! ({count_imp} Impug l {count_apto} Aptos l {count_nao_imp} Não Imp l {count_ag} Aguard).", "SUCCESS")
                 if browser: await browser.close()
-                return "Impugnando", f"{total_resolvidos} registros resolvidos, e {count_ag} ainda aguardando.", stats_dict
+                return "Impugnando", f"{count_imp + count_apto + count_nao_imp} registros resolvidos, e {count_ag} ainda aguardando.", stats_dict
 
             elif not has_ag:
-                total_resolvidos = count_imp + count_apto + count_nao_imp
-                log_task(f"✅ FINALIZOU O ABI! 0 aguardando.", "SUCCESS")
+                log_task(f"✅ FINALIZOU O ABI! ({count_imp} Impug l {count_apto} Aptos l {count_nao_imp} Não Imp l 0 Aguard).", "SUCCESS")
                 if browser: await browser.close()
                 return "Finalizou", f"Cliente finalizou o ABI. Nenhum atendimento aguardando impugnação.", stats_dict
             
