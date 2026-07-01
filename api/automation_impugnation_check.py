@@ -325,7 +325,30 @@ async def run_impugnation_check_for_client(client_id, task_id=None, pre_fetched_
     client_name = client.get('name', client_id)
     
     # Resgata status atual para saber se houve mudança
-    old_status = client.get('impugnation_status')
+    # REGRA DE FRESHNESS: Se a checagem de ABI é mais recente que a de impugnação,
+    # o status visível real era o abi_status, não o impugnation_status antigo.
+    raw_impug_status = client.get('impugnation_status')
+    abi_last_check = client.get('abi_last_check')
+    impug_last_check = client.get('impugnation_last_check')
+    
+    def _get_ts(d):
+        if d and isinstance(d, dict) and '_seconds' in d:
+            return d['_seconds'] * 1000
+        if d:
+            try:
+                from datetime import datetime
+                return datetime.fromisoformat(str(d).replace('Z', '+00:00')).timestamp() * 1000
+            except Exception:
+                return 0
+        return 0
+    
+    impug_is_fresh = bool(impug_last_check) and (not abi_last_check or _get_ts(impug_last_check) >= _get_ts(abi_last_check))
+    
+    if raw_impug_status in ['Não Iniciou', 'Nao Iniciou'] and not impug_is_fresh:
+        # ABI foi rechecado depois → status real era o do ABI (ex: Importado e Analisado)
+        old_status = client.get('abi_status', raw_impug_status)
+    else:
+        old_status = raw_impug_status
 
     active_abi_doc = db.get_active_abi()
     active_abi = active_abi_doc.get('ABI', 'Desconhecido') if active_abi_doc else 'Desconhecido'
