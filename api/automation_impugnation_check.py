@@ -266,8 +266,15 @@ async def _sync_impugnation_to_cubeti(client_name, task_id=None, target_status="
                 status_trigger = target_row.locator("td").nth(3).locator("button, [role='combobox'], .cursor-pointer, span.inline-flex, span[aria-haspopup='dialog'], .k-dropdown, .k-dropdown-wrap").filter(
                     has_text=re.compile(r"Não iniciou|Importou|Impugnando|Impugnado|Finalizou|Agendou|Erro|Analisou", re.IGNORECASE)
                 ).first
-                if await status_trigger.count() == 0:
+                
+                try:
+                    await status_trigger.wait_for(state="attached", timeout=8000)
+                except:
+                    # Tenta fallback se não aparecer a tempo
                     status_trigger = target_row.locator("td").nth(3).locator("button, .k-dropdown, .cursor-pointer").first
+                    try:
+                        await status_trigger.wait_for(state="attached", timeout=4000)
+                    except: pass
                 
                 if await status_trigger.count() > 0:
                     await status_trigger.scroll_into_view_if_needed()
