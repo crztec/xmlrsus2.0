@@ -409,9 +409,8 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                 msg_erro = f"Credenciais '{cred_type}' não encontradas."
                 log_task(msg_erro, "ERROR")
                 return "Falha", msg_erro, None
-            log_task("Credenciais obtidas. Abrindo navegador...", "INFO")
+            log_task("Credenciais obtidas. Abrindo navegador...", "DEBUG")
             browser = await launch_browser_robust(p, browser_args, task_id=task_id)
-            update_progress(15)
             usuario = creds['username']
             senha = creds['password']
             context = await browser.new_context(
@@ -445,7 +444,6 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                 if browser: await browser.close()
                 return "Falha", "Tarefa cancelada pelo usuário.", None
             try:
-                update_progress(25)
                 await page.goto(url_sistema, wait_until="commit", timeout=60000)
                 try:
                     alert = page.locator("#_browseralert, .browseralert").first
@@ -474,7 +472,6 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                 if await is_cancelled():
                     if browser: await browser.close()
                     return "Falha", "Tarefa cancelada pelo usuário.", None
-                update_progress(45)
                 try:
                     await page.wait_for_selector(".navbar, .main-sidebar, .content-header, #wrapper", timeout=60000)
                 except:
@@ -487,7 +484,6 @@ async def _run_abi_check_logic(client_id, active_abi, task_id=None, pre_fetched_
                 log_task(f"Erro no login: {str(e)}", "ERROR")
                 if browser: await browser.close()
                 return "Falha", f"Falha no login: {str(e)[:500]}", None
-            update_progress(60)
             base_url = url_sistema.split('/Account')[0] if '/Account' in url_sistema else url_sistema.rsplit('/', 1)[0]
             import_url = f"{base_url.rstrip('/')}/importacao"
             await page.goto(import_url, wait_until="domcontentloaded", timeout=45000)
