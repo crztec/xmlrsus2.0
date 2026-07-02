@@ -27,7 +27,7 @@ jobs:
             pm2 restart xmlrsus-frontend
             
             # Atualiza Nginx upload limits
-            sudo bash -c "echo 'client_max_body_size 100M;' > /etc/nginx/conf.d/upload_size.conf" || true
+            sudo bash -c "echo 'client_max_body_size 15M;' > /etc/nginx/conf.d/upload_size.conf" || true
             sudo systemctl reload nginx || true
             
             # Atualiza e reinicia o Backend
