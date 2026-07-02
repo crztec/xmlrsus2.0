@@ -1909,7 +1909,7 @@ def save_current_abi_evolution_snapshot(abi_number):
     if not abi_number: return False
     try:
         from datetime import datetime
-        import pytz
+        from datetime import timezone, timedelta
         
         # Get current global stats
         stats = get_abi_dashboard_stats()
@@ -1923,7 +1923,7 @@ def save_current_abi_evolution_snapshot(abi_number):
         total_atendimentos = sum(c.get('total', 0) for c in clients)
         
         # Use BRT timezone for the date
-        tz = pytz.timezone('America/Sao_Paulo')
+        tz = timezone(timedelta(hours=-3))
         now = datetime.now(tz)
         date_str = now.strftime('%Y-%m-%d')
         
@@ -2009,11 +2009,11 @@ def archive_current_abi_as_historical(abi_num: str, date_override: str = None):
 
     try:
         from datetime import datetime
-        import pytz
+        from datetime import timezone, timedelta
 
         abi_str = str(abi_num).strip()
         doc_id = abi_str.replace("/", "_")
-        tz = pytz.timezone('America/Sao_Paulo')
+        tz = timezone(timedelta(hours=-3))
         now = datetime.now(tz)
         snap_date = date_override or now.strftime('%Y-%m-%d')
 
@@ -2132,7 +2132,7 @@ def backfill_abi_snapshot(abi_num: str, date_override: str = None):
     try:
         import re
         from datetime import datetime
-        import pytz
+        from datetime import timezone, timedelta
 
         abi_str = str(abi_num).strip()
         # Extrai apenas os dígitos do número alvo para comparação flexível
@@ -2140,7 +2140,7 @@ def backfill_abi_snapshot(abi_num: str, date_override: str = None):
         if not target_digits:
             return {"ok": False, "error": f"abi_num inválido: '{abi_str}'"}
 
-        tz = pytz.timezone('America/Sao_Paulo')
+        tz = timezone(timedelta(hours=-3))
 
         # Busca TODOS os documentos históricos de todos os clientes
         historical_docs = pg_get_all('abi_historical_stats')
