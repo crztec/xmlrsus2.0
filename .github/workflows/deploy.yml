@@ -18,7 +18,8 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             cd ~/xmlrsus2.0
-            git pull origin main
+            git fetch origin main
+            git reset --hard origin/main
             
             # Atualiza e reinicia o Frontend
             npm install
