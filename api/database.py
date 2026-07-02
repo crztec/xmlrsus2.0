@@ -2874,3 +2874,21 @@ def delete_saved_query(query_id: str, user_email: str):
     except Exception as e:
         logger.error(f"Erro ao deletar query {query_id}: {e}")
         return False
+
+def get_task_files(task_id):
+    conn = get_pg_connection()
+    files = []
+    if conn:
+        try:
+            with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+                cur.execute("SELECT id, dados FROM task_files WHERE dados->>'task_id' = %s", (task_id,))
+                for row in cur.fetchall():
+                    d = row['dados']
+                    d['id'] = row['id']
+                    files.append(d)
+        finally:
+            conn.close()
+    return files
+
+def update_task_file(file_id, data):
+    pg_set_doc('task_files', file_id, data, merge=True)

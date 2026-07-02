@@ -157,8 +157,8 @@ async def _run_api_check_logic(client_id, task_id=None, pre_fetched_creds=None):
                 if not task_id: return False
                 try:
                     # Checagem leve de status para permitir interrupção via UI
-                    doc = db.firestore_db.collection('tasks').document(task_id).get()
-                    if doc.exists and doc.to_dict().get('status') == 'cancelled':
+                    doc = db.get_task(task_id)
+                    if doc.get('status') == 'cancelled':
                         log_task("Interrupção solicitada pelo usuário. Abortando serviço...", "WARNING")
                         return True
                 except: pass
@@ -915,8 +915,8 @@ async def run_batch_api_check(task_id=None, client_ids=None):
             # NOVO: Verifica se o usuário solicitou o cancelamento via Firestore
             if task_id:
                 try:
-                    task_doc = db.firestore_db.collection('tasks').document(task_id).get()
-                    if task_doc.exists and task_doc.to_dict().get('status') == 'cancelled':
+                    task_doc = db.get_task(task_id)
+                    if task_task_doc.get('status') == 'cancelled':
                         db.add_log(task_id, "⏹️ Interrupção solicitada pelo usuário. Encerrando worker.", "WARNING")
                         sys.exit(0)
                 except Exception as e_cancel:

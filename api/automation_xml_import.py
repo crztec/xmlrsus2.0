@@ -17,14 +17,14 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
     """
     browser_context = None
     try:
-        db.firestore_db.collection('tasks').document(task_id).update({'status': 'EM ANDAMENTO'})
+        db.update_task(task_id, {'status': 'EM ANDAMENTO'})
         db.add_log(task_id, "INFO", "Iniciando conexão segura com o portal RSUS.")
 
         # Busca dados da tarefa
-        task_doc = db.firestore_db.collection('tasks').document(task_id).get()
-        if not task_doc.exists:
+        task_doc = db.get_task(task_id)
+        if not task_doc:
             return
-        task_data = task_doc.to_dict()
+        task_data = task_doc
         razao_social = task_data.get('razao_social', '')
         
         # Busca credenciais do settings (não são mais armazenadas na task)
@@ -32,7 +32,7 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
         creds = db.get_rsus_credentials(cred_type)
         if not creds:
             db.add_log(task_id, "ERROR", f"Credenciais RSUS ({cred_type}) não encontradas no sistema.")
-            db.firestore_db.collection('tasks').document(task_id).update({'status': 'ERRO'})
+            db.update_task(task_id, {'status': 'ERRO'})
             return
         usuario = creds.get('username', '')
         senha = creds.get('password', '')
@@ -58,7 +58,7 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
 
         if is_internal:
             db.add_log(task_id, "ERROR", "VULNERABILIDADE SSRF BLOQUEADA: URL aponta para rede interna.")
-            db.firestore_db.collection('tasks').document(task_id).update({'status': 'ERRO'})
+            db.update_task(task_id, {'status': 'ERRO'})
             return
 
         base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
@@ -203,7 +203,7 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
 
             except Exception as e:
                 db.mark_all_task_files_as_error(task_id, f"Falha no portal: {str(e)[:100]}")
-                db.firestore_db.collection('tasks').document(task_id).update({'status': 'ERRO'})
+                db.update_task(task_id, {'status': 'ERRO'})
                 raise e
 
             files = db.get_files_for_task(task_id)
@@ -211,8 +211,8 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
 
             if force and total > 0:
                 try:
-                    task_snap = db.firestore_db.collection('tasks').document(task_id).get()
-                    razao_social_task = task_snap.to_dict().get('razao_social') if task_snap.exists else None
+                    task_snap = db.get_task(task_id)
+                    razao_social_task = task_snap.get('razao_social') if task_snap else None
                     if razao_social_task:
                         abis_to_replace = [f.get('numero_abi') for f in files if f.get('numero_abi')]
                         db.mark_abis_as_substituted(razao_social_task, abis_to_replace)
@@ -222,8 +222,8 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
             for i, file in enumerate(files):
                 # 1. Checa cancelamento via Firestore antes de processar cada arquivo
                 try:
-                    task_snap = db.firestore_db.collection('tasks').document(task_id).get()
-                    if task_snap.exists and task_snap.to_dict().get('status') == 'cancelled':
+                    task_snap = db.get_task(task_id)
+                    if task_snap.get('status') == 'cancelled':
                         db.add_log(task_id, "WARNING", "⏹️ Processamento interrompido pelo usuário. Encerrando worker.")
                         if browser_context: await browser_context.close()
                         sys.exit(0)
@@ -255,7 +255,7 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
 
                 if not form_ready:
                     db.add_log(task_id, "ERROR", f"Portal não carregou formulário para ABI {abi}")
-                    db.firestore_db.collection('task_files').document(file['id']).update({
+                    db.update_task_file(file['id'], {
                         'status_importacao': 'ERRO',
                         'error_message': 'Timeout do Formulário'
                     })
@@ -264,7 +264,7 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                 already_imported = False
                 if not force and db.check_abi_already_imported(razao_social, abi):
                     db.add_log(task_id, "INFO", f"⚠️ ABI {abi} já existia. Pulando...")
-                    db.firestore_db.collection('task_files').document(file['id']).update({
+                    db.update_task_file(file['id'], {
                         'status_importacao': 'SUCESSO',
                         'error_message': 'Pulado: ABI já existia.'
                     })
@@ -342,22 +342,22 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                             
                         if os.path.exists(tmp_name): os.unlink(tmp_name)
 
-                        db.firestore_db.collection('task_files').document(file['id']).update({
+                        db.update_task_file(file['id'], {
                             'status_importacao': 'SUCESSO' if status_final_abi == "SUCCESS" else 'ERRO',
                             'data_processamento': db.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         })
                     except Exception as fe:
                         db.add_log(task_id, "ERROR", f"Erro na ABI {abi}: {fe}")
-                        db.firestore_db.collection('task_files').document(file['id']).update({'status_importacao': 'ERRO'})
+                        db.update_task_file(file['id'], {'status_importacao': 'ERRO'})
 
                 # Feedback e transição
                 progress = int(((i + 1) / total) * 100)
-                db.firestore_db.collection('tasks').document(task_id).update({'progress': progress})
+                db.update_task(task_id, {'progress': progress})
                 await asyncio.sleep(3) # Delay entre envios
 
             await browser.close()
-            db.firestore_db.collection('tasks').document(task_id).update({'status': 'CONCLUIDO'})
+            db.update_task(task_id, {'status': 'CONCLUIDO'})
 
     except Exception as e:
         db.add_log(task_id, "ERROR", f"Erro crítico automação: {e}")
-        db.firestore_db.collection('tasks').document(task_id).update({'status': 'ERRO'})
+        db.update_task(task_id, {'status': 'ERRO'})
