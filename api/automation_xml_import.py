@@ -134,7 +134,7 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
                 page.on("dialog", lambda dialog: asyncio.create_task(dialog.accept()))
 
                 db.add_log(task_id, "INFO", "Acessando a página de importação do sistema.")
-                await page.goto(url_sistema, wait_until="commit", timeout=60000)
+                await page.goto(url_sistema, wait_until="domcontentloaded", timeout=60000)
 
                 email_field = page.locator("input#email, input#Email").first
                 if await email_field.count() == 0:
@@ -171,17 +171,17 @@ async def background_worker_task(task_id: str, url_sistema: str, force: bool = F
 
                 if has_session and ("Account/Login" in page.url or "Account/LogOff" in page.url):
                     db.add_log(task_id, "WARNING", "Sessão detectada mas preso na tela de Login. Forçando Salto... ")
-                    await page.goto(url_sistema.split('/novo')[0].rsplit('/', 1)[0] + "/", wait_until="commit", timeout=30000)
+                    await page.goto(url_sistema.split('/novo')[0].rsplit('/', 1)[0] + "/", wait_until="domcontentloaded", timeout=30000)
                     url_lista = url_sistema.replace("/novo", "")
-                    await page.goto(url_lista, wait_until="commit", timeout=45000)
+                    await page.goto(url_lista, wait_until="domcontentloaded", timeout=45000)
                     await asyncio.sleep(3)
                     await page.goto(url_sistema, wait_until="domcontentloaded", timeout=60000)
                 else:
                     db.add_log(task_id, "INFO", "Preparando formulários do portal...")
                     url_lista = url_sistema.replace("/novo", "")
-                    await page.goto(url_lista, wait_until="commit", timeout=30000)
+                    await page.goto(url_lista, wait_until="domcontentloaded", timeout=30000)
                     await asyncio.sleep(2)
-                    await page.goto(url_sistema, wait_until="commit", timeout=60000)
+                    await page.goto(url_sistema, wait_until="domcontentloaded", timeout=60000)
 
                 form_ready = False
                 try:
