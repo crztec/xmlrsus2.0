@@ -1348,6 +1348,8 @@ async def pre_check_duplicates(files: List[UploadFile] = File(...), user = Depen
                 duplicates.append(abi)
         
         xml_data = extracted.iloc[0].to_dict() if not extracted.empty else None
+        if xml_data and 'conteudo_bytes' in xml_data:
+            del xml_data['conteudo_bytes']
         
         return {
             "duplicates": duplicates, 
