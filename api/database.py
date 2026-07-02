@@ -484,6 +484,12 @@ def get_all_clients():
             return n
 
         for data in docs:
+            # Fix Firestore timestamps that were migrated as dicts
+            for field in ['abi_last_check', 'impugnation_last_check']:
+                val = data.get(field)
+                if isinstance(val, dict) and '_seconds' in val:
+                    from datetime import datetime, timezone
+                    data[field] = datetime.fromtimestamp(val['_seconds'], tz=timezone.utc).isoformat()
             name = data.get('name') or data.get('razao_social') or data.get('id')
             cnpj = data.get('cnpj', '')
             
