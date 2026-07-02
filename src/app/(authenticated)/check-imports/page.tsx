@@ -474,7 +474,7 @@ export default function CheckImportsPage() {
     const impugnationStatus = c.impugnation_status;
     if (impugnationStatus === 'Finalizou') return <CheckCircle2 className="text-green-600" size={16} />;
     if (impugnationStatus === 'Impugnando') return <Scale className="text-yellow-600" size={16} />;
-    if ((impugnationStatus === 'Não Iniciou' || impugnationStatus === 'Nao Iniciou') && isImpugnationFresh(c)) return <Clock className="text-purple-600" size={16} />;
+    if (impugnationStatus === 'Não Iniciou' || impugnationStatus === 'Nao Iniciou') return <Clock className="text-purple-600" size={16} />;
     
     const s = (status || "").toLowerCase();
     
@@ -525,12 +525,12 @@ export default function CheckImportsPage() {
     let assignedStatus = "Pendente";
     
     if (isStale) {
-      assignedStatus = "Não Import.";
+        assignedStatus = "Não Import.";
     } else if (sIMP === 'Finalizou') {
       assignedStatus = "Finalizou";
     } else if (sIMP === 'Impugnando') {
       assignedStatus = "Impugnando";
-    } else if ((sIMP === 'Não Iniciou' || sIMP === 'Nao Iniciou') && isImpugnationFresh(c)) {
+    } else if (sIMP === 'Não Iniciou' || sIMP === 'Nao Iniciou') {
       assignedStatus = "Não Inic. Impug.";
     } else if (sABI === 'importado e analisado') {
       assignedStatus = "Analisados";
@@ -996,7 +996,6 @@ export default function CheckImportsPage() {
                       openMenuId={openMenuId}
                       rowDropdownRef={openMenuId === client.id ? dropdownRef : null}
                       activeTaskId={activeTaskId}
-                      isImpugnationFresh={isImpugnationFresh}
                       getStatusIcon={getStatusIcon}
                       onToggleSelect={(id) => {
                         const newSet = new Set(selectedClients);

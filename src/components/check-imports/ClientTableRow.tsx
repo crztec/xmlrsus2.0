@@ -41,7 +41,6 @@ interface ClientTableRowProps {
   openMenuId: string | null;
   rowDropdownRef: React.RefObject<HTMLDivElement | null> | null;
   activeTaskId: string | null;
-  isImpugnationFresh: (c: any) => boolean;
   getStatusIcon: (c: any) => React.ReactNode;
   onToggleSelect: (id: string) => void;
   onOpenMenu: (id: string | null) => void;
@@ -58,7 +57,6 @@ function ClientTableRowInner({
   openMenuId,
   rowDropdownRef,
   activeTaskId,
-  isImpugnationFresh,
   getStatusIcon,
   onToggleSelect,
   onOpenMenu,
@@ -71,10 +69,17 @@ function ClientTableRowInner({
   const clientAbiDigits = (client.abi_current || '').replace(/\D/g, '');
   const isStale = !!(activeAbiDigits && clientAbiDigits && clientAbiDigits !== activeAbiDigits);
 
-  const lastCheck = [client.abi_last_check, client.impugnation_last_check]
-    .filter(Boolean)
-    .map(d => new Date(d as string))
-    .sort((a, b) => b.getTime() - a.getTime())[0];
+  const getTimestamp = (val: any) => {
+    if (!val) return 0;
+    if (typeof val === 'object' && val._seconds) return val._seconds * 1000;
+    return new Date(val).getTime();
+  };
+
+  const abiTs = getTimestamp(client.abi_last_check);
+  const impTs = getTimestamp(client.impugnation_last_check);
+  const maxTs = Math.max(abiTs, impTs);
+  
+  const lastCheck = maxTs > 0 ? new Date(maxTs) : null;
 
   return (
     <tr
@@ -119,7 +124,7 @@ function ClientTableRowInner({
                 "font-bold text-[9px] uppercase border px-2 py-0.5 rounded-full whitespace-nowrap",
                 client.impugnation_status === "Finalizou" ? "bg-green-50 text-green-700 border-green-200" :
                 client.impugnation_status === "Impugnando" ? "bg-yellow-50 text-yellow-700 border-yellow-200" :
-                (client.impugnation_status === "Não Iniciou" || client.impugnation_status === "Nao Iniciou") && isImpugnationFresh(client) ? "bg-purple-50 text-purple-700 border-purple-200" :
+                (client.impugnation_status === "Não Iniciou" || client.impugnation_status === "Nao Iniciou") ? "bg-purple-50 text-purple-700 border-purple-200" :
                 client.abi_status === "Importado e Analisado" ? "bg-emerald-50 text-emerald-700 border-emerald-100" :
                 client.abi_status === "Importado, falta analisar" ? "bg-orange-50 text-orange-700 border-orange-100" :
                 client.abi_status === "Importado" ? "bg-sky-50 text-sky-700 border-sky-100" :
@@ -130,7 +135,7 @@ function ClientTableRowInner({
               )}>
                 {client.impugnation_status === "Finalizou" ? "Finalizou" :
                  client.impugnation_status === "Impugnando" ? "Impugnando" :
-                 (client.impugnation_status === "Não Iniciou" || client.impugnation_status === "Nao Iniciou") && isImpugnationFresh(client) ? "Não Iniciou" :
+                 (client.impugnation_status === "Não Iniciou" || client.impugnation_status === "Nao Iniciou") ? "Não Iniciou" :
                  client.abi_status === "Importado e Analisado" ? "Importado e Analisado" :
                  client.abi_status === "Importado, falta analisar" ? "Falta Analisar" :
                  client.abi_status === "Importado" ? "Importado" :
