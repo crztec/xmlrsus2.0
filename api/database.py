@@ -556,6 +556,8 @@ def get_clients_paginated(page=1, limit=10, search=""):
                 last_check = last_check.isoformat()
             elif isinstance(last_check, datetime):
                 last_check = last_check.isoformat()
+            elif isinstance(last_check, str):
+                pass
                 
             # Formatação de data robusta para abi_last_check
             abi_last_check = data.get('abi_last_check')
@@ -563,6 +565,8 @@ def get_clients_paginated(page=1, limit=10, search=""):
                 abi_last_check = abi_last_check.isoformat()
             elif isinstance(abi_last_check, datetime):
                 abi_last_check = abi_last_check.isoformat()
+            elif isinstance(abi_last_check, str):
+                pass
             else:
                 abi_last_check = None
                 
@@ -572,6 +576,8 @@ def get_clients_paginated(page=1, limit=10, search=""):
                 impugnation_last_check = impugnation_last_check.isoformat()
             elif isinstance(impugnation_last_check, datetime):
                 impugnation_last_check = impugnation_last_check.isoformat()
+            elif isinstance(impugnation_last_check, str):
+                pass
             else:
                 impugnation_last_check = None
 
