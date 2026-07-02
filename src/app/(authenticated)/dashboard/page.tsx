@@ -145,10 +145,10 @@ export default function DashboardPage() {
         setXmlData(data.xml_data || null);
         
         if (!data.client_exists) {
-          addLog(`Empresa '${data.razao_social}' não identificada. Necessário configurar.`, 'info');
+          addLog(`Cliente '${data.razao_social}' não identificado. Necessário configurar.`, 'info');
           setShowNewClientModal(true);
         } else {
-          addLog(`Empresa '${data.razao_social}' identificada via cadastro.`, 'success');
+          addLog(`Cliente '${data.razao_social}' identificado via cadastro.`, 'success');
           if (data.duplicates?.length > 0) {
             setShowConfirmModal(true);
           }
@@ -230,7 +230,7 @@ export default function DashboardPage() {
               <span className={cn("absolute inline-flex h-full w-full animate-ping rounded-full opacity-75", razaoSocial ? (clientExists ? "bg-emerald-400" : "bg-amber-400") : "bg-slate-400")}></span>
               <span className={cn("relative inline-flex h-2 w-2 rounded-full", razaoSocial ? (clientExists ? "bg-emerald-500" : "bg-amber-500") : "bg-slate-500")}></span>
             </span>
-            {razaoSocial ? (clientExists ? "Empresa Identificada" : "Nova Empresa Detectada") : "Aguardando Arquivos"}
+            {razaoSocial ? (clientExists ? "Cliente Identificado" : "Novo Cliente Detectado") : "Aguardando Arquivos"}
           </div>
           {files.length > 0 && razaoSocial && (
             <button 
@@ -273,31 +273,31 @@ export default function DashboardPage() {
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
                 <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1">Protocolo</p>
-                <p className="text-xs font-bold text-slate-700 break-all">{xmlData.numero_processo || xmlData['Número Processo'] || '-'}</p>
+                <p className="text-xs font-bold text-slate-700 break-all">{xmlData['Número do Processo'] || '-'}</p>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
                 <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1">ABI</p>
-                <p className="text-xs font-bold text-slate-700">{xmlData.numero_abi || xmlData['Número ABI'] || '-'}</p>
+                <p className="text-xs font-bold text-slate-700">{xmlData['Número ABI'] || '-'}</p>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
                 <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1">Competências</p>
-                <p className="text-xs font-bold text-slate-700">{xmlData.competencias || xmlData['Competências'] || '-'}</p>
+                <p className="text-xs font-bold text-slate-700">{xmlData['Datas de Competência'] || '-'}</p>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
                 <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1">Data Recebimento</p>
-                <p className="text-xs font-bold text-slate-700">{xmlData.data_recebimento_oficio || xmlData.data_registro_transacao || '-'}</p>
+                <p className="text-xs font-bold text-slate-700">{xmlData['Data Recebimento Ofício'] || xmlData['Data de Registro da Transação'] || '-'}</p>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
                 <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1">Prazo ANS (XML)</p>
-                <p className="text-xs font-bold text-slate-700">{xmlData.prazo_resposta_ans || '-'}</p>
+                <p className="text-xs font-bold text-slate-700">{xmlData['Prazo Resposta ANS'] || '-'}</p>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
                 <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1">Qtd. Atendimentos</p>
-                <p className="text-xs font-bold text-slate-700">{xmlData.quantidade_processo || '-'}</p>
+                <p className="text-xs font-bold text-slate-700">{xmlData['Quantidade de Processo'] || '-'}</p>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
                 <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1">Valor Total</p>
-                <p className="text-xs font-bold text-slate-700">R$ {xmlData.valor_total_processo || '-'}</p>
+                <p className="text-xs font-bold text-slate-700">R$ {xmlData['Valor Total do Processo'] || '-'}</p>
               </div>
             </div>
           </div>
@@ -456,8 +456,8 @@ export default function DashboardPage() {
             <div className="border-b border-slate-100 bg-slate-50/50 p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <h4 className="text-xl font-bold text-slate-800">Nova Empresa Detectada</h4>
-                  <p className="text-sm text-slate-500 font-medium">Empresa: {razaoSocial}</p>
+                  <h4 className="text-xl font-bold text-slate-800">Novo Cliente Detectado</h4>
+                  <p className="text-sm text-slate-500 font-medium">Cliente: {razaoSocial}</p>
                 </div>
                 <button onClick={() => setShowNewClientModal(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
                   <X size={24} />
@@ -537,7 +537,7 @@ export default function DashboardPage() {
                 className="w-full py-4 rounded-2xl bg-gax-blue text-white font-bold shadow-xl shadow-gax-blue/20 hover:bg-gax-blue-hover transition-all disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {isUploading ? <Loader2 className="animate-spin" size={20} /> : <Rocket size={20} />}
-                Salvar Empresa e Iniciar
+                Salvar Cliente e Iniciar
               </button>
             </div>
           </div>
