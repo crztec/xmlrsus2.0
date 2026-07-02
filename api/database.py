@@ -1128,20 +1128,33 @@ def save_branding(system_name, logo_base64=None):
     except Exception as e:
         logger.error(f"Erro ao salvar branding: {e}")
 
+def find_client_fuzzy(razao_social):
+    if not razao_social: return None
+    rs_clean = razao_social.lower().strip()
+    all_clients = get_all_clients()
+    for c in all_clients:
+        c_name = c['name'].lower().strip()
+        if c_name == rs_clean or c_name in rs_clean or rs_clean in c_name:
+            return c
+    return None
+
 def get_last_url_for_client(razao_social):
     if not razao_social: return ""
     try:
-        client_id = normalize_client_id(razao_social)
-        doc = firestore_db.collection('client_configs').document(client_id).get()
-        if doc.exists: return doc.to_dict().get('url_sistema', '')
-        
-        # Fallback para busca por campo se o ID falhar
-        from google.cloud.firestore_v1.base_query import FieldFilter
-        docs = firestore_db.collection('tasks') \
-            .where(filter=FieldFilter("razao_social", "==", razao_social)) \
-            .order_by("created_at", direction=firestore.Query.DESCENDING) \
-            .limit(1).stream()
-        for d in docs: return d.to_dict().get('url_sistema', '')
+        matched = find_client_fuzzy(razao_social)
+        if matched and matched.get('url_sistema'):
+            return matched.get('url_sistema')
+            
+        # Fallback para busca no Postgres nas tasks (caso não esteja no configs)
+        conn = get_pg_connection()
+        if conn:
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT dados->>'url_sistema' FROM tasks WHERE dados->>'razao_social' = %s ORDER BY dados->>'created_at' DESC LIMIT 1", (razao_social,))
+                    row = cur.fetchone()
+                    if row and row[0]: return row[0]
+            finally:
+                conn.close()
     except Exception as e:
         print(f"Erro ao buscar última URL para {razao_social}: {e}")
     return ""

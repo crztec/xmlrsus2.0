@@ -1160,11 +1160,9 @@ async def get_tasks(type: Optional[str] = None, exclude_api: bool = False, user 
 async def get_task_status(task_id: str, user = Depends(get_current_user)):
     """Retorna o status e progresso de uma tarefa (sem logs completos para economia de leituras).
     Use GET /task/{task_id}/logs para obter os logs detalhados sob demanda."""
-    task = db.firestore_db.collection('tasks').document(task_id).get()
-    if not task.exists:
+    task_data = db.pg_get_doc('tasks', task_id)
+    if not task_data:
         raise HTTPException(status_code=404, detail="Tarefa não encontrada")
-    
-    task_data = task.to_dict()
     
     # Mascarar campos sensíveis antes de retornar
     if 'senha' in task_data: task_data['senha'] = "********"
@@ -1348,7 +1346,16 @@ async def pre_check_duplicates(files: List[UploadFile] = File(...), user = Depen
             abi = str(row.get('Número ABI', row.get('numero_abi', '')))
             if db.check_abi_already_imported(razao_social.strip(), abi):
                 duplicates.append(abi)
-        return {"duplicates": duplicates, "razao_social": razao_social, "client_exists": bool(url_sistema), "url_sistema": url_sistema}
+        
+        xml_data = extracted.iloc[0].to_dict() if not extracted.empty else None
+        
+        return {
+            "duplicates": duplicates, 
+            "razao_social": razao_social, 
+            "client_exists": bool(url_sistema), 
+            "url_sistema": url_sistema,
+            "xml_data": xml_data
+        }
     except Exception as e:
         logger.error(f"Erro no pre-check: {e}")
         return {"duplicates": [], "error": str(e), "client_exists": False}

@@ -56,6 +56,7 @@ export default function DashboardPage() {
   const [clientExists, setClientExists] = useState(false);
   const [showNewClientModal, setShowNewClientModal] = useState(false);
   const [credentialChoice, setCredentialChoice] = useState<'general' | 'unimed_vitoria' | 'manual'>('general');
+  const [xmlData, setXmlData] = useState<any>(null);
 
   // Carregar dados persistidos ao montar
   useEffect(() => {
@@ -141,6 +142,7 @@ export default function DashboardPage() {
         setClientExists(data.client_exists);
         setRsusUrl(data.url_sistema || "");
         setDuplicates(data.duplicates || []);
+        setXmlData(data.xml_data || null);
         
         if (!data.client_exists) {
           addLog(`Empresa '${data.razao_social}' não identificada. Necessário configurar.`, 'info');
@@ -249,7 +251,7 @@ export default function DashboardPage() {
           <div className="mb-8 p-6 rounded-2xl bg-white border border-slate-100 shadow-sm">
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
               <div className="w-full md:w-auto">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Empresa no XML</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Cliente</p>
                 <h3 className="text-lg md:text-xl font-bold text-slate-800 break-words">{razaoSocial}</h3>
               </div>
               <div className="w-full md:w-auto md:text-right">
@@ -257,6 +259,45 @@ export default function DashboardPage() {
                 <p className="text-sm font-medium text-gax-blue break-all md:truncate md:max-w-xs transition-all">
                   {rsusUrl || "URL não cadastrada"}
                 </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {xmlData && !activeTaskId && (
+          <div className="mb-8 p-6 rounded-2xl bg-white border border-slate-100 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <h4 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+              <FileText size={16} className="text-gax-blue" />
+              Dados do XML (Pré-visualização)
+            </h4>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1">Protocolo</p>
+                <p className="text-xs font-bold text-slate-700 break-all">{xmlData.numero_processo || xmlData['Número Processo'] || '-'}</p>
+              </div>
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1">ABI</p>
+                <p className="text-xs font-bold text-slate-700">{xmlData.numero_abi || xmlData['Número ABI'] || '-'}</p>
+              </div>
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1">Competências</p>
+                <p className="text-xs font-bold text-slate-700">{xmlData.competencias || xmlData['Competências'] || '-'}</p>
+              </div>
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1">Data Recebimento</p>
+                <p className="text-xs font-bold text-slate-700">{xmlData.data_recebimento_oficio || xmlData.data_registro_transacao || '-'}</p>
+              </div>
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1">Prazo ANS (XML)</p>
+                <p className="text-xs font-bold text-slate-700">{xmlData.prazo_resposta_ans || '-'}</p>
+              </div>
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1">Qtd. Atendimentos</p>
+                <p className="text-xs font-bold text-slate-700">{xmlData.quantidade_processo || '-'}</p>
+              </div>
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1">Valor Total</p>
+                <p className="text-xs font-bold text-slate-700">R$ {xmlData.valor_total_processo || '-'}</p>
               </div>
             </div>
           </div>
@@ -432,7 +473,7 @@ export default function DashboardPage() {
                   placeholder="https://..." 
                   value={rsusUrl}
                   onChange={(e) => setRsusUrl(e.target.value)}
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-5 py-3 text-sm outline-none focus:border-gax-blue focus:bg-white focus:ring-4 focus:ring-gax-blue/10 transition-all font-medium"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-5 py-3 text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-gax-blue focus:bg-white focus:ring-4 focus:ring-gax-blue/10 transition-all font-medium"
                 />
               </div>
 
